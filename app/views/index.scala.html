@@ -1,6 +1,62 @@
+@(webjars: Seq[WebJar])
+
 @main("WebJars - Web Libraries in Jars") {
 
-    <h1>Intro to WebJars</h1>
+<script type="text/javascript" xmlns="http://www.w3.org/1999/html">
+        $(function() {
+            
+            $("#show-files").change(function(e) {
+                toggleFileList()
+            })
+
+            $("#show-files").attr("checked", false)
+            
+            toggleFileList()
+            
+            $("#buildtoolselect button").click(function(e) {
+                // update for each webjar
+                var buildTool = $(this).attr("data-value")
+                $(".versions button").each(function(i, v) {
+                    if ($(v).hasClass("active")) {
+                        updateDetails(buildTool, $(this).attr("data-value"))
+                    }
+                })
+            })
+
+            $(".versions button").click(function(e) {
+                updateDetails($("#buildtoolselect .active").attr("data-value"), $(this).attr("data-value"))
+            })
+
+            // click on the first version of each webjar
+            $(".versions").each(function(i, v) {
+                $(v).children("button").first().click()
+            })
+            
+        })
+        
+        function toggleFileList() {
+            $(".files").toggle()
+        }
+        
+        function updateDetails(buildTool, webjarVersion) {
+            // fix the id select for jQuery (since it can contain periods)
+            var webjarVersion = webjarVersion.replace(/(:|\.)/g,'\\$1')
+            // show the correct instruction and hide the others
+            $("#build-" + buildTool + "-" + webjarVersion).show().siblings().hide()
+            // show the correct files and hide the others
+            $("#files-" + webjarVersion).show().siblings().hide()
+        }
+    </script>
+
+    <div class="well">
+        <h4>WebJars are client-side web libraries (e.g. jQuery & Bootstrap) packaged into JAR (Java Archive) files.</h4>
+        <ul>
+            <li>Explicitly and easily manage the client-side dependencies in JVM-based web applications</li>
+            <li>Use JVM-based build tools (e.g. Maven, Gradle, & SBT) to download your client-side dependencies</li>
+            <li>Know which client-side dependencies you are using</li>
+            <li>Transitive dependencies magically appear</li>
+        </ul>
+    </div>
 
     <h2>List of WebJars</h2>
 
@@ -8,26 +64,70 @@
         <thead>
             <tr>
                 <th>Name</th>
-                <th>Version</th>
+                <th>
+                    <span style="display: inline; padding-top: 5px; padding-right: 5px;">Build Tool:</span>
+                    <div id="buildtoolselect" class="btn-group" data-toggle="buttons-radio" style="display: inline; margin-top: 2px; margin-right: 5px;">
+                        <button type="button" class="btn btn-mini active" data-value="sbt">SBT / Play 2</button>
+                        <button type="button" class="btn btn-mini" data-value="maven">Maven</button>
+                        <button type="button" class="btn btn-mini" data-value="gradle">Gradle</button>
+                        <button type="button" class="btn btn-mini" data-value="leiningen">Leiningen</button>
+                    </div>
+                    <label class="checkbox" style="float: right; margin-bottom: 0px; margin-top: 2px;">
+                        <small><input id="show-files" type="checkbox"> Show File List</small>
+                    </label>
+                </th>
             </tr>
         <thead>
         <tbody>
-            <tr>
-                <td>jQuery</td>
-                <td>1.8.2</td>
-            </tr>
-            <tr>
-                <td>Bootstrap</td>
-                <td>2.1.1</td>
-            </tr>
+            @for(webjar <- webjars) {
+                <tr>
+                    <td>
+                        <a href="@webjar.sourceUrl"><strong>@webjar.name</strong></a>
+                        <div id="version-@webjar.artifactId" class="versions btn-group" style="display: inline;" data-toggle="buttons-radio">
+                            @for(version <- webjar.versions) {
+                                <button type="button" class="btn btn-mini" data-value="@webjar.artifactId-@version.number" >@version.number</button>
+                            }
+                        </div>
+                        <a href="@webjar.sourceUrl/issues/new" class="btn btn-mini btn-inverse" style="margin-left: 5px; padding-top: 0px; margin-top: -1px;"><i class="icon-plus icon-white"></i></a></span>
+                    </td>
+                    <td>
+                        <div class="build-instructions">
+                            @for(version <- webjar.versions) {
+                                <div id="build-sbt-@webjar.artifactId-@version.number">
+                                    <pre>"org.webjars" % "@webjar.artifactId" % "@version.number"</pre>
+                                </div>
+                                <div id="build-maven-@webjar.artifactId-@version.number">
+                                    <pre>&lt;dependency&gt;
+    &lt;groupId&gt;org.webjars&lt;/groupId&gt;
+    &lt;artifactId&gt;@webjar.artifactId&lt;/artifactId&gt;
+    &lt;version&gt;@version.number&lt;/version&gt;
+&lt;/dependency&gt;</pre>
+                                </div>
+                                <div id="build-gradle-@webjar.artifactId-@version.number">
+                                    <pre>compile 'org.webjars:@webjar.artifactId:@version.number'</pre>
+                                </div>
+                                <div id="build-leiningen-@webjar.artifactId-@version.number">
+                                    <pre>org.webjars/@webjar.artifactId "@version.number"</pre>
+                                </div>
+                            }
+                        </div>
+                        <div class="files">
+                            @for(version <- webjar.versions) {
+                            <div id="files-@webjar.artifactId-@version.number">
+                                <pre class="file-list">@version.files.replaceAll(" ", "")</pre>
+                            </div>
+                            }
+                        </div>
+                    </td>
+                </tr>
+            }
         </tbody>
     </table>
+
+    <a href="http://github.com/webjars/webjars/issues/new">Request a new WebJar</a>
     
 <!--
 Copy-able build tool specific dependency definition
-List of files in WebJar
-Link to source & issues
-Request a WebJar Instructions
 -->
 
 }

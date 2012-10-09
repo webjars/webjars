@@ -5,10 +5,38 @@
     <head>
         <title>@title</title>
         <link rel='stylesheet' href='@routes.WebJarAssets.at("bootstrap/2.1.1/css/bootstrap.min.css")'>
+        <script type='text/javascript' src='@routes.WebJarAssets.at("jquery/1.8.2/jquery.min.js")'></script>
+        <script type='text/javascript' src='@routes.WebJarAssets.at("bootstrap/2.1.1/js/bootstrap.min.js")'></script>
         <style type='text/css'>
             body {
                 padding-top: 60px;
                 padding-bottom: 40px;
+            }
+            
+            pre {
+                margin-bottom: 0px;
+                margin-top: 0px;
+                padding-top: 2px;
+                padding-bottom: 2px;
+                padding-left: 5px;
+                padding-right: 5px;
+            }
+            
+            .build-instructions div {
+                display: none;
+            }
+            
+            .files {
+                margin-top: 10px;
+            }
+            
+            .files div {
+                display: none;
+            }
+            
+            .file-list {
+                overflow-x: auto;
+                white-space: pre;
             }
         </style>
     </head>
@@ -19,7 +47,6 @@
                     <a class="brand" href="@routes.Application.index()">WebJars</a>
                     <ul class="nav">
                         <li><a href="@routes.Application.documentation()">Documentation</a></li>
-                        <li><a href="@routes.Application.examples()">Examples</a></li>
                     </ul>
                 </div>
             </div>
@@ -28,7 +55,5 @@
         <div class="container">
             @content
         </div>
-
-        <script type='text/javascript' src='@routes.WebJarAssets.at("jquery/1.8.1/jquery.min.js")'></script>
     </body>
 </html>

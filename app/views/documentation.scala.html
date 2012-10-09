@@ -1,15 +1,83 @@
 @main("WebJars - Documentation") {
 
-    <h1>General Instructions</h1>
+    <header class="jumbotron subhead">
+        <h4>WebJars work with most JVM-based containers and web frameworks.  Using a WebJar requires:</h4>
+        <ol>
+            <li>The WebJar needs to be a dependency of your application</li>
+            <li>The WebJar needs to be in your application's running CLASSPATH</li>
+            <li>Your container, web framework, or application needs to serve static assets from Jar files</li>
+        </ol>
+        
+    </header>
 
-    <h2>Instructions for Play 2</h2>
+    <div class="tabbable tabs-left">
+        <ul class="nav nav-tabs">
+            <li class="active"><a href="#play2" data-toggle="tab">Play 2</a></li>
+            <li><a href="#servlet3" data-toggle="tab">Servlet 3</a></li>
+            <li><a href="#grails" data-toggle="tab">Grails</a></li>
+            <li><a href="#dropwizard" data-toggle="tab">Dropwizard</a></li>
+            <li><a href="#springmvc" data-toggle="tab">Spring MVC</a></li>
+        </ul>
+        <div class="tab-content">
+            <div class="tab-pane active" id="play2">
+                <h3>Instructions for Play 2 (<a href="https://github.com/jamesward/play2_webjars_demo">example app</a>)</h3>
+                Specify a WebJar as a dependency by adding it to the <span class="label label-info">project/Build.scala</span> file, like:<br/>
+                <pre><code>import sbt._
+import Keys._
+import PlayProject._
 
-    <h2>Instructions for Servlet 3</h2>
+object ApplicationBuild extends Build {
 
-    <h2>Instructions for Grails</h2>
+  val appName         = "foo"
+  val appVersion      = "1.0-SNAPSHOT"
 
-    <h2>Instructions for Dropwizard</h2>
+  val appDependencies = Seq(
+    "org.webjars" % "bootstrap" % "2.1.1"
+  )
 
-    <h2>Instructions for Spring MVC</h2>
+  val main = PlayProject(appName, appVersion, appDependencies, mainLang = SCALA).settings(
+  )
 
+}</code></pre>
+        
+                After changing a Play 2's dependencies you will need to restart Play.  Play 2 has a default route that looks for static assets in a <span class="label label-info">public</span> directory.  The location of the files in WebJars begins with <span class="label label-info">META-INF/resources</span> (so that WebJars work universally).  To tell Play 2 to handle requests for WebJar files you can change the `public` directory in the default `assets` route or your can add another route and a very simple controller.  To add a new route, create a file named <span class="label label-info">app/controllers/WebJarAssets.scala</span> containing:
+                <pre><code>package controllers
+
+import play.api.mvc.Action
+import play.api.mvc.AnyContent
+
+object WebJarAssets {
+
+  def at(file: String): Action[AnyContent] = {
+    Assets.at("/META-INF/resources/webjars", file)
+  }
+
+}</code></pre>
+                Then setup a new route in the `conf/routes` file:
+                <pre><code>GET     /webjars/*file                    controllers.WebJarAssets.at(file)</code></pre>
+                To use Play 2's reverse routing to resolve the URL to an asset you can do the following in a template:
+                <pre><code>&lt;link rel='stylesheet' href='@routes.WebJarAssets.at("bootstrap/2.1.1/css/bootstrap.min.css")'&gt;</code></pre>
+            </div>
+            <div class="tab-pane" id="servlet3">
+                <h3>Instructions for Servlet 3</h3>
+                
+                Under Construction.
+            </div>
+            <div class="tab-pane" id="grails">
+                <h3>Instructions for Grails</h3>
+
+                Under Construction.
+            </div>
+            <div class="tab-pane" id="dropwizard">
+                <h3>Instructions for Dropwizard</h3>
+
+                Under Construction.
+            </div>
+            <div class="tab-pane" id="springmvc">
+                <h3>Instructions for Spring MVC</h3>
+
+                Under Construction.
+            </div>
+        </div>
+    </div>
 }

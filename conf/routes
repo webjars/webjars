@@ -1,5 +1,4 @@
 GET     /                                 controllers.Application.index()
 GET     /documentation                    controllers.Application.documentation()
-GET     /examples                         controllers.Application.examples()
 
 GET     /webjars/*file                    controllers.WebJarAssets.at(file)
