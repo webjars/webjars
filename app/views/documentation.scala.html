@@ -53,10 +53,10 @@ object WebJarAssets {
   }
 
 }</code></pre>
-                Then setup a new route in the `conf/routes` file:
+                Then setup a new route in the <span class="label label-info">conf/routes</span> file:
                 <pre><code>GET     /webjars/*file                    controllers.WebJarAssets.at(file)</code></pre>
                 To use Play 2's reverse routing to resolve the URL to an asset you can do the following in a template:
-                <pre><code>&lt;link rel='stylesheet' href='@routes.WebJarAssets.at("bootstrap/2.1.1/css/bootstrap.min.css")'&gt;</code></pre>
+                <pre><code>&lt;link rel='stylesheet' href='@@routes.WebJarAssets.at("bootstrap/2.1.1/css/bootstrap.min.css")'&gt;</code></pre>
             </div>
             <div class="tab-pane" id="servlet3">
                 <h3>Instructions for Servlet 3</h3>
