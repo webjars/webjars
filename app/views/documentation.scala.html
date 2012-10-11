@@ -1,13 +1,14 @@
 @main("WebJars - Documentation") {
 
-    <header class="jumbotron subhead">
-        <h4>WebJars work with most JVM-based containers and web frameworks.  Using a WebJar requires:</h4>
-        <ol>
-            <li>The WebJar needs to be a dependency of your application</li>
-            <li>The WebJar needs to be in your application's running CLASSPATH</li>
-            <li>Your container, web framework, or application needs to serve static assets from Jar files</li>
-        </ol>
-        
+    <header class="jumbotron subhead" xmlns="http://www.w3.org/1999/html">
+        <div class="well">
+            <h4>WebJars work with most JVM-based containers and web frameworks.  Using a WebJar requires:</h4>
+            <ol>
+                <li>The WebJar needs to be a dependency of your application</li>
+                <li>The WebJar needs to be in your application's running CLASSPATH</li>
+                <li>Your container, web framework, or application needs to serve static assets from Jar files</li>
+            </ol>
+        </div>
     </header>
 
     <div class="tabbable tabs-left">
@@ -20,7 +21,7 @@
         </ul>
         <div class="tab-content">
             <div class="tab-pane active" id="play2">
-                <h3>Instructions for Play 2 (<a href="https://github.com/jamesward/play2_webjars_demo">example app</a>)</h3>
+                <h3>Instructions for Play 2 (<a href="https://github.com/webjars/sample-play2">example app</a>)</h3>
                 Specify a WebJar as a dependency by adding it to the <span class="label label-info">project/Build.scala</span> file, like:<br/>
                 <pre><code>import sbt._
 import Keys._
@@ -39,7 +40,7 @@ object ApplicationBuild extends Build {
   )
 
 }</code></pre>
-        
+                <br/>
                 After changing a Play 2's dependencies you will need to restart Play.  Play 2 has a default route that looks for static assets in a <span class="label label-info">public</span> directory.  The location of the files in WebJars begins with <span class="label label-info">META-INF/resources</span> (so that WebJars work universally).  To tell Play 2 to handle requests for WebJar files you can change the `public` directory in the default `assets` route or your can add another route and a very simple controller.  To add a new route, create a file named <span class="label label-info">app/controllers/WebJarAssets.scala</span> containing:
                 <pre><code>package controllers
 
@@ -53,30 +54,97 @@ object WebJarAssets {
   }
 
 }</code></pre>
+                <br/>
                 Then setup a new route in the <span class="label label-info">conf/routes</span> file:
                 <pre><code>GET     /webjars/*file                    controllers.WebJarAssets.at(file)</code></pre>
+                <br/>
                 To use Play 2's reverse routing to resolve the URL to an asset you can do the following in a template:
                 <pre><code>&lt;link rel='stylesheet' href='@@routes.WebJarAssets.at("bootstrap/2.1.1/css/bootstrap.min.css")'&gt;</code></pre>
             </div>
             <div class="tab-pane" id="servlet3">
                 <h3>Instructions for Servlet 3</h3>
                 
-                Under Construction.
+                With any Servlet 3 compatible container, the WebJars that are in the <span class="label label-info">WEB-INF/lib</span> directory are automatically made available as static resources.  This works because anything in a <span class="label label-info">META-INF/resources</span> directory in a JAR in <span class="label label-info">WEB-INF/lib</span> is automatically exposed as a static resource. 
+
+                <h4>Maven Example (<a href="https://github.com/webjars/sample-jetty_war">example app</a>)</h4>
+                
+                First add a WebJar as a dependency of your application in the <span class="label label-info">pom.xml</span> file, like:
+                <pre><code>&lt;dependencies&gt;
+    &lt;dependency&gt;
+        &lt;groupId&gt;org.webjars&lt;/groupId&gt;
+        &lt;artifactId&gt;bootstrap&lt;/artifactId&gt;
+        &lt;version&gt;2.1.1&lt;/version&gt;
+    &lt;/dependency&gt;
+&lt;/dependencies&gt;</code></pre>
+                <br/>
+                Then simply reference the resource like:
+                <pre><code>&lt;link rel='stylesheet' href='/webjars/bootstrap/2.1.1/css/bootstrap.min.css'&gt;</code></pre>
             </div>
             <div class="tab-pane" id="grails">
                 <h3>Instructions for Grails</h3>
 
-                Under Construction.
+                Coming soon...
             </div>
             <div class="tab-pane" id="dropwizard">
-                <h3>Instructions for Dropwizard</h3>
+                <h3>Instructions for Dropwizard (<a href="https://github.com/webjars/sample-dropwizard">example app</a>)</h3>
 
-                Under Construction.
+                With Dropwizard you can easily expose WebJars through the <span class="label label-info">AssetsBundle</span>.  In your startup service's constructor setup the <span class="label label-info">AssetsBundle</span> to map static asset requests in a <span class="label label-info">/META-INF/resources/webjars</span> directory in JARs on the CLASSPATH to the <span class="label label-info">/webjars</span> URL, for example:
+                <pre><code>package org.webjars;
+
+import com.yammer.dropwizard.Service;
+import com.yammer.dropwizard.bundles.AssetsBundle;
+import com.yammer.dropwizard.config.Configuration;
+import com.yammer.dropwizard.config.Environment;
+
+public class MainService extends Service<Configuration> {
+
+    public static void main(String[] args) throws Exception {
+        new MainService().run(args);
+    }
+
+    private MainService() {
+        super("sample-dropwizard");
+        addBundle(new AssetsBundle("/META-INF/resources/webjars", 0, "/webjars"));
+    }
+
+}</code></pre>
+                <br/>
+                Now you can reference a WebJar asset like:
+                <pre><code>&lt;link rel='stylesheet' href='/webjars/bootstrap/2.1.1/css/bootstrap.min.css'&gt;</code></pre>
             </div>
             <div class="tab-pane" id="springmvc">
                 <h3>Instructions for Spring MVC</h3>
+                
+                Spring MVC makes it easy to expose static assets in JAR files using <span class="label label-info">ResourceHandlers</span>.
 
-                Under Construction.
+                <h4>Maven Example (<a href="https://github.com/webjars/sample-jetty_war">example app</a>)</h4>
+
+                First add a WebJar as a dependency of your application in the <span class="label label-info">pom.xml</span> file, like:
+                <pre><code>&lt;dependencies&gt;
+    &lt;dependency&gt;
+        &lt;groupId&gt;org.webjars&lt;/groupId&gt;
+        &lt;artifactId&gt;bootstrap&lt;/artifactId&gt;
+        &lt;version&gt;2.1.1&lt;/version&gt;
+    &lt;/dependency&gt;
+&lt;/dependencies&gt;</code></pre>
+                <br/>
+                Then configure Spring to map requests for <span class="label label-info">/webjars</span> to the <span class="label label-info">/META-INF/resources/webjars</span> directory of all the JARs in the CLASSPATH.  This can be done either via XML config:
+                <pre><code>&lt;mvc:resources mapping="/public/**" location="classpath:/public/"/&gt;</code></pre>
+                <br/>
+                Or Java config:
+                <pre><code>@@Configuration
+@@EnableWebMvc
+public class WebConfig extends WebMvcConfigurerAdapter {
+
+    @@Override
+    public void addResourceHandlers(ResourceHandlerRegistry registry) {
+        registry.addResourceHandler("/webjars/**").addResourceLocations("classpath:/META-INF/resources/webjars/");
+    }
+                    
+}</code></pre>
+                <br/>
+                The reference a WebJar asset like: 
+                <pre><code>&lt;link rel='stylesheet' href='/webjars/bootstrap/2.1.1/css/bootstrap.min.css'&gt;</code></pre>
             </div>
         </div>
     </div>

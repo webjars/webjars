@@ -6,9 +6,6 @@ case class WebJarVersion(number: String, files: String)
 
 object WebJars {
   
-  //val webjar = WebJarVersion("asdf", "asdf")
-  //webjar.files.stripMargin
-  
   val all: Seq[WebJar] = Seq(
     WebJar("jquery", "jQuery", "http://github.com/webjars/jquery", Seq(
       WebJarVersion("1.8.2", """
