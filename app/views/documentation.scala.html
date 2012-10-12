@@ -41,7 +41,7 @@ object ApplicationBuild extends Build {
 
 }</code></pre>
                 <br/>
-                After changing a Play 2's dependencies you will need to restart Play.  Play 2 has a default route that looks for static assets in a <span class="label label-info">public</span> directory.  The location of the files in WebJars begins with <span class="label label-info">META-INF/resources</span> (so that WebJars work universally).  To tell Play 2 to handle requests for WebJar files you can change the `public` directory in the default `assets` route or your can add another route and a very simple controller.  To add a new route, create a file named <span class="label label-info">app/controllers/WebJarAssets.scala</span> containing:
+                After changing a Play 2's dependencies you will need to restart Play.  Play 2 has a default route that looks for static assets in a <span class="label label-info">public</span> directory.  The location of the files in WebJars begins with <span class="label label-info">META-INF/resources</span> (so that WebJars work universally).  To tell Play 2 to handle requests for WebJar files you must add another route and a very simple controller.  Create a file named <span class="label label-info">app/controllers/WebJarAssets.scala</span> containing:
                 <pre><code>package controllers
 
 import play.api.mvc.Action
@@ -129,7 +129,7 @@ public class MainService extends Service<Configuration> {
 &lt;/dependencies&gt;</code></pre>
                 <br/>
                 Then configure Spring to map requests for <span class="label label-info">/webjars</span> to the <span class="label label-info">/META-INF/resources/webjars</span> directory of all the JARs in the CLASSPATH.  This can be done either via XML config:
-                <pre><code>&lt;mvc:resources mapping="/public/**" location="classpath:/public/"/&gt;</code></pre>
+                <pre><code>&lt;mvc:resources mapping="/webjars/**" location="classpath:/META-INF/resources/webjars/"/&gt;</code></pre>
                 <br/>
                 Or Java config:
                 <pre><code>@@Configuration
