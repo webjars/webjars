@@ -1,4 +1,6 @@
 GET     /                                 controllers.Application.index()
 GET     /documentation                    controllers.Application.documentation()
 
+GET     /mockcentral/searchgroup          controllers.MockCentral.searchGroup()
+
 GET     /webjars/*file                    controllers.WebJarAssets.at(file)

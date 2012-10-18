@@ -85,7 +85,7 @@
                         <a href="@webjar.sourceUrl"><strong>@webjar.name</strong></a>
                         <div id="version-@webjar.artifactId" class="versions btn-group" style="display: inline;" data-toggle="buttons-radio">
                             @for(version <- webjar.versions) {
-                                <button type="button" class="btn btn-mini" data-value="@webjar.artifactId-@version.number" >@version.number</button>
+                                <button type="button" class="btn btn-mini" data-value="@webjar.artifactId-@version" >@version</button>
                             }
                         </div>
                         <a href="@webjar.sourceUrl/issues/new" class="btn btn-mini btn-inverse" style="margin-left: 5px; padding-top: 0px; margin-top: -1px;"><i class="icon-plus icon-white"></i></a></span>
@@ -93,28 +93,28 @@
                     <td>
                         <div class="build-instructions">
                             @for(version <- webjar.versions) {
-                                <div id="build-sbt-@webjar.artifactId-@version.number">
-                                    <pre>"org.webjars" % "@webjar.artifactId" % "@version.number"</pre>
+                                <div id="build-sbt-@webjar.artifactId-@version">
+                                    <pre>"org.webjars" % "@webjar.artifactId" % "@version"</pre>
                                 </div>
-                                <div id="build-maven-@webjar.artifactId-@version.number">
+                                <div id="build-maven-@webjar.artifactId-@version">
                                     <pre>&lt;dependency&gt;
     &lt;groupId&gt;org.webjars&lt;/groupId&gt;
     &lt;artifactId&gt;@webjar.artifactId&lt;/artifactId&gt;
-    &lt;version&gt;@version.number&lt;/version&gt;
+    &lt;version&gt;@version&lt;/version&gt;
 &lt;/dependency&gt;</pre>
                                 </div>
-                                <div id="build-gradle-@webjar.artifactId-@version.number">
-                                    <pre>compile 'org.webjars:@webjar.artifactId:@version.number'</pre>
+                                <div id="build-gradle-@webjar.artifactId-@version">
+                                    <pre>compile 'org.webjars:@webjar.artifactId:@version'</pre>
                                 </div>
-                                <div id="build-leiningen-@webjar.artifactId-@version.number">
-                                    <pre>org.webjars/@webjar.artifactId "@version.number"</pre>
+                                <div id="build-leiningen-@webjar.artifactId-@version">
+                                    <pre>org.webjars/@webjar.artifactId "@version"</pre>
                                 </div>
                             }
                         </div>
                         <div class="files">
                             @for(version <- webjar.versions) {
-                            <div id="files-@webjar.artifactId-@version.number">
-                                <pre class="file-list">@version.files.replaceAll(" ", "")</pre>
+                            <div id="files-@webjar.artifactId-@version">
+                                
                             </div>
                             }
                         </div>

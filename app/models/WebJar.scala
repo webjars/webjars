@@ -1,7 +1,10 @@
 package models
 
-case class WebJar(artifactId: String, name: String, sourceUrl: String, versions: Seq[WebJarVersion])
+import play.api.libs.json.{Reads, JsValue}
 
+case class WebJar(artifactId: String, name: String, sourceUrl: String, versions: Seq[String])
+
+/*
 case class WebJarVersion(number: String, files: String)
 
 object WebJars {
@@ -63,3 +66,4 @@ object WebJars {
     ))
   )
 }
+*/
