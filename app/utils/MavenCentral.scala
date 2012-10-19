@@ -11,26 +11,23 @@ import models.WebJar
 
 object MavenCentral {
 
-  def allWebJars: Promise[Seq[WebJar]] = {
-    Cache.getAs[Seq[WebJar]]("allWebJars").map {
+  def allWebJars: Promise[Iterable[WebJar]] = {
+    Cache.getAs[Iterable[WebJar]]("allWebJars").map {
       Promise.pure(_)
     } getOrElse {
       // todo: would be nice if this could only happen only once no matter how many in-flight requests have missed the cache
       WS.url(Play.configuration.getString("webjars.searchGroupUrl").get).get().map { response =>
-        val webjars = (response.json \ "response" \ "docs").as[Seq[JsObject]].map { jsObject =>
-          (jsObject \ "versionCount").as[Int] match {
-            case 1 => {
-              val artifactId = (jsObject \ "a").as[String]
-              WebJar(artifactId, artifactId, "http://github.com/webjars/" + artifactId, Seq((jsObject \ "latestVersion").as[String])) // todo: find a way to get the actual name
-            }
-            case _ => {
-              // todo: get the list of all versions
-              val artifactId = (jsObject \ "a").as[String]
-              WebJar(artifactId, artifactId, "http://github.com/webjars/" + artifactId, Seq((jsObject \ "latestVersion").as[String])) // todo: find a way to get the actual name
-            }
-          }
+        val allVersions = (response.json \ "response" \ "docs").as[Seq[JsObject]].map { jsObject =>
+          ((jsObject \ "a").as[String], (jsObject \ "v").as[String])
         }
-        println(webjars)
+        
+        val grouped = allVersions.groupBy(_._1)  // group by the artifactId
+        
+        val webjars = grouped.map { version =>
+          val versions = version._2.map(_._2) // create a list of the versions
+          WebJar(version._1, version._1, "http://github.com/webjars/" + version._1, versions) // todo: find a way to get the actual name
+        }
+        
         Cache.set("allWebJars", webjars, 60 * 60)
         webjars
       }

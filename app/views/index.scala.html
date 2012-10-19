@@ -1,17 +1,9 @@
-@(webjars: Seq[WebJar])
+@(webjars: Iterable[WebJar])
 
 @main("WebJars - Web Libraries in Jars") {
 
 <script type="text/javascript" xmlns="http://www.w3.org/1999/html">
         $(function() {
-            
-            $("#show-files").change(function(e) {
-                toggleFileList()
-            })
-
-            $("#show-files").attr("checked", false)
-            
-            toggleFileList()
             
             $("#buildtoolselect button").click(function(e) {
                 // update for each webjar
@@ -34,17 +26,11 @@
             
         })
         
-        function toggleFileList() {
-            $(".files").toggle()
-        }
-        
         function updateDetails(buildTool, webjarVersion) {
             // fix the id select for jQuery (since it can contain periods)
             var webjarVersion = webjarVersion.replace(/(:|\.)/g,'\\$1')
             // show the correct instruction and hide the others
             $("#build-" + buildTool + "-" + webjarVersion).show().siblings().hide()
-            // show the correct files and hide the others
-            $("#files-" + webjarVersion).show().siblings().hide()
         }
     </script>
 
@@ -63,7 +49,7 @@
     <table class="table table-striped table-bordered">
         <thead>
             <tr>
-                <th>Name</th>
+                <th><span style="display: inline; padding-top: 5px; padding-right: 5px;">Name</span></th>
                 <th>
                     <span style="display: inline; padding-top: 5px; padding-right: 5px;">Build Tool:</span>
                     <div id="buildtoolselect" class="btn-group" data-toggle="buttons-radio" style="display: inline; margin-top: 2px; margin-right: 5px;">
@@ -72,9 +58,6 @@
                         <button type="button" class="btn btn-mini" data-value="gradle">Gradle</button>
                         <button type="button" class="btn btn-mini" data-value="leiningen">Leiningen</button>
                     </div>
-                    <label class="checkbox" style="float: right; margin-bottom: 0px; margin-top: 2px;">
-                        <small><input id="show-files" type="checkbox"> Show File List</small>
-                    </label>
                 </th>
             </tr>
         <thead>
@@ -111,13 +94,6 @@
                                 </div>
                             }
                         </div>
-                        <div class="files">
-                            @for(version <- webjar.versions) {
-                            <div id="files-@webjar.artifactId-@version">
-                                
-                            </div>
-                            }
-                        </div>
                     </td>
                 </tr>
             }
@@ -125,9 +101,5 @@
     </table>
 
     <a href="http://github.com/webjars/webjars/issues/new">Request a new WebJar</a>
-    
-<!--
-Copy-able build tool specific dependency definition
--->
 
 }
