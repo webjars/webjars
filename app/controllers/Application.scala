@@ -12,6 +12,10 @@ object Application extends Controller {
       }
     }
   }
+  
+  def listFiles(artifactId: String, version: String) = Action {
+    Ok(MavenCentral.listFiles(artifactId, version))
+  }
 
   def documentation = Action {
     Ok(views.html.documentation())

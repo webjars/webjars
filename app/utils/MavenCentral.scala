@@ -7,12 +7,19 @@ import play.api.cache.Cache
 import play.api.Play.current
 import play.api.Play
 
-import models.WebJar
+import models.{WebJarVersion, WebJar}
+
+import sun.net.www.protocol.jar.JarURLConnection
+import java.net.URL
+import scala.collection.JavaConversions.enumerationAsScalaIterator
+import java.util.jar.JarEntry
 
 object MavenCentral {
 
+  val ALL_WEBJARS_CACHE_KEY: String = "allWebJars"
+  
   def allWebJars: Promise[Iterable[WebJar]] = {
-    Cache.getAs[Iterable[WebJar]]("allWebJars").map {
+    Cache.getAs[Iterable[WebJar]](ALL_WEBJARS_CACHE_KEY).map {
       Promise.pure(_)
     } getOrElse {
       // todo: would be nice if this could only happen only once no matter how many in-flight requests have missed the cache
@@ -20,18 +27,54 @@ object MavenCentral {
         val allVersions = (response.json \ "response" \ "docs").as[Seq[JsObject]].map { jsObject =>
           ((jsObject \ "a").as[String], (jsObject \ "v").as[String])
         }
-        
-        val grouped = allVersions.groupBy(_._1)  // group by the artifactId
-        
-        val webjars = grouped.map { version =>
-          val versions = version._2.map(_._2) // create a list of the versions
-          WebJar(version._1, version._1, "http://github.com/webjars/" + version._1, versions) // todo: find a way to get the actual name
+
+        // group by the artifactId and pull the list of files from the cache
+        val grouped = allVersions.groupBy(_._1).mapValues {
+          _.map { webJarVersion =>
+            WebJarVersion(webJarVersion._2, Cache.getAs[Seq[String]](WebJarVersion.cacheKey(webJarVersion._1, webJarVersion._2)))
+          }
         }
         
-        Cache.set("allWebJars", webjars, 60 * 60)
+        val webjars = grouped.map { webjar =>
+          WebJar(webjar._1, webjar._1, "http://github.com/webjars/" + webjar._1, webjar._2) // todo: find a way to get the actual name
+        }
+        
+        Cache.set(ALL_WEBJARS_CACHE_KEY, webjars, 60 * 60)
         webjars
       }
     }
+  }
+  
+  def listFiles(artifactId: String, version: String): String = {
+    val files = Cache.getOrElse[Seq[String]](WebJarVersion.cacheKey(artifactId, version)) {
+
+      val url = new URL(Play.configuration.getString("webjars.jarUrl").get.format(artifactId, version, artifactId, version))
+
+      val jarFileEntries: Iterator[JarEntry] = url.openConnection().asInstanceOf[JarURLConnection].getJarFile.entries()
+
+      
+      val webjarFiles: Seq[String] = jarFileEntries.filterNot { jarFileEntry =>
+        jarFileEntry.isDirectory
+      }.map { jarFileEntry =>
+        jarFileEntry.getName
+      }.filter { jarFile =>
+        jarFile.startsWith("META-INF/resources/webjars")
+      }.toSeq
+
+      Cache.set(WebJarVersion.cacheKey(artifactId, version), webjarFiles)
+
+      // update the webjars cache to contain the new value
+      /*
+      Cache.getAs[Iterable[WebJar]](ALL_WEBJARS_CACHE_KEY).map { allWebJars =>
+        allWebJars.map { webjar =>
+        }
+      }
+      */
+      Cache.set(ALL_WEBJARS_CACHE_KEY, None)
+      
+      webjarFiles
+    }
+    files.mkString("\n")
   }
 
 }
