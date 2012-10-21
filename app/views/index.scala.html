@@ -5,6 +5,13 @@
 <script type="text/javascript" xmlns="http://www.w3.org/1999/html">
         $(function() {
             
+            $(".file-list-link").click(function(event) {
+                event.preventDefault()
+                $("#myModalLabel").text("Files for " + $(this).data("name"))
+                $('#fileListModal').removeData("modal")
+                $('#fileListModal').modal({remote: $(this).attr("href")})
+            })
+            
             $("#buildtoolselect button").click(function(e) {
                 // update for each webjar
                 var buildTool = $(this).attr("data-value")
@@ -104,7 +111,7 @@
                         <div class="files">
                             @for(version <- webjar.versions) {
                                 <div id="files-@webjar.artifactId-@version.number">
-                                    <a href="@routes.Application.listFiles(webjar.artifactId, version.number)">
+                                    <a href="@routes.Application.listFiles(webjar.artifactId, version.number)" class="file-list-link" data-name="@webjar.artifactId">
                                     @{version.files match {
                                         case Some(files) => files.size + " Files"
                                         case None => "List Files"

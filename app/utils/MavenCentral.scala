@@ -51,7 +51,6 @@ object MavenCentral {
       val url = new URL(Play.configuration.getString("webjars.jarUrl").get.format(artifactId, version, artifactId, version))
 
       val jarFileEntries: Iterator[JarEntry] = url.openConnection().asInstanceOf[JarURLConnection].getJarFile.entries()
-
       
       val webjarFiles: Seq[String] = jarFileEntries.filterNot { jarFileEntry =>
         jarFileEntry.isDirectory
@@ -70,6 +69,7 @@ object MavenCentral {
         }
       }
       */
+      // Brute force eviction
       Cache.set(ALL_WEBJARS_CACHE_KEY, None)
       
       webjarFiles

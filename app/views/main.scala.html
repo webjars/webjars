@@ -35,6 +35,21 @@
             .files div {
                 display: none;
             }
+            
+            #fileListModal {
+                width: 900px;
+                margin-left: -450px;
+                max-height: 600px;
+            }
+            
+            .file-list {
+                font-size: 13px;
+                line-height: 20px;
+                word-break: break-all;
+                word-wrap: break-word;
+                white-space: pre-wrap;
+                font-family: Monaco,Menlo,Consolas,"Courier New",monospace;
+            }
         </style>
     </head>
     <body>
@@ -51,6 +66,16 @@
     
         <div class="container">
             @content
+        </div>
+
+        <div id="fileListModal" class="modal hide fade" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+                <h3 id="myModalLabel"></h3>
+            </div>
+            <div class="modal-body file-list">
+                Loading...
+            </div>
         </div>
     </body>
 </html>
