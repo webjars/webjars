@@ -8,8 +8,9 @@
             $(".file-list-link").click(function(event) {
                 event.preventDefault()
                 $("#myModalLabel").text("Files for " + $(this).data("name"))
-                $('#fileListModal').removeData("modal")
-                $('#fileListModal').modal({remote: $(this).attr("href")})
+                $("#fileListModal .modal-body").text("Loading...")
+                $("#fileListModal").removeData("modal")
+                $("#fileListModal").modal({remote: $(this).attr("href")})
             })
             
             $("#buildtoolselect button").click(function(e) {
