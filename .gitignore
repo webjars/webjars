@@ -1,10 +1,8 @@
-logs
-project/project
-project/target
-target
-tmp
-.history
-dist
+/target
 /.idea
+/*.iml
 /.idea_modules
 /.settings
+/logs
+/project/project
+/project/target
