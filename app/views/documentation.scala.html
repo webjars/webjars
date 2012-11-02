@@ -13,14 +13,33 @@
 
     <div class="tabbable tabs-left">
         <ul class="nav nav-tabs">
-            <li class="active"><a href="#play2" data-toggle="tab">Play 2</a></li>
-            <li><a href="#servlet3" data-toggle="tab">Servlet 3</a></li>
+            <li class="active"><a href="#servlet3" data-toggle="tab">Servlet 3</a></li>
+            <li><a href="#play2" data-toggle="tab">Play 2</a></li>
             <li><a href="#grails" data-toggle="tab">Grails</a></li>
             <li><a href="#dropwizard" data-toggle="tab">Dropwizard</a></li>
             <li><a href="#springmvc" data-toggle="tab">Spring MVC</a></li>
         </ul>
         <div class="tab-content">
-            <div class="tab-pane active" id="play2">
+            <div class="tab-pane active" id="servlet3">
+                <h3>Instructions for Servlet 3</h3>
+                
+                With any Servlet 3 compatible container, the WebJars that are in the <span class="label label-info">WEB-INF/lib</span> directory are automatically made available as static resources.  This works because anything in a <span class="label label-info">META-INF/resources</span> directory in a JAR in <span class="label label-info">WEB-INF/lib</span> is automatically exposed as a static resource. 
+
+                <h4>Maven Example (<a href="https://github.com/webjars/sample-jetty_war">example app</a>)</h4>
+                
+                First add a WebJar as a dependency of your application in the <span class="label label-info">pom.xml</span> file, like:
+                <pre><code>&lt;dependencies&gt;
+    &lt;dependency&gt;
+        &lt;groupId&gt;org.webjars&lt;/groupId&gt;
+        &lt;artifactId&gt;bootstrap&lt;/artifactId&gt;
+        &lt;version&gt;2.1.1&lt;/version&gt;
+    &lt;/dependency&gt;
+&lt;/dependencies&gt;</code></pre>
+                <br/>
+                Then simply reference the resource like:
+                <pre><code>&lt;link rel='stylesheet' href='/webjars/bootstrap/2.1.1/css/bootstrap.min.css'&gt;</code></pre>
+            </div>
+            <div class="tab-pane" id="play2">
                 <h3>Instructions for Play 2 (<a href="https://github.com/webjars/sample-play2">example app</a>)</h3>
                 WebJars can be added as dependencies to an app by simply adding them to the <span class="label label-info">project/Build.scala</span> file.  There is also a helper library named <span class="label label-info">webjars-play2</span> that makes it easy to reference WebJar assets.  Here is an example <span class="label label-info">project/Build.scala</span> file with <span class="label label-info">webjars-play2</span> and the <span class="label label-info">bootstrap</span> WebJar as dependencies:<br/>
                 <pre><code>import sbt._
@@ -47,25 +66,6 @@ object ApplicationBuild extends Build {
                 To use Play 2's reverse routing to resolve the URL to an asset you can do the following in a template:
                 <pre><code>&lt;link rel='stylesheet' href='@@routes.WebJarAssets.at(WebJarAssets.locate("css/bootstrap.min.css"))'&gt;
 &lt;script type='text/javascript' src='@@routes.WebJarAssets.at(WebJarAssets.locate("jquery.min.js"))'&gt;&lt;/script&gt;</code></pre>
-            </div>
-            <div class="tab-pane" id="servlet3">
-                <h3>Instructions for Servlet 3</h3>
-                
-                With any Servlet 3 compatible container, the WebJars that are in the <span class="label label-info">WEB-INF/lib</span> directory are automatically made available as static resources.  This works because anything in a <span class="label label-info">META-INF/resources</span> directory in a JAR in <span class="label label-info">WEB-INF/lib</span> is automatically exposed as a static resource. 
-
-                <h4>Maven Example (<a href="https://github.com/webjars/sample-jetty_war">example app</a>)</h4>
-                
-                First add a WebJar as a dependency of your application in the <span class="label label-info">pom.xml</span> file, like:
-                <pre><code>&lt;dependencies&gt;
-    &lt;dependency&gt;
-        &lt;groupId&gt;org.webjars&lt;/groupId&gt;
-        &lt;artifactId&gt;bootstrap&lt;/artifactId&gt;
-        &lt;version&gt;2.1.1&lt;/version&gt;
-    &lt;/dependency&gt;
-&lt;/dependencies&gt;</code></pre>
-                <br/>
-                Then simply reference the resource like:
-                <pre><code>&lt;link rel='stylesheet' href='/webjars/bootstrap/2.1.1/css/bootstrap.min.css'&gt;</code></pre>
             </div>
             <div class="tab-pane" id="grails">
                 <h3>Instructions for Grails</h3>
