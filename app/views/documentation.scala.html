@@ -68,9 +68,55 @@ object ApplicationBuild extends Build {
                 <pre><code>&lt;link rel='stylesheet' href='/webjars/bootstrap/2.1.1/css/bootstrap.min.css'&gt;</code></pre>
             </div>
             <div class="tab-pane" id="grails">
-                <h3>Instructions for Grails</h3>
+                <h3>Instructions for Grails (<a href="https://github.com/webjars/sample-grails">example app</a>)</h3>
 
-                Coming soon...
+                Grails manages static resources (such as javascript and css files) with the resources plugin.  The resources plugin manages static resources via modules, like the Jquery Module, that define via a config file which static resources a module requires. For a more details explanation see the <a href="http://grails.org/doc/latest/guide/theWebLayer.html#resources">Grails docs on using Static Resource</a>.
+
+                <br/><br/>The <a href="https://github.com/groovydev/modules-manager-grails-plugin">Grails Modules Manager plugin</a> allows dependencies on web libraries to be declared in the Grails build configuration file, <span class="label label-info">BuildConfig.groovy</span>.  It resolves theses dependencies and creates modules that can be used by the resources plugin.  It does this by downloading the jar files from webjars.org and extracting the web libraries from the jar files.  It then creates grails specific resource modules from these web libraries.
+                </br><h4>Steps for using the plugin:</h4>
+                <ul>
+                    <li>Clone the modules manager plugin from
+                        <pre><code>https://github.com/groovydev/modules-manager-grails-plugin.git</code></pre>
+                    </li>
+                    <br/>
+                    <li>Build the plugin:
+                        <pre><code>grails package-plugin</code></pre>
+                    </li>
+                    <br/>
+                    <li>Install the plugin into your grails project from the file system - this assumes the plugin is in
+                        the same parent directory as the project:
+                        <pre><code>grails install-plugin ../modules-manager-grails-plugin/grails-modules-manager-0.2.1.zip</code></pre>
+                    </li>
+                    <br/>
+                    <li>Define the javascript and css dependencies. In <span class="label label-info">grails-app/config/BuildConfig.groovy</span>
+                        add:
+                        <pre><code>dependencies {
+    compile 'org.webjars:bootstrap:2.1.1'
+}</code></pre>
+                    </li>
+                    <br/>
+                    <li>Run the refresh modules command which will download the necessary javascript and css dependencies:
+                        <pre><code>grails refresh-modules</code></pre>
+                    </li>
+                    <br/>
+                    <li>Notice how the plugin added the file <span class="label label-info">conf/ModulesBootstrapResources.groovy</span>.  This module config file is used by the resources plugin to define the module dependencies and static resources.
+                    </li>
+                    <br/>
+                    <li>Add the module dependencies to the web page (see the example in <a href="https://github.com/webjars/sample-grails/blob/master/grails-app/views/index.gsp">views/index.gsp</a>).  This is done by adding the require tag to the html page to include the static resource modules.  Also note that it is necessary to add the layoutResources tag twice to the page.
+                        <br/></br>In the head tag add:
+                        <pre><code>&lt;head&gt;
+&lt;r:require modules="jquery, bootstrap"/&gt;
+&lt;r:layoutResources/&gt;</code></pre>
+                        </br>And then at the bottom of the page right before the body add:
+                        <pre><code>&lt;r:layoutResources/&gt;
+&lt;/body&gt;</code></pre>
+                    </li>
+                    <br/>
+                    <li>The resource manager then optimizes when the javascript is load by when it is need in the page and by default includes the javascript at the bottom of the page.  For this reason it is necessary to put the javascript in a &lt;r:script&gt; tag so that the necessary dependencies will be included when the layoutResources tag is called.  For example to use a jquery initialization function add the following to the page:
+                       <pre><code>&lt;r:script&gt;
+$(function (){ ... } </code></pre>
+                    </li>
+                </ul>
             </div>
             <div class="tab-pane" id="dropwizard">
                 <h3>Instructions for Dropwizard (<a href="https://github.com/webjars/sample-dropwizard">example app</a>)</h3>
