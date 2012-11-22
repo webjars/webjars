@@ -35,7 +35,9 @@ object MavenCentral {
           }
         }
         
-        val webjars = grouped.map { webjar =>
+        val webjars = grouped.filterNot { webjar =>
+          webjar._1.startsWith("webjars-") // remove items like "webjars-play"
+        }.map { webjar =>
           WebJar(webjar._1, webjar._1, "http://github.com/webjars/" + webjar._1, webjar._2) // todo: find a way to get the actual name
         }
         
@@ -46,20 +48,20 @@ object MavenCentral {
   }
   
   def listFiles(artifactId: String, version: String): String = {
-    val files = Cache.getOrElse[Seq[String]](WebJarVersion.cacheKey(artifactId, version)) {
+    val files = Cache.getOrElse[List[String]](WebJarVersion.cacheKey(artifactId, version)) {
 
       val url = new URL(Play.configuration.getString("webjars.jarUrl").get.format(artifactId, version, artifactId, version))
 
       val jarFileEntries: Iterator[JarEntry] = url.openConnection().asInstanceOf[JarURLConnection].getJarFile.entries()
       
-      val webjarFiles: Seq[String] = jarFileEntries.filterNot { jarFileEntry =>
+      val webjarFiles: List[String] = jarFileEntries.filterNot { jarFileEntry =>
         jarFileEntry.isDirectory
       }.map { jarFileEntry =>
         jarFileEntry.getName
       }.filter { jarFile =>
         jarFile.startsWith("META-INF/resources/webjars")
-      }.toSeq
-
+      }.toList
+      
       Cache.set(WebJarVersion.cacheKey(artifactId, version), webjarFiles)
 
       // update the webjars cache to contain the new value
