@@ -1,7 +1,9 @@
 GET     /                                 controllers.Application.index()
 GET     /listfiles/:artifact/:version     controllers.Application.listFiles(artifact, version)
 GET     /documentation                    controllers.Application.documentation()
+GET     /contributing                     controllers.Application.contributing()
 
 GET     /mockcentral/searchgroup          controllers.MockCentral.searchGroup()
 
 GET     /webjars/*file                    controllers.WebJarAssets.at(file)
+GET     /assets/*file                    controllers.Assets.at(path="/public", file)

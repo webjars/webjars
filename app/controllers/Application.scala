@@ -20,5 +20,9 @@ object Application extends Controller {
   def documentation = Action {
     Ok(views.html.documentation())
   }
+
+  def contributing = Action {
+    Ok(views.html.contributing())
+  }
   
 }
