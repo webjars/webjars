@@ -18,6 +18,7 @@
             <li><a href="#grails" data-toggle="tab">Grails</a></li>
             <li><a href="#dropwizard" data-toggle="tab">Dropwizard</a></li>
             <li><a href="#springmvc" data-toggle="tab">Spring MVC</a></li>
+            <li><a href="#wicket" data-toggle="tab">Apache Wicket</a></li>
         </ul>
         <div class="tab-content">
             <div class="tab-pane active" id="play2">
@@ -179,6 +180,71 @@ public class WebConfig extends WebMvcConfigurerAdapter {
                 <br/>
                 The reference a WebJar asset like: 
                 <pre><code>&lt;link rel='stylesheet' href='/webjars/bootstrap/2.1.1/css/bootstrap.min.css'&gt;</code></pre>
+            </div>
+            <div class="tab-pane" id="wicket">
+                <h3>Instructions for Apache Wicket</h3>
+
+                The wicket integration of Webjars uses a special <span class="label label-info">IResourceFinder</span> implementation to map
+                Webjars resources.
+
+                <h4>Maven Example (<a href="https://github.com/l0rdn1kk0n/wicket-webjars">samples</a>)</h4>
+
+                First you have to add wicket-webjars as dependency to your application in the <span class="label label-info">pom.xml</span> file, like:
+                <pre><code>&lt;dependencies&gt;
+                    &lt;dependency&gt;
+                    &lt;groupId&gt;de.agilecoders.wicket.webjars&lt;/groupId&gt;
+                    &lt;artifactId&gt;wicket-webjars&lt;/artifactId&gt;
+                    &lt;version&gt;0.2.0&lt;/version&gt;
+                    &lt;/dependency&gt;
+                    &lt;/dependencies&gt;</code></pre>
+                <br/>
+
+                and a WebJar dependency like:
+
+                <pre><code>&lt;dependencies&gt;
+                    &lt;dependency&gt;
+                    &lt;groupId&gt;org.webjars&lt;/groupId&gt;
+                    &lt;artifactId&gt;jquery&lt;/artifactId&gt;
+                    &lt;version&gt;1.8.3&lt;/version&gt;
+                    &lt;/dependency&gt;
+                    &lt;/dependencies&gt;</code></pre>
+                <br/>
+
+                Then configure your wicket application to map requests for <span class="label label-info">/webjars</span> and instances of
+                <span class="label label-info">IWebjarsResourceReference</span> to the <span class="label label-info">/META-INF/resources/webjars</span>
+                directory of all the JARs in the CLASSPATH. This can be done in Application.init:
+                <pre><code>/**
+* @see org.apache.wicket.Application#init()
+*/
+@Override
+public void init() {
+   super.init();
+
+   WicketWebjars.install(this);
+}</code></pre>
+                <br/>
+                Then simply reference the resource like:
+                <pre><code>&lt;link rel='stylesheet' href='/webjars/jquery/1.8.3/jquery.js'&gt;</code></pre>
+                <br>
+                or add a Webjars*ResourceReference to your component.
+                <pre><code>@Override
+public void renderHead(IHeaderResponse response) {
+    super.renderHead(response);
+
+    response.render(JavaScriptHeaderItem.forReference(new WebjarsJavaScriptResourceReference("jquery/1.8.3/jquery.js")));
+}
+                </code></pre>
+                <br>
+                To use always recent version of Webjars from your pom without changing code you have to replace the version in webjars path with
+                the string "current". When resource name gets resolved this string will be replaced with recent available version in classpath.
+
+                <pre><code>@Override
+public void renderHead(IHeaderResponse response) {
+    super.renderHead(response);
+
+    response.render(JavaScriptHeaderItem.forReference(new WebjarsJavaScriptResourceReference("jquery/current/jquery.js"))); // current will be replaced with "1.8.3"
+}
+</code></pre>
             </div>
         </div>
     </div>
