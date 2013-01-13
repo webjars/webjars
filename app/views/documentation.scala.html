@@ -69,6 +69,8 @@ object ApplicationBuild extends Build {
                 <pre><code>&lt;link rel='stylesheet' href='webjars/bootstrap/2.1.1/css/bootstrap.min.css'&gt;</code></pre>
                 
             </div>
+
+
             <div class="tab-pane" id="grails">
                 <h3>Instructions for Grails (<a href="https://github.com/webjars/sample-grails">example app</a>)</h3>
 
@@ -149,6 +151,8 @@ public class MainService extends Service<Configuration> {
                 Now you can reference a WebJar asset like:
                 <pre><code>&lt;link rel='stylesheet' href='/webjars/bootstrap/2.1.1/css/bootstrap.min.css'&gt;</code></pre>
             </div>
+
+
             <div class="tab-pane" id="springmvc">
                 <h3>Instructions for Spring MVC</h3>
                 
@@ -167,18 +171,24 @@ public class MainService extends Service<Configuration> {
                 <br/>
                 Then configure Spring to map requests for <span class="label label-info">/webjars</span> to the <span class="label label-info">/META-INF/resources/webjars</span> directory of all the JARs in the CLASSPATH.  This can be done either via XML config:
                 <pre><code>&lt;mvc:resources mapping="/webjars/**" location="classpath:/META-INF/resources/webjars/"/&gt;</code></pre>
+                <br>
+                <span class="label label-success">Note</span> In a Servlet 3 container this can be simplified to:
+                <pre><code>&lt;mvc:resources mapping="/webjars/**" location="/webjars/"/&gt;</code></pre>
                 <br/>
                 Or Java config:
                 <pre><code>@@Configuration
 @@EnableWebMvc
 public class WebConfig extends WebMvcConfigurerAdapter {
 
-    @@Override
-    public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        registry.addResourceHandler("/webjars/**").addResourceLocations("classpath:/META-INF/resources/webjars/");
-    }
+  @@Override
+  public void addResourceHandlers(ResourceHandlerRegistry registry) {
+    registry.addResourceHandler("/webjars/**").addResourceLocations("classpath:/META-INF/resources/webjars/");
+  }
                     
 }</code></pre>
+                <br>
+                <span class="label label-success">Note</span> In a Servlet 3 container the <span class="label label-info">registry.addResourceHandler</span> line can be simplified to:
+                <pre><code>registry.addResourceHandler("/webjars/**").addResourceLocations("/webjars/");</code></pre>
                 <br/>
                 The reference a WebJar asset like: 
                 <pre><code>&lt;link rel='stylesheet' href='/webjars/bootstrap/2.1.1/css/bootstrap.min.css'&gt;</code></pre>
