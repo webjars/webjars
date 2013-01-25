@@ -35,13 +35,15 @@ object MavenCentral {
           }
         }
         
-        val webjars = grouped.filterNot { webjar =>
+        val webjarsUnsorted = grouped.filterNot { webjar =>
           webjar._1.startsWith("webjars-") // remove items like "webjars-play"
         }.map { webjar =>
           WebJar(webjar._1, webjar._1, "http://github.com/webjars/" + webjar._1, webjar._2) // todo: find a way to get the actual name
         }
-        
+
+        val webjars = webjarsUnsorted.toArray.sortBy(_.name)
         Cache.set(ALL_WEBJARS_CACHE_KEY, webjars, 60 * 60)
+
         webjars
       }
     }
