@@ -3,6 +3,8 @@ package controllers
 import play.api.mvc.{Action, Controller}
 import utils.MavenCentral
 
+import scala.concurrent.ExecutionContext.Implicits.global
+
 object Application extends Controller {
     
   def index = Action {

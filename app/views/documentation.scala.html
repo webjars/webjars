@@ -23,22 +23,22 @@
         </ul>
         <div class="tab-content">
             <div class="tab-pane active" id="play2">
-                <h3>Instructions for Play 2 (<a href="https://github.com/webjars/sample-play2">example app</a>)</h3>
+                <h3>Instructions for Play 2.1 (<a href="https://github.com/webjars/sample-play2">example app</a>)</h3>
                 WebJars can be added as dependencies to an app by simply adding them to the <span class="label label-info">project/Build.scala</span> file.  There is also a helper library named <span class="label label-info">webjars-play2</span> that makes it easy to reference WebJar assets.  Here is an example <span class="label label-info">project/Build.scala</span> file with <span class="label label-info">webjars-play2</span> and the <span class="label label-info">bootstrap</span> WebJar as dependencies:<br/>
                 <pre><code>import sbt._
 import Keys._
-import PlayProject._
+import play.Project
 
 object ApplicationBuild extends Build {
   val appName         = "foo"
   val appVersion      = "1.0-SNAPSHOT"
 
   val appDependencies = Seq(
-    "org.webjars" % "webjars-play" % "2.0",
+    "org.webjars" % "webjars-play" % "2.1.0",
     "org.webjars" % "bootstrap" % "2.1.1"
   )
 
-  val main = PlayProject(appName, appVersion, appDependencies, mainLang = JAVA).settings()
+  val main = Project(appName, appVersion, appDependencies).settings()
 }</code></pre>
                 <br/>
                 After changing a Play 2's dependencies you will need to restart Play.<br/>
