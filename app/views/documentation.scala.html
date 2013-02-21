@@ -24,7 +24,7 @@
         <div class="tab-content">
             <div class="tab-pane active" id="play2">
                 <h3>Instructions for Play 2.1 (<a href="https://github.com/webjars/sample-play2">example app</a>)</h3>
-                WebJars can be added as dependencies to an app by simply adding them to the <span class="label label-info">project/Build.scala</span> file.  There is also a helper library named <span class="label label-info">webjars-play2</span> that makes it easy to reference WebJar assets.  Here is an example <span class="label label-info">project/Build.scala</span> file with <span class="label label-info">webjars-play2</span> and the <span class="label label-info">bootstrap</span> WebJar as dependencies:<br/>
+                WebJars can be added as dependencies to an app by simply adding them to the <span class="label label-info">project/Build.scala</span> file.  There is also a helper library named <span class="label label-info">webjars-play</span> that makes it easy to reference WebJar assets.  Here is an example <span class="label label-info">project/Build.scala</span> file with <span class="label label-info">webjars-play</span> and the <span class="label label-info">bootstrap</span> WebJar as dependencies:<br/>
                 <pre><code>import sbt._
 import Keys._
 import play.Project
@@ -43,7 +43,7 @@ object ApplicationBuild extends Build {
                 <br/>
                 After changing a Play 2's dependencies you will need to restart Play.<br/>
                 <br/>
-                The <span class="label label-info">webjars-play2</span> helper library has a wrapper around the Play Static Asset Controller that can locate and serve WebJar assets.  A new route to <span class="label label-info">WebJarAssets</span> needs to be added to the <span class="label label-info">conf/routes</span> file:
+                The <span class="label label-info">webjars-play</span> helper library has a wrapper around the Play Static Asset Controller that can locate and serve WebJar assets.  A new route to <span class="label label-info">WebJarAssets</span> needs to be added to the <span class="label label-info">conf/routes</span> file:
                 <pre><code>GET     /webjars/*file                    controllers.WebJarAssets.at(file)</code></pre>
                 <br/>
                 To use Play 2's reverse routing to resolve the URL to an asset you can do the following in a template:
