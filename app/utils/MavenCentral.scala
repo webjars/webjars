@@ -1,12 +1,12 @@
 package utils
 
 import play.api.libs.ws.WS
-import play.api.libs.json.JsObject
+import play.api.libs.json.{JsValue, Json, JsObject}
 import play.api.cache.Cache
 import play.api.Play.current
 import play.api.Play
 
-import models.{WebJarVersion, WebJar}
+import models.{WebJarVersionCompanion, WebJarVersion, WebJar}
 
 import sun.net.www.protocol.jar.JarURLConnection
 import java.net.URL
@@ -18,12 +18,19 @@ import scala.concurrent.ExecutionContext.Implicits.global
 
 object MavenCentral {
 
+  implicit val webJarVersionReads = Json.reads[WebJarVersion]
+  implicit val webJarVersionWrites = Json.writes[WebJarVersion]
+  
+  implicit val webJarReads = Json.reads[WebJar]
+  implicit val webJarWrites = Json.writes[WebJar]
+
   val ALL_WEBJARS_CACHE_KEY: String = "allWebJars"
   
   def allWebJars: Future[Iterable[WebJar]] = {
-    Cache.getAs[Iterable[WebJar]](ALL_WEBJARS_CACHE_KEY).map {
-      Promise().success(_).future
+    Cache.getAs[JsValue](ALL_WEBJARS_CACHE_KEY).map { webjarsJson =>
+      Promise().success(webjarsJson.as[Iterable[WebJar]]).future
     } getOrElse {
+      
       // todo: would be nice if this could only happen only once no matter how many in-flight requests have missed the cache
       WS.url(Play.configuration.getString("webjars.searchGroupUrl").get).get().map { response =>
         val allVersions = (response.json \ "response" \ "docs").as[Seq[JsObject]].map { jsObject =>
@@ -33,7 +40,9 @@ object MavenCentral {
         // group by the artifactId and pull the list of files from the cache
         val grouped = allVersions.groupBy(_._1).mapValues {
           _.map { webJarVersion =>
-            WebJarVersion(webJarVersion._2, Cache.getAs[Seq[String]](WebJarVersion.cacheKey(webJarVersion._1, webJarVersion._2)))
+            WebJarVersion(webJarVersion._2, Cache.getAs[String](WebJarVersionCompanion.cacheKey(webJarVersion._1, webJarVersion._2)).map { files =>
+              Json.parse(files).as[List[String]].length
+            })
           }
         }
         
@@ -44,7 +53,8 @@ object MavenCentral {
         }
 
         val webjars = webjarsUnsorted.toArray.sortBy(_.name)
-        Cache.set(ALL_WEBJARS_CACHE_KEY, webjars, 60 * 60)
+        
+        Cache.set(ALL_WEBJARS_CACHE_KEY, Json.toJson(webjars), 60 * 60)
 
         webjars
       }
@@ -52,8 +62,8 @@ object MavenCentral {
   }
   
   def listFiles(artifactId: String, version: String): String = {
-    val files = Cache.getOrElse[List[String]](WebJarVersion.cacheKey(artifactId, version)) {
-
+    val files = Cache.getOrElse[String](WebJarVersionCompanion.cacheKey(artifactId, version)) {
+      
       val url = new URL(Play.configuration.getString("webjars.jarUrl").get.format(artifactId, version, artifactId, version))
 
       val jarFileEntries: Iterator[JarEntry] = url.openConnection().asInstanceOf[JarURLConnection].getJarFile.entries()
@@ -66,7 +76,9 @@ object MavenCentral {
         jarFile.startsWith("META-INF/resources/webjars")
       }.toList
       
-      Cache.set(WebJarVersion.cacheKey(artifactId, version), webjarFiles)
+      val webjarFilesJson = Json.toJson(webjarFiles)
+
+      Cache.set(WebJarVersionCompanion.cacheKey(artifactId, version), webjarFilesJson.toString)
 
       // update the webjars cache to contain the new value
       /*
@@ -78,9 +90,9 @@ object MavenCentral {
       // Brute force eviction
       Cache.set(ALL_WEBJARS_CACHE_KEY, None)
       
-      webjarFiles
+      webjarFilesJson.toString
     }
-    files.mkString("\n")
+    Json.parse(files).as[List[String]].mkString("\n")
   }
 
 }
