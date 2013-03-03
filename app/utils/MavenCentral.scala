@@ -9,7 +9,7 @@ import play.api.Play
 import models.{WebJarVersionCompanion, WebJarVersion, WebJar}
 
 import sun.net.www.protocol.jar.JarURLConnection
-import java.net.URL
+import java.net.{URLEncoder, URL}
 import java.util.jar.JarEntry
 
 import scala.concurrent.{Promise, Future}
@@ -64,7 +64,7 @@ object MavenCentral {
   def listFiles(artifactId: String, version: String): String = {
     val files = Cache.getOrElse[String](WebJarVersionCompanion.cacheKey(artifactId, version)) {
       
-      val url = new URL(Play.configuration.getString("webjars.jarUrl").get.format(artifactId, version, artifactId, version))
+      val url = new URL(Play.configuration.getString("webjars.jarUrl").get.format(artifactId, URLEncoder.encode(version), artifactId, URLEncoder.encode(version)))
 
       val jarFileEntries: Iterator[JarEntry] = url.openConnection().asInstanceOf[JarURLConnection].getJarFile.entries()
       

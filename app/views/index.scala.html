@@ -1,5 +1,8 @@
 @(webjars: Iterable[WebJar])
 
+@import utils.TemplateUtils._
+@import java.net.URLEncoder
+
 @main("WebJars - Web Libraries in Jars") {
 
 <script type="text/javascript" xmlns="http://www.w3.org/1999/html">
@@ -36,7 +39,8 @@
         
         function updateDetails(buildTool, webjarVersion) {
             // fix the id select for jQuery (since it can contain periods)
-            var webjarVersion = webjarVersion.replace(/(:|\.)/g,'\\$1')
+            // replace + with _
+            var webjarVersion = webjarVersion.replace(/(:|\.)/g,'\\$1').replace('+', '_')
             // show the correct instruction and hide the others
             $("#build-" + buildTool + "-" + webjarVersion).show().siblings().hide()
             // show the correct files and hide the others
@@ -89,20 +93,20 @@
                     <td>
                         <div class="build-instructions">
                             @for(version <- webjar.versions) {
-                                <div id="build-sbt-@webjar.artifactId-@version.number">
+                                <div id='@idify("build-sbt", webjar.artifactId, version.number)'>
                                     <pre>"org.webjars" % "@webjar.artifactId" % "@version.number"</pre>
                                 </div>
-                                <div id="build-maven-@webjar.artifactId-@version.number">
+                                <div id='@idify("build-maven", webjar.artifactId, version.number)'>
                                     <pre>&lt;dependency&gt;
     &lt;groupId&gt;org.webjars&lt;/groupId&gt;
     &lt;artifactId&gt;@webjar.artifactId&lt;/artifactId&gt;
     &lt;version&gt;@version.number&lt;/version&gt;
 &lt;/dependency&gt;</pre>
                                 </div>
-                                <div id="build-gradle-@webjar.artifactId-@version.number">
+                                <div id='@idify("build-gradle", webjar.artifactId, version.number)'>
                                     <pre>compile 'org.webjars:@webjar.artifactId:@version.number'</pre>
                                 </div>
-                                <div id="build-leiningen-@webjar.artifactId-@version.number">
+                                <div id='@idify("build-leiningen", webjar.artifactId, version.number)'>
                                     <pre>org.webjars/@webjar.artifactId "@version.number"</pre>
                                 </div>
                             }
@@ -111,8 +115,8 @@
                     <td>
                         <div class="files">
                             @for(version <- webjar.versions) {
-                                <div id="files-@webjar.artifactId-@version.number">
-                                    <a href="@routes.Application.listFiles(webjar.artifactId, version.number)" class="file-list-link" data-name="@webjar.artifactId">
+                                <div id='@idify("files", webjar.artifactId, version.number)'>
+                                    <a href="@routes.Application.listFiles(webjar.artifactId, URLEncoder.encode(version.number))" class="file-list-link" data-name="@webjar.artifactId">
                                     @{version.numFiles match {
                                         case Some(numFiles) => s"$numFiles Files"
                                         case None => "List Files"
