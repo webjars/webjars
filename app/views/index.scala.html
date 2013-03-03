@@ -9,7 +9,10 @@
         $(function() {
             
             $(".file-list-link").click(function(event) {
-                event.preventDefault()
+                // allow middle clicks to open in a new tab
+                if (event.button == 0) {
+                    event.preventDefault()
+                }
                 $("#myModalLabel").text("Files for " + $(this).data("name"))
                 $("#fileListModal .modal-body").text("Loading...")
                 $("#fileListModal").removeData("modal")
