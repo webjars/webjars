@@ -34,7 +34,7 @@ object ApplicationBuild extends Build {
   val appVersion      = "1.0-SNAPSHOT"
 
   val appDependencies = Seq(
-    "org.webjars" % "webjars-play" % "2.1.0",
+    "org.webjars" % "webjars-play" % "2.1.0-1",
     "org.webjars" % "bootstrap" % "2.1.1"
   )
 
@@ -49,6 +49,68 @@ object ApplicationBuild extends Build {
                 To use Play 2's reverse routing to resolve the URL to an asset you can do the following in a template:
                 <pre><code>&lt;link rel='stylesheet' href='@@routes.WebJarAssets.at(WebJarAssets.locate("css/bootstrap.min.css"))'&gt;
 &lt;script type='text/javascript' src='@@routes.WebJarAssets.at(WebJarAssets.locate("jquery.min.js"))'&gt;&lt;/script&gt;</code></pre>
+
+                <h3>Enhanced support for <a href="http://requirejs.org/">requirejs</a> (<a href="https://github.com/webjars/angular-seed-play">example app</a>)</h3>
+                Requirejs is a popular implementation of the <a href="https://github.com/amdjs/amdjs-api/wiki/AMD">AMD</a>
+                specification - a means by which JavaScript applications can be modularised. The easiest way of thinking
+                about AMD is that it is JavaScript's equivalent of package and import statements (or namespace and
+                include statements depending on your preferences!). These instructions assume basic knowledge of
+                requirejs.
+
+                <br/><br/>
+                In summary requirejs is supported in the form of a new <a href="http://requirejs.org/docs/plugins.html">loader plugin</a> named "webjars". For example a
+                dependency on jquery file is specified from within JavaScript as follows:
+
+                <pre><code>define(["webjars!jquery.js"], ...</code></pre>
+
+                <br/><blockquote>A note on using minified files: it is often best to depend on the non-minified file given
+                    the ease of debugging things within a browser. Minification should be performed as a step prior
+                    to the deployment of code.
+                </blockquote>
+
+                <h4>Bootstrapping requirejs</h4>
+
+                Requirejs is often loaded like this:
+                <pre><code>&lt;script data-main="scripts/main.js" type='text/javascript' src='scripts/require.js"))'&gt;&lt;/script&gt;</code></pre>
+
+                <br/>Given Play directory conventions and Webjars we can do this:
+                <pre><code>&lt;script data-main="javascripts/main.js" type='text/javascript' src='@@routes.WebJarAssets.requirejs'&gt;&lt;/script&gt;</code></pre>
+
+                <br/>The above statement will load a script that will configure requirejs with
+                application routes so that routing can be resolved using a webjars loader plugin. Requirejs is then resolved by
+                that same script using those routes and then loaded dynamically.
+                The rationale for this is so that the version of requirejs can also be specified
+                as a webjar dependency in the Play application's build file:
+
+                <pre><code>val appDependencies = Seq(
+  "org.webjars" % "webjars-play" % "2.1.0-1",
+  "org.webjars" % "requirejs" % "2.1.1"
+)
+                </code></pre>
+
+                <h4>Using requirejs</h4>
+                Usage is as normal. The following code block illustrates how jquery.js is located:
+
+                <pre><code>define(["webjars!jquery.js"], function() {
+  // $ can be accessed within here as jquery.js declares it as a global.
+});
+                </code></pre>
+
+                <h4>Advanced usage</h4>
+                Requirejs can be configured further when a webjar is created.
+                For example the bootstrap library requires jquery to be
+                loaded in order to execute. This can be achieved with the following
+                <a href="http://requirejs.org/docs/api.html#config">requirejs configuration</a> in a file named
+                webjars-requirejs.js. webjars-requirejs.js must reside in the META-INF/resources/webjars/{artifactId}/{version} folder.
+                Here is what it would look like:
+                <pre><code>requirejs.config({
+  shim: {
+    jquery: [ 'webjars!jquery.js' ]
+  }
+});
+                </code></pre>
+                <br>The webjars project has already provided a number of webjars configured in this way
+                (including the bootstrap library).
             </div>
             <div class="tab-pane" id="servlet3">
                 <h3>Instructions for Servlet 3</h3>
