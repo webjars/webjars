@@ -105,11 +105,16 @@ object ApplicationBuild extends Build {
                 Here is what it would look like:
                 <pre><code>requirejs.config({
   shim: {
-    jquery: [ 'webjars!jquery.js' ]
+    bootstrap: [ 'webjars!jquery.js' ]
   }
 });
                 </code></pre>
-                <br>The webjars project has already provided a number of webjars configured in this way
+                <br>When a webjar module is requested the webjars-requirejs.js is evaluated. In the above case any existing
+                requirejs configuration is extended. When webjars!bootstrap.js is requested "bootstrap" property is looked up
+                (the webjars! prefix and .js suffix are removed to form a module name that
+                requirejs is happy with). Any dependencies are then obtained and loaded prior to the requested module.
+
+                <br><br>The webjars project has already provided a number of webjars configured in this way
                 (including the bootstrap library).
             </div>
             <div class="tab-pane" id="servlet3">
