@@ -20,6 +20,7 @@
             <li><a href="#springmvc" data-toggle="tab">Spring MVC</a></li>
             <li><a href="#tapestry" data-toggle="tab">Apache Tapestry</a></li>
             <li><a href="#wicket" data-toggle="tab">Apache Wicket</a></li>
+            <li><a href="#ring" data-toggle="tab">Ring (Clojure)</a></li>
         </ul>
         <div class="tab-content">
             <div class="tab-pane active" id="play2">
@@ -360,6 +361,29 @@ public void renderHead(IHeaderResponse response) {
 }
 </code></pre>
             </div>
+
+            <div class="tab-pane" id="ring">
+                <h3>Instructions for Ring (<a href="https://github.com/webjars/sample-clojure">example app</a>)</h3>
+
+                Ring makes it easy to expose WebJars through the <span class="label label-info">wrap-resource</span> function.
+
+                First add a Webjar as dependency to your application in the <span class="label label-info">project.clj</span> file, like:
+                  <pre><code>:dependencies [[org.webjars/bootstrap "2.1.1"]]</code></pre>
+                  <br/>
+
+                Then change your wrapper sequence to setup <span class="label label-info">wrap-resource</span> to look for assets in <span class="label label-info">/META-INF/resources</span> directories in JARs on the CLASSPATH:
+
+                <pre><code>(def app
+  (-> handler
+    (wrap-resource "/META-INF/resources")))
+
+(defn -main []
+  (run-jetty app {:port (Integer/parseInt (or (System/getenv "PORT") "8080"))}))</code></pre>
+                <br/>
+                Now you can reference a WebJar asset like:
+                <pre><code>&lt;link rel='stylesheet' href='/webjars/bootstrap/2.1.1/css/bootstrap.min.css'&gt;</code></pre>
+            </div>
+
         </div>
     </div>
 }
