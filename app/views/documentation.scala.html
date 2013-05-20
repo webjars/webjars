@@ -382,6 +382,15 @@ public void renderHead(IHeaderResponse response) {
                 <br/>
                 Now you can reference a WebJar asset like:
                 <pre><code>&lt;link rel='stylesheet' href='/webjars/bootstrap/2.1.1/css/bootstrap.min.css'&gt;</code></pre>
+
+                <h3>Using clj-webjars</h3>
+
+                Alternatively you can use <a href="https://github.com/jeluard/clj-webjars">clj-webjars</a> to simplify assets integration.
+                By relying on <span class="label label-info">wrap-webjars</span> ring middleware you can reference a WebJar asset like:
+
+                <pre><code>&lt;link rel='stylesheet' href='assets/css/bootstrap.min.css'&gt;</code></pre>
+
+                The right asset will be transparently accessed and served with proper HTTP caching behavior.
             </div>
 
         </div>
