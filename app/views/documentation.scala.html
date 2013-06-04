@@ -75,16 +75,19 @@ object ApplicationBuild extends Build {
                 <pre><code>&lt;script data-main="scripts/main.js" type='text/javascript' src='scripts/require.js"))'&gt;&lt;/script&gt;</code></pre>
 
                 <br/>Given Play directory conventions and Webjars we can do this:
-                <pre><code>&lt;script data-main="javascripts/main.js" type='text/javascript' src='@@routes.WebJarAssets.requirejs'&gt;&lt;/script&gt;</code></pre>
+                <pre><code>&lt;script data-main='@@routes.Assets.at("javascripts/main.js")' type='text/javascript' src='@@routes.WebJarAssets.requirejs()'&gt;&lt;/script&gt;</code></pre>
 
-                <br/>The above statement will load a script that will configure requirejs with
+                <br/>...given the following route:
+                <pre><code>GET  /require.js  controllers.WebJarAssets.requirejs</code></pre>
+
+                <br/>The above statements will load a script that will configure requirejs with
                 application routes so that routing can be resolved using a webjars loader plugin. Requirejs is then resolved by
                 that same script using those routes and then loaded dynamically.
                 The rationale for this is so that the version of requirejs can also be specified
                 as a webjar dependency in the Play application's build file:
 
                 <pre><code>val appDependencies = Seq(
-  "org.webjars" % "webjars-play" % "2.1.0-1",
+  "org.webjars" % "webjars-play" % "2.1.0-2",
   "org.webjars" % "requirejs" % "2.1.1"
 )
                 </code></pre>
