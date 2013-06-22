@@ -19,7 +19,8 @@
         </li>
         <li>The version number must only be in the WebJar path, not in files.</li>
         <li>The version number is the upstream version, not the WebJar version.  Most of the time these are the same.  But sometimes there are packaging bugs in a WebJar that cause a version bump in just the WebJar version.</li>
-        <li>The upstream source must be a versioned artifact.  If the upstream source doesn't provide a released version then a commit ID can be used instead.</li>
+        <li>The upstream source must be a versioned artifact.  If the upstream source doesn't provide a released version then a git commit ID should be used instead.</li>
+        <li>The artifactId should be the lowercase name of the library and all "." characters should be replaced with a "-".  If the upstream source is a fork of an official library then the artifactId should indicate that, like "jquery-foo" where "foo" is the fork owner.</li>
     </ol>
 
     <h3>Building WebJars</h3>
