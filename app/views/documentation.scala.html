@@ -15,6 +15,7 @@
         <ul class="nav nav-tabs">
             <li class="active"><a href="#play2" data-toggle="tab">Play 2</a></li>
             <li><a href="#servlet3" data-toggle="tab">Servlet 3</a></li>
+            <li><a href="#jsf" data-toggle="tab">JSF</a></li>
             <li><a href="#grails" data-toggle="tab">Grails</a></li>
             <li><a href="#dropwizard" data-toggle="tab">Dropwizard</a></li>
             <li><a href="#springmvc" data-toggle="tab">Spring MVC</a></li>
@@ -140,6 +141,32 @@ object ApplicationBuild extends Build {
                 Then simply reference the resource like:
                 <pre><code>&lt;link rel='stylesheet' href='webjars/bootstrap/2.1.1/css/bootstrap.min.css'&gt;</code></pre>
                 
+            </div>
+
+
+            <div class="tab-pane" id="jsf">
+                <h3>Instructions for JSF</h3>
+                
+                With JSF, the WebJars that are in the <span class="label label-info">WEB-INF/lib</span> directory are automatically made available as resource libraries. This works because WebJars are compatible with the JSF resource identifier format.<br/>
+                <br/>
+                <a href="http://www.mkyong.com/jsf2/resources-library-in-jsf-2-0/">More Information about JSF resources</a>
+
+                <h4>Maven Example (<a href="https://github.com/arend-von-reinersdorff/samplejsfwithwebjars">example app</a>)</h4>
+                
+                First add a WebJar as a dependency of your application in the <span class="label label-info">pom.xml</span> file, like:
+                <pre><code>&lt;dependencies&gt;
+    &lt;dependency&gt;
+        &lt;groupId&gt;org.webjars&lt;/groupId&gt;
+        &lt;artifactId&gt;bootstrap&lt;/artifactId&gt;
+        &lt;version&gt;3.0.2&lt;/version&gt;
+    &lt;/dependency&gt;
+&lt;/dependencies&gt;</code></pre>
+                <br/>
+                Then simply reference the resource like:
+                <pre><code>&lt;h:outputStylesheet library="webjars/bootstrap/3.0.2" name="css/bootstrap.min.css" /&gt;</code></pre>
+                
+                <h4>Library versions cannot be omitted</h4>
+                JSF allows the library version to be omitted. But this does NOT work with WebJars, because JSF requires library versions to be separated with an underscore like "3_0_2" and versions in WebJars are separated with a dot like "3.0.2".  
             </div>
 
 
