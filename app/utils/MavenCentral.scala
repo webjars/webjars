@@ -52,7 +52,7 @@ object MavenCentral {
           WebJar(webjar._1, webjar._1, "http://github.com/webjars/" + webjar._1, webjar._2) // todo: find a way to get the actual name
         }
 
-        val webjars = webjarsUnsorted.toArray.sortBy(_.name)
+        val webjars = webjarsUnsorted.toArray.sortWith(_.name.toLowerCase < _.name.toLowerCase)
         
         Cache.set(ALL_WEBJARS_CACHE_KEY, Json.toJson(webjars), 60 * 60)
 
