@@ -163,10 +163,7 @@ object ApplicationBuild extends Build {
 &lt;/dependencies&gt;</code></pre>
                 <br/>
                 Then simply reference the resource like:
-                <pre><code>&lt;h:outputStylesheet library="webjars/bootstrap/3.0.2" name="css/bootstrap.min.css" /&gt;</code></pre>
-                
-                <h4>Library versions cannot be omitted</h4>
-                JSF allows the library version to be omitted. But this does NOT work with WebJars, because JSF requires library versions to be separated with an underscore like "3_0_2" and versions in WebJars are separated with a dot like "3.0.2".  
+                <pre><code>&lt;h:outputStylesheet library="webjars" name="bootstrap/3.0.2/css/bootstrap.min.css" /&gt;</code></pre>
             </div>
 
 
