@@ -25,23 +25,18 @@
         </ul>
         <div class="tab-content">
             <div class="tab-pane active" id="play2">
-                <h3>Instructions for Play 2.1 (<a href="https://github.com/webjars/sample-play2">example app</a>)</h3>
-                WebJars can be added as dependencies to an app by simply adding them to the <span class="label label-info">project/Build.scala</span> file.  There is also a helper library named <span class="label label-info">webjars-play</span> that makes it easy to reference WebJar assets.  Here is an example <span class="label label-info">project/Build.scala</span> file with <span class="label label-info">webjars-play</span> and the <span class="label label-info">bootstrap</span> WebJar as dependencies:<br/>
-                <pre><code>import sbt._
-import Keys._
-import play.Project
+                <h3>Instructions for Play 2.2 (<a href="http://typesafe.com/activator/template/hello-play">example app</a>)</h3>
+                WebJars can be added as dependencies to an app by simply adding them to the <span class="label label-info">build.sbt</span> file.  There is also a helper library named <span class="label label-info">webjars-play</span> that makes it easy to reference WebJar assets.  Here is an example <span class="label label-info">build.sbt</span> file with <span class="label label-info">webjars-play</span> and the <span class="label label-info">bootstrap</span> WebJar as dependencies:<br/>
+                <pre><code>name := "hello-play"
 
-object ApplicationBuild extends Build {
-  val appName         = "foo"
-  val appVersion      = "1.0-SNAPSHOT"
+version := "1.0-SNAPSHOT"
 
-  val appDependencies = Seq(
-    "org.webjars" %% "webjars-play" % "2.1.0-3",
-    "org.webjars" % "bootstrap" % "2.1.1"
-  )
+libraryDependencies ++= Seq(
+  "org.webjars" %% "webjars-play" % "2.2.1",
+  "org.webjars" % "bootstrap" % "2.3.1"
+)
 
-  val main = Project(appName, appVersion, appDependencies).settings()
-}</code></pre>
+play.Project.playScalaSettings</code></pre>
                 <br/>
                 After changing a Play 2's dependencies you will need to restart Play.<br/>
                 <br/>
@@ -88,10 +83,9 @@ object ApplicationBuild extends Build {
                 as a webjar dependency in the Play application's build file:
 
                 <pre><code>val appDependencies = Seq(
-  "org.webjars" % "webjars-play" % "2.1.0-3",
+  "org.webjars" %% "webjars-play" % "2.2.1",
   "org.webjars" % "requirejs" % "2.1.1"
-)
-                </code></pre>
+)</code></pre>
 
                 <h4>Using requirejs</h4>
                 Usage is as normal. The following code block illustrates how jquery.js is located:
@@ -112,8 +106,7 @@ object ApplicationBuild extends Build {
   shim: {
     bootstrap: [ 'webjars!jquery.js' ]
   }
-});
-                </code></pre>
+});</code></pre>
                 <br>When a webjar module is requested the webjars-requirejs.js is evaluated. In the above case any existing
                 requirejs configuration is extended. When webjars!bootstrap.js is requested "bootstrap" property is looked up
                 (the webjars! prefix and .js suffix are removed to form a module name that
