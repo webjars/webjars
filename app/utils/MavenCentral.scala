@@ -6,7 +6,7 @@ import play.api.cache.Cache
 import play.api.Play.current
 import play.api.Play
 
-import models.{WebJarVersionCompanion, WebJarVersion, WebJar}
+import models.{WebJarVersion, WebJar}
 
 import sun.net.www.protocol.jar.JarURLConnection
 import java.net.{URLEncoder, URL}
@@ -40,7 +40,7 @@ object MavenCentral {
         // group by the artifactId and pull the list of files from the cache
         val grouped = allVersions.groupBy(_._1).mapValues {
           _.map { webJarVersion =>
-            WebJarVersion(webJarVersion._2, Cache.getAs[String](WebJarVersionCompanion.cacheKey(webJarVersion._1, webJarVersion._2)).map { files =>
+            WebJarVersion(webJarVersion._2, Cache.getAs[String](WebJarVersion.cacheKey(webJarVersion._1, webJarVersion._2)).map { files =>
               Json.parse(files).as[List[String]].length
             })
           }
@@ -62,7 +62,7 @@ object MavenCentral {
   }
   
   def listFiles(artifactId: String, version: String): String = {
-    val files = Cache.getOrElse[String](WebJarVersionCompanion.cacheKey(artifactId, version)) {
+    val files = Cache.getOrElse[String](WebJarVersion.cacheKey(artifactId, version)) {
       
       val url = new URL(Play.configuration.getString("webjars.jarUrl").get.format(artifactId, URLEncoder.encode(version), artifactId, URLEncoder.encode(version)))
 
@@ -78,7 +78,7 @@ object MavenCentral {
       
       val webjarFilesJson = Json.toJson(webjarFiles)
 
-      Cache.set(WebJarVersionCompanion.cacheKey(artifactId, version), webjarFilesJson.toString)
+      Cache.set(WebJarVersion.cacheKey(artifactId, version), webjarFilesJson.toString)
 
       // update the webjars cache to contain the new value
       /*

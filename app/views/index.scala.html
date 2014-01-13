@@ -1,54 +1,91 @@
 @(webjars: Iterable[WebJar])
 
-@import utils.TemplateUtils._
 @import java.net.URLEncoder
+@import play.api.libs.json.Json.toJson
 
 @main("WebJars - Web Libraries in Jars") {
 
 <script type="text/javascript" xmlns="http://www.w3.org/1999/html">
         $(function() {
             
-            $(".file-list-link").click(function(event) {
-                // allow middle clicks to open in a new tab
-                if (event.button == 0) {
-                    event.preventDefault()
-                    $("#myModalLabel").text("Files for " + $(this).data("name"))
-                    $("#fileListModal .modal-body").text("Loading...")
-                    $("#fileListModal").removeData("modal")
-                    $("#fileListModal").modal({remote: $(this).attr("href")})
-                }
-            })
-            
-            $("#buildtoolselect button").click(function(e) {
+            $(".file-list-link").click(onFileList)
+           
+            $("#buildtoolselect").find("button").click(function(e) {
                 // update for each webjar
-                var buildTool = $(this).attr("data-value")
-                $(".versions button").each(function(i, v) {
-                    if ($(v).hasClass("active")) {
-                        updateDetails(buildTool, $(this).attr("data-value"))
-                    }
+                buildTool = $(this).attr("data-value")
+
+                $.each(webjars, function(i, webjar) {
+                    updateDetails(webjar)
                 })
-            })
-
-            $(".versions button").click(function(e) {
-                updateDetails($("#buildtoolselect .active").attr("data-value"), $(this).attr("data-value"))
-            })
-
-            // click on the first version of each webjar
-            $(".versions").each(function(i, v) {
-                $(v).children("button").first().click()
             })
             
         })
-        
-        function updateDetails(buildTool, webjarVersion) {
-            // fix the id select for jQuery (since it can contain periods)
-            // replace + with _
-            var webjarVersion = webjarVersion.replace(/(:|\.)/g,'\\$1').replace('+', '_')
-            // show the correct instruction and hide the others
-            $("#build-" + buildTool + "-" + webjarVersion).show().siblings().hide()
-            // show the correct files and hide the others
-            $("#files-" + webjarVersion).show().siblings().hide()
+            
+        function onFileList(event) {
+            // allow middle clicks to open in a new tab
+            if (event.button == 0) {
+                event.preventDefault()
+                $("#myModalLabel").text("Files for " + $(this).data("name"))
+                $("#fileListModal .modal-body").text("Loading...")
+                $("#fileListModal").removeData("modal")
+                $("#fileListModal").modal({remote: $(this).attr("href")})
+            }
         }
+            
+        function selectedVersion(artifactId) {
+            return $(".versions." + artifactId).val()
+        }
+            
+        function changeVersion(event) {
+            var artifact = $(event.target).data("artifact")
+            updateDetails(getWebjar(artifact))
+        }
+            
+        function getWebjar(artifact) {
+            return $.grep(webjars, function(webjar, i) { return webjar.artifactId == artifact })[0]
+        }
+            
+        function updateDetails(webjar) {
+            var webjarVersion = selectedVersion(webjar.artifactId)
+            
+            // update instructions
+            var instructions = ""
+    
+            if (buildTool == "sbt") {
+                instructions = '"org.webjars" % "' + webjar.artifactId + '" % "' + webjarVersion + "'"
+            } else if (buildTool == "maven") {
+                instructions = "<dependency>\n" +
+                               "    <groupId>org.webjars</groupId>\n" +
+                               "    <artifactId>" + webjar.artifactId + "</artifactId>\n" +
+                               "    <version>" + webjarVersion + "</version>\n" +
+                               "</dependency>"
+            } else if (buildTool == "gradle") {
+                instructions = "compile 'org.webjars:" + webjar.artifactId + ":" + webjarVersion + "'"
+            } else if (buildTool == "leiningen") {
+                instructions = "org.webjars/" + webjar.artifactId + ' "' + webjarVersion + '"'
+            }
+    
+            $(".build-instructions." + webjar.artifactId).find("pre").text(instructions)
+
+            // update files link
+            
+            var filesLink = $("<a>").attr("href", "/listfiles/" + webjar.artifactId + "/" + webjarVersion).addClass("file-list-link")
+            filesLink.click(onFileList)
+            var version = $.grep(webjar.versions, function(version, i) { return version.number == webjarVersion })[0]
+            if (version.numFiles != undefined) {
+                filesLink.text(version.numFiles + " Files")
+            }
+            else {
+                filesLink.text("List Files")
+            }
+
+            $(".files." + webjar.artifactId).empty().append(filesLink)
+        }
+    
+        var webjars = @Html(toJson(webjars).toString())
+    
+        var buildTool = "sbt"
+    
     </script>
 
     <div class="well">
@@ -67,6 +104,7 @@
         <thead>
             <tr>
                 <th><span style="display: inline; padding-top: 5px; padding-right: 5px;">Name</span></th>
+                <th style="width: 280px"><span style="display: inline; padding-top: 5px; padding-right: 5px;">Versions</span></th>
                 <th>
                     <span style="display: inline; padding-top: 5px; padding-right: 5px;">Build Tool:</span>
                     <div id="buildtoolselect" class="btn-group" data-toggle="buttons-radio" style="display: inline; margin-top: 2px; margin-right: 5px;">
@@ -76,7 +114,7 @@
                         <button type="button" class="btn btn-mini" data-value="leiningen">Leiningen</button>
                     </div>
                 </th>
-                <th>
+                <th style="width: 100px;">
                     <span style="display: inline; padding-top: 5px; padding-right: 5px;">Files</span>
                 </th>
             </tr>
@@ -86,47 +124,28 @@
                 <tr>
                     <td>
                         <a href="@webjar.sourceUrl"><strong>@webjar.name</strong></a>
-                        <div id="version-@webjar.artifactId" class="versions btn-group" style="display: inline;" data-toggle="buttons-radio">
-                            @for(version <- webjar.versions) {
-                                <button type="button" class="btn btn-mini" data-value="@webjar.artifactId-@version.number" >@version.number</button>
-                            }
-                        </div>
-                        <a href="@webjar.sourceUrl/issues/new" class="btn btn-mini btn-inverse" style="margin-left: 5px; padding-top: 0px; margin-top: -1px;"><i class="icon-plus icon-white"></i></a></span>
                     </td>
                     <td>
-                        <div class="build-instructions">
+                        <select style="margin-bottom: 0;" class="versions @webjar.artifactId" data-artifact="@webjar.artifactId" onchange="changeVersion(event)">
                             @for(version <- webjar.versions) {
-                                <div id='@idify("build-sbt", webjar.artifactId, version.number)'>
-                                    <pre>"org.webjars" % "@webjar.artifactId" % "@version.number"</pre>
-                                </div>
-                                <div id='@idify("build-maven", webjar.artifactId, version.number)'>
-                                    <pre>&lt;dependency&gt;
-    &lt;groupId&gt;org.webjars&lt;/groupId&gt;
-    &lt;artifactId&gt;@webjar.artifactId&lt;/artifactId&gt;
-    &lt;version&gt;@version.number&lt;/version&gt;
-&lt;/dependency&gt;</pre>
-                                </div>
-                                <div id='@idify("build-gradle", webjar.artifactId, version.number)'>
-                                    <pre>compile 'org.webjars:@webjar.artifactId:@version.number'</pre>
-                                </div>
-                                <div id='@idify("build-leiningen", webjar.artifactId, version.number)'>
-                                    <pre>org.webjars/@webjar.artifactId "@version.number"</pre>
-                                </div>
+                                <option>@version.number</option>
                             }
+                        </select>
+                        <a href="@webjar.sourceUrl/issues/new" class="btn btn-inverse" style="margin-left: 5px; padding-top: 0px; margin-top: -1px;" title="request a new version"><i class="icon-plus icon-white"></i></a>
+                    </td>
+                    <td>
+                        <div class="build-instructions @webjar.artifactId">
+                            <pre>"org.webjars" % "@webjar.artifactId" % "@webjar.versions.head.number"</pre>
                         </div>
                     </td>
                     <td>
-                        <div class="files">
-                            @for(version <- webjar.versions) {
-                                <div id='@idify("files", webjar.artifactId, version.number)'>
-                                    <a href="@routes.Application.listFiles(webjar.artifactId, URLEncoder.encode(version.number))" class="file-list-link" data-name="@webjar.artifactId">
-                                    @{version.numFiles match {
-                                        case Some(numFiles) => s"$numFiles Files"
-                                        case None => "List Files"
-                                    }}
-                                    </a>
-                                </div>
-                            }
+                        <div class="files @webjar.artifactId">
+                            <a href="@routes.Application.listFiles(webjar.artifactId, URLEncoder.encode(webjar.versions.head.number))" class="file-list-link">
+                                @{webjar.versions.head.numFiles match {
+                                    case Some(numFiles) => s"$numFiles Files"
+                                    case None => "List Files"
+                                }}
+                            </a>
                         </div>
                     </td>
                 </tr>
