@@ -19,6 +19,13 @@
                 })
             })
             
+            $("tr").each(function (i, tr) {
+                var webjar = getWebjar($(tr).data("artifact"))
+                if (webjar != undefined) {
+                    webjar['row'] = $(tr)
+                }
+            })
+            
         })
             
         function onFileList(event) {
@@ -37,9 +44,7 @@
         }
             
         function row(artifactId) {
-            return $("tr").filter(function() {
-                return $(this).data("artifact") == artifactId
-            })
+            return getWebjar(artifactId)['row']
         }
             
         function changeVersion(event) {
@@ -54,13 +59,11 @@
         function updateDetails(webjar) {
             var webjarVersion = selectedVersion(webjar.artifactId)
             
-            var r = row(webjar.artifactId)
-            
             // update instructions
             var instructions = ""
     
             if (buildTool == "sbt") {
-                instructions = '"org.webjars" % "' + webjar.artifactId + '" % "' + webjarVersion + "'"
+                instructions = '"org.webjars" % "' + webjar.artifactId + '" % "' + webjarVersion + '"'
             } else if (buildTool == "maven") {
                 instructions = "<dependency>\n" +
                                "    <groupId>org.webjars</groupId>\n" +
@@ -72,8 +75,8 @@
             } else if (buildTool == "leiningen") {
                 instructions = "org.webjars/" + webjar.artifactId + ' "' + webjarVersion + '"'
             }
-    
-            r.find(".build-instructions pre").text(instructions)
+
+            row(webjar.artifactId).find(".build-instructions pre").text(instructions)
 
             // update files link
             
@@ -87,7 +90,7 @@
                 filesLink.text("List Files")
             }
 
-            r.find(".files").empty().append(filesLink)
+            row(webjar.artifactId).find(".files").empty().append(filesLink)
         }
     
         var webjars = @Html(toJson(webjars).toString())
