@@ -33,11 +33,17 @@
         }
             
         function selectedVersion(artifactId) {
-            return $(".versions." + artifactId).val()
+            return row(artifactId).find(".versions").val()
+        }
+            
+        function row(artifactId) {
+            return $("tr").filter(function() {
+                return $(this).data("artifact") == artifactId
+            })
         }
             
         function changeVersion(event) {
-            var artifact = $(event.target).data("artifact")
+            var artifact = $(event.target).parents("tr").data("artifact")
             updateDetails(getWebjar(artifact))
         }
             
@@ -47,6 +53,8 @@
             
         function updateDetails(webjar) {
             var webjarVersion = selectedVersion(webjar.artifactId)
+            
+            var r = row(webjar.artifactId)
             
             // update instructions
             var instructions = ""
@@ -65,7 +73,7 @@
                 instructions = "org.webjars/" + webjar.artifactId + ' "' + webjarVersion + '"'
             }
     
-            $(".build-instructions." + webjar.artifactId).find("pre").text(instructions)
+            r.find(".build-instructions pre").text(instructions)
 
             // update files link
             
@@ -79,7 +87,7 @@
                 filesLink.text("List Files")
             }
 
-            $(".files." + webjar.artifactId).empty().append(filesLink)
+            r.find(".files").empty().append(filesLink)
         }
     
         var webjars = @Html(toJson(webjars).toString())
@@ -121,12 +129,12 @@
         <thead>
         <tbody>
             @for(webjar <- webjars) {
-                <tr>
+                <tr data-artifact="@webjar.artifactId">
                     <td>
                         <a href="@webjar.sourceUrl"><strong>@webjar.name</strong></a>
                     </td>
                     <td>
-                        <select style="margin-bottom: 0;" class="versions @webjar.artifactId" data-artifact="@webjar.artifactId" onchange="changeVersion(event)">
+                        <select style="margin-bottom: 0;" class="versions" onchange="changeVersion(event)">
                             @for(version <- webjar.versions) {
                                 <option>@version.number</option>
                             }
@@ -134,7 +142,7 @@
                         <a href="@webjar.sourceUrl/issues/new" class="btn btn-inverse" style="margin-left: 5px; padding-top: 0px; margin-top: -1px;" title="request a new version"><i class="icon-plus icon-white"></i></a>
                     </td>
                     <td>
-                        <div class="build-instructions @webjar.artifactId">
+                        <div class="build-instructions">
                             <pre>"org.webjars" % "@webjar.artifactId" % "@webjar.versions.head.number"</pre>
                         </div>
                     </td>
