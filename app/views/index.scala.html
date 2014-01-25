@@ -29,10 +29,11 @@
         })
             
         function onFileList(event) {
+            console.log($(this))
             // allow middle clicks to open in a new tab
             if (event.button == 0) {
                 event.preventDefault()
-                $("#myModalLabel").text("Files for " + $(this).data("name"))
+                $("#myModalLabel").text("Files for " + $(this).parents("tr").data("artifact"))
                 $("#fileListModal .modal-body").text("Loading...")
                 $("#fileListModal").removeData("modal")
                 $("#fileListModal").modal({remote: $(this).attr("href")})

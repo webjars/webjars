@@ -65,7 +65,7 @@ object MavenCentral {
   def listFiles(artifactId: String, version: String): String = {
     val files = Cache.getOrElse[String](WebJarVersion.cacheKey(artifactId, version)) {
       
-      val url = new URL(Play.configuration.getString("webjars.jarUrl").get.format(artifactId, URLEncoder.encode(version), artifactId, URLEncoder.encode(version)))
+      val url = new URL(Play.configuration.getString("webjars.jarUrl").get.format(artifactId, URLEncoder.encode(version, "UTF-8"), artifactId, URLEncoder.encode(version, "UTF-8")))
 
       val jarFileEntries: Iterator[JarEntry] = url.openConnection().asInstanceOf[JarURLConnection].getJarFile.entries()
       
