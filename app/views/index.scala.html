@@ -152,7 +152,7 @@
                     </td>
                     <td>
                         <div class="files @webjar.artifactId">
-                            <a href="@routes.Application.listFiles(webjar.artifactId, URLEncoder.encode(webjar.versions.head.number))" class="file-list-link">
+                            <a href="@routes.Application.listFiles(webjar.artifactId, URLEncoder.encode(webjar.versions.head.number, "UTF-8"))" class="file-list-link">
                                 @{webjar.versions.head.numFiles match {
                                     case Some(numFiles) => s"$numFiles Files"
                                     case None => "List Files"
