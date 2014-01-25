@@ -4,7 +4,7 @@ import play.api.libs.ws.WS
 import play.api.libs.json.{JsValue, Json, JsObject}
 import play.api.cache.Cache
 import play.api.Play.current
-import play.api.Play
+import play.api.{Logger, Play}
 
 import models.{WebJarVersion, WebJar}
 
@@ -38,12 +38,13 @@ object MavenCentral {
         }
 
         // group by the artifactId and pull the list of files from the cache
-        val grouped = allVersions.groupBy(_._1).mapValues {
-          _.map { webJarVersion =>
+        val grouped = allVersions.groupBy(_._1).mapValues { versions =>
+          val webJarVersions = versions.map { webJarVersion =>
             WebJarVersion(webJarVersion._2, Cache.getAs[String](WebJarVersion.cacheKey(webJarVersion._1, webJarVersion._2)).map { files =>
               Json.parse(files).as[List[String]].length
             })
           }
+          webJarVersions.sortBy(_.number).reverse
         }
         
         val webjarsUnsorted = grouped.filterNot { webjar =>
