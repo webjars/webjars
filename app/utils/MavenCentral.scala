@@ -44,7 +44,7 @@ object MavenCentral {
               Json.parse(files).as[List[String]].length
             })
           }
-          webJarVersions.sortBy(_.number).reverse
+          webJarVersions.sorted.reverse
         }
         
         val webjarsUnsorted = grouped.filterNot { webjar =>
