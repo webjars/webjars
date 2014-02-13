@@ -1,0 +1,42 @@
+body {
+    padding-top: 70px;
+    padding-bottom: 40px;
+}
+
+a {
+    target-new: tab;
+    target-position: behind;
+}
+            
+pre {
+    margin-bottom: 0;
+    margin-top: 3px;
+    padding-top: 2px;
+    padding-bottom: 2px;
+    padding-left: 5px;
+    padding-right: 5px;
+}
+
+.build-instructions pre {
+    border-style: none;
+    background: none;
+    padding: 0;
+}
+            
+.table-versions {
+    width: 240px;
+}
+        
+.table-files {
+    width: 80px;
+}
+        
+.file-list {
+    font-size: 13px;
+    line-height: 20px;
+    word-break: break-all;
+    word-wrap: break-word;
+    white-space: pre-wrap;
+    font-family: Monaco,Menlo,Consolas,"Courier New",monospace;
+}
+
