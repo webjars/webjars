@@ -4,7 +4,7 @@
     <script type='text/javascript'>
         $(function() {
             $.getGithubFileByFilePath("webjars", "webjars-template-zip", "pom.xml", function(contents) {
-                    $("#zipPom").html(hljs.highlight("xml", contents).value);
+                $("#zipPom").html(hljs.highlight("xml", contents).value);
             });
         });
     </script>
