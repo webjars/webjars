@@ -7,11 +7,9 @@ import scala.concurrent.ExecutionContext.Implicits.global
 
 object Application extends Controller {
     
-  def index = Action {
-    Async {
-      MavenCentral.allWebJars.map { allWebJars =>
-        Ok(views.html.index(allWebJars))
-      }
+  def index = Action.async {
+    MavenCentral.allWebJars.map { allWebJars =>
+      Ok(views.html.index(allWebJars))
     }
   }
   
