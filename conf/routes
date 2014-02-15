@@ -6,4 +6,4 @@ GET     /contributing                     controllers.Application.contributing()
 GET     /mockcentral/searchgroup          controllers.MockCentral.searchGroup()
 
 GET     /webjars/*file                    controllers.WebJarAssets.at(file)
-GET     /assets/*file                    controllers.Assets.at(path="/public", file)
+GET     /assets/*file                     controllers.Assets.at(path="/public", file)

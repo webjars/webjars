@@ -1,82 +1,44 @@
 @(title: String)(content: Html)
 <!DOCTYPE html>
 
-<html>
+<html lang="en">
     <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>@title</title>
         <link rel='stylesheet' href='@routes.WebJarAssets.at(WebJarAssets.locate("css/bootstrap.min.css"))'>
+        <link rel='stylesheet' href='@routes.WebJarAssets.at(WebJarAssets.locate("css/bootstrap-theme.min.css"))'>
         <link rel="stylesheet" href='@routes.WebJarAssets.at(WebJarAssets.locate("styles/default.min.css"))'>
+        <link rel="stylesheet" href='@routes.Assets.at("main.css")'>
         <script type='text/javascript' src='@routes.WebJarAssets.at(WebJarAssets.locate("jquery.min.js"))'></script>
         <script type='text/javascript' src='@routes.WebJarAssets.at(WebJarAssets.locate("js/bootstrap.min.js"))'></script>
         <script type='text/javascript' src='@routes.WebJarAssets.at(WebJarAssets.locate("highlight.min.js"))'></script>
         <script>hljs.initHighlightingOnLoad();</script>
-        <style type='text/css'>
-            body {
-                padding-top: 60px;
-                padding-bottom: 40px;
-            }
-            
-            pre {
-                margin-bottom: 0;
-                margin-top: 3px;
-                padding-top: 2px;
-                padding-bottom: 2px;
-                padding-left: 5px;
-                padding-right: 5px;
-            }
-
-            .build-instructions pre {
-                border-style: none;
-                background: none;
-                padding: 0;
-            }
-            
-            #fileListModal {
-                width: 900px;
-                margin-left: -450px;
-                max-height: 600px;
-            }
-            
-            .file-list {
-                font-size: 13px;
-                line-height: 20px;
-                word-break: break-all;
-                word-wrap: break-word;
-                white-space: pre-wrap;
-                font-family: Monaco,Menlo,Consolas,"Courier New",monospace;
-            }
-            
-            .container {
-                margin-left: 20px;
-                margin-right: 20px;
-                width: auto;
-            }
-        </style>
     </head>
     <body>
-        <div class="navbar navbar-inverse navbar-fixed-top">
-            <div class="navbar-inner">
-                <div class="container">
-                    <a class="brand" href="@routes.Application.index()">WebJars</a>
-                    <ul class="nav">
+        <nav class="navbar navbar-inverse navbar-fixed-top" role="navigation">
+            <div class="container-fluid">
+                <div class="navbar-header">
+                    <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#navbar-collapse-header">
+                        <span class="sr-only">Toggle navigation</span>
+                        <span class="icon-bar"></span>
+                        <span class="icon-bar"></span>
+                        <span class="icon-bar"></span>
+                    </button>
+                    <a class="navbar-brand" href="@routes.Application.index()"><strong>WebJars</strong></a>
+                </div>
+                <div class="collapse navbar-collapse" id="navbar-collapse-header">
+                    <ul class="nav navbar-nav">
                         <li><a href="@routes.Application.documentation()">Documentation</a></li>
                         <li><a href="@routes.Application.contributing()">Contributing</a></li>
                     </ul>
                 </div>
             </div>
-        </div>
+        </nav>
     
-        <div class="container">
+        <div class="container-fluid">
             @content
-        </div>
-
-        <div id="fileListModal" class="modal hide fade" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
-            <div class="modal-header">
-                <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
-                <h3 id="myModalLabel"></h3>
-            </div>
-            <div class="modal-body file-list">
-            </div>
         </div>
     </body>
 </html>

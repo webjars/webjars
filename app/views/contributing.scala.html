@@ -1,16 +1,14 @@
 @main("WebJars - Contributing") {
 
-    <link rel='stylesheet' href='@routes.WebJarAssets.at(WebJarAssets.locate("styles/default.min.css"))'>
-    <script type='text/javascript' src='@routes.WebJarAssets.at(WebJarAssets.locate("highlight.min.js"))'></script>
     <script type="text/javascript" src='@routes.Assets.at("github-files-min.js")'></script>
-    <script type="text/javascript">
+    <script type='text/javascript'>
         $(function() {
             $.getGithubFileByFilePath("webjars", "webjars-template-zip", "pom.xml", function(contents) {
-                $("#zipPom").html(hljs.highlight("xml", contents).value)
+                $("#zipPom").html(hljs.highlight("xml", contents).value);
             });
-        })
+        });
     </script>
-    
+
     <h3>Understanding WebJars</h3>
     <ol>
         <li>The path to a WebJar's contents must be in the form:
@@ -20,7 +18,14 @@
         <li>The version number must only be in the WebJar path, not in files.</li>
         <li>The version number is the upstream version, not the WebJar version.  Most of the time these are the same.  But sometimes there are packaging bugs in a WebJar that cause a version bump in just the WebJar version.</li>
         <li>The upstream source must be a versioned artifact.  If the upstream source doesn't provide a released version then either use a git commit ID or fork the upstream project and apply semantic versioning.</li>
-        <li>The artifactId should be the lowercase name of the library and all "." characters should be replaced with a "-".  If the upstream source is a fork of an official library then the artifactId should indicate that, like "jquery-foo" where "foo" is the fork owner.</li>
+        <li>The artifactId should always be lowercased. It can be built from (by order of preference): 
+            <ul>    
+                <li>The name used for bower / npm releases of the library</li>
+                <li>The upstream GitHub repository name of the library</li>
+                <li>The name of the library</li>
+            </ul>
+            If the upstream source is a fork of an official library then the artifactId should indicate that, like "jquery-foo" where "foo" is the fork owner.
+        </li>
     </ol>
 
     <h3>Building WebJars</h3>
@@ -29,7 +34,7 @@
         <li>WebJars typically use the <a href="http://maven.apache.org">Maven</a> build tool.</li>
         <li>Simple web libraries may be downloaded as it's individual source files.  But usually the web library is downloaded as zip file, then extracted and arranged into the right form.</li>
         <li>A starter Maven build <span class="label label-info">pom.xml</span> file looks like:<br/><br/>
-            <pre id="zipPom" class="pre-scrollable" style="white-space: pre; word-wrap: normal;"></pre>
+            <pre id="zipPom" class="pre-scrollable"></pre>
         </li>
         <!-- TODO: Add non-zip example -->
     </ol>
