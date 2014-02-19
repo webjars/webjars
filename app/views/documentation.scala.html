@@ -35,7 +35,7 @@
 version := "1.0-SNAPSHOT"
 
 libraryDependencies ++= Seq(
-  "org.webjars" %% "webjars-play" % "2.2.1",
+  "org.webjars" %% "webjars-play" % "2.2.1-1",
   "org.webjars" % "bootstrap" % "3.1.0"
 )
 
@@ -50,73 +50,26 @@ play.Project.playScalaSettings</code></pre>
                 <pre><code>&lt;link rel='stylesheet' href='@@routes.WebJarAssets.at(WebJarAssets.locate("css/bootstrap.min.css"))'&gt;
 &lt;script type='text/javascript' src='@@routes.WebJarAssets.at(WebJarAssets.locate("jquery.min.js"))'&gt;&lt;/script&gt;</code></pre>
 
-                <h3>Enhanced support for <a href="http://requirejs.org/">requirejs</a> (<a href="https://github.com/typesafehub/angular-seed-play">example app</a>)</h3>
-                Requirejs is a popular implementation of the <a href="https://github.com/amdjs/amdjs-api/wiki/AMD">AMD</a>
+                <h3>Enhanced support for RequireJS (<a href="https://github.com/typesafehub/angular-seed-play">example app</a>)</h3>
+                <a href="http://www.requirejs.org" target="_blank">RequireJS</a> is a popular implementation of the <a href="https://github.com/amdjs/amdjs-api/wiki/AMD">AMD</a>
                 specification - a means by which JavaScript applications can be modularised. The easiest way of thinking
                 about AMD is that it is JavaScript's equivalent of package and import statements (or namespace and
                 include statements depending on your preferences!). These instructions assume basic knowledge of
-                requirejs.
-
+                RequireJS.
+                
                 <br><br>
-                In summary requirejs is supported in the form of a new <a href="http://requirejs.org/docs/plugins.html">loader plugin</a> named "webjars". For example a
-                dependency on jquery file is specified from within JavaScript as follows:
-
-                <pre><code>define(["webjars!jquery.js"], ...</code></pre>
-
-                <br><blockquote>A note on using minified files: it is often best to depend on the non-minified file given
-                    the ease of debugging things within a browser. Minification should be performed as a step prior
-                    to the deployment of code.
-                </blockquote>
-
-                <h4>Bootstrapping requirejs</h4>
-
-                Requirejs is often loaded like this:
-                <pre><code>&lt;script data-main="scripts/main.js" type='text/javascript' src='scripts/require.js"))'&gt;&lt;/script&gt;</code></pre>
-
-                <br>Given Play directory conventions and Webjars we can do this:
-                <pre><code>&lt;script data-main='@@routes.Assets.at("javascripts/main.js")' type='text/javascript' src='@@routes.WebJarAssets.requirejs()'&gt;&lt;/script&gt;</code></pre>
-
-                <br>...given the following route:
-                <pre><code>GET  /require.js  controllers.WebJarAssets.requirejs</code></pre>
-
-                <br>The above statements will load a script that will configure requirejs with
-                application routes so that routing can be resolved using a webjars loader plugin. Requirejs is then resolved by
-                that same script using those routes and then loaded dynamically.
-                The rationale for this is so that the version of requirejs can also be specified
-                as a webjar dependency in the Play application's build file:
-
-                <pre><code>val appDependencies = Seq(
-  "org.webjars" %% "webjars-play" % "2.2.1",
-  "org.webjars" % "requirejs" % "2.1.10"
-)</code></pre>
-
-                <h4>Using requirejs</h4>
-                Usage is as normal. The following code block illustrates how jquery.js is located:
-
-                <pre><code>define(["webjars!jquery.js"], function() {
-  // $ can be accessed within here as jquery.js declares it as a global.
-});
-                </code></pre>
-
-                <h4>Advanced usage</h4>
-                Requirejs can be configured further when a webjar is created.
-                For example the bootstrap library requires jquery to be
-                loaded in order to execute. This can be achieved with the following
-                <a href="http://requirejs.org/docs/api.html#config">requirejs configuration</a> in a file named
-                webjars-requirejs.js. webjars-requirejs.js must reside in the META-INF/resources/webjars/{artifactId}/{version} folder.
-                Here is what it would look like:
-                <pre><code>requirejs.config({
-  shim: {
-    bootstrap: [ 'webjars!jquery.js' ]
-  }
-});</code></pre>
-                <br>When a webjar module is requested the webjars-requirejs.js is evaluated. In the above case any existing
-                requirejs configuration is extended. When webjars!bootstrap.js is requested "bootstrap" property is looked up
-                (the webjars! prefix and .js suffix are removed to form a module name that
-                requirejs is happy with). Any dependencies are then obtained and loaded prior to the requested module.
-
-                <br><br>The webjars project has already provided a number of webjars configured in this way
-                (including the bootstrap library).
+                
+                The <span class="label label-info">webjars-locator</span> library has built-in support for RequireJS and the <span class="label label-info">webjars-play</span> has some Play specific helpers.  To setup RequireJS in a server-side Scala template use the <code>RequireJS.setup</code> helper, like:
+                <pre><code>@@Html(org.webjars.play.RequireJS.setup("js/app"))</code></pre>
+                This includes <code>&lt;script&gt;</code> tags that loads the WebJars RequireJS configuration from <span class="label label-info">webjars-locator</span> and loads RequireJS with a main JavaScript of <span class="label label-info">js/app</span>.  In the sample <span class="label label-info">angular-seed-play</span> application this translates to loading the <span class="label label-info">public/js/app.js</span> file.  That JavaScript app can then begin using RequireJS, like:
+                <pre><code>require(['angular', './controllers'], function(angular) @("{")</code></pre>
+                
+                Module paths like <code>angular</code> are determined using the WebJars RequireJS configuration.  The relative paths like <code>./controllers</code> are relative to the main JavaScript app (<span class="label label-info">js/app</span> in this case).
+                
+                <br><br>
+                Underneath the covers each WebJar can have a RequireJS configuration file that sets up the modules, shims, exports, etc.  These files is named <span class="label label-info">webjars-requirejs.js</span> and are automatically added to the page via the <code>RequireJS.setup</code> helper.
+                
+                Some of the WebJars may not be updated to the new WebJars RequireJS syntax so if you experience problems please file issues on the WebJars you are using.
             </div>
 
             
