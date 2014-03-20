@@ -7,5 +7,5 @@ GET     /mockcentral/searchgroup          controllers.MockCentral.searchGroup()
 
 GET     /files/:artifactId/:version/*file controllers.Application.file(artifactId, version, file)
 
-GET     /webjars/*file                    controllers.WebJarAssets.at(file)
+GET     /webjars/*file                    controllers.StaticWebJarAssets.at(file)
 GET     /assets/*file                     controllers.Assets.at(path="/public", file)
