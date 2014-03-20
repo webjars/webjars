@@ -10,11 +10,12 @@ import models.{WebJarVersion, WebJar}
 
 import sun.net.www.protocol.jar.JarURLConnection
 import java.net.{URLEncoder, URL}
-import java.util.jar.JarEntry
+import java.util.jar.{JarFile, JarEntry}
 
 import scala.concurrent.{Promise, Future}
 import scala.collection.JavaConversions.enumerationAsScalaIterator
 import scala.concurrent.ExecutionContext.Implicits.global
+import java.io.IOException
 
 object MavenCentral {
 
@@ -65,9 +66,7 @@ object MavenCentral {
   def listFiles(artifactId: String, version: String): String = {
     val files = Cache.getOrElse[String](WebJarVersion.cacheKey(artifactId, version)) {
       
-      val url = new URL(Play.configuration.getString("webjars.jarUrl").get.format(artifactId, URLEncoder.encode(version, "UTF-8"), artifactId, URLEncoder.encode(version, "UTF-8")))
-
-      val jarFileEntries: Iterator[JarEntry] = url.openConnection().asInstanceOf[JarURLConnection].getJarFile.entries()
+      val jarFileEntries: Iterator[JarEntry] = getFile(artifactId, version).map(_.entries().toIterator).getOrElse(Iterator.empty)
       
       val webjarFiles: List[String] = jarFileEntries.filterNot { jarFileEntry =>
         jarFileEntry.isDirectory
@@ -94,6 +93,15 @@ object MavenCentral {
       webjarFilesJson.toString
     }
     Json.parse(files).as[List[String]].mkString("\n")
+  }
+
+  def getFile(artifactId: String, version: String): Option[JarFile] = {
+    try {
+      val url = new URL(Play.configuration.getString("webjars.jarUrl").get.format(artifactId, URLEncoder.encode(version, "UTF-8"), artifactId, URLEncoder.encode(version, "UTF-8")))
+      Some(url.openConnection().asInstanceOf[JarURLConnection].getJarFile)
+    } catch {
+      case e: IOException => None
+    }
   }
 
 }
