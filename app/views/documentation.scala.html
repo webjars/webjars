@@ -243,7 +243,7 @@ public class WebConfig extends WebMvcConfigurerAdapter {
                 <span class="label label-success">Note</span> In a Servlet 3 container the <span class="label label-info">registry.addResourceHandler</span> line can be simplified to:
                 <pre><code>registry.addResourceHandler("/webjars/**").addResourceLocations("/webjars/");</code></pre>
                 <br>
-                The reference a WebJar asset like: 
+                Then reference a WebJar asset like: 
                 <pre><code>&lt;link rel='stylesheet' href='/webjars/bootstrap/3.1.0/css/bootstrap.min.css'&gt;</code></pre>
                 
                 <h3>Enhanced support for RequireJS</h3>
@@ -267,7 +267,7 @@ public String webjarjs() {
                 <span class="label label-success">Note</span> The url given to <code>getSetupJavaScript</code> has to be the url given to <code>ResourceHandler</code> and end with a <span>/</span>
                 <br><br>
                 This <code>RequestMapping</code> returns the setup code for your webjars and requirejs. It has to be included in your template before any JavaScript library that uses RequireJS like this:
-                <pre><code>&lt;script src="/webjarsjs"&gt;&lt;/script&gt;</code></pre>
+                <pre><code>&lt;script data-main="/js/core.js" src="/webjarsjs"&gt;&lt;/script&gt;</code></pre>
                 This loads the WebJars RequireJS configuration from <span class="label label-info">webjars-locator</span> and the RequireJS with a main JavaScript of <span class="label label-info">js/app</span>.
                 <br><br>
                 Underneath the covers each WebJar can have a RequireJS configuration file that sets up the modules, shims, exports, etc.  These files is named <span class="label label-info">webjars-requirejs.js</span> and are automatically added to the page via the <code>RequireJS.setup</code> helper.
