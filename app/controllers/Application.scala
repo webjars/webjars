@@ -11,6 +11,8 @@ import play.api.libs.MimeTypes
 import play.api.Play
 import play.api.Play.current
 
+import scala.collection.JavaConverters._
+
 object Application extends Controller {
     
   def index = Action.async {
@@ -23,36 +25,39 @@ object Application extends Controller {
     Ok(MavenCentral.listFiles(artifactId, version))
   }
   
-  def file(artifactId: String, version: String, file: String) = Action { request =>
+  def file(artifactId: String, webJarVersion: String, file: String) = Action { request =>
     
-    val maybeJarFile: Option[JarFile] = MavenCentral.getFile(artifactId, version)
+    val maybeJarFile: Option[JarFile] = MavenCentral.getFile(artifactId, webJarVersion)
   
     maybeJarFile match {
       case Some(jarFile) =>
-        val filePath = s"META-INF/resources/webjars/$artifactId/$version/$file"
-        val entry = jarFile.getEntry(filePath)
-        if (entry == null) {
-          NotFound("Found WebJar but could not find file: " + filePath)
-        }
-        else {
-          try {
-            // todo: etag / 304 support
-            val inputStream = jarFile.getInputStream(entry)
-            val enumerator: Enumerator[Array[Byte]] = Enumerator.fromStream(inputStream)
-            
-            // From Play's Assets controller
-            val contentType = MimeTypes.forFileName(file).map(m => m + addCharsetIfNeeded(m)).getOrElse(BINARY)
-            //
-            
-            Ok.feed(enumerator).withHeaders("Cache-Control" -> "max-age=290304000, public").as(contentType)
-          }
-          catch {
-            case e: IOException =>
-              NotFound("Found WebJar but could not read file: " + filePath + "\nError: " + e.getMessage)
-          }
+        val pathPrefix = s"META-INF/resources/webjars/$artifactId/"
+        val maybeEntry = jarFile.entries().asScala.filter { entry =>
+          entry.getName.startsWith(pathPrefix) && entry.getName.endsWith(s"/$file")
+        }.toList.headOption
+
+        maybeEntry match {
+          case None =>
+            NotFound(s"Found WebJar but could not find a file matching: $pathPrefix{version}/$file")
+          case Some(entry) =>
+            try {
+              // todo: etag / 304 support
+              val inputStream = jarFile.getInputStream(entry)
+              val enumerator: Enumerator[Array[Byte]] = Enumerator.fromStream(inputStream)
+
+              // From Play's Assets controller
+              val contentType = MimeTypes.forFileName(file).map(m => m + addCharsetIfNeeded(m)).getOrElse(BINARY)
+              //
+
+              Ok.feed(enumerator).withHeaders("Cache-Control" -> "max-age=290304000, public").as(contentType)
+            }
+            catch {
+              case e: IOException =>
+                NotFound(s"Found WebJar but could not read file: ${entry.getName}\nError: ${e.getMessage}")
+            }
         }
       case None =>
-        NotFound(s"Could not find WebJar: $artifactId $version")
+        NotFound(s"Could not find WebJar: $artifactId $webJarVersion")
     }
   }
 
