@@ -1,19 +1,21 @@
 package controllers
 
-import play.api.mvc.{RequestHeader, Controller}
+import play.api.mvc.Controller
 import play.api.Play
 import play.api.Play.current
+import controllers.routes.{StaticWebJarAssets => AssetRoutes}
+import WebJarAssets.locate
 
 object StaticWebJarAssets extends Controller {
 
   def at(file: String) = Assets.at("/META-INF/resources/webjars", file)
 
-  def getUrl(file: String) = {
-    val maybeContentUrl = Play.configuration.getString("contentUrl")
+  lazy val maybeContentUrl = Play.configuration.getString("contentUrl")
 
-    maybeContentUrl.map { contentUrl =>
-        contentUrl + controllers.routes.StaticWebJarAssets.at(WebJarAssets.locate(file)).url
-    } getOrElse controllers.routes.StaticWebJarAssets.at(WebJarAssets.locate(file)).url
+  def getUrl(file: String) = {
+    val atUrl = AssetRoutes.at(locate(file)).url
+    maybeContentUrl.fold(atUrl)(_ + atUrl)
   }
 
 }
+
