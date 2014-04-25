@@ -12,9 +12,8 @@ object StaticWebJarAssets extends Controller {
 
   lazy val maybeContentUrl = Play.configuration.getString("contentUrl")
 
-  def getUrl(file: String) = {
+  def getUrl(file: String) = 
     maybeContentUrl.fold(AssetRoutes.at(locate(file)).url)(_ + AssetRoutes.at(locate(file)).url)
-  }
 
 }
 
