@@ -12,8 +12,8 @@ object StaticWebJarAssets extends Controller {
     val maybeContentUrl = Play.configuration.getString("contentUrl")
 
     maybeContentUrl.map { contentUrl =>
-        contentUrl + controllers.routes.StaticWebJarAssets.at(file).url
-    } getOrElse controllers.routes.StaticWebJarAssets.at(file).url
+        contentUrl + controllers.routes.StaticWebJarAssets.at(WebJarAssets.locate(file)).url
+    } getOrElse controllers.routes.StaticWebJarAssets.at(WebJarAssets.locate(file)).url
   }
 
 }

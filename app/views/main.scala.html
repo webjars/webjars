@@ -1,19 +1,21 @@
 @(title: String)(content: Html)
 <!DOCTYPE html>
 
+@import StaticWebJarAssets._
+
 <html lang="en">
     <head>
         <meta charset="utf-8">
         <meta http-equiv="X-UA-Compatible" content="IE=edge">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>@title</title>
-        <link rel='stylesheet' href='@StaticWebJarAssets.getUrl(WebJarAssets.locate("css/bootstrap.min.css"))'>
-        <link rel='stylesheet' href='@StaticWebJarAssets.getUrl(WebJarAssets.locate("css/bootstrap-theme.min.css"))'>
-        <link rel="stylesheet" href='@StaticWebJarAssets.getUrl(WebJarAssets.locate("styles/default.min.css"))'>
+        <link rel='stylesheet' href='@getUrl("css/bootstrap.min.css")'>
+        <link rel='stylesheet' href='@getUrl("css/bootstrap-theme.min.css")'>
+        <link rel="stylesheet" href='@getUrl("styles/default.min.css")'>
         <link rel="stylesheet" href='@routes.Assets.at("main.css")'>
-        <script type='text/javascript' src='@StaticWebJarAssets.getUrl(WebJarAssets.locate("jquery.min.js"))'></script>
-        <script type='text/javascript' src='@StaticWebJarAssets.getUrl(WebJarAssets.locate("js/bootstrap.min.js"))'></script>
-        <script type='text/javascript' src='@StaticWebJarAssets.getUrl(WebJarAssets.locate("highlight.min.js"))'></script>
+        <script type='text/javascript' src='@getUrl("jquery.min.js")'></script>
+        <script type='text/javascript' src='@getUrl("js/bootstrap.min.js")'></script>
+        <script type='text/javascript' src='@getUrl("highlight.min.js")'></script>
         <script>hljs.initHighlightingOnLoad();</script>
     </head>
     <body>
