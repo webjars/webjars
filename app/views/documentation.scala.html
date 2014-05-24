@@ -1,5 +1,5 @@
 @main("WebJars - Documentation") {
-    
+
     <div class="well">
         <h4><strong>WebJars work with most JVM-based containers and web frameworks. Using a WebJar requires:</strong></h4>
         <ol>
@@ -8,22 +8,23 @@
             <li>Your container, web framework, or application needs to serve static assets from Jar files</li>
         </ol>
     </div>
-    
-    
+
+
     <div>
         <h3>Public CDN via <a href="http://www.jsdelivr.com" target="_blank">jsDelivr</a></h3>
         All of the WebJar contents are available on the public <a href="http://www.jsdelivr.com" target="_blank">jsDelivr</a> CDN.
         Just prefix <code>//cdn.jsdelivr.net</code> in front of your static asset URLs.  For instance, if the URL you setup to <code>jquery.js</code> is <code>/webjars/jquery/2.1.0/jquery.js</code> then to use the CDN the URL would be: <code>//cdn.jsdelivr.net/webjars/jquery/2.1.0/jquery.js</code>
     </div>
-    
+
     <div>
         <h3>Web Framework Documentation</h3>
     </div>
-    
+
     <div class="row">
         <div class="col-sm-3 col-md-2">
             <ul class="nav nav-pills nav-stacked">
                 <li class="active"><a href="#play2" data-toggle="tab">Play Framework 2</a></li>
+                <li><a href="#xitrum" data-toggle="tab">Xitrum</a></li>
                 <li><a href="#servlet3" data-toggle="tab">Servlet 3</a></li>
                 <li><a href="#jsf" data-toggle="tab">JSF</a></li>
                 <li><a href="#grails" data-toggle="tab">Grails</a></li>
@@ -34,9 +35,9 @@
                 <li><a href="#ring" data-toggle="tab">Ring (Clojure)</a></li>
             </ul>
         </div>
-        
+
         <div class="col-sm-9 col-md-10 tab-content">
- 
+
             <!-- Play Framework 2 -->
             <div class="tab-pane active" id="play2">
                 <h3>Instructions for Play 2.2 (<a href="http://typesafe.com/activator/template/hello-play">example app</a>)</h3>
@@ -67,31 +68,68 @@ play.Project.playScalaSettings</code></pre>
                 about AMD is that it is JavaScript's equivalent of package and import statements (or namespace and
                 include statements depending on your preferences!). These instructions assume basic knowledge of
                 RequireJS.
-                
+
                 <br><br>
-                
+
                 The <span class="label label-info">webjars-locator</span> library has built-in support for RequireJS and the <span class="label label-info">webjars-play</span> has some Play specific helpers.  To setup RequireJS in a server-side Scala template use the <code>RequireJS.setup</code> helper, like:
                 <pre><code>@@Html(org.webjars.play.RequireJS.setup("js/app"))</code></pre>
                 This includes <code>&lt;script&gt;</code> tags that loads the WebJars RequireJS configuration from <span class="label label-info">webjars-locator</span> and loads RequireJS with a main JavaScript of <span class="label label-info">js/app</span>.  In the sample <span class="label label-info">angular-seed-play</span> application this translates to loading the <span class="label label-info">public/js/app.js</span> file.  That JavaScript app can then begin using RequireJS, like:
                 <pre><code>require(['angular', './controllers'], function(angular) @("{")</code></pre>
-                
+
                 Module paths like <code>angular</code> are determined using the WebJars RequireJS configuration.  The relative paths like <code>./controllers</code> are relative to the main JavaScript app (<span class="label label-info">js/app</span> in this case).
-                
+
                 <br><br>
                 Underneath the covers each WebJar can have a RequireJS configuration file that sets up the modules, shims, exports, etc.  These files is named <span class="label label-info">webjars-requirejs.js</span> and are automatically added to the page via the <code>RequireJS.setup</code> helper.
-                
+
                 Some of the WebJars may not be updated to the new WebJars RequireJS syntax so if you experience problems please file issues on the WebJars you are using.
             </div>
 
-            
+
+            <!-- Xitrum -->
+            <div class="tab-pane active" id="xitrum">
+                <h3>Instructions for Xitrum</h3>
+
+                <p><a href="http://xitrum-framework.github.io/xitrum/">Xitrum</a>
+                from 3.13 has <a href="http://xitrum-framework.github.io/xitrum/guide/static.html#serve-resource-files-in-classpath-with-webjars-convention">built-in</a>
+                support for WebJars. If you have a dependency like this:</p>
+
+                <pre><code>libraryDependencies += "org.webjars" % "underscorejs" % "1.6.0-3"</code></pre>
+
+                <p>In you <a href="http://scalate.fusesource.org/">Scalate</a>
+                view template file, you can write like this (the below examples
+                use <a href="http://scalate.fusesource.org/documentation/jade.html">Jade</a>
+                syntax):</p>
+
+                <pre><code>script(src={webJarsUrl("underscorejs/1.6.0", "underscore.js", "underscore-min.js")})</code></pre>
+
+                <p>Xitrum will automatically use <code>underscore.js</code> for
+                development environment and <code>underscore-min.js</code> for
+                production environment.</p>
+
+                <p>The result will look like this:</p>
+
+                <pre><code>&lt;script src=&quot;/webjars/underscorejs/1.6.0/underscore.js?XOKgP8_KIpqz9yUqZ1aVzw&quot;&gt;&lt;/script&gt;</code></pre>
+
+                <p>If you want to use the same file for both environments:</p>
+
+                <pre><code>script(src={webJarsUrl("underscorejs/1.6.0/underscore.js")})</code></pre>
+
+                <p>For examples, see
+                <a href="https://github.com/xitrum-framework/xitrum-new">xitrum-new</a>
+                and
+                <a href="https://github.com/xitrum-framework/xitrum-demos">xitrum-demos</a>
+                (<a href="http://ec2-54-249-135-186.ap-northeast-1.compute.amazonaws.com:8151/">online</a>).</p>
+            </div>
+
+
             <!-- Servlet 3 -->
             <div class="tab-pane" id="servlet3">
                 <h3>Instructions for Servlet 3</h3>
-                
-                With any Servlet 3 compatible container, the WebJars that are in the <span class="label label-info">WEB-INF/lib</span> directory are automatically made available as static resources.  This works because anything in a <span class="label label-info">META-INF/resources</span> directory in a JAR in <span class="label label-info">WEB-INF/lib</span> is automatically exposed as a static resource. 
+
+                With any Servlet 3 compatible container, the WebJars that are in the <span class="label label-info">WEB-INF/lib</span> directory are automatically made available as static resources.  This works because anything in a <span class="label label-info">META-INF/resources</span> directory in a JAR in <span class="label label-info">WEB-INF/lib</span> is automatically exposed as a static resource.
 
                 <h4>Maven Example (<a href="https://github.com/webjars/sample-jetty_war">example app</a>)</h4>
-                
+
                 First add a WebJar as a dependency of your application in the <span class="label label-info">pom.xml</span> file, like:
                 <pre><code>&lt;dependencies&gt;
     &lt;dependency&gt;
@@ -103,20 +141,20 @@ play.Project.playScalaSettings</code></pre>
                 <br>
                 Then simply reference the resource like:
                 <pre><code>&lt;link rel='stylesheet' href='webjars/bootstrap/3.1.0/css/bootstrap.min.css'&gt;</code></pre>
-                
+
             </div>
 
 
             <!-- JSF -->
             <div class="tab-pane" id="jsf">
                 <h3>Instructions for JSF</h3>
-                
+
                 With JSF, the WebJars that are in the <span class="label label-info">WEB-INF/lib</span> directory are automatically made available as resource libraries. This works because WebJars are compatible with the JSF resource identifier format.<br>
                 <br>
                 <a href="http://www.mkyong.com/jsf2/resources-library-in-jsf-2-0/">More Information about JSF resources</a>
 
                 <h4>Maven Example (<a href="https://github.com/arend-von-reinersdorff/samplejsfwithwebjars">example app</a>)</h4>
-                
+
                 First add a WebJar as a dependency of your application in the <span class="label label-info">pom.xml</span> file, like:
                 <pre><code>&lt;dependencies&gt;
     &lt;dependency&gt;
@@ -218,7 +256,7 @@ public class MainService extends Service<Configuration> {
             <!-- Spring MVC -->
             <div class="tab-pane" id="springmvc">
                 <h3>Instructions for Spring MVC</h3>
-                
+
                 Spring MVC makes it easy to expose static assets in JAR files using <span class="label label-info">ResourceHandlers</span>.
 
                 <h4>Maven Example (<a href="https://github.com/webjars/sample-jetty_war">example app</a>)</h4>
@@ -247,13 +285,13 @@ public class WebConfig extends WebMvcConfigurerAdapter {
   public void addResourceHandlers(ResourceHandlerRegistry registry) {
     registry.addResourceHandler("/webjars/**").addResourceLocations("classpath:/META-INF/resources/webjars/");
   }
-                    
+
 }</code></pre>
                 <br>
                 <span class="label label-success">Note</span> In a Servlet 3 container the <span class="label label-info">registry.addResourceHandler</span> line can be simplified to:
                 <pre><code>registry.addResourceHandler("/webjars/**").addResourceLocations("/webjars/");</code></pre>
                 <br>
-                The reference a WebJar asset like: 
+                The reference a WebJar asset like:
                 <pre><code>&lt;link rel='stylesheet' href='/webjars/bootstrap/3.1.0/css/bootstrap.min.css'&gt;</code></pre>
             </div>
 
@@ -263,7 +301,7 @@ public class WebConfig extends WebMvcConfigurerAdapter {
                 <h3>Instructions for Apache Tapestry</h3>
 
                 Apache Tapestry makes it easy to expose static assets in JAR files using <span class="label label-info">contributeClasspathAssetAliasManager</span>.
-    
+
                 <h4>Maven Example (<a href="https://github.com/webjars/sample-tapestry">example app</a>)</h4>
 
                 First add a WebJar as a dependency of your application in the <span class="label label-info">pom.xml</span> file, like:
@@ -275,7 +313,7 @@ public class WebConfig extends WebMvcConfigurerAdapter {
     &lt;/dependency&gt;
 &lt;/dependencies&gt;</code></pre>
                 <br>
-                Then configure the <span class="label label-info">contributeClasspathAssetAliasManager</span> in your <span class="label label-info">AppModule</span> to look for assets in <span class="label label-info">META-INF/resources/webjars</span> directories: 
+                Then configure the <span class="label label-info">contributeClasspathAssetAliasManager</span> in your <span class="label label-info">AppModule</span> to look for assets in <span class="label label-info">META-INF/resources/webjars</span> directories:
                 <pre><code>public class AppModule {
     public static void contributeClasspathAssetAliasManager(MappedConfiguration<String, String> configuration) {
         configuration.add("webjars", "META-INF/resources/webjars");
@@ -286,7 +324,7 @@ public class WebConfig extends WebMvcConfigurerAdapter {
                 <pre><code>&lt;link rel='stylesheet' media='screen'
     href='${asset:classpath:/META-INF/resources/webjars/bootstrap/3.1.0/css/bootstrap.min.css}'&gt;&lt;/link&gt;
 &lt;script type='text/javascript'
-    src='${asset:classpath:/META-INF/resources/webjars/jquery/1.9.0/jquery.min.js}'&gt;&lt;/script&gt;</pre></code>            
+    src='${asset:classpath:/META-INF/resources/webjars/jquery/1.9.0/jquery.min.js}'&gt;&lt;/script&gt;</pre></code>
             </div>
 
 
@@ -393,5 +431,5 @@ public void renderHead(IHeaderResponse response) {
 
         </div>
     </div>
-        
+
 }
