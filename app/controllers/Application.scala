@@ -12,9 +12,11 @@ import play.api.Play
 import play.api.Play.current
 
 import scala.collection.JavaConverters._
+import org.joda.time.format.{DateTimeFormat, DateTimeFormatter}
+import org.joda.time.DateTimeZone
 
 object Application extends Controller {
-    
+
   def index = Action.async {
     MavenCentral.allWebJars.map { allWebJars =>
       Ok(views.html.index(allWebJars))
@@ -26,7 +28,7 @@ object Application extends Controller {
   }
   
   def file(artifactId: String, webJarVersion: String, file: String) = Action { request =>
-    
+
     val maybeJarFile: Option[JarFile] = MavenCentral.getFile(artifactId, webJarVersion)
   
     maybeJarFile match {
@@ -38,18 +40,21 @@ object Application extends Controller {
 
         maybeEntry match {
           case None =>
-            NotFound(s"Found WebJar but could not find a file matching: $pathPrefix{version}/$file")
+            NotFound(s"Found WebJar but could not find a file matching: $pathPrefix$webJarVersion/$file")
           case Some(entry) =>
             try {
-              // todo: etag / 304 support
               val inputStream = jarFile.getInputStream(entry)
               val enumerator: Enumerator[Array[Byte]] = Enumerator.fromStream(inputStream)
 
-              // From Play's Assets controller
+              //// From Play's Assets controller
               val contentType = MimeTypes.forFileName(file).map(m => m + addCharsetIfNeeded(m)).getOrElse(BINARY)
-              //
+              ////
 
-              Ok.feed(enumerator).withHeaders("Cache-Control" -> "max-age=290304000, public").as(contentType)
+              Ok.feed(enumerator).as(contentType).withHeaders(
+                CACHE_CONTROL -> "max-age=290304000, public",
+                DATE -> df.print({ new java.util.Date }.getTime),
+                LAST_MODIFIED -> df.print(entry.getLastModifiedTime.toMillis)
+              )
             }
             catch {
               case e: IOException =>
@@ -69,13 +74,26 @@ object Application extends Controller {
     Ok(views.html.contributing())
   }
 
-  // From Play's Assets controller
+
+  //// From Play's Asset controller
+
+  private val timeZoneCode = "GMT"
+
+  //Dateformatter is immutable and threadsafe
+  private val df: DateTimeFormatter =
+    DateTimeFormat.forPattern("EEE, dd MMM yyyy HH:mm:ss '" + timeZoneCode + "'").withLocale(java.util.Locale.ENGLISH).withZone(DateTimeZone.forID(timeZoneCode))
+
+  //Dateformatter is immutable and threadsafe
+  private val dfp: DateTimeFormatter =
+    DateTimeFormat.forPattern("EEE, dd MMM yyyy HH:mm:ss").withLocale(java.util.Locale.ENGLISH).withZone(DateTimeZone.forID(timeZoneCode))
+
   private lazy val defaultCharSet = Play.configuration.getString("default.charset").getOrElse("utf-8")
 
   private def addCharsetIfNeeded(mimeType: String): String =
     if (MimeTypes.isText(mimeType))
       "; charset=" + defaultCharSet
     else ""
-  //
+
+  ////
   
 }
