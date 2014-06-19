@@ -40,48 +40,41 @@
 
             <!-- Play Framework 2 -->
             <div class="tab-pane active" id="play2">
-                <h3>Instructions for Play 2.2 (<a href="http://typesafe.com/activator/template/hello-play">example app</a>)</h3>
+                <h3>Instructions for Play 2.3 (<a href="http://typesafe.com/activator/template/webjars-sample-play2">Sample Source</a>)</h3>
                 WebJars can be added as dependencies to an app by simply adding them to the <span class="label label-info">build.sbt</span> file.  There is also a helper library named <span class="label label-info">webjars-play</span> that makes it easy to reference WebJar assets.  Here is an example <span class="label label-info">build.sbt</span> file with <span class="label label-info">webjars-play</span> and the <span class="label label-info">bootstrap</span> WebJar as dependencies:<br>
-                <pre><code>name := "hello-play"
-
-version := "1.0-SNAPSHOT"
-
-libraryDependencies ++= Seq(
-  "org.webjars" %% "webjars-play" % "2.2.1-2",
-  "org.webjars" % "bootstrap" % "3.1.0"
-)
-
-play.Project.playScalaSettings</code></pre>
+                <pre><code>libraryDependencies ++= Seq(
+  "org.webjars" %% "webjars-play" % "2.3.0",
+  "org.webjars" % "bootstrap" % "3.1.1-2"
+)</code></pre>
                 <br>
                 After changing a Play 2's dependencies you will need to restart Play.<br>
                 <br>
+                In Play 2.3 WebJars are automatically available as static assets.  If you have a route like:
+                <pre><code>GET         /assets/*file           controllers.Assets.at(path="/public", file)</code></pre>
+                <br/>
+                Then a WebJar file like `bootstrap.css` is available at:
+                <pre><code>/assets/lib/bootstrap/css/bootstrap.css</code></pre>
+                <br/>
                 The <span class="label label-info">webjars-play</span> helper library has a wrapper around the Play Static Asset Controller that can locate and serve WebJar assets.  A new route to <span class="label label-info">WebJarAssets</span> needs to be added to the <span class="label label-info">conf/routes</span> file:
                 <pre><code>GET     /webjars/*file                    controllers.WebJarAssets.at(file)</code></pre>
                 <br>
                 To use Play 2's reverse routing to resolve the URL to an asset you can do the following in a template:
                 <pre><code>&lt;link rel='stylesheet' href='@@routes.WebJarAssets.at(WebJarAssets.locate("css/bootstrap.min.css"))'&gt;
 &lt;script type='text/javascript' src='@@routes.WebJarAssets.at(WebJarAssets.locate("jquery.min.js"))'&gt;&lt;/script&gt;</code></pre>
-
-                <h3>Enhanced support for RequireJS (<a href="https://github.com/typesafehub/angular-seed-play">example app</a>)</h3>
-                <a href="http://www.requirejs.org" target="_blank">RequireJS</a> is a popular implementation of the <a href="https://github.com/amdjs/amdjs-api/wiki/AMD">AMD</a>
-                specification - a means by which JavaScript applications can be modularised. The easiest way of thinking
-                about AMD is that it is JavaScript's equivalent of package and import statements (or namespace and
-                include statements depending on your preferences!). These instructions assume basic knowledge of
-                RequireJS.
-
-                <br><br>
-
-                The <span class="label label-info">webjars-locator</span> library has built-in support for RequireJS and the <span class="label label-info">webjars-play</span> has some Play specific helpers.  To setup RequireJS in a server-side Scala template use the <code>RequireJS.setup</code> helper, like:
-                <pre><code>@@Html(org.webjars.play.RequireJS.setup("js/app"))</code></pre>
-                This includes <code>&lt;script&gt;</code> tags that loads the WebJars RequireJS configuration from <span class="label label-info">webjars-locator</span> and loads RequireJS with a main JavaScript of <span class="label label-info">js/app</span>.  In the sample <span class="label label-info">angular-seed-play</span> application this translates to loading the <span class="label label-info">public/js/app.js</span> file.  That JavaScript app can then begin using RequireJS, like:
-                <pre><code>require(['angular', './controllers'], function(angular) @("{")</code></pre>
-
-                Module paths like <code>angular</code> are determined using the WebJars RequireJS configuration.  The relative paths like <code>./controllers</code> are relative to the main JavaScript app (<span class="label label-info">js/app</span> in this case).
-
-                <br><br>
-                Underneath the covers each WebJar can have a RequireJS configuration file that sets up the modules, shims, exports, etc.  These files is named <span class="label label-info">webjars-requirejs.js</span> and are automatically added to the page via the <code>RequireJS.setup</code> helper.
-
-                Some of the WebJars may not be updated to the new WebJars RequireJS syntax so if you experience problems please file issues on the WebJars you are using.
+                <br/>
+                The WebJars contain versioned paths when accessed through the <code>WebJarAssets</code> controller.  For local non-WebJar assets you should also setup a route for versioned assets via the <code>sbt-digest</code> asset compiler, like:
+                <pre><code>GET         /vassets/*file          controllers.Assets.versioned(path="/public", file: Asset)</code></pre>
+                <br/>
+                WebJars have out-of-the-box support for RequireJS.  To use it first include the RequireJS config in your page:
+                <pre><code>&lt;script&gt;
+    @@Html(org.webjars.RequireJS.getSetupJavaScript(routes.WebJarAssets.at("").url))
+&lt;/script&gt;</code></pre>
+                <br/>
+                Then load RequireJS with a <code>data-main</code> for your JavaScript app:
+                <pre><code>&lt;script data-main="@@routes.Assets.versioned("javascripts/index.js")"
+  src="@@routes.WebJarAssets.at(WebJarAssets.locate("require.min.js"))"&gt;&lt;/script&gt;</code></pre>
+                <br/>
+                <!-- todo: CDN -->
             </div>
 
 
