@@ -2,14 +2,13 @@ name := "webjars"
 
 version := "1.0-SNAPSHOT"
 
-//resolvers += "Sonatype OSS Snapshots Repository" at "http://oss.sonatype.org/content/groups/public",
-
 resolvers += "Spy Repository" at "http://files.couchbase.com/maven2"
 
 libraryDependencies ++= Seq(
+  ws,
   cache,
   filters,
-  "org.webjars" %% "webjars-play" % "2.2.2-1",
+  "org.webjars" %% "webjars-play" % "2.3.0",
   "org.webjars" % "jquery" % "1.11.0",
   "org.webjars" % "bootstrap" % "3.1.1",
   "org.webjars" % "highlightjs" % "8.0-1",
@@ -24,4 +23,4 @@ initialize := {
     sys.error("Java 8 is required for this project.")
 }
 
-play.Project.playScalaSettings
+lazy val root = (project in file(".")).enablePlugins(PlayScala)
