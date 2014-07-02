@@ -65,8 +65,10 @@ object MavenCentral {
   
   def listFiles(artifactId: String, version: String): String = {
     val files = Cache.getOrElse[String](WebJarVersion.cacheKey(artifactId, version)) {
-      
-      val jarFileEntries: Iterator[JarEntry] = getFile(artifactId, version).map(_.entries().toIterator).getOrElse(Iterator.empty)
+
+      val maybeJarFile = getFile(artifactId, version)
+
+      val jarFileEntries: Iterator[JarEntry] = maybeJarFile.map(_.entries().toIterator).getOrElse(Iterator.empty)
       
       val webjarFiles: List[String] = jarFileEntries.filterNot { jarFileEntry =>
         jarFileEntry.isDirectory
@@ -75,10 +77,12 @@ object MavenCentral {
       }.filter { jarFile =>
         jarFile.startsWith("META-INF/resources/webjars")
       }.toList
+
+      maybeJarFile.foreach(_.close())
       
       val webjarFilesJson = Json.toJson(webjarFiles)
 
-      Cache.set(WebJarVersion.cacheKey(artifactId, version), webjarFilesJson.toString)
+      Cache.set(WebJarVersion.cacheKey(artifactId, version), webjarFilesJson.toString())
 
       // update the webjars cache to contain the new value
       /*
@@ -90,7 +94,7 @@ object MavenCentral {
       // Brute force eviction
       Cache.set(ALL_WEBJARS_CACHE_KEY, None)
       
-      webjarFilesJson.toString
+      webjarFilesJson.toString()
     }
     Json.parse(files).as[List[String]].mkString("\n")
   }

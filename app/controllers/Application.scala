@@ -40,11 +40,13 @@ object Application extends Controller {
 
         maybeEntry match {
           case None =>
+            jarFile.close()
             NotFound(s"Found WebJar but could not find a file matching: $pathPrefix$webJarVersion/$file")
           case Some(entry) =>
             try {
               val inputStream = jarFile.getInputStream(entry)
               val enumerator: Enumerator[Array[Byte]] = Enumerator.fromStream(inputStream)
+              enumerator.onDoneEnumerating(jarFile.close())
 
               //// From Play's Assets controller
               val contentType = MimeTypes.forFileName(file).map(m => m + addCharsetIfNeeded(m)).getOrElse(BINARY)
@@ -58,6 +60,7 @@ object Application extends Controller {
             }
             catch {
               case e: IOException =>
+                jarFile.close()
                 NotFound(s"Found WebJar but could not read file: ${entry.getName}\nError: ${e.getMessage}")
             }
         }
