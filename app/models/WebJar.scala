@@ -1,5 +1,7 @@
 package models
 
+import java.util.Date
+
 import play.api.libs.json.Json
 
 case class WebJar(artifactId: String, name: String, sourceUrl: String, versions: Seq[WebJarVersion])
@@ -13,13 +15,36 @@ object WebJar {
 
 object WebJarVersion {
   def cacheKey(artifactId: String, version: String): String = artifactId + "-" + version + "-files"
-  
+
   // todo, this doesn't work on date-based versions that follow non-standard formats (e.g. ace)
   implicit object WebJarVersionOrdering extends Ordering[WebJarVersion] {
+
+    def unmalform(s: String): String = {
+      val fixRc = s.replaceAllLiterally("rc", ".rc.")
+      val justDots = fixRc.replaceAllLiterally("-", ".").replaceAllLiterally("..", ".")
+      val betterDate = if (justDots.matches("(\\d\\d)\\.(\\d\\d)\\.(\\d\\d\\d\\d)")) {
+        val parts = justDots.split('.').map(_.toInt)
+        val time = new Date(parts(2), parts(0), parts(1)).getTime
+        time.toString
+      } else {
+        justDots
+      }
+      betterDate
+    }
+
     def compare(a: WebJarVersion, b: WebJarVersion) = {
-      val aParts = a.number.split(Array('.', '-'))
-      val bParts = b.number.split(Array('.', '-'))
-      
+
+      def betaRc(s: String): String = {
+        s match {
+          case "beta" => "-2"
+          case "rc" => "-1"
+          case _ => s
+        }
+      }
+
+      val aParts = unmalform(a.number).split('.').map(betaRc)
+      val bParts = unmalform(b.number).split('.').map(betaRc)
+
       // figure out the longest one and pad each with a string 0 until the sizes match
       val longest = aParts.length max bParts.length
       
@@ -33,7 +58,7 @@ object WebJarVersion {
       // todo: could be optimized
       val abCompared = abParts.map { case (aV, bV) =>
         try {
-          aV.toInt compare bV.toInt
+          aV.toLong compare bV.toLong
         }
         catch {
           // if we can't compare because it's not an int then just set this one to 1

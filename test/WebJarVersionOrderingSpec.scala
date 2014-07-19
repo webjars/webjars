@@ -1,5 +1,6 @@
 package test
 
+import models.WebJarVersion.WebJarVersionOrdering
 import org.specs2.mutable._
 import models.WebJarVersion
 import scala.util.Random
@@ -7,7 +8,11 @@ import scala.util.Random
 class WebJarVersionOrderingSpec extends Specification {
   
   "WebJarVersionOrdering" should {
-    
+
+    "deal with malformed version" in {
+      WebJarVersionOrdering.unmalform("0rc1") must beEqualTo("0.rc.1")
+    }
+
     "sort in the correct order" in {
       
       val correct = Seq(
@@ -60,6 +65,30 @@ class WebJarVersionOrderingSpec extends Specification {
         WebJarVersion("1.1-0"),
         WebJarVersion("1.1-1"),
         WebJarVersion("1.1-10")
+      )
+
+      correct.reverse.sorted must beEqualTo(correct)
+    }
+
+    "deal with beta modifiers" in {
+
+      val correct = Seq(
+        WebJarVersion("1.2.20"),
+        WebJarVersion("1.3.0-beta.2"),
+        WebJarVersion("1.3.0-beta.7"),
+        WebJarVersion("1.3.0-beta.7-1"),
+        WebJarVersion("1.3.0-beta.15")
+      )
+
+      correct.reverse.sorted must beEqualTo(correct)
+    }
+
+    "deal with dates" in {
+      val correct = Seq(
+        WebJarVersion("04.09.2013"),
+        WebJarVersion("04.10.2013"),
+        WebJarVersion("07.31.2013"),
+        WebJarVersion("01.08.2014")
       )
 
       correct.reverse.sorted must beEqualTo(correct)
