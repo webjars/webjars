@@ -1,6 +1,6 @@
 package models
 
-import java.util.Date
+import java.util.Calendar
 
 import play.api.libs.json.Json
 
@@ -24,8 +24,9 @@ object WebJarVersion {
       val justDots = fixRc.replaceAllLiterally("-", ".").replaceAllLiterally("..", ".")
       val betterDate = if (justDots.matches("(\\d\\d)\\.(\\d\\d)\\.(\\d\\d\\d\\d)")) {
         val parts = justDots.split('.').map(_.toInt)
-        val time = new Date(parts(2), parts(0), parts(1)).getTime
-        time.toString
+        val time = Calendar.getInstance()
+        time.set(parts(2), parts(0), parts(1))
+        time.getTimeInMillis.toString
       } else {
         justDots
       }
