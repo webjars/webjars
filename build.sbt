@@ -9,9 +9,9 @@ libraryDependencies ++= Seq(
   cache,
   filters,
   "org.webjars" %% "webjars-play" % "2.3.0",
-  "org.webjars" % "jquery" % "1.11.0",
-  "org.webjars" % "bootstrap" % "3.1.1",
-  "org.webjars" % "highlightjs" % "8.0-1",
+  "org.webjars" % "jquery" % "1.11.1",
+  "org.webjars" % "bootstrap" % "3.2.0",
+  "org.webjars" % "highlightjs" % "8.0-3",
   "com.github.mumoshu" %% "play2-memcached" % "0.6.0"
 )
 
