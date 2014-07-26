@@ -17,6 +17,8 @@ import scala.collection.JavaConversions.enumerationAsScalaIterator
 import scala.concurrent.ExecutionContext.Implicits.global
 import java.io.IOException
 
+import scala.xml.Elem
+
 object MavenCentral {
 
   implicit val webJarVersionReads = Json.reads[WebJarVersion]
@@ -33,7 +35,8 @@ object MavenCentral {
     } getOrElse {
       
       // todo: would be nice if this could only happen only once no matter how many in-flight requests have missed the cache
-      WS.url(Play.configuration.getString("webjars.searchGroupUrl").get).get().map { response =>
+      WS.url(Play.configuration.getString("webjars.searchGroupUrl").get).get().flatMap { response =>
+
         val allVersions = (response.json \ "response" \ "docs").as[Seq[JsObject]].map { jsObject =>
           ((jsObject \ "a").as[String], (jsObject \ "v").as[String])
         }
@@ -48,19 +51,59 @@ object MavenCentral {
           webJarVersions.sorted.reverse
         }
         
-        val webjarsUnsorted = grouped.filterNot { webjar =>
+        val webjarsUnsortedFutures = grouped.filterNot { webjar =>
           webjar._1.startsWith("webjars-") // remove items like "webjars-play"
-        }.map { webjar =>
-          WebJar(webjar._1, webjar._1, "http://github.com/webjars/" + webjar._1, webjar._2) // todo: find a way to get the actual name
+        }.map { case(id, versions) =>
+          fetchPom(id, versions).flatMap { xml =>
+            val artifactId = (xml \ "artifactId").text
+            val rawName = (xml \ "name").text
+            val name = if (rawName.contains("${")) {
+              // can't handle pom properties so fallback to id
+              id
+            } else {
+              rawName
+            }
+            val rawUrl = (xml \ "scm" \ "url").text
+            val url = if (rawUrl.contains("${")) {
+              // can't handle pom properties so fallback to a guess
+              s"http://github.com/webjars/$id"
+            } else {
+              rawUrl
+            }
+            if (url != "") {
+              Future.successful(WebJar(artifactId, name, url, versions))
+            }
+            else {
+              // try the parent pom
+              val parentArtifactId = (xml \ "parent" \ "artifactId").text
+              fetchPom(parentArtifactId, versions).map { parentXml =>
+                val parentUrl = (parentXml \ "scm" \ "url").text
+                WebJar(artifactId, name, parentUrl, versions)
+              }
+            }
+          } recover {
+            case _ =>
+              WebJar(id, id, s"http://github.com/webjars/$id", versions)
+          }
         }
 
-        val webjars = webjarsUnsorted.toArray.sortWith(_.name.toLowerCase < _.name.toLowerCase)
-        
-        Cache.set(ALL_WEBJARS_CACHE_KEY, Json.toJson(webjars), 60 * 60)
+        Future.sequence(webjarsUnsortedFutures).map { webjarsUnsorted =>
+          val webjars = webjarsUnsorted.toArray.sortWith(_.name.toLowerCase < _.name.toLowerCase)
 
-        webjars
+          Cache.set(ALL_WEBJARS_CACHE_KEY, Json.toJson(webjars), 60 * 60)
+
+          webjars
+        }
+
       }
     }
+  }
+
+  def fetchPom(id: String, versions: Seq[WebJarVersion]): Future[Elem] = {
+    // todo: sort these first so we get the latest metadata
+    val aVersion = versions.head.number
+    val url = s"http://repo1.maven.org/maven2/org/webjars/$id/$aVersion/$id-$aVersion.pom"
+    WS.url(url).get().map(_.xml)
   }
   
   def listFiles(artifactId: String, version: String): String = {
