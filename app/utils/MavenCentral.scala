@@ -31,9 +31,8 @@ object MavenCentral {
   
   def allWebJars: Future[Iterable[WebJar]] = {
     Cache.getAs[JsValue](ALL_WEBJARS_CACHE_KEY).map { webjarsJson =>
-      Promise().success(webjarsJson.as[Iterable[WebJar]]).future
+      Future.successful(webjarsJson.as[Iterable[WebJar]])
     } getOrElse {
-      
       // todo: would be nice if this could only happen only once no matter how many in-flight requests have missed the cache
       WS.url(Play.configuration.getString("webjars.searchGroupUrl").get).get().flatMap { response =>
 
