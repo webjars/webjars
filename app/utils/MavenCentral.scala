@@ -105,10 +105,10 @@ object MavenCentral {
     WS.url(url).get().map(_.xml)
   }
   
-  def listFiles(artifactId: String, version: String): String = {
+  def listFiles(baseUrl: String, artifactId: String, version: String): String = {
     val files = Cache.getOrElse[String](WebJarVersion.cacheKey(artifactId, version)) {
 
-      val maybeJarFile = getFile(artifactId, version)
+      val maybeJarFile = getFile(baseUrl, artifactId, version)
 
       val jarFileEntries: Iterator[JarEntry] = maybeJarFile.map(_.entries().toIterator).getOrElse(Iterator.empty)
       
@@ -141,12 +141,12 @@ object MavenCentral {
     Json.parse(files).as[List[String]].mkString("\n")
   }
 
-  def getFile(artifactId: String, version: String): Option[JarFile] = {
+  def getFile(baseUrl: String, artifactId: String, version: String): Option[JarFile] = {
     try {
-      val url = new URL(Play.configuration.getString("webjars.jarUrl").get.format(artifactId, URLEncoder.encode(version, "UTF-8"), artifactId, URLEncoder.encode(version, "UTF-8")))
+      val url = new URL(baseUrl.format(artifactId, URLEncoder.encode(version, "UTF-8"), artifactId, URLEncoder.encode(version, "UTF-8")))
       Some(url.openConnection().asInstanceOf[JarURLConnection].getJarFile)
     } catch {
-      case e: IOException => None
+      case e: Exception => None
     }
   }
 
