@@ -105,7 +105,7 @@ object MavenCentral {
     WS.url(url).get().map(_.xml)
   }
   
-  def listFiles(baseUrl: String, artifactId: String, version: String): String = {
+  def listFiles(baseUrl: String, artifactId: String, version: String): List[String] = {
     val files = Cache.getOrElse[String](WebJarVersion.cacheKey(artifactId, version)) {
 
       val maybeJarFile = getFile(baseUrl, artifactId, version)
@@ -138,7 +138,7 @@ object MavenCentral {
       
       webjarFilesJson.toString()
     }
-    Json.parse(files).as[List[String]].mkString("\n")
+    Json.parse(files).as[List[String]]
   }
 
   def getFile(baseUrl: String, artifactId: String, version: String): Option[JarFile] = {

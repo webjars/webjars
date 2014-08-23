@@ -27,7 +27,8 @@ object Application extends Controller {
   }
   
   def listFiles(artifactId: String, version: String) = Action {
-    Ok(MavenCentral.listFiles(primaryBaseJarUrl, artifactId, version))
+    val fileList = MavenCentral.listFiles(primaryBaseJarUrl, artifactId, version)
+    Ok(views.html.filelist(artifactId, version, fileList))
   }
   
   def file(artifactId: String, webJarVersion: String, file: String) = Action { request =>

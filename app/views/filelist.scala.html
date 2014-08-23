@@ -1,0 +1,5 @@
+@(artifactId: String, version: String, fileList: List[String])
+
+@for(file <- fileList) {
+    <a href="//cdn.jsdelivr.net/webjars/@artifactId/@version/@file.stripPrefix(s"META-INF/resources/webjars/$artifactId/$version/")" target="_blank">@file</a><br/>
+}
