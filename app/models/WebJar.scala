@@ -4,7 +4,7 @@ import java.util.Calendar
 
 import play.api.libs.json.Json
 
-case class WebJar(artifactId: String, name: String, sourceUrl: String, versions: Seq[WebJarVersion])
+case class WebJar(artifactId: String, name: String, sourceUrl: String, versions: List[WebJarVersion]) extends Serializable
 
 case class WebJarVersion(number: String, numFiles: Option[Int] = None)
 

@@ -17,25 +17,21 @@ import org.joda.time.DateTimeZone
 
 object Application extends Controller {
 
-  val primaryBaseJarUrl = Play.current.configuration.getString("webjars.jarUrl.primary").get
-  val fallbackBaseJarUrl = Play.current.configuration.getString("webjars.jarUrl.fallback").get
-
   def index = Action.async {
     MavenCentral.allWebJars.map { allWebJars =>
       Ok(views.html.index(allWebJars))
     }
   }
   
-  def listFiles(artifactId: String, version: String) = Action {
-    val fileList = MavenCentral.listFiles(primaryBaseJarUrl, artifactId, version)
-    Ok(views.html.filelist(artifactId, version, fileList))
+  def listFiles(artifactId: String, version: String) = Action.async {
+    MavenCentral.listFiles(artifactId, version).map { fileList =>
+      Ok(views.html.filelist(artifactId, version, fileList))
+    }
   }
   
   def file(artifactId: String, webJarVersion: String, file: String) = Action { request =>
 
-    val maybeJarFile: Option[JarFile] = MavenCentral.getFile(primaryBaseJarUrl, artifactId, webJarVersion).orElse {
-      MavenCentral.getFile(fallbackBaseJarUrl, artifactId, webJarVersion)
-    }
+    val maybeJarFile: Option[JarFile] = MavenCentral.getFile(artifactId, webJarVersion)
 
     maybeJarFile match {
       case Some(jarFile) =>

@@ -2,6 +2,8 @@ name := "webjars"
 
 version := "1.0-SNAPSHOT"
 
+scalaVersion := "2.11.2"
+
 resolvers += "Spy Repository" at "http://files.couchbase.com/maven2"
 
 libraryDependencies ++= Seq(
@@ -12,7 +14,7 @@ libraryDependencies ++= Seq(
   "org.webjars" % "jquery" % "1.11.1",
   "org.webjars" % "bootstrap" % "3.2.0",
   "org.webjars" % "highlightjs" % "8.0-3",
-  "com.github.mumoshu" %% "play2-memcached" % "0.6.0"
+  "com.bionicspirit" %% "shade" % "1.6.0"
 )
 
 javacOptions ++= Seq("-source", "1.8", "-target", "1.8")
@@ -20,7 +22,7 @@ javacOptions ++= Seq("-source", "1.8", "-target", "1.8")
 onLoad in Global := (onLoad in Global).value.andThen { state =>
   if (sys.props("java.specification.version") != "1.8") {
     sys.error("Java 8 is required for this project.")
-    state.exit(false)
+    state.exit(ok = false)
   }
   else {
     state
