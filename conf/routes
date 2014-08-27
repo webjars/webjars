@@ -1,13 +1,14 @@
-GET     /                                 controllers.Application.index()
-GET     /listfiles/:artifactId/:version   controllers.Application.listFiles(artifactId, version)
-GET     /documentation                    controllers.Application.documentation()
-GET     /contributing                     controllers.Application.contributing()
+GET        /                                        controllers.Application.index()
+GET        /listfiles/:artifactId/:version          controllers.Application.listFiles(artifactId, version)
+GET        /documentation                           controllers.Application.documentation()
+GET        /contributing                            controllers.Application.contributing()
 
-GET     /mockcentral/searchgroup          controllers.MockCentral.searchGroup()
+GET        /mockcentral/searchgroup                 controllers.MockCentral.searchGroup()
 
-GET     /files/:artifactId/:version/*file controllers.Application.file(artifactId, version, file)
+GET        /files/:artifactId/:version/*file        controllers.Application.file(artifactId, version, file)
+OPTIONS    /files/:artifactId/:version/*file        controllers.Application.fileOptions(artifactId, version, file)
 
-GET     /webjars/*file                    controllers.StaticWebJarAssets.at(file)
-GET     /assets/*file                     controllers.Assets.at(path="/public", file)
+GET        /webjars/*file                           controllers.StaticWebJarAssets.at(file)
+GET        /assets/*file                            controllers.Assets.at(path="/public", file)
 
-GET     /favicon.ico                      controllers.Assets.at(path="/public", file="favicon.ico")
+GET        /favicon.ico                             controllers.Assets.at(path="/public", file="favicon.ico")
