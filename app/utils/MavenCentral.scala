@@ -1,5 +1,8 @@
 package utils
 
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
+import java.util.zip._
+
 import play.api.cache.Cache
 import play.api.libs.ws.WS
 import play.api.libs.json.{Json, JsObject}
@@ -28,14 +31,38 @@ object MavenCentral {
   implicit val webJarReads = Json.reads[WebJar]
   implicit val webJarWrites = Json.writes[WebJar]
 
+  // from: http://stackoverflow.com/questions/15079332/round-tripping-through-deflater-in-scala-fails
+
+  def compress(bytes: Array[Byte]): Array[Byte] = {
+    val deflater = new java.util.zip.Deflater
+    val baos = new ByteArrayOutputStream
+    val dos = new DeflaterOutputStream(baos, deflater)
+    dos.write(bytes)
+    dos.finish()
+    dos.close()
+    baos.close()
+    baos.toByteArray
+  }
+
+  def decompress(bytes: Array[Byte]): Array[Byte] = {
+    val inflater = new java.util.zip.Inflater()
+    val bytesIn = new ByteArrayInputStream(bytes)
+    val in = new InflaterInputStream(bytesIn, inflater)
+    val out = Stream.continually(in.read).takeWhile(_ != -1).map(_.toByte).toArray
+    in.close()
+    bytesIn.close()
+    out
+  }
+
+
   implicit object WebJarsCodec extends Codec[List[WebJar]] {
-    def serialize(webJars: List[WebJar]): Array[Byte] = Json.toJson(webJars).toString().getBytes
-    def deserialize(data: Array[Byte]): List[WebJar] = Json.parse(data).as[List[WebJar]]
+    def serialize(webJars: List[WebJar]): Array[Byte] = compress(Json.toJson(webJars).toString().getBytes)
+    def deserialize(data: Array[Byte]): List[WebJar] = Json.parse(decompress(data)).as[List[WebJar]]
   }
 
   implicit object StringsCodec extends Codec[List[String]] {
-    def serialize(fileList: List[String]): Array[Byte] = Json.toJson(fileList).toString().getBytes
-    def deserialize(data: Array[Byte]): List[String] = Json.parse(data).as[List[String]]
+    def serialize(fileList: List[String]): Array[Byte] = compress(Json.toJson(fileList).toString().getBytes)
+    def deserialize(data: Array[Byte]): List[String] = Json.parse(decompress(data)).as[List[String]]
   }
 
   val primaryBaseJarUrl = Play.current.configuration.getString("webjars.jarUrl.primary").get
