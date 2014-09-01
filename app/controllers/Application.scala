@@ -15,14 +15,34 @@ import org.joda.time.format.{DateTimeFormat, DateTimeFormatter}
 import org.joda.time.DateTimeZone
 
 import scala.concurrent.Future
+import scala.util.hashing.MurmurHash3
 
 object Application extends Controller {
 
   def index = Action.async { implicit request =>
     MavenCentral.allWebJars.map { allWebJars =>
-      render {
-        case Accepts.Html() => Ok(views.html.index(allWebJars))
-        case Accepts.Json() => Ok(Json.toJson(allWebJars))
+      val acceptHash = MurmurHash3.seqHash(request.acceptedTypes)
+      val hash = MurmurHash3.listHash(allWebJars, acceptHash)
+      val etag = "\"" + hash + "\""
+      if (request.headers.get(IF_NONE_MATCH).contains(etag)) {
+        NotModified
+      }
+      else {
+        Ok(views.html.index(allWebJars)).withHeaders(ETAG -> etag)
+      }
+    }
+  }
+
+  def allWebJars = Action.async { implicit request =>
+    MavenCentral.allWebJars.map { allWebJars =>
+      val acceptHash = MurmurHash3.seqHash(request.acceptedTypes)
+      val hash = MurmurHash3.listHash(allWebJars, acceptHash)
+      val etag = "\"" + hash + "\""
+      if (request.headers.get(IF_NONE_MATCH).contains(etag)) {
+        NotModified
+      }
+      else {
+        Ok(Json.toJson(allWebJars)).withHeaders(ETAG -> etag)
       }
     }
   }

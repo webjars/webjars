@@ -1,7 +1,7 @@
 var webjars = [];
 
 $(function() {
-  $.getJSON("/", function(data) {
+  $.getJSON("/all", function(data) {
     webjars = data;
 
     $("tr").each(function (i, tr) {
