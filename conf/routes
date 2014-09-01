@@ -12,4 +12,4 @@ OPTIONS    /files/:artifactId/:version/*file        controllers.Application.file
 GET        /webjars/*file                           controllers.StaticWebJarAssets.at(file)
 GET        /assets/*file                            controllers.Assets.at(path="/public", file)
 
-GET        /favicon.ico                             controllers.Assets.at(path="/public", file="favicon.ico")
+GET        /favicon.ico                             controllers.Application.favicon
