@@ -1,10 +1,13 @@
 package utils
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
-import java.util.zip._
+import java.util.zip.{InflaterInputStream, DeflaterOutputStream}
 
+import com.ning.http.client.providers.netty.NettyResponse
+import org.webjars.WebJarAssetLocator
 import play.api.cache.Cache
-import play.api.libs.ws.WS
+import play.api.http.Status
+import play.api.libs.ws.{WSResponse, WS}
 import play.api.libs.json.{Json, JsObject}
 import play.api.Play.current
 import play.api.{Logger, Play}
@@ -12,13 +15,11 @@ import play.api.{Logger, Play}
 import models.{WebJarVersion, WebJar}
 import shade.memcached.Codec
 
-import sun.net.www.protocol.jar.JarURLConnection
-import java.net.{URLEncoder, URL}
-import java.util.jar.{JarFile, JarEntry}
+import java.net.URLEncoder
+import java.util.jar.JarInputStream
 
 import scala.concurrent.duration._
 import scala.concurrent.Future
-import scala.collection.JavaConversions.enumerationAsScalaIterator
 import scala.concurrent.ExecutionContext.Implicits.global
 
 import scala.xml.Elem
@@ -173,51 +174,54 @@ object MavenCentral {
     WS.url(url).get().map(_.xml)
   }
 
-  private def getFileList(artifactId: String, version: String): List[String] = {
-
-    val maybeJarFile = getFile(artifactId, version)
-
-    val jarFileEntries: Iterator[JarEntry] = maybeJarFile.map(_.entries().toIterator).getOrElse(Iterator.empty)
-
-    val webjarFiles: List[String] = jarFileEntries.filterNot { jarFileEntry =>
-      jarFileEntry.isDirectory
-    }.map { jarFileEntry =>
-      jarFileEntry.getName
-    }.filter { jarFile =>
-      jarFile.startsWith("META-INF/resources/webjars")
-    }.toList
-
-    maybeJarFile.foreach(_.close())
-
-    webjarFiles
+  private def getFileList(artifactId: String, version: String): Future[List[String]] = {
+    getFile(artifactId, version).map { jarInputStream =>
+      val webJarFiles = Stream.continually(jarInputStream.getNextJarEntry).
+        takeWhile(_ != null).
+        filterNot(_.isDirectory).
+        map(_.getName).
+        filter(_.startsWith(WebJarAssetLocator.WEBJARS_PATH_PREFIX)).
+        toList
+      jarInputStream.close()
+      webJarFiles
+    }
   }
 
   def listFiles(artifactId: String, version: String): Future[List[String]] = {
     val cacheKey = WebJarVersion.cacheKey(artifactId, version)
-    Global.memcached.get[List[String]](cacheKey).map { maybeFileList =>
-      maybeFileList.getOrElse {
-        val fileList = getFileList(artifactId, version)
-        Global.memcached.set(cacheKey, fileList, Duration.Inf)
-        // update the in-memory cache of num files
-        Cache.set(cacheKey, fileList.length, 24.hours)
-        fileList
+    Global.memcached.get[List[String]](cacheKey).flatMap { maybeFileList =>
+      maybeFileList.map(Future.successful).getOrElse {
+        getFileList(artifactId, version).map { fileList =>
+          Global.memcached.set(cacheKey, fileList, Duration.Inf)
+          // update the in-memory cache of num files
+          Cache.set(cacheKey, fileList.length, 24.hours)
+          fileList
+        }
       }
     }
   }
 
-  def getFile(artifactId: String, version: String): Option[JarFile] = {
-    getFile(primaryBaseJarUrl, artifactId, version).orElse {
-      getFile(fallbackBaseJarUrl, artifactId, version)
+  def getFile(artifactId: String, version: String): Future[JarInputStream] = {
+    getFile(primaryBaseJarUrl, artifactId, version).recoverWith {
+      case _ =>
+        getFile(fallbackBaseJarUrl, artifactId, version)
     }
   }
 
-  def getFile(baseJarUrl: String, artifactId: String, version: String): Option[JarFile] = {
-    try {
-      val url = new URL(baseJarUrl.format(artifactId, URLEncoder.encode(version, "UTF-8"), artifactId, URLEncoder.encode(version, "UTF-8")))
-      Some(url.openConnection().asInstanceOf[JarURLConnection].getJarFile)
-    } catch {
-      case e: Exception => None
+  def getFile(baseJarUrl: String, artifactId: String, version: String): Future[JarInputStream] = {
+    val url = baseJarUrl.format(artifactId, URLEncoder.encode(version, "UTF-8"), artifactId, URLEncoder.encode(version, "UTF-8"))
+    WS.url(url).get().flatMap { response =>
+      response.status match {
+        case Status.OK =>
+          Future.successful(new JarInputStream(new ByteArrayInputStream(response.underlying[NettyResponse].getResponseBodyAsBytes)))
+        case _ =>
+          Future.failed(new UnexpectedResponseException(response))
+      }
     }
+  }
+
+  case class UnexpectedResponseException(response: WSResponse) extends RuntimeException {
+    override def getMessage: String = response.statusText
   }
 
 }
