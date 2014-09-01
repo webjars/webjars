@@ -151,10 +151,10 @@ object MavenCentral {
             val maybeNumFiles = Cache.getAs[Int](cacheKey)
             maybeNumFiles match {
               case Some(numFiles) =>
-                webJarVersion.copy(numFiles = Some(numFiles))
+                webJarVersion.copy(numFiles = maybeNumFiles)
               case None =>
                 // the local cache didn't have the number of files so get and set it
-                listFiles(webJar.artifactId, webJarVersion.number).map { fileList =>
+                listFiles(webJar.artifactId, webJarVersion.number).foreach { fileList =>
                   Cache.set(cacheKey, fileList.length, 24.hours)
                 }
                 webJarVersion

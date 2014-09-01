@@ -1,11 +1,10 @@
 package utils
 
-import play.api.Play
+import play.api.{Application, Play}
+import play.api.libs.concurrent.Akka
 import play.api.mvc.WithFilters
 import play.filters.gzip.GzipFilter
 import shade.memcached.{AuthConfiguration, Configuration, Memcached}
-
-import scala.concurrent.ExecutionContext.global
 
 object Global extends WithFilters(new GzipFilter()) {
 
@@ -25,7 +24,13 @@ object Global extends WithFilters(new GzipFilter()) {
         AuthConfiguration(username, password)
     }
 
-    Memcached(Configuration(Play.current.configuration.getString("memcached.servers").get, authConfig), global)
+    val memcachedDispatcher = Akka.system(Play.current).dispatchers.lookup("memcached.dispatcher")
+
+    Memcached(Configuration(Play.current.configuration.getString("memcached.servers").get, authConfig), memcachedDispatcher)
   }
 
+  override def onStop(app: Application): Unit = {
+    memcached.close()
+    super.onStop(app)
+  }
 }
