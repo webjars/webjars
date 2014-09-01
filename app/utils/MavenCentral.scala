@@ -22,7 +22,7 @@ import scala.concurrent.duration._
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
 
-import scala.xml.Elem
+import scala.xml.{XML, Elem}
 
 object MavenCentral {
 
@@ -66,6 +66,11 @@ object MavenCentral {
     def deserialize(data: Array[Byte]): List[String] = Json.parse(decompress(data)).as[List[String]]
   }
 
+  implicit object ElemCode extends Codec[Elem] {
+    def serialize(elem: Elem): Array[Byte] = compress(elem.toString().getBytes)
+    def deserialize(data: Array[Byte]): Elem = XML.loadString(new String(decompress(data)))
+  }
+
   val primaryBaseJarUrl = Play.current.configuration.getString("webjars.jarUrl.primary").get
   val fallbackBaseJarUrl = Play.current.configuration.getString("webjars.jarUrl.fallback").get
 
@@ -94,7 +99,7 @@ object MavenCentral {
       val webjarsUnsortedFutures = grouped.filterNot { webjar =>
         webjar._1.startsWith("webjars-") // remove items like "webjars-play"
       }.map { case(id, versions) =>
-        fetchPom(id, versions).flatMap { xml =>
+        getPom(id, versions).flatMap { xml =>
           val artifactId = (xml \ "artifactId").text
           val rawName = (xml \ "name").text
           val name = if (rawName.contains("${")) {
@@ -116,7 +121,7 @@ object MavenCentral {
           else {
             // try the parent pom
             val parentArtifactId = (xml \ "parent" \ "artifactId").text
-            fetchPom(parentArtifactId, versions).map { parentXml =>
+            getPom(parentArtifactId, versions).map { parentXml =>
               val parentUrl = (parentXml \ "scm" \ "url").text
               WebJar(artifactId, name, parentUrl, versions)
             }
@@ -135,19 +140,19 @@ object MavenCentral {
   }
 
   def allWebJars: Future[List[WebJar]] = {
-    Global.memcached.get[List[WebJar]](ALL_WEBJARS_CACHE_KEY).flatMap { maybeWebJars =>
-      val webJarsFuture = maybeWebJars.fold {
-        val fetchWebJarsFuture = fetchWebJars()
-        fetchWebJarsFuture.foreach { fetchedWebJars =>
-          Global.memcached.set(ALL_WEBJARS_CACHE_KEY, fetchedWebJars, 1.hour)
-        }
-        fetchWebJarsFuture
-      } (Future.successful)
+    val webJarsFuture = Cache.getAs[List[WebJar]](ALL_WEBJARS_CACHE_KEY).map(Future.successful).getOrElse {
+      val fetchWebJarsFuture = fetchWebJars()
+      fetchWebJarsFuture.foreach { fetchedWebJars =>
+        Cache.set(ALL_WEBJARS_CACHE_KEY, fetchedWebJars, 1.hour)
+      }
+      fetchWebJarsFuture
+    }
 
-      webJarsFuture.map { webJars =>
-        // this list of WebJars doesn't have the number of files in each webjar version so try to get it from cache
-        webJars.map { webJar =>
-          val updatedVersions = webJar.versions.map { webJarVersion =>
+    webJarsFuture.map { webJars =>
+      // this list of WebJars doesn't have the number of files in each webjar version so try to get it from cache
+      val updatedWebJars = webJars.map { webJar =>
+        val updatedVersions = webJar.versions.map { webJarVersion =>
+          if (webJarVersion.numFiles.isEmpty) {
             val cacheKey = WebJarVersion.cacheKey(webJar.artifactId, webJarVersion.number)
             val maybeNumFiles = Cache.getAs[Int](cacheKey)
             maybeNumFiles match {
@@ -161,17 +166,35 @@ object MavenCentral {
                 webJarVersion
             }
           }
-          webJar.copy(versions = updatedVersions)
+          else {
+            webJarVersion
+          }
         }
+        webJar.copy(versions = updatedVersions)
       }
+      Cache.set(ALL_WEBJARS_CACHE_KEY, updatedWebJars, 1.hour)
+      updatedWebJars
     }
   }
 
-  def fetchPom(id: String, versions: Seq[WebJarVersion]): Future[Elem] = {
+  private def fetchPom(id: String, versions: Seq[WebJarVersion]): Future[Elem] = {
     // todo: sort these first so we get the latest metadata
     val aVersion = versions.head.number
     val url = s"http://repo1.maven.org/maven2/org/webjars/$id/$aVersion/$id-$aVersion.pom"
     WS.url(url).get().map(_.xml)
+  }
+
+  def getPom(id: String, versions: Seq[WebJarVersion]): Future[Elem] = {
+    val cacheKey = s"pom-$id"
+    Global.memcached.get[Elem](cacheKey).flatMap { maybeElem =>
+      maybeElem.map(Future.successful).getOrElse {
+        val pomFuture = fetchPom(id, versions)
+        pomFuture.foreach { pom =>
+          Global.memcached.set(cacheKey, pom, Duration.Inf)
+        }
+        pomFuture
+      }
+    }
   }
 
   private def getFileList(artifactId: String, version: String): Future[List[String]] = {
