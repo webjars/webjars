@@ -55,12 +55,6 @@ object MavenCentral {
     out
   }
 
-
-  implicit object WebJarsCodec extends Codec[List[WebJar]] {
-    def serialize(webJars: List[WebJar]): Array[Byte] = compress(Json.toJson(webJars).toString().getBytes)
-    def deserialize(data: Array[Byte]): List[WebJar] = Json.parse(decompress(data)).as[List[WebJar]]
-  }
-
   implicit object StringsCodec extends Codec[List[String]] {
     def serialize(fileList: List[String]): Array[Byte] = compress(Json.toJson(fileList).toString().getBytes)
     def deserialize(data: Array[Byte]): List[String] = Json.parse(decompress(data)).as[List[String]]
