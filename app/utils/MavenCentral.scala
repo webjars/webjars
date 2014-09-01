@@ -207,7 +207,7 @@ object MavenCentral {
 
   def getFile(artifactId: String, version: String): Option[JarFile] = {
     getFile(primaryBaseJarUrl, artifactId, version).orElse {
-      MavenCentral.getFile(fallbackBaseJarUrl, artifactId, version)
+      getFile(fallbackBaseJarUrl, artifactId, version)
     }
   }
 

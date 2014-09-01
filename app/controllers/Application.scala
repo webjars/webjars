@@ -63,9 +63,12 @@ object Application extends Controller {
                 )
               }
               catch {
+                case ise: IllegalStateException =>
+                  jarFile.close()
+                  InternalServerError(s"Found WebJar but could not read file: ${entry.getName}\nError: ${ise.getMessage}")
                 case e: IOException =>
                   jarFile.close()
-                  NotFound(s"Found WebJar but could not read file: ${entry.getName}\nError: ${e.getMessage}")
+                  InternalServerError(s"Found WebJar but could not read file: ${entry.getName}\nError: ${e.getMessage}")
               }
           }
         case None =>
