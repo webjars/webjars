@@ -6,7 +6,7 @@ import play.api.libs.json.Json
 
 case class WebJar(artifactId: String, name: String, sourceUrl: String, versions: List[WebJarVersion]) extends Serializable
 
-case class WebJarVersion(number: String, numFiles: Option[Int] = None)
+case class WebJarVersion(number: String, numFiles: Int)
 
 object WebJar {
   implicit val webJarVersionFormat = Json.format[WebJarVersion]

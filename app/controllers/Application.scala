@@ -24,7 +24,7 @@ object Application extends Controller {
   }
   
   def listFiles(artifactId: String, version: String) = Action.async {
-    MavenCentral.listFiles(artifactId, version).map { fileList =>
+    MavenCentral.getFileList(artifactId, version).map { fileList =>
       Ok(views.html.filelist(artifactId, version, fileList))
     } recover {
       case ure: UnexpectedResponseException =>

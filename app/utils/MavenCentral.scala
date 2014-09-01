@@ -70,6 +70,44 @@ object MavenCentral {
 
   val ALL_WEBJARS_CACHE_KEY: String = "allWebJars"
 
+  private def fetchWebJarNameAndUrl(artifactId: String, version: String): Future[(String, String)] = {
+    getPom(artifactId, version).flatMap { xml =>
+      val artifactId = (xml \ "artifactId").text
+      val rawName = (xml \ "name").text
+      val name = if (rawName.contains("${")) {
+        // can't handle pom properties so fallback to id
+        artifactId
+      } else {
+        rawName
+      }
+      val rawUrl = (xml \ "scm" \ "url").text
+      val urlFuture = if (rawUrl.contains("${")) {
+        // can't handle pom properties so fallback to a guess
+        Future.successful(s"http://github.com/webjars/$artifactId")
+      } else {
+        if (rawUrl != "") {
+          Future.successful(rawUrl)
+        }
+        else {
+          // try the parent pom
+          val parentArtifactId = (xml \ "parent" \ "artifactId").text
+          getPom(parentArtifactId, version).map { parentXml =>
+            (parentXml \ "scm" \ "url").text
+          }
+        }
+      }
+
+      urlFuture.map { url =>
+        (name, url)
+      }
+
+    } recover {
+      case _ =>
+        // fall back to the usual
+        (artifactId, s"http://github.com/webjars/$artifactId")
+    }
+  }
+
   private def fetchWebJars(): Future[List[WebJar]] = {
     // todo: would be nice if this could only happen only once no matter how many in-flight requests have missed the cache
 
@@ -82,107 +120,58 @@ object MavenCentral {
       }
 
       // group by the artifactId
-      val grouped = allVersions.groupBy(_._1).mapValues { versions =>
-        val webJarVersions = versions.map {
-          case (artifactId, version) =>
-            WebJarVersion(version, None)
-        }
-        webJarVersions.sorted.reverse
+      val grouped: Map[String, List[String]] = allVersions.groupBy(_._1).filterKeys(!_.startsWith("webjars-")).mapValues(_.map(_._2))
+
+      val webJarsWithFutureVersions: Map[String, Future[List[WebJarVersion]]] = grouped.map {
+        case (artifactId, versions) =>
+          val webJarVersionsFuture = Future.sequence {
+            versions.map { version =>
+              getFileList(artifactId, version).map { fileList =>
+                WebJarVersion(version, fileList.length)
+              }
+            }
+          } map { webJarVersions =>
+            webJarVersions.sorted.reverse
+          }
+          artifactId -> webJarVersionsFuture
       }
 
-      val webjarsUnsortedFutures = grouped.filterNot { webjar =>
-        webjar._1.startsWith("webjars-") // remove items like "webjars-play"
-      }.map { case(id, versions) =>
-        getPom(id, versions).flatMap { xml =>
-          val artifactId = (xml \ "artifactId").text
-          val rawName = (xml \ "name").text
-          val name = if (rawName.contains("${")) {
-            // can't handle pom properties so fallback to id
-            id
-          } else {
-            rawName
-          }
-          val rawUrl = (xml \ "scm" \ "url").text
-          val url = if (rawUrl.contains("${")) {
-            // can't handle pom properties so fallback to a guess
-            s"http://github.com/webjars/$id"
-          } else {
-            rawUrl
-          }
-          if (url != "") {
-            Future.successful(WebJar(artifactId, name, url, versions))
-          }
-          else {
-            // try the parent pom
-            val parentArtifactId = (xml \ "parent" \ "artifactId").text
-            getPom(parentArtifactId, versions).map { parentXml =>
-              val parentUrl = (parentXml \ "scm" \ "url").text
-              WebJar(artifactId, name, parentUrl, versions)
+      val webJarsFuture: Future[List[WebJar]] = Future.traverse(webJarsWithFutureVersions) {
+        case (artifactId, webJarVersionsFuture) =>
+          webJarVersionsFuture.flatMap { webJarVersions =>
+            fetchWebJarNameAndUrl(artifactId, webJarVersions.map(_.number).head).map {
+              case (name, url) =>
+                WebJar(artifactId, name, url, webJarVersions)
             }
           }
-        } recover {
-          case _ =>
-            WebJar(id, id, s"http://github.com/webjars/$id", versions)
-        }
+      } map { webJars =>
+        webJars.toList.sortWith(_.name.toLowerCase < _.name.toLowerCase)
       }
 
-      Future.sequence(webjarsUnsortedFutures).map { webjarsUnsorted =>
-        webjarsUnsorted.toList.sortWith(_.name.toLowerCase < _.name.toLowerCase)
-      }
-
+      webJarsFuture
     }
   }
 
   def allWebJars: Future[List[WebJar]] = {
-    val webJarsFuture = Cache.getAs[List[WebJar]](ALL_WEBJARS_CACHE_KEY).map(Future.successful).getOrElse {
+    Cache.getAs[List[WebJar]](ALL_WEBJARS_CACHE_KEY).map(Future.successful).getOrElse {
       val fetchWebJarsFuture = fetchWebJars()
       fetchWebJarsFuture.foreach { fetchedWebJars =>
         Cache.set(ALL_WEBJARS_CACHE_KEY, fetchedWebJars, 1.hour)
       }
       fetchWebJarsFuture
     }
-
-    webJarsFuture.map { webJars =>
-      // this list of WebJars doesn't have the number of files in each webjar version so try to get it from cache
-      val updatedWebJars = webJars.map { webJar =>
-        val updatedVersions = webJar.versions.map { webJarVersion =>
-          if (webJarVersion.numFiles.isEmpty) {
-            val cacheKey = WebJarVersion.cacheKey(webJar.artifactId, webJarVersion.number)
-            val maybeNumFiles = Cache.getAs[Int](cacheKey)
-            maybeNumFiles match {
-              case Some(numFiles) =>
-                webJarVersion.copy(numFiles = maybeNumFiles)
-              case None =>
-                // the local cache didn't have the number of files so get and set it
-                listFiles(webJar.artifactId, webJarVersion.number).foreach { fileList =>
-                  Cache.set(cacheKey, fileList.length, 24.hours)
-                }
-                webJarVersion
-            }
-          }
-          else {
-            webJarVersion
-          }
-        }
-        webJar.copy(versions = updatedVersions)
-      }
-      Cache.set(ALL_WEBJARS_CACHE_KEY, updatedWebJars, 1.hour)
-      updatedWebJars
-    }
   }
 
-  private def fetchPom(id: String, versions: Seq[WebJarVersion]): Future[Elem] = {
-    // todo: sort these first so we get the latest metadata
-    val aVersion = versions.head.number
-    val url = s"http://repo1.maven.org/maven2/org/webjars/$id/$aVersion/$id-$aVersion.pom"
+  private def fetchPom(id: String, version: String): Future[Elem] = {
+    val url = s"http://repo1.maven.org/maven2/org/webjars/$id/$version/$id-$version.pom"
     WS.url(url).get().map(_.xml)
   }
 
-  def getPom(id: String, versions: Seq[WebJarVersion]): Future[Elem] = {
+  def getPom(id: String, version: String): Future[Elem] = {
     val cacheKey = s"pom-$id"
     Global.memcached.get[Elem](cacheKey).flatMap { maybeElem =>
       maybeElem.map(Future.successful).getOrElse {
-        val pomFuture = fetchPom(id, versions)
+        val pomFuture = fetchPom(id, version)
         pomFuture.foreach { pom =>
           Global.memcached.set(cacheKey, pom, Duration.Inf)
         }
@@ -191,7 +180,7 @@ object MavenCentral {
     }
   }
 
-  private def getFileList(artifactId: String, version: String): Future[List[String]] = {
+  private def fetchFileList(artifactId: String, version: String): Future[List[String]] = {
     getFile(artifactId, version).map { jarInputStream =>
       val webJarFiles = Stream.continually(jarInputStream.getNextJarEntry).
         takeWhile(_ != null).
@@ -204,16 +193,15 @@ object MavenCentral {
     }
   }
 
-  def listFiles(artifactId: String, version: String): Future[List[String]] = {
+  def getFileList(artifactId: String, version: String): Future[List[String]] = {
     val cacheKey = WebJarVersion.cacheKey(artifactId, version)
     Global.memcached.get[List[String]](cacheKey).flatMap { maybeFileList =>
       maybeFileList.map(Future.successful).getOrElse {
-        getFileList(artifactId, version).map { fileList =>
+        val fileListFuture = fetchFileList(artifactId, version)
+        fileListFuture.foreach { fileList =>
           Global.memcached.set(cacheKey, fileList, Duration.Inf)
-          // update the in-memory cache of num files
-          Cache.set(cacheKey, fileList.length, 24.hours)
-          fileList
         }
+        fileListFuture
       }
     }
   }
