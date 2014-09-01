@@ -6,9 +6,7 @@
 @main("WebJars - Web Libraries in Jars") {
 
     <script type='text/javascript'>
-    var webjars = @Html(toJson(webjars).toString());
-
-    var buildTool = "sbt";
+        var buildTool = "sbt";
     </script>
 
     <script type="text/javascript" src="@routes.Assets.at("javascripts/index.js")"></script>
@@ -21,7 +19,7 @@
                 <li>Use JVM-based build tools (e.g. Maven, Gradle, SBT, ...) to download your client-side dependencies</li>
                 <li>Know which client-side dependencies you are using</li>
                 <li>Transitive dependencies are automatically resolved and optionally loaded via RequireJS</li>
-                <li>Public CDN, generously provided by: <a href="http://www.jsdelivr.com" target="_blank"><img src="http://www.jsdelivr.com/img/jsdelivr-logo.png" height="20"></a></li>
+                <li>Public CDN, generously provided by: <a href="http://www.jsdelivr.com" target="_blank"><img src="http://www.jsdelivr.com/img/jsdelivrLogo.png" height="20"></a></li>
             </ul>
         </div>
     </div>

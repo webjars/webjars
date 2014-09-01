@@ -1,5 +1,6 @@
 package controllers
 
+import play.api.libs.json.Json
 import play.api.mvc.{Result, Request, Action, Controller}
 import utils.MavenCentral
 import utils.MavenCentral.UnexpectedResponseException
@@ -17,9 +18,12 @@ import scala.concurrent.Future
 
 object Application extends Controller {
 
-  def index = Action.async {
+  def index = Action.async { implicit request =>
     MavenCentral.allWebJars.map { allWebJars =>
-      Ok(views.html.index(allWebJars))
+      render {
+        case Accepts.Html() => Ok(views.html.index(allWebJars))
+        case Accepts.Json() => Ok(Json.toJson(allWebJars))
+      }
     }
   }
   

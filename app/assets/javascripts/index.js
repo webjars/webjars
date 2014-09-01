@@ -1,4 +1,17 @@
+var webjars = [];
+
 $(function() {
+  $.getJSON("/", function(data) {
+    webjars = data;
+
+    $("tr").each(function (i, tr) {
+      var webjar = getWebjar($(tr).data("artifact"));
+      if (webjar != undefined) {
+        webjar['row'] = $(tr);
+      }
+    });
+  });
+
   $(".file-list-link").click(onFileList);
 
   $("#buildtoolselect").find("label").click(function(e) {
@@ -7,17 +20,11 @@ $(function() {
     $.each(webjars, function(i, webjar) { updateDetails(webjar); });
   });
 
-  $("tr").each(function (i, tr) {
-    var webjar = getWebjar($(tr).data("artifact"));
-    if (webjar != undefined) {
-      webjar['row'] = $(tr);
-    }
-  });
 });
 
 function onFileList(event) {
   // allow middle clicks to open in a new tab
-  if (event.button == 0) {
+  if ((event.button == 0) && (!event.metaKey)) {
     event.preventDefault();
     $("#fileListModalLabel").text("Files for " + $(this).parents("tr").data("artifact"));
     $("#fileListModal .modal-body").text("Loading...");
