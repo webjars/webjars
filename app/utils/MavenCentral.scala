@@ -1,12 +1,18 @@
 package utils
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
+import java.util.concurrent.TimeoutException
 import java.util.zip.{InflaterInputStream, DeflaterOutputStream}
 
+import actors.{FetchWebJars, WebJarFetcher}
+import akka.pattern.ask
+import akka.actor.{Props, ActorRef}
+import akka.util.Timeout
 import com.ning.http.client.providers.netty.NettyResponse
 import org.webjars.WebJarAssetLocator
 import play.api.cache.Cache
 import play.api.http.Status
+import play.api.libs.concurrent.Akka
 import play.api.libs.ws.{WSResponse, WS}
 import play.api.libs.json.{Json, JsObject}
 import play.api.Play.current
@@ -25,6 +31,8 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.xml.{XML, Elem}
 
 object MavenCentral {
+
+  lazy val webJarFetcher: ActorRef = Akka.system.actorOf(Props[WebJarFetcher])
 
   implicit val webJarVersionReads = Json.reads[WebJarVersion]
   implicit val webJarVersionWrites = Json.writes[WebJarVersion]
@@ -70,7 +78,7 @@ object MavenCentral {
 
   val ALL_WEBJARS_CACHE_KEY: String = "allWebJars"
 
-  private def fetchWebJarNameAndUrl(artifactId: String, version: String): Future[(String, String)] = {
+  def fetchWebJarNameAndUrl(artifactId: String, version: String): Future[(String, String)] = {
     getPom(artifactId, version).flatMap { xml =>
       val artifactId = (xml \ "artifactId").text
       val rawName = (xml \ "name").text
@@ -108,8 +116,7 @@ object MavenCentral {
     }
   }
 
-  private def fetchWebJars(): Future[List[WebJar]] = {
-    // todo: would be nice if this could only happen only once no matter how many in-flight requests have missed the cache
+  def fetchWebJars(): Future[List[WebJar]] = {
 
     Logger.info("Getting the full WebJar list")
 
@@ -126,7 +133,7 @@ object MavenCentral {
         case (artifactId, versions) =>
           val webJarVersionsFuture = Future.sequence {
             versions.map { version =>
-              getFileList(artifactId, version).map { fileList =>
+              MavenCentral.getFileList(artifactId, version).map { fileList =>
                 WebJarVersion(version, fileList.length)
               }
             }
@@ -139,7 +146,7 @@ object MavenCentral {
       val webJarsFuture: Future[List[WebJar]] = Future.traverse(webJarsWithFutureVersions) {
         case (artifactId, webJarVersionsFuture) =>
           webJarVersionsFuture.flatMap { webJarVersions =>
-            fetchWebJarNameAndUrl(artifactId, webJarVersions.map(_.number).head).map {
+            MavenCentral.fetchWebJarNameAndUrl(artifactId, webJarVersions.map(_.number).head).map {
               case (name, url) =>
                 WebJar(artifactId, name, url, webJarVersions)
             }
@@ -154,7 +161,8 @@ object MavenCentral {
 
   def allWebJars: Future[List[WebJar]] = {
     Cache.getAs[List[WebJar]](ALL_WEBJARS_CACHE_KEY).map(Future.successful).getOrElse {
-      val fetchWebJarsFuture = fetchWebJars()
+      implicit val timeout = Timeout(25.seconds)
+      val fetchWebJarsFuture = (webJarFetcher ? FetchWebJars).mapTo[List[WebJar]]
       fetchWebJarsFuture.foreach { fetchedWebJars =>
         Cache.set(ALL_WEBJARS_CACHE_KEY, fetchedWebJars, 1.hour)
       }
