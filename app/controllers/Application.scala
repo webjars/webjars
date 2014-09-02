@@ -1,5 +1,6 @@
 package controllers
 
+import models.WebJar
 import play.api.libs.json.Json
 import play.api.mvc.{Result, Request, Action, Controller}
 import utils.MavenCentral
@@ -30,6 +31,9 @@ object Application extends Controller {
       else {
         Ok(views.html.index(allWebJars)).withHeaders(ETAG -> etag)
       }
+    } recover {
+      case e: Exception =>
+        InternalServerError(views.html.index(Seq.empty[WebJar]))
     }
   }
 
@@ -44,6 +48,9 @@ object Application extends Controller {
       else {
         Ok(Json.toJson(allWebJars)).withHeaders(ETAG -> etag)
       }
+    } recover {
+      case e: Exception =>
+        InternalServerError(Json.arr())
     }
   }
   
