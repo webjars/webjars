@@ -27,6 +27,7 @@ import java.util.jar.JarInputStream
 import scala.concurrent.duration._
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.io.Source
 
 import scala.xml.{XML, Elem}
 
@@ -57,7 +58,7 @@ object MavenCentral {
     val inflater = new java.util.zip.Inflater()
     val bytesIn = new ByteArrayInputStream(bytes)
     val in = new InflaterInputStream(bytesIn, inflater)
-    val out = Stream.continually(in.read).takeWhile(_ != -1).map(_.toByte).toArray
+    val out = Source.fromInputStream(in).map(_.toByte).toArray
     in.close()
     bytesIn.close()
     out
