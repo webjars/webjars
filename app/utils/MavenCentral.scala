@@ -51,6 +51,7 @@ object MavenCentral {
     dos.finish()
     dos.close()
     baos.close()
+    deflater.end()
     baos.toByteArray
   }
 
@@ -61,6 +62,7 @@ object MavenCentral {
     val out = Source.fromInputStream(in).map(_.toByte).toArray
     in.close()
     bytesIn.close()
+    inflater.end()
     out
   }
 
