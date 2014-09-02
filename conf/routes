@@ -10,6 +10,6 @@ GET        /files/:artifactId/:version/*file        controllers.Application.file
 OPTIONS    /files/:artifactId/:version/*file        controllers.Application.fileOptions(artifactId, version, file)
 
 GET        /webjars/*file                           controllers.StaticWebJarAssets.at(file)
-GET        /assets/*file                            controllers.Assets.at(path="/public", file)
 
-GET        /favicon.ico                             controllers.Application.favicon
+GET        /favicon.ico                             controllers.Assets.at(path="/public", file="favicon.ico")
+GET        /assets/*file                            controllers.Assets.at(path="/public", file)

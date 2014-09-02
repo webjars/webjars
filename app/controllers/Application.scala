@@ -134,6 +134,4 @@ object Application extends Controller {
 
   ////
 
-  def favicon() = Assets.at("/public", "favicon.ico")
-
 }
