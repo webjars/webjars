@@ -1,7 +1,7 @@
 package utils
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
-import java.util.concurrent.TimeoutException
+import java.io.{File, ByteArrayInputStream, ByteArrayOutputStream}
+import java.nio.file.Files
 import java.util.zip.{InflaterInputStream, DeflaterOutputStream}
 
 import actors.{FetchWebJars, WebJarFetcher}
@@ -34,6 +34,10 @@ import scala.xml.{XML, Elem}
 object MavenCentral {
 
   lazy val webJarFetcher: ActorRef = Akka.system.actorOf(Props[WebJarFetcher])
+
+  lazy val tempDir: File = {
+    Files.createTempDirectory("webjars").toFile
+  }
 
   implicit val webJarVersionReads = Json.reads[WebJarVersion]
   implicit val webJarVersionWrites = Json.writes[WebJarVersion]
@@ -218,18 +222,34 @@ object MavenCentral {
   }
 
   def getFile(artifactId: String, version: String): Future[JarInputStream] = {
-    getFile(primaryBaseJarUrl, artifactId, version).recoverWith {
-      case _ =>
-        getFile(fallbackBaseJarUrl, artifactId, version)
+    val tmpFile = new File(tempDir, s"$artifactId-$version.jar")
+
+    if (tmpFile.exists()) {
+      Future.successful(new JarInputStream(Files.newInputStream(tmpFile.toPath)))
+    }
+    else {
+      val fileBytesFuture = getFileBytes(primaryBaseJarUrl, artifactId, version).recoverWith {
+        case _ =>
+          getFileBytes(fallbackBaseJarUrl, artifactId, version)
+      }
+
+      fileBytesFuture.foreach { fileBytes =>
+        // todo: not thread safe!
+        Files.write(tmpFile.toPath, fileBytes)
+      }
+
+      fileBytesFuture.map { fileBytes =>
+        new JarInputStream(new ByteArrayInputStream(fileBytes))
+      }
     }
   }
 
-  def getFile(baseJarUrl: String, artifactId: String, version: String): Future[JarInputStream] = {
+  def getFileBytes(baseJarUrl: String, artifactId: String, version: String): Future[Array[Byte]] = {
     val url = baseJarUrl.format(artifactId, URLEncoder.encode(version, "UTF-8"), artifactId, URLEncoder.encode(version, "UTF-8"))
     WS.url(url).get().flatMap { response =>
       response.status match {
         case Status.OK =>
-          Future.successful(new JarInputStream(new ByteArrayInputStream(response.underlying[NettyResponse].getResponseBodyAsBytes)))
+          Future.successful(response.underlying[NettyResponse].getResponseBodyAsBytes)
         case _ =>
           Future.failed(new UnexpectedResponseException(response))
       }
