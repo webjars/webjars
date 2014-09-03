@@ -73,6 +73,7 @@ object Application extends Controller {
           // todo: eventually be more strict but since this has been allowed many WebJars do not have version and path consistency
           jarEntry.getName.startsWith(pathPrefix) && jarEntry.getName.endsWith(s"/$file")
         }.fold {
+          jarInputStream.close()
           NotFound(s"Found WebJar ($artifactId : $webJarVersion) but could not find: $pathPrefix$webJarVersion/$file")
         } { jarEntry =>
           val enumerator = Enumerator.fromStream(jarInputStream)
