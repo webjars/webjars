@@ -1,6 +1,6 @@
 package utils
 
-import java.io.{File, ByteArrayInputStream, ByteArrayOutputStream}
+import java.io.{InputStream, File, ByteArrayInputStream, ByteArrayOutputStream}
 import java.nio.file.Files
 import java.util.zip.{InflaterInputStream, DeflaterOutputStream}
 
@@ -228,28 +228,27 @@ object MavenCentral {
       Future.successful(new JarInputStream(Files.newInputStream(tmpFile.toPath)))
     }
     else {
-      val fileBytesFuture = getFileBytes(primaryBaseJarUrl, artifactId, version).recoverWith {
+      val fileInputStreamFuture = getFileInputStream(primaryBaseJarUrl, artifactId, version).recoverWith {
         case _ =>
-          getFileBytes(fallbackBaseJarUrl, artifactId, version)
+          getFileInputStream(fallbackBaseJarUrl, artifactId, version)
       }
 
-      fileBytesFuture.foreach { fileBytes =>
+      fileInputStreamFuture.map { fileInputStream =>
         // todo: not thread safe!
-        Files.write(tmpFile.toPath, fileBytes)
-      }
-
-      fileBytesFuture.map { fileBytes =>
-        new JarInputStream(new ByteArrayInputStream(fileBytes))
+        // write to the fs
+        Files.copy(fileInputStream, tmpFile.toPath)
+        // read it from the fs since we've drained the http response
+        new JarInputStream(Files.newInputStream(tmpFile.toPath))
       }
     }
   }
 
-  def getFileBytes(baseJarUrl: String, artifactId: String, version: String): Future[Array[Byte]] = {
+  def getFileInputStream(baseJarUrl: String, artifactId: String, version: String): Future[InputStream] = {
     val url = baseJarUrl.format(artifactId, URLEncoder.encode(version, "UTF-8"), artifactId, URLEncoder.encode(version, "UTF-8"))
     WS.url(url).get().flatMap { response =>
       response.status match {
         case Status.OK =>
-          Future.successful(response.underlying[NettyResponse].getResponseBodyAsBytes)
+          Future.successful(response.underlying[NettyResponse].getResponseBodyAsStream)
         case _ =>
           Future.failed(new UnexpectedResponseException(response))
       }
