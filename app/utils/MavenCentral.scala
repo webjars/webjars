@@ -250,6 +250,7 @@ object MavenCentral {
         case Status.OK =>
           Future.successful(response.underlying[NettyResponse].getResponseBodyAsStream)
         case _ =>
+          Logger.error(s"Unexpected response retrieving $url - ${response.statusText} ${response.body}")
           Future.failed(new UnexpectedResponseException(response))
       }
     }
