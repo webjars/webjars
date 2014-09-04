@@ -249,11 +249,17 @@ object MavenCentral {
       response.status match {
         case Status.OK =>
           Future.successful(response.underlying[NettyResponse].getResponseBodyAsStream)
+        case Status.NOT_FOUND =>
+          Future.failed(NotFoundResponseException(response))
         case _ =>
           Logger.error(s"Unexpected response retrieving $url - ${response.statusText} ${response.body}")
-          Future.failed(new UnexpectedResponseException(response))
+          Future.failed(UnexpectedResponseException(response))
       }
     }
+  }
+
+  case class NotFoundResponseException(response: WSResponse) extends RuntimeException {
+    override def getMessage: String = response.statusText
   }
 
   case class UnexpectedResponseException(response: WSResponse) extends RuntimeException {

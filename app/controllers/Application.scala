@@ -4,7 +4,7 @@ import models.WebJar
 import play.api.libs.json.Json
 import play.api.mvc.{Result, Request, Action, Controller}
 import utils.MavenCentral
-import utils.MavenCentral.UnexpectedResponseException
+import utils.MavenCentral.{NotFoundResponseException, UnexpectedResponseException}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import play.api.libs.iteratee.Enumerator
@@ -58,6 +58,8 @@ object Application extends Controller {
     MavenCentral.getFileList(artifactId, version).map { fileList =>
       Ok(views.html.filelist(artifactId, version, fileList))
     } recover {
+      case nf: NotFoundResponseException =>
+        NotFound(s"WebJar Not Found $artifactId : $version")
       case ure: UnexpectedResponseException =>
         Status(ure.response.status)(s"Problems retrieving WebJar ($artifactId : $version) - ${ure.response.statusText}")
     }
@@ -90,6 +92,8 @@ object Application extends Controller {
           )
         }
       } recover {
+        case nf: NotFoundResponseException =>
+          NotFound(s"WebJar Not Found $artifactId : $webJarVersion")
         case ure: UnexpectedResponseException =>
           Status(ure.response.status)(s"Problems retrieving WebJar ($artifactId : $webJarVersion) - ${ure.response.statusText}")
         case e: Exception =>
