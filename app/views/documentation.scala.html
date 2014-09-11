@@ -75,6 +75,27 @@
   src="@@routes.WebJarAssets.at(WebJarAssets.locate("require.min.js"))"&gt;&lt;/script&gt;</code></pre>
                 <br/>
                 <!-- todo: CDN -->
+                If you need to override the default RequireJS config you can use a lower-level <code>RequireJS</code> API to setup the config:
+                <pre><code>&lt;script&gt;
+  var require = {
+    callback: function() {
+      // default requirejs configs
+      @@for(webJarJson <- org.webjars.RequireJS.getSetupJson(routes.WebJarAssets.at("").url).values()) {
+        requirejs.config(@@Html(webJarJson.toString));
+      }
+
+      // example custom requirejs config
+      requirejs.config({
+        paths: {
+          jquery: "//code.jquery.com/jquery-1.11.1.min"
+        },
+        shim: {
+          bootstrap: []
+        }
+      });
+    }
+  };
+&lt;/script&gt;</code></pre>
             </div>
 
 
