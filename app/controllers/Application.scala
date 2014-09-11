@@ -87,8 +87,8 @@ object Application extends Controller {
 
           Ok.feed(enumerator).as(contentType).withHeaders(
             CACHE_CONTROL -> "max-age=290304000, public",
-            DATE -> df.print((new java.util.Date).getTime),
-            LAST_MODIFIED -> df.print(jarEntry.getTime)
+            DATE -> df.print({ new java.util.Date }.getTime),
+            LAST_MODIFIED -> df.print(jarEntry.getLastModifiedTime.toMillis)
           )
         }
       } recover {
