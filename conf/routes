@@ -1,4 +1,10 @@
 GET            /                                        controllers.Application.index()
+
+GET            /favicon.ico                             controllers.Assets.at(path="/public", file="favicon.ico")
+
+GET            /robots.txt                              controllers.Assets.at(path="/public", file="robots.txt")
+GET            /files/robots.txt                        controllers.Assets.at(path="/public", file="robots.txt")
+
 GET            /all                                     controllers.Application.allWebJars()
 GET            /listfiles/:artifactId/:version          controllers.Application.listFiles(artifactId, version)
 GET            /documentation                           controllers.Application.documentation()
@@ -11,7 +17,4 @@ OPTIONS        /files/:artifactId/:version/*file        controllers.Application.
 
 GET            /webjars/*file                           controllers.StaticWebJarAssets.at(file)
 
-GET            /favicon.ico                             controllers.Assets.at(path="/public", file="favicon.ico")
 GET            /assets/*file                            controllers.Assets.at(path="/public", file)
-
-GET            /robots.txt                              controllers.Assets.at(path="/public", file="robots.txt")
