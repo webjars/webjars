@@ -2,7 +2,7 @@ name := "webjars"
 
 version := "1.0-SNAPSHOT"
 
-scalaVersion := "2.11.2"
+scalaVersion := "2.11.4"
 
 resolvers += "Spy Repository" at "http://files.couchbase.com/maven2"
 
