@@ -20,6 +20,44 @@ $(function() {
     $.each(webjars, function(i, webjar) { updateDetails(webjar); });
   });
 
+  /**
+   * artifact search functionality
+   */
+   $("#search").keyup(function(a,b,c){
+      var searchText = $(this).val();
+      if(searchText == ""){
+          $("#clearSearch").hide();
+      }
+      else {
+          $("#clearSearch").show();
+      }
+      if(searchText.length == 1){
+          return;
+      }
+      filter(searchText)
+  })
+
+  $("#clearSearch").click(function(){
+      $("#search").val("")
+      $(this).hide()
+      filter();
+  })
+
+  var filter = function(search){
+      if(!search){
+          $("tr[data-artifact]").show()
+          return;
+      }
+      $("tr[data-artifact]").each(function(){
+          if( $(this).data("artifact").indexOf(search) == -1 ) {
+              $(this).hide();
+          }
+          else {
+              $(this).show()
+          }
+      });
+  }
+
 });
 
 function onFileList(event) {
