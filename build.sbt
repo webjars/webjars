@@ -12,7 +12,7 @@ libraryDependencies ++= Seq(
   filters,
   "org.webjars" %% "webjars-play" % "2.3.0",
   "org.webjars" % "jquery" % "1.11.1",
-  "org.webjars" % "bootstrap" % "3.2.0",
+  "org.webjars" % "bootstrap" % "3.3.1",
   "org.webjars" % "highlightjs" % "8.0-3",
   "com.bionicspirit" %% "shade" % "1.6.0"
 )

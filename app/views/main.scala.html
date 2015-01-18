@@ -30,23 +30,21 @@
         </script>
     </head>
     <body>
-        <nav class="navbar navbar-inverse navbar-fixed-top" role="navigation">
+        <nav class="navbar navbar-inverse navbar-static-top">
             <div class="container-fluid">
                 <div class="navbar-header">
-                    <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#navbar-collapse-header">
-                        <span class="sr-only">Toggle navigation</span>
-                        <span class="icon-bar"></span>
-                        <span class="icon-bar"></span>
-                        <span class="icon-bar"></span>
-                    </button>
-                    <a class="navbar-brand" href="@routes.Application.index()"><strong>WebJars</strong></a>
-                </div>
-                <div class="collapse navbar-collapse" id="navbar-collapse-header">
+                    <a class="navbar-brand" style="padding-top: 10px" href="@routes.Application.index()">
+                        <img alt="WebJars" src="@routes.Assets.at("logo.png")" height="30">
+                    </a>
+                    <a class="navbar-brand" href="@routes.Application.index()">
+                        WebJars
+                    </a>
                     <ul class="nav navbar-nav">
-                        <li><a href="@routes.Application.documentation()">Documentation</a></li>
-                        <li><a href="@routes.Application.contributing()">Contributing</a></li>
+                        <li @if(title.toLowerCase.indexOf("doc") > -1) { class="active" }><a href="@routes.Application.documentation()">Documentation</a></li>
+                        <li @if(title.toLowerCase.indexOf("contrib") > -1) { class="active" }><a href="@routes.Application.contributing()">Contributing</a></li>
                     </ul>
                 </div>
+                <p class="navbar-text navbar-right" style="margin-right: 4px">Sponsored by <a href="http://heroku.com" class="navbar-link">Heroku</a></p>
             </div>
         </nav>
     
