@@ -29,3 +29,16 @@ pre {
 .table-files {
     width: 80px;
 }
+
+#clearSearch {
+    position: absolute;
+    top:0;
+    color:#999999;
+    display:none;
+    right: 5px;
+    bottom: 0;
+    height: 14px;
+    margin: auto;
+    font-size: 14px;
+    cursor: pointer;
+}
