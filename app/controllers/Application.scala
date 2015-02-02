@@ -37,31 +37,35 @@ object Application extends Controller {
     }
   }
 
-  def allWebJars = Action.async { implicit request =>
-    MavenCentral.allWebJars.map { allWebJars =>
-      val acceptHash = MurmurHash3.seqHash(request.acceptedTypes)
-      val hash = MurmurHash3.listHash(allWebJars, acceptHash)
-      val etag = "\"" + hash + "\""
-      if (request.headers.get(IF_NONE_MATCH).contains(etag)) {
-        NotModified
+  def allWebJars = CorsAction {
+    Action.async { implicit request =>
+      MavenCentral.allWebJars.map { allWebJars =>
+        val acceptHash = MurmurHash3.seqHash(request.acceptedTypes)
+        val hash = MurmurHash3.listHash(allWebJars, acceptHash)
+        val etag = "\"" + hash + "\""
+        if (request.headers.get(IF_NONE_MATCH).contains(etag)) {
+          NotModified
+        }
+        else {
+          Ok(Json.toJson(allWebJars)).withHeaders(ETAG -> etag)
+        }
+      } recover {
+        case e: Exception =>
+          InternalServerError(Json.arr())
       }
-      else {
-        Ok(Json.toJson(allWebJars)).withHeaders(ETAG -> etag)
-      }
-    } recover {
-      case e: Exception =>
-        InternalServerError(Json.arr())
     }
   }
   
-  def listFiles(artifactId: String, version: String) = Action.async {
-    MavenCentral.getFileList(artifactId, version).map { fileList =>
-      Ok(views.html.filelist(artifactId, version, fileList))
-    } recover {
-      case nf: NotFoundResponseException =>
-        NotFound(s"WebJar Not Found $artifactId : $version")
-      case ure: UnexpectedResponseException =>
-        Status(ure.response.status)(s"Problems retrieving WebJar ($artifactId : $version) - ${ure.response.statusText}")
+  def listFiles(artifactId: String, version: String) = CorsAction {
+    Action.async {
+      MavenCentral.getFileList(artifactId, version).map { fileList =>
+        Ok(views.html.filelist(artifactId, version, fileList))
+      } recover {
+        case nf: NotFoundResponseException =>
+          NotFound(s"WebJar Not Found $artifactId : $version")
+        case ure: UnexpectedResponseException =>
+          Status(ure.response.status)(s"Problems retrieving WebJar ($artifactId : $version) - ${ure.response.statusText}")
+      }
     }
   }
   
@@ -123,6 +127,13 @@ object Application extends Controller {
     }
 
     lazy val parser = action.parser
+  }
+
+  def corsPreflight(path: String) = Action {
+    Ok.withHeaders(
+      ACCESS_CONTROL_ALLOW_ORIGIN -> "*",
+      ACCESS_CONTROL_ALLOW_METHODS -> "GET"
+    )
   }
 
   //// From Play's Asset controller

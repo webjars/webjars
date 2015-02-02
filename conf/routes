@@ -18,3 +18,5 @@ OPTIONS        /files/:artifactId/:version/*file        controllers.Application.
 GET            /webjars/*file                           controllers.StaticWebJarAssets.at(file)
 
 GET            /assets/*file                            controllers.Assets.at(path="/public", file)
+
+OPTIONS        /*path                                   controllers.Application.corsPreflight(path: String)
