@@ -57,9 +57,12 @@ object Application extends Controller {
   }
   
   def listFiles(artifactId: String, version: String) = CorsAction {
-    Action.async {
+    Action.async { implicit request =>
       MavenCentral.getFileList(artifactId, version).map { fileList =>
-        Ok(views.html.filelist(artifactId, version, fileList))
+          render {
+            case Accepts.Html() => Ok(views.html.filelist(artifactId, version, fileList))
+            case Accepts.Json() => Ok(Json.toJson(fileList))
+          }
       } recover {
         case nf: NotFoundResponseException =>
           NotFound(s"WebJar Not Found $artifactId : $version")
