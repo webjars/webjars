@@ -1,7 +1,10 @@
 package controllers
 
+import akka.actor.{ActorRef, Props, Actor}
+import akka.pattern.ask
+import akka.util.Timeout
 import models.WebJar
-import play.api.libs.concurrent.Promise
+import play.api.libs.concurrent.{Akka, Promise}
 import play.api.libs.json.Json
 import play.api.mvc.{Result, Request, Action, Controller}
 import utils.MavenCentral
@@ -14,7 +17,7 @@ import play.api.Play
 import play.api.Play.current
 
 import org.joda.time.format.{DateTimeFormat, DateTimeFormatter}
-import org.joda.time.DateTimeZone
+import org.joda.time._
 
 import scala.concurrent.Future
 import scala.util.Random
@@ -74,10 +77,12 @@ object Application extends Controller {
       }
     }
   }
+
+  // max 10 requests per minute
+  lazy val fileRateLimiter = Akka.system.actorOf(Props(classOf[RequestTracker], 10, Period.minutes(1)))
   
   def file(artifactId: String, webJarVersion: String, file: String) = CorsAction {
-    // One in every 25 requests takes 25 seconds
-    RandomSlowAction(25, 25) {
+    RateLimit(fileRateLimiter) {
       Action.async { request =>
         val pathPrefix = s"META-INF/resources/webjars/$artifactId/"
 
@@ -145,18 +150,55 @@ object Application extends Controller {
     )
   }
 
-  case class RandomSlowAction[A](chance: Int, delay: Int)(action: Action[A]) extends Action[A] {
+  case class RateLimit[A](actorRef: ActorRef)(action: Action[A]) extends Action[A] {
+
+    implicit val actorTimeout = Timeout(1.second)
 
     def apply(request: Request[A]): Future[Result] = {
-      if (Random.nextInt(chance) == 0) {
-        Promise.timeout(Unit, delay.seconds).flatMap(_ => action(request))
-      }
-      else {
-        action(request)
+      // get the IP which might be in the form 1.2.3.4,6.7.8.9 in which case we want the last one
+      val ip: IP = request.headers.get(X_FORWARDED_FOR).getOrElse(request.remoteAddress).split(",").reverse.head
+      (actorRef ? ip).flatMap {
+        case ExceededLimit => Future.successful(TooManyRequest)
+        case _ => action(request)
+      } recoverWith {
+        case _ => action(request)
       }
     }
 
     lazy val parser = action.parser
+  }
+
+  type IP = String
+  case object ExceededLimit
+  case object UnderLimit
+
+  class RequestTracker(maxRequests: Int, period: ReadablePeriod) extends Actor {
+
+    type Requests = Seq[DateTime]
+
+    var ipRates: Map[IP, Requests] = Map.empty[IP, Requests]
+
+    override def receive = {
+      case ip: IP =>
+        val now = DateTime.now()
+
+        // update the map
+        ipRates.get(ip).fold {
+          ipRates = ipRates + (ip -> Seq(now))
+        } { requests =>
+          val updatedRequests = requests.filter(_.isAfter(now.minus(period))) :+ now
+          ipRates = ipRates.updated(ip, updatedRequests)
+        }
+
+        // determine if the rate has been exceeded
+        if (ipRates(ip).size >= maxRequests) {
+          sender ! ExceededLimit
+        }
+        else {
+          sender ! UnderLimit
+        }
+    }
+
   }
 
   //// From Play's Asset controller
