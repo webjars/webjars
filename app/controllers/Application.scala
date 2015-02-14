@@ -1,6 +1,7 @@
 package controllers
 
 import models.WebJar
+import play.api.libs.concurrent.Promise
 import play.api.libs.json.Json
 import play.api.mvc.{Result, Request, Action, Controller}
 import utils.MavenCentral
@@ -16,7 +17,9 @@ import org.joda.time.format.{DateTimeFormat, DateTimeFormatter}
 import org.joda.time.DateTimeZone
 
 import scala.concurrent.Future
+import scala.util.Random
 import scala.util.hashing.MurmurHash3
+import scala.concurrent.duration._
 
 object Application extends Controller {
 
@@ -73,38 +76,41 @@ object Application extends Controller {
   }
   
   def file(artifactId: String, webJarVersion: String, file: String) = CorsAction {
-    Action.async { request =>
-      val pathPrefix = s"META-INF/resources/webjars/$artifactId/"
+    // One in every 25 requests takes 25 seconds
+    RandomSlowAction(25, 25) {
+      Action.async { request =>
+        val pathPrefix = s"META-INF/resources/webjars/$artifactId/"
 
-      MavenCentral.getFile(artifactId, webJarVersion).map { jarInputStream =>
-        Stream.continually(jarInputStream.getNextJarEntry).takeWhile(_ != null).find { jarEntry =>
-          // this allows for sloppyness where the webJarVersion and path differ
-          // todo: eventually be more strict but since this has been allowed many WebJars do not have version and path consistency
-          jarEntry.getName.startsWith(pathPrefix) && jarEntry.getName.endsWith(s"/$file")
-        }.fold {
-          jarInputStream.close()
-          NotFound(s"Found WebJar ($artifactId : $webJarVersion) but could not find: $pathPrefix$webJarVersion/$file")
-        } { jarEntry =>
-          val enumerator = Enumerator.fromStream(jarInputStream)
-          enumerator.onDoneEnumerating(jarInputStream.close())
+        MavenCentral.getFile(artifactId, webJarVersion).map { jarInputStream =>
+          Stream.continually(jarInputStream.getNextJarEntry).takeWhile(_ != null).find { jarEntry =>
+            // this allows for sloppyness where the webJarVersion and path differ
+            // todo: eventually be more strict but since this has been allowed many WebJars do not have version and path consistency
+            jarEntry.getName.startsWith(pathPrefix) && jarEntry.getName.endsWith(s"/$file")
+          }.fold {
+            jarInputStream.close()
+            NotFound(s"Found WebJar ($artifactId : $webJarVersion) but could not find: $pathPrefix$webJarVersion/$file")
+          } { jarEntry =>
+            val enumerator = Enumerator.fromStream(jarInputStream)
+            enumerator.onDoneEnumerating(jarInputStream.close())
 
-          //// From Play's Assets controller
-          val contentType = MimeTypes.forFileName(file).map(m => m + addCharsetIfNeeded(m)).getOrElse(BINARY)
-          ////
+            //// From Play's Assets controller
+            val contentType = MimeTypes.forFileName(file).map(m => m + addCharsetIfNeeded(m)).getOrElse(BINARY)
+            ////
 
-          Ok.feed(enumerator).as(contentType).withHeaders(
-            CACHE_CONTROL -> "max-age=290304000, public",
-            DATE -> df.print({ new java.util.Date }.getTime),
-            LAST_MODIFIED -> df.print(jarEntry.getLastModifiedTime.toMillis)
-          )
+            Ok.feed(enumerator).as(contentType).withHeaders(
+              CACHE_CONTROL -> "max-age=290304000, public",
+              DATE -> df.print({ new java.util.Date }.getTime),
+              LAST_MODIFIED -> df.print(jarEntry.getLastModifiedTime.toMillis)
+            )
+          }
+        } recover {
+          case nf: NotFoundResponseException =>
+            NotFound(s"WebJar Not Found $artifactId : $webJarVersion")
+          case ure: UnexpectedResponseException =>
+            Status(ure.response.status)(s"Problems retrieving WebJar ($artifactId : $webJarVersion) - ${ure.response.statusText}")
+          case e: Exception =>
+            InternalServerError(s"Could not find WebJar ($artifactId : $webJarVersion)\n${e.getMessage}")
         }
-      } recover {
-        case nf: NotFoundResponseException =>
-          NotFound(s"WebJar Not Found $artifactId : $webJarVersion")
-        case ure: UnexpectedResponseException =>
-          Status(ure.response.status)(s"Problems retrieving WebJar ($artifactId : $webJarVersion) - ${ure.response.statusText}")
-        case e: Exception =>
-          InternalServerError(s"Could not find WebJar ($artifactId : $webJarVersion)\n${e.getMessage}")
       }
     }
   }
@@ -137,6 +143,20 @@ object Application extends Controller {
       ACCESS_CONTROL_ALLOW_ORIGIN -> "*",
       ACCESS_CONTROL_ALLOW_METHODS -> "GET"
     )
+  }
+
+  case class RandomSlowAction[A](chance: Int, delay: Int)(action: Action[A]) extends Action[A] {
+
+    def apply(request: Request[A]): Future[Result] = {
+      if (Random.nextInt(chance) == 0) {
+        Promise.timeout(Unit, delay.seconds).flatMap(_ => action(request))
+      }
+      else {
+        action(request)
+      }
+    }
+
+    lazy val parser = action.parser
   }
 
   //// From Play's Asset controller
