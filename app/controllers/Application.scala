@@ -82,40 +82,38 @@ object Application extends Controller {
   lazy val fileRateLimiter = Akka.system.actorOf(Props(classOf[RequestTracker], 10, Period.minutes(1)))
   
   def file(artifactId: String, webJarVersion: String, file: String) = CorsAction {
-    RateLimit(fileRateLimiter) {
-      Action.async { request =>
-        val pathPrefix = s"META-INF/resources/webjars/$artifactId/"
+    Action.async { request =>
+      val pathPrefix = s"META-INF/resources/webjars/$artifactId/"
 
-        MavenCentral.getFile(artifactId, webJarVersion).map { jarInputStream =>
-          Stream.continually(jarInputStream.getNextJarEntry).takeWhile(_ != null).find { jarEntry =>
-            // this allows for sloppyness where the webJarVersion and path differ
-            // todo: eventually be more strict but since this has been allowed many WebJars do not have version and path consistency
-            jarEntry.getName.startsWith(pathPrefix) && jarEntry.getName.endsWith(s"/$file")
-          }.fold {
-            jarInputStream.close()
-            NotFound(s"Found WebJar ($artifactId : $webJarVersion) but could not find: $pathPrefix$webJarVersion/$file")
-          } { jarEntry =>
-            val enumerator = Enumerator.fromStream(jarInputStream)
-            enumerator.onDoneEnumerating(jarInputStream.close())
+      MavenCentral.getFile(artifactId, webJarVersion).map { jarInputStream =>
+        Stream.continually(jarInputStream.getNextJarEntry).takeWhile(_ != null).find { jarEntry =>
+          // this allows for sloppyness where the webJarVersion and path differ
+          // todo: eventually be more strict but since this has been allowed many WebJars do not have version and path consistency
+          jarEntry.getName.startsWith(pathPrefix) && jarEntry.getName.endsWith(s"/$file")
+        }.fold {
+          jarInputStream.close()
+          NotFound(s"Found WebJar ($artifactId : $webJarVersion) but could not find: $pathPrefix$webJarVersion/$file")
+        } { jarEntry =>
+          val enumerator = Enumerator.fromStream(jarInputStream)
+          enumerator.onDoneEnumerating(jarInputStream.close())
 
-            //// From Play's Assets controller
-            val contentType = MimeTypes.forFileName(file).map(m => m + addCharsetIfNeeded(m)).getOrElse(BINARY)
-            ////
+          //// From Play's Assets controller
+          val contentType = MimeTypes.forFileName(file).map(m => m + addCharsetIfNeeded(m)).getOrElse(BINARY)
+          ////
 
-            Ok.feed(enumerator).as(contentType).withHeaders(
-              CACHE_CONTROL -> "max-age=290304000, public",
-              DATE -> df.print({ new java.util.Date }.getTime),
-              LAST_MODIFIED -> df.print(jarEntry.getLastModifiedTime.toMillis)
-            )
-          }
-        } recover {
-          case nf: NotFoundResponseException =>
-            NotFound(s"WebJar Not Found $artifactId : $webJarVersion")
-          case ure: UnexpectedResponseException =>
-            Status(ure.response.status)(s"Problems retrieving WebJar ($artifactId : $webJarVersion) - ${ure.response.statusText}")
-          case e: Exception =>
-            InternalServerError(s"Could not find WebJar ($artifactId : $webJarVersion)\n${e.getMessage}")
+          Ok.feed(enumerator).as(contentType).withHeaders(
+            CACHE_CONTROL -> "max-age=290304000, public",
+            DATE -> df.print({ new java.util.Date }.getTime),
+            LAST_MODIFIED -> df.print(jarEntry.getLastModifiedTime.toMillis)
+          )
         }
+      } recover {
+        case nf: NotFoundResponseException =>
+          NotFound(s"WebJar Not Found $artifactId : $webJarVersion")
+        case ure: UnexpectedResponseException =>
+          Status(ure.response.status)(s"Problems retrieving WebJar ($artifactId : $webJarVersion) - ${ure.response.statusText}")
+        case e: Exception =>
+          InternalServerError(s"Could not find WebJar ($artifactId : $webJarVersion)\n${e.getMessage}")
       }
     }
   }
