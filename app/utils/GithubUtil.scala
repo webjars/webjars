@@ -29,8 +29,9 @@ class GithubUtil(implicit app: Application) {
   }
 
   def redirectUri(implicit request: RequestHeader): String = {
-    val secure = request.headers.get(HeaderNames.X_FORWARDED_PROTO).contains("https")
-    controllers.routes.Application.githubOauthCallback("").absoluteURL(secure).stripSuffix("?code=")
+    app.configuration.getString("github.oauth.redirect_uri").getOrElse {
+      controllers.routes.Application.githubOauthCallback("").absoluteURL(request.secure).stripSuffix("?code=")
+    }
   }
 
   def ws(path: String, accessToken: String): WSRequestHolder = {
