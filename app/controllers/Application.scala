@@ -4,10 +4,11 @@ import akka.actor.{ActorRef, Props, Actor}
 import akka.pattern.ask
 import akka.util.Timeout
 import models.WebJar
+import play.api.data.Form
 import play.api.libs.concurrent.{Akka, Promise}
 import play.api.libs.json.Json
 import play.api.mvc.{Result, Request, Action, Controller}
-import utils.MavenCentral
+import utils.{GithubUtil, MavenCentral}
 import utils.MavenCentral.{NotFoundResponseException, UnexpectedResponseException}
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -25,6 +26,10 @@ import scala.util.hashing.MurmurHash3
 import scala.concurrent.duration._
 
 object Application extends Controller {
+
+  val X_GITHUB_ACCESS_TOKEN = "X-GITHUB-ACCESS-TOKEN"
+
+  val github = GithubUtil(Play.current)
 
   def index = Action.async { implicit request =>
     MavenCentral.allWebJars.map { allWebJars =>
@@ -130,6 +135,89 @@ object Application extends Controller {
 
   def contributing = Action {
     Ok(views.html.contributing())
+  }
+
+  def webJarRequest = Action.async { request =>
+    request.flash.get(X_GITHUB_ACCESS_TOKEN).map { accessToken =>
+      github.user(accessToken).map { user =>
+        val login = (user \ "login").as[String]
+        Ok(views.html.webJarRequest(Some(accessToken), Some(login)))
+      }
+    } getOrElse {
+      Future.successful(Ok(views.html.webJarRequest()))
+    }
+  }
+
+  def makeWebJarRequest = Action.async(parse.urlFormEncoded) { implicit request =>
+
+    import play.api.data._
+    import play.api.data.Forms._
+
+    case class WebJarRequest(gitHubToken: String, id: String, name: String, version: String, repoUrl: String, mainJs: Option[String], licenseId: String, licenseUrl: String)
+
+    val webJarRequestForm = Form(
+      mapping(
+        "gitHubToken" -> nonEmptyText,
+        "webJarId" -> nonEmptyText,
+        "webJarName" -> nonEmptyText,
+        "webJarVersion" -> nonEmptyText,
+        "repoUrl" -> nonEmptyText,
+        "mainJs" -> optional(text),
+        "licenseId" -> nonEmptyText,
+        "licenseUrl" -> nonEmptyText
+      )(WebJarRequest.apply)(WebJarRequest.unapply)
+    )
+
+    webJarRequestForm.bindFromRequest().fold(
+      formWithErrors => {
+        Future.successful(BadRequest(views.html.webJarRequest()))
+      },
+      webJarRequest => {
+        github.user(webJarRequest.gitHubToken).flatMap { user =>
+          val login = (user \ "login").as[String]
+          val email = (user \ "email").as[String]
+          val name = (user \ "name").as[String]
+
+          github.contents(webJarRequest.gitHubToken, "webjars", "webjars-template-zip", "pom.xml").flatMap { templatePom =>
+            val pom = templatePom
+              .replace("WEBJAR_ID", webJarRequest.id)
+              .replace("UPSTREAM_VERSION", webJarRequest.version)
+              .replace("WEBJAR_NAME", webJarRequest.name)
+              .replace("UPSTREAM_ZIP_URL", webJarRequest.repoUrl + "/archive/" + webJarRequest.id + "-${upstream.version}.zip")
+              .replace("YOUR_ID", login)
+              .replace("YOUR_NAME", name)
+              .replace("YOUR_EMAIL", email)
+              .replace("UPSTREAM_LICENSE_NAME", webJarRequest.licenseId)
+              .replace("UPSTREAM_LICENSE_URL", webJarRequest.licenseUrl)
+              .replace("MAIN_JS", webJarRequest.mainJs.map(_.stripSuffix(".js")).getOrElse(webJarRequest.id))
+
+            val issueTitle = s"WebJar Request: ${webJarRequest.id}"
+
+            val issueBody =
+              s"""
+                 |```
+                 |$pom
+                 |```
+               """.stripMargin
+
+            github.createIssue(webJarRequest.gitHubToken, "webjars", "webjars", issueTitle, issueBody).map { issueResponse =>
+              val url = (issueResponse \ "html_url").as[String]
+              Redirect(url)
+            }
+          }
+        }
+      }
+    )
+  }
+
+  def githubAuthorize  = Action { implicit request =>
+    Redirect(github.authUrl)
+  }
+
+  def githubOauthCallback(code: String) = Action.async { implicit request =>
+    github.accessToken(code).map { accessToken =>
+      Redirect(routes.Application.webJarRequest()).flashing(X_GITHUB_ACCESS_TOKEN -> accessToken)
+    }
   }
 
   case class CorsAction[A](action: Action[A]) extends Action[A] {

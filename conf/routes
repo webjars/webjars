@@ -9,11 +9,16 @@ GET            /all                                     controllers.Application.
 GET            /listfiles/:artifactId/:version          controllers.Application.listFiles(artifactId, version)
 GET            /documentation                           controllers.Application.documentation()
 GET            /contributing                            controllers.Application.contributing()
+GET            /request                                 controllers.Application.webJarRequest()
+POST           /request                                 controllers.Application.makeWebJarRequest()
 
 GET            /mockcentral/searchgroup                 controllers.MockCentral.searchGroup()
 
 GET            /files/:artifactId/:version/*file        controllers.Application.file(artifactId, version, file)
 OPTIONS        /files/:artifactId/:version/*file        controllers.Application.fileOptions(artifactId, version, file)
+
+GET            /_github_authorize                       controllers.Application.githubAuthorize()
+GET            /_github_oauth_callback                  controllers.Application.githubOauthCallback(code: String)
 
 GET            /webjars/*file                           controllers.StaticWebJarAssets.at(file)
 
