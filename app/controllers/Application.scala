@@ -183,7 +183,7 @@ object Application extends Controller {
               .replace("WEBJAR_ID", webJarRequest.id)
               .replace("UPSTREAM_VERSION", webJarRequest.version)
               .replace("WEBJAR_NAME", webJarRequest.name)
-              .replace("UPSTREAM_ZIP_URL", webJarRequest.repoUrl + "/archive/" + webJarRequest.id + "-${upstream.version}.zip")
+              .replace("UPSTREAM_ZIP_URL", webJarRequest.repoUrl + "/archive/v${upstream.version}.zip")
               .replace("YOUR_ID", login)
               .replace("YOUR_NAME", name)
               .replace("YOUR_EMAIL", email)
