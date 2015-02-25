@@ -89,7 +89,7 @@ object MavenCentral {
     getPom(artifactId, version).flatMap { xml =>
       val artifactId = (xml \ "artifactId").text
       val rawName = (xml \ "name").text
-      val name = if (rawName.contains("${")) {
+      val name = if (rawName.contains("${") || (rawName.length == 0)) {
         // can't handle pom properties so fallback to id
         artifactId
       } else {
