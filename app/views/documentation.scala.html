@@ -313,20 +313,20 @@ public class WebConfig extends WebMvcConfigurerAdapter {
                 <h3>Making dependencies version agnostic</h3>
                 By utilizing the <code>webjars-locator</code> library, it is possible to reference resources contained in any WebJar (such as javascript and css files) without specifying the version number. To do so, setup a <code>RequestMapping</code> like this:
                 <pre><code>@@ResponseBody
-@@RequestMapping("/webjarslocator/{webjar}/{partialPath:.+}")
-public ResponseEntity<Resource> locateWebjarAsset(@@PathVariable String webjar, @@PathVariable String partialPath) {
+@@RequestMapping("/webjarslocator/{webjar}/**")
+public ResponseEntity<Resource> locateWebjarAsset(@@PathVariable String webjar, HttpServletRequest request) {
     try {
-        String fullPath = assetLocator.getFullPath(webjar, partialPath);
-        return new ResponseEntity<Resource>(
-                new ClassPathResource(fullPath), HttpStatus.OK);
+    	String mvcPrefix = "/webjarslocator/" + webjar + "/"; // This prefix must match the mapping path!
+    	String mvcPath = (String) request.getAttribute(HandlerMapping.PATH_WITHIN_HANDLER_MAPPING_ATTRIBUTE);
+        String fullPath = assetLocator.getFullPath(webjar, mvcPath.substring(mvcPrefix.length()));
+        return new ResponseEntity<Resource>(new ClassPathResource(fullPath), HttpStatus.OK);
     } catch (Exception e) {
         return new ResponseEntity<>(HttpStatus.NOT_FOUND);
     }
 }</code></pre>
 
-                Then, you can reference WebJar assets in your template like this:
-                <pre><code>&lt;link rel="stylesheet" href="/webjarslocator/jquery-mobile/jquery.mobile.structure.min.css" /&gt;
-&lt;script src="/webjarslocator/jquery/jquery.min.js"&gt;&lt;/script&gt;</code></pre>
+                Then you may reference a WebJar asset in your template like this:
+                <pre><code>&lt;link rel='stylesheet' href='/webjarslocator/bootstrap/css/bootstrap.min.css'&gt;</code></pre>
 
                 <h3>Enhanced support for RequireJS</h3>
                 <a href="http://www.requirejs.org" target="_blank">RequireJS</a> is a popular implementation of the <a href="https://github.com/amdjs/amdjs-api/wiki/AMD">AMD</a>
