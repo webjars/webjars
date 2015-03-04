@@ -25,6 +25,9 @@ class BowerSpec extends PlaySpecification {
     "have a license" in {
       await(bower.info("bootstrap", "3.3.2")).licenses must contain("MIT")
     }
+    "have a dependency on jquery" in {
+      await(bower.info("bootstrap", "3.3.2")).dependencies must contain("jquery" -> ">= 1.9.1")
+    }
   }
 
   step(ws.close())

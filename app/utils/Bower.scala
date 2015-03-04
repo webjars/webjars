@@ -63,7 +63,6 @@ class Bower(implicit ec: ExecutionContext, ws: WSAPI) {
         val bodyFuture = enumerator |>>> Iteratee.fold(Array.empty[Byte])(_ ++ _)
 
         bodyFuture.map { rawBody =>
-          println(rawBody.length)
           new ZipInputStream(new ByteArrayInputStream(rawBody))
         }
     }
@@ -75,7 +74,7 @@ object Bower {
   def apply(implicit ec: ExecutionContext, ws: WSAPI) = new Bower()
 }
 
-case class PackageInfo(artifactId: String, version: String, homepage: String, source: String, licenses: Seq[String]) {
+case class PackageInfo(artifactId: String, version: String, homepage: String, source: String, licenses: Seq[String], dependencies: Map[String, String]) {
 
   lazy val sourceUri: Try[URI] = Try { new URI(source) }
   lazy val gitHubOrg: Try[String] = sourceUri.map(_.getPath.split("/")(1))
@@ -89,6 +88,7 @@ object PackageInfo {
     (__ \ "version").read[String] ~
     (__ \ "homepage").read[String] ~
     (__ \ "_source").read[String] ~
-    (__ \ "license").read[Seq[String]].orElse((__ \ "license").read[String].map(Seq(_))).orElse(Reads.pure(Seq.empty[String]))
+    (__ \ "license").read[Seq[String]].orElse((__ \ "license").read[String].map(Seq(_))).orElse(Reads.pure(Seq.empty[String])) ~
+    (__ \ "dependencies").read[Map[String, String]].orElse(Reads.pure(Map.empty[String, String]))
   )(PackageInfo.apply _)
 }
