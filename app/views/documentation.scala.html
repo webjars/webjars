@@ -327,6 +327,8 @@ public ResponseEntity<Resource> locateWebjarAsset(@@PathVariable String webjar, 
 
                 Then you may reference a WebJar asset in your template like this:
                 <pre><code>&lt;link rel='stylesheet' href='/webjarslocator/bootstrap/css/bootstrap.min.css'&gt;</code></pre>
+                
+                <div class="alert alert-danger" role="alert">Be sure to remove <strong>ONLY</strong> the version from the path, otherwise relative imports may not work.</div>
 
                 <h3>Enhanced support for RequireJS</h3>
                 <a href="http://www.requirejs.org" target="_blank">RequireJS</a> is a popular implementation of the <a href="https://github.com/amdjs/amdjs-api/wiki/AMD">AMD</a>
