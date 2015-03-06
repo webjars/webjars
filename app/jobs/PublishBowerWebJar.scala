@@ -10,7 +10,7 @@ import play.api.{Play, Mode, DefaultApplication}
 import play.api.libs.json._
 import play.api.libs.json.Reads._
 import play.api.libs.functional.syntax._
-import utils.{WebJarUtils, StandaloneWS, PackageInfo, Bower}
+import utils._
 
 import scala.annotation.tailrec
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -24,7 +24,7 @@ object PublishBowerWebJar extends App {
   System.setProperty("play.akka.daemonic", "on")
 
   val name = "bootstrap"
-  val version = "1.0.0"
+  val version = "3.3.2"
 
   // converts JsResult to Future
   def packageInfo(json: JsValue): Future[PackageInfo] = Json.fromJson[PackageInfo](json).fold(
@@ -32,12 +32,26 @@ object PublishBowerWebJar extends App {
     Future.successful
   )
 
+  def convertNpmDependenciesToMaven(npmDependencies: Map[String, String]): Future[Map[String, String]] = {
+    val maybeMavenDeps = npmDependencies.map { case (npmName, npmVersion) =>
+      val maybeMavenVersion = SemVerUtil.convertSemVerToMaven(npmVersion)
+      maybeMavenVersion.fold {
+        Future.failed[(String, String)](new Exception(s"Could not convert npm version to maven for: $npmName $npmVersion"))
+      } { mavenVersion =>
+        Future.successful(npmName -> mavenVersion)
+      }
+    }
+
+    Future.sequence(maybeMavenDeps).map(_.toMap)
+  }
+
   StandaloneWS.withWs { implicit ws =>
     val bower = Bower(global, ws)
 
     val webJarFuture = for {
       packageInfo <- bower.info(name, version)
-      pom = views.xml.pom(packageInfo).toString()
+      mavenDependencies <- convertNpmDependenciesToMaven(packageInfo.dependencies)
+      pom = views.xml.pom(packageInfo, mavenDependencies).toString()
       zip <- bower.zip(name, version)
       jar = WebJarUtils.createWebJar(zip, pom, name, version)
     } yield {

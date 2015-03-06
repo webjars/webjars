@@ -53,16 +53,16 @@ object SemVerUtil {
         val rightVersionRange = SemVerVersionRange(limit = Limits.LT, major = major.map(_ + 1), tag = tag)
         Some(Right(SemVerXRange(leftVersionRange, rightVersionRange)))
       // >=1.2.3
-      case r"^>[=](\d+)${SomeInt(major)}\.?(\d*)${SomeInt(minor)}\.?(\d*)${SomeInt(patch)}-?([\w.]*)${SomeString(tag)}$$" =>
+      case r"^>= ?(\d+)${SomeInt(major)}\.?(\d*)${SomeInt(minor)}\.?(\d*)${SomeInt(patch)}-?([\w.]*)${SomeString(tag)}$$" =>
         Some(Left(SemVerVersionRange(Limits.GTE, major, minor, patch, tag)))
       // <=1.2.3
-      case r"^<=(\d+)${SomeInt(major)}\.?(\d*)${SomeInt(minor)}\.?(\d*)${SomeInt(patch)}-?([\w.]*)${SomeString(tag)}$$" =>
+      case r"^<= ?(\d+)${SomeInt(major)}\.?(\d*)${SomeInt(minor)}\.?(\d*)${SomeInt(patch)}-?([\w.]*)${SomeString(tag)}$$" =>
         Some(Left(SemVerVersionRange(Limits.LTE, major, minor, patch, tag)))
       // >1.2.3
-      case r"^>(\d+)${SomeInt(major)}\.?(\d*)${SomeInt(minor)}\.?(\d*)${SomeInt(patch)}-?([\w.]*)${SomeString(tag)}$$" =>
+      case r"^> ?(\d+)${SomeInt(major)}\.?(\d*)${SomeInt(minor)}\.?(\d*)${SomeInt(patch)}-?([\w.]*)${SomeString(tag)}$$" =>
         Some(Left(SemVerVersionRange(Limits.GT, major, minor, patch, tag)))
       // <1.2.3
-      case r"^<(\d+)${SomeInt(major)}\.?(\d*)${SomeInt(minor)}\.?(\d*)${SomeInt(patch)}-?([\w.]*)${SomeString(tag)}$$" =>
+      case r"^< ?(\d+)${SomeInt(major)}\.?(\d*)${SomeInt(minor)}\.?(\d*)${SomeInt(patch)}-?([\w.]*)${SomeString(tag)}$$" =>
         Some(Left(SemVerVersionRange(Limits.LT, major, minor, patch, tag)))
       // ~1
       case r"^~(\d+)${SomeInt(major)}$$" =>

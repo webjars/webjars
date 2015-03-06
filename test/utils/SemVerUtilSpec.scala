@@ -14,21 +14,25 @@ class SemVerUtilSpec extends Specification {
     }
     "work with basic ranges" in {
       SemVerUtil.convertSemVerToMaven(">1")           must be equalTo Some("(1,)")
+      SemVerUtil.convertSemVerToMaven("> 1")           must be equalTo Some("(1,)")
       SemVerUtil.convertSemVerToMaven(">1.2")         must be equalTo Some("(1.2,)")
       SemVerUtil.convertSemVerToMaven(">1.2.3")       must be equalTo Some("(1.2.3,)")
       SemVerUtil.convertSemVerToMaven(">1.2.3-alpha") must be equalTo Some("(1.2.3-alpha,)")
 
       SemVerUtil.convertSemVerToMaven(">=1")           must be equalTo Some("[1,)")
+      SemVerUtil.convertSemVerToMaven(">= 1")           must be equalTo Some("[1,)")
       SemVerUtil.convertSemVerToMaven(">=1.2")         must be equalTo Some("[1.2,)")
       SemVerUtil.convertSemVerToMaven(">=1.2.3")       must be equalTo Some("[1.2.3,)")
       SemVerUtil.convertSemVerToMaven(">=1.2.3-alpha") must be equalTo Some("[1.2.3-alpha,)")
 
       SemVerUtil.convertSemVerToMaven("<1")           must be equalTo Some("(,1)")
+      SemVerUtil.convertSemVerToMaven("< 1")           must be equalTo Some("(,1)")
       SemVerUtil.convertSemVerToMaven("<1.2")         must be equalTo Some("(,1.2)")
       SemVerUtil.convertSemVerToMaven("<1.2.3")       must be equalTo Some("(,1.2.3)")
       SemVerUtil.convertSemVerToMaven("<1.2.3-alpha") must be equalTo Some("(,1.2.3-alpha)")
 
       SemVerUtil.convertSemVerToMaven("<=1")           must be equalTo Some("(,1]")
+      SemVerUtil.convertSemVerToMaven("<= 1")           must be equalTo Some("(,1]")
       SemVerUtil.convertSemVerToMaven("<=1.2")         must be equalTo Some("(,1.2]")
       SemVerUtil.convertSemVerToMaven("<=1.2.3")       must be equalTo Some("(,1.2.3]")
       SemVerUtil.convertSemVerToMaven("<=1.2.3-alpha") must be equalTo Some("(,1.2.3-alpha]")
