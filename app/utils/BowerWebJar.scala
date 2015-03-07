@@ -57,6 +57,7 @@ object BowerWebJar extends App {
           publishJar <- binTray.publishMavenArtifact(binTraySubject, binTrayRepo, s"$groupId:$name", s"$mavenBaseDir/$name/$version/$name-$version.jar", jar, true)
           emptyJar = WebJarUtils.emptyJar()
           publishSourceJar <- binTray.publishMavenArtifact(binTraySubject, binTrayRepo, s"$groupId:$name", s"$mavenBaseDir/$name/$version/$name-$version-sources.jar", emptyJar, true)
+          signVersion <- binTray.signVersion(binTraySubject, binTrayRepo, s"$groupId:$name", version)
           syncToMavenCentral <- binTray.syncToMavenCentral(binTraySubject, binTrayRepo, s"$groupId:$name", version)
         } yield syncToMavenCentral
       }

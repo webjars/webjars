@@ -101,6 +101,15 @@ class BinTray(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) {
     }
   }
 
+  def signVersion(subject: String, repo: String, packageName: String, version: String): Future[JsValue] = {
+    ws(s"//gpg/$subject/$repo/$packageName/versions/$version").withHeaders("X-GPG-PASSPHRASE" -> gpgPassphrase).post(EmptyContent()).flatMap { response =>
+      response.status match {
+        case Status.OK => Future.successful(response.json)
+        case _ => Future.failed(new Exception("Signing failed: " + response.body))
+      }
+    }
+  }
+
   def syncToMavenCentral(subject: String, repo: String, packageName: String, version:String): Future[JsValue] = {
 
     val json = Json.obj(

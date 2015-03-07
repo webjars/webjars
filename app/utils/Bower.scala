@@ -85,7 +85,8 @@ case class PackageInfo(artifactId: String, version: String, homepage: String, so
       repo <- gitHubRepo
     } yield s"$org/$repo"
   }
-  lazy val issuesUrl: Try[String] = gitHubOrgRepo.map(orgRepo => s"https://github.com/$orgRepo/issues")
+  lazy val gitHubHome: Try[String] = gitHubOrgRepo.map(orgRepo => s"https://github.com/$orgRepo")
+  lazy val issuesUrl: Try[String] = gitHubHome.map(_ + "/issues")
 }
 
 object PackageInfo {

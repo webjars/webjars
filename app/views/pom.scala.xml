@@ -20,6 +20,20 @@
         </requirejs>
     </properties>
 
+    <scm>
+        <url>@packageInfo.gitHubHome.get</url>
+        <connection>@packageInfo.sourceUri.get</connection>
+        <developerConnection>@packageInfo.sourceUri.get</developerConnection>
+        <tag>v@packageInfo.version</tag>
+    </scm>
+
+    <developers>
+        <developer>
+            <id>webjars</id>
+            <url>http://webjars.org</url>
+        </developer>
+    </developers>
+
     <licenses>
         @packageInfo.licenses.map { license =>
         <license>
