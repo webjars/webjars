@@ -16,6 +16,7 @@ import scala.annotation.tailrec
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{Await, Future}
 import scala.concurrent.duration._
+import scala.io.Source
 import scala.util.{Failure, Success}
 
 object PublishBowerWebJar extends App {
@@ -54,11 +55,17 @@ object PublishBowerWebJar extends App {
       pom = views.xml.pom(packageInfo, mavenDependencies).toString()
       zip <- bower.zip(name, version)
       jar = WebJarUtils.createWebJar(zip, pom, name, version)
-    } yield {
-      (pom, jar)
-    }
+    } yield (pom, jar)
 
     webJarFuture
+
+    // create package & version on BinTray
+
+    // upload pom.xml and foo.jar to BinTray
+
+    // sign on BinTray
+
+    // release to Maven Central
 
   } onComplete {
     case Success(s) =>
@@ -67,12 +74,6 @@ object PublishBowerWebJar extends App {
       println("Error: ", f)
   }
 
-  // create package & version on BinTray
 
-  // upload pom.xml and foo.jar to BinTray
-
-  // sign on BinTray
-
-  // release to Maven Central
 
 }

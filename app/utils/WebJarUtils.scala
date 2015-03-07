@@ -1,6 +1,6 @@
 package utils
 
-import java.io.{OutputStream, FileOutputStream}
+import java.io.{ByteArrayOutputStream, OutputStream, FileOutputStream}
 import java.util.jar.JarOutputStream
 import java.util.zip.{ZipEntry, ZipInputStream}
 
@@ -23,7 +23,7 @@ object WebJarUtils {
       jar.closeEntry()
     }
 
-    val jar = new JarOutputStream(new FileOutputStream("/tmp/foo.jar")) //new ByteArrayOutputStream())
+    val jar = new JarOutputStream(new ByteArrayOutputStream()) //new FileOutputStream("/tmp/foo.jar")) //new ByteArrayOutputStream())
 
     createDir(s"META-INF/", jar)
     createDir(s"META-INF/maven/", jar)
