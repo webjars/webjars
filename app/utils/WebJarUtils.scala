@@ -8,7 +8,7 @@ import scala.annotation.tailrec
 
 object WebJarUtils {
 
-  def createWebJar(zip: ZipInputStream, pom: String, name: String, version: String): JarOutputStream = {
+  def createWebJar(zip: ZipInputStream, pom: String, name: String, version: String): Array[Byte] = {
 
     def createDir(dir: String, jar: JarOutputStream): Unit = {
       val ze = new ZipEntry(dir)
@@ -23,7 +23,9 @@ object WebJarUtils {
       jar.closeEntry()
     }
 
-    val jar = new JarOutputStream(new ByteArrayOutputStream()) //new FileOutputStream("/tmp/foo.jar")) //new ByteArrayOutputStream())
+    val byteArrayOutputStream = new ByteArrayOutputStream()
+
+    val jar = new JarOutputStream(byteArrayOutputStream) //new FileOutputStream("/tmp/foo.jar"))
 
     createDir(s"META-INF/", jar)
     createDir(s"META-INF/maven/", jar)
@@ -63,7 +65,16 @@ object WebJarUtils {
     zip.close()
     jar.close()
 
-    jar
+    byteArrayOutputStream.toByteArray
+  }
+
+  def emptyJar(): Array[Byte] = {
+    val byteArrayOutputStream = new ByteArrayOutputStream()
+
+    val jar = new JarOutputStream(byteArrayOutputStream)
+    jar.close()
+
+    byteArrayOutputStream.toByteArray
   }
 
 }

@@ -16,6 +16,9 @@ class BinTray(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) {
   val password = config.getString("bintray.password").get
   val gpgPassphrase = config.getString("bintray.pgp.passphrase").get
 
+  val ossUsername = config.getString("oss.username").get
+  val ossPassword = config.getString("oss.password").get
+
 
   def ws(path: String): WSRequestHolder = {
     ws
@@ -43,6 +46,22 @@ class BinTray(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) {
         case _ =>
           Future.failed(new Exception(response.body))
       }
+    }
+  }
+
+  def getPackage(subject: String, repo: String, name: String): Future[JsValue] = {
+    ws(s"/packages/$subject/$repo/$name").get().flatMap { response =>
+      response.status match {
+        case Status.OK => Future.successful(response.json)
+        case _ => Future.failed(new Exception(s"Package not found: $subject $repo $name"))
+      }
+    }
+  }
+
+  def getOrCreatePackage(subject: String, repo: String, name: String, desc: String, labels: Seq[String], licenses: Seq[String], vcsUrl: String, websiteUrl: Option[String], issueTrackerUrl: Option[String], githubRepo: Option[String]): Future[JsValue] = {
+    getPackage(subject, repo, name).recoverWith {
+      case e: Exception =>
+        createPackage(subject, repo, name, desc, labels, licenses, vcsUrl, websiteUrl, issueTrackerUrl, githubRepo)
     }
   }
 
@@ -77,6 +96,21 @@ class BinTray(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) {
     ws(s"/maven/$subject/$repo/$packageName/$path;publish=$publishValue").withHeaders("X-GPG-PASSPHRASE" -> gpgPassphrase).put(jarBytes).flatMap { response =>
       response.status match {
         case Status.CREATED => Future.successful(response.json)
+        case _ => Future.failed(new Exception(response.body))
+      }
+    }
+  }
+
+  def syncToMavenCentral(subject: String, repo: String, packageName: String, version:String): Future[JsValue] = {
+
+    val json = Json.obj(
+      "username" -> ossUsername,
+      "password" -> ossPassword
+    )
+
+    ws(s"/maven_central_sync/$subject/$repo/$packageName/versions/$version").post(json).flatMap { response =>
+      response.status match {
+        case Status.OK => Future.successful(response.json)
         case _ => Future.failed(new Exception(response.body))
       }
     }

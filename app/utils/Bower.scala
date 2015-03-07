@@ -79,7 +79,13 @@ case class PackageInfo(artifactId: String, version: String, homepage: String, so
   lazy val sourceUri: Try[URI] = Try { new URI(source) }
   lazy val gitHubOrg: Try[String] = sourceUri.map(_.getPath.split("/")(1))
   lazy val gitHubRepo: Try[String] = sourceUri.map(_.getPath.split("/")(2).stripSuffix(".git"))
-
+  lazy val gitHubOrgRepo: Try[String] = {
+    for {
+      org <- gitHubOrg
+      repo <- gitHubRepo
+    } yield s"$org/$repo"
+  }
+  lazy val issuesUrl: Try[String] = gitHubOrgRepo.map(orgRepo => s"https://github.com/$orgRepo/issues")
 }
 
 object PackageInfo {
