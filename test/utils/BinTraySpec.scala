@@ -29,7 +29,7 @@ class BinTraySpec extends PlaySpecification {
         inputStream.close()
         fileBytes
       }.get
-      val result = await(binTray.publishMavenArtifact("webjars", "maven", "foo", "org/webjars/bower/foo/0.0.1/foo-0.0.1.jar", bytes))
+      val result = await(binTray.uploadMavenArtifact("webjars", "maven", "foo", "org/webjars/bower/foo/0.0.1/foo-0.0.1.jar", bytes))
       (result \ "message").asOpt[String] must beSome ("success")
     }
     "sign an artifact" in {
