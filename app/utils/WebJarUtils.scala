@@ -1,6 +1,6 @@
 package utils
 
-import java.io.{ByteArrayOutputStream, OutputStream, FileOutputStream}
+import java.io.{ByteArrayOutputStream, OutputStream}
 import java.util.jar.JarOutputStream
 import java.util.zip.{ZipEntry, ZipInputStream}
 

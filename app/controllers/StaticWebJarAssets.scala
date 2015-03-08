@@ -1,10 +1,10 @@
 package controllers
 
-import play.api.mvc.Controller
+import controllers.WebJarAssets.locate
+import controllers.routes.{StaticWebJarAssets => AssetRoutes}
 import play.api.Play
 import play.api.Play.current
-import controllers.routes.{StaticWebJarAssets => AssetRoutes}
-import WebJarAssets.locate
+import play.api.mvc.Controller
 
 object StaticWebJarAssets extends Controller {
 

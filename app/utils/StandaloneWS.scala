@@ -1,11 +1,11 @@
 package utils
 
-import play.api.libs.ws.{WSRequestHolder, WSClient, DefaultWSClientConfig, WSAPI}
+import play.api.libs.ws.{DefaultWSClientConfig, WSAPI, WSClient, WSRequestHolder}
 
 import scala.concurrent.{ExecutionContext, Future}
 
 class StandaloneWS extends WSAPI with java.io.Closeable {
-  import play.api.libs.ws.ning.{NingWSClient, NingAsyncHttpClientConfigBuilder}
+  import play.api.libs.ws.ning.{NingAsyncHttpClientConfigBuilder, NingWSClient}
 
   lazy val config = DefaultWSClientConfig(compressionEnabled = Some(true))
   lazy val builder = new NingAsyncHttpClientConfigBuilder(config)

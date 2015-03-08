@@ -1,7 +1,6 @@
 package controllers
 
 import play.api.mvc.{Action, Controller}
-import play.api.libs.json.Json
 
 object MockCentral extends Controller {
   

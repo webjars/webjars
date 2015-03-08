@@ -1,22 +1,16 @@
 package utils
 
-import java.net.URL
-import java.util.concurrent.TimeUnit
-
 import org.apache.commons.codec.binary.Base64
 import play.api.Application
-import play.api.http.{MimeTypes, HeaderNames, Status}
-import play.api.libs.concurrent.Akka
-import play.api.libs.json.{JsArray, JsValue, Json}
-import play.api.libs.ws.{WS, WSRequestHolder, WSResponse}
+import play.api.http.{HeaderNames, MimeTypes, Status}
+import play.api.libs.json.{JsValue, Json}
+import play.api.libs.ws.{WS, WSRequestHolder}
 import play.api.mvc.RequestHeader
 import play.api.mvc.Results.EmptyContent
 
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.duration.{Duration, FiniteDuration}
-import scala.concurrent.{Future, Promise}
+import scala.concurrent.Future
 import scala.language.implicitConversions
-import scala.util.Random
 
 class GithubUtil(implicit app: Application) {
 

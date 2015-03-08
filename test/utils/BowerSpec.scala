@@ -1,7 +1,6 @@
 package utils
 
 import play.api.test._
-import play.api.test.Helpers._
 
 import scala.concurrent.ExecutionContext
 

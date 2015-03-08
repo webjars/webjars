@@ -1,29 +1,25 @@
 package controllers
 
-import akka.actor.{ActorRef, Props, Actor}
+import akka.actor.{Actor, ActorRef, Props}
 import akka.pattern.ask
 import akka.util.Timeout
 import models.WebJar
-import play.api.data.Form
-import play.api.libs.concurrent.{Akka, Promise}
-import play.api.libs.json.Json
-import play.api.mvc.{Result, Request, Action, Controller}
-import utils.{GithubUtil, MavenCentral}
-import utils.MavenCentral.{NotFoundResponseException, UnexpectedResponseException}
-
-import scala.concurrent.ExecutionContext.Implicits.global
-import play.api.libs.iteratee.Enumerator
-import play.api.libs.MimeTypes
+import org.joda.time._
+import org.joda.time.format.{DateTimeFormat, DateTimeFormatter}
 import play.api.Play
 import play.api.Play.current
+import play.api.libs.MimeTypes
+import play.api.libs.concurrent.Akka
+import play.api.libs.iteratee.Enumerator
+import play.api.libs.json.Json
+import play.api.mvc.{Action, Controller, Request, Result}
+import utils.MavenCentral.{NotFoundResponseException, UnexpectedResponseException}
+import utils.{GithubUtil, MavenCentral}
 
-import org.joda.time.format.{DateTimeFormat, DateTimeFormatter}
-import org.joda.time._
-
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
-import scala.util.Random
-import scala.util.hashing.MurmurHash3
 import scala.concurrent.duration._
+import scala.util.hashing.MurmurHash3
 
 object Application extends Controller {
 
@@ -150,8 +146,8 @@ object Application extends Controller {
 
   def makeWebJarRequest = Action.async(parse.urlFormEncoded) { implicit request =>
 
-    import play.api.data._
     import play.api.data.Forms._
+    import play.api.data._
 
     case class WebJarRequest(gitHubToken: String, id: String, name: String, version: String, repoUrl: String, mainJs: Option[String], licenseId: String, licenseUrl: String)
 

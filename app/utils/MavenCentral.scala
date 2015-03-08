@@ -1,35 +1,32 @@
 package utils
 
-import java.io.{InputStream, File, ByteArrayInputStream, ByteArrayOutputStream}
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream, File, InputStream}
+import java.net.URLEncoder
 import java.nio.file.Files
-import java.util.zip.{InflaterInputStream, DeflaterOutputStream}
+import java.util.jar.JarInputStream
+import java.util.zip.{DeflaterOutputStream, InflaterInputStream}
 
 import actors.{FetchWebJars, WebJarFetcher}
+import akka.actor.{ActorRef, Props}
 import akka.pattern.ask
-import akka.actor.{Props, ActorRef}
 import akka.util.Timeout
 import com.ning.http.client.providers.netty.NettyResponse
+import models.{WebJar, WebJarVersion}
 import org.webjars.WebJarAssetLocator
+import play.api.Play.current
 import play.api.cache.Cache
 import play.api.http.Status
 import play.api.libs.concurrent.Akka
-import play.api.libs.ws.{WSResponse, WS}
-import play.api.libs.json.{Json, JsObject}
-import play.api.Play.current
+import play.api.libs.json.{JsObject, Json}
+import play.api.libs.ws.{WS, WSResponse}
 import play.api.{Logger, Play}
-
-import models.{WebJarVersion, WebJar}
 import shade.memcached.Codec
 
-import java.net.URLEncoder
-import java.util.jar.JarInputStream
-
-import scala.concurrent.duration._
-import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
+import scala.concurrent.duration._
 import scala.io.Source
-
-import scala.xml.{XML, Elem}
+import scala.xml.{Elem, XML}
 
 object MavenCentral {
 

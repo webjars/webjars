@@ -2,8 +2,8 @@ package utils
 
 import java.io.File
 
-import play.api.{Mode, Configuration}
-import play.api.libs.json.{Json, JsValue}
+import play.api.libs.json.{JsValue, Json}
+import play.api.{Configuration, Mode}
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}

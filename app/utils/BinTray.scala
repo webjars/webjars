@@ -1,12 +1,12 @@
 package utils
 
-import play.api.http.{Status, HeaderNames}
-import play.api.libs.json.{Json, JsValue}
-import play.api.libs.ws.{WSAuthScheme, WSRequestHolder, WSAPI}
 import play.api.Configuration
+import play.api.http.Status
+import play.api.libs.json.{JsValue, Json}
+import play.api.libs.ws.{WSAPI, WSAuthScheme, WSRequestHolder}
 import play.api.mvc.Results.EmptyContent
 
-import scala.concurrent.{Future, ExecutionContext}
+import scala.concurrent.{ExecutionContext, Future}
 
 class BinTray(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) {
 

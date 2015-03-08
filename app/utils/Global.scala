@@ -1,12 +1,12 @@
 package utils
 
-import play.api.{Logger, Application, Play}
 import play.api.libs.concurrent.Akka
 import play.api.mvc.WithFilters
+import play.api.{Application, Logger, Play}
 import play.filters.gzip.GzipFilter
 import shade.memcached.{AuthConfiguration, Configuration, Memcached}
-import scala.concurrent.ExecutionContext.Implicits.global
 
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 
 object Global extends WithFilters(new GzipFilter()) {

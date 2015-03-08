@@ -6,11 +6,10 @@ import java.util.zip.ZipInputStream
 
 import play.api.http.Status
 import play.api.libs.iteratee.Iteratee
-
-import play.api.libs.ws._
-import play.api.libs.json._
 import play.api.libs.json.Reads._
+import play.api.libs.json._
 import play.api.libs.functional.syntax._
+import play.api.libs.ws._
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try

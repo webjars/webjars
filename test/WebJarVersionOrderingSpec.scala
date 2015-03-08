@@ -1,9 +1,8 @@
 package test
 
+import models.WebJarVersion
 import models.WebJarVersion.WebJarVersionOrdering
 import org.specs2.mutable._
-import models.WebJarVersion
-import scala.util.Random
 
 class WebJarVersionOrderingSpec extends Specification {
   
