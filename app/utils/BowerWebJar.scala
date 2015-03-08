@@ -50,15 +50,17 @@ object BowerWebJar extends App {
       } yield (packageInfo, pom, jar)
 
       val binTrayFuture = webJarFuture.flatMap { case (packageInfo, pom, jar) =>
+        val packageName = s"$groupId:$name"
         for {
-          createPackage <- binTray.getOrCreatePackage(binTraySubject, binTrayRepo, s"$groupId:$name", s"WebJar for $name", Seq("webjar", name), packageInfo.licenses, packageInfo.source, Some(packageInfo.homepage), packageInfo.issuesUrl.toOption, packageInfo.gitHubOrgRepo.toOption)
-          createVersion <- binTray.createVersion(binTraySubject, binTrayRepo, s"$groupId:$name", version, s"$name WebJar release $version", Some(s"v$version"))
-          publishPom <- binTray.publishMavenArtifact(binTraySubject, binTrayRepo, s"$groupId:$name", s"$mavenBaseDir/$name/$version/$name-$version.pom", pom.getBytes, true)
-          publishJar <- binTray.publishMavenArtifact(binTraySubject, binTrayRepo, s"$groupId:$name", s"$mavenBaseDir/$name/$version/$name-$version.jar", jar, true)
+          createPackage <- binTray.getOrCreatePackage(binTraySubject, binTrayRepo, packageName, s"WebJar for $name", Seq("webjar", name), packageInfo.licenses, packageInfo.source, Some(packageInfo.homepage), packageInfo.issuesUrl.toOption, packageInfo.gitHubOrgRepo.toOption)
+          createVersion <- binTray.createVersion(binTraySubject, binTrayRepo, packageName, version, s"$name WebJar release $version", Some(s"v$version"))
+          publishPom <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$name/$version/$name-$version.pom", pom.getBytes)
+          publishJar <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$name/$version/$name-$version.jar", jar)
           emptyJar = WebJarUtils.emptyJar()
-          publishSourceJar <- binTray.publishMavenArtifact(binTraySubject, binTrayRepo, s"$groupId:$name", s"$mavenBaseDir/$name/$version/$name-$version-sources.jar", emptyJar, true)
-          signVersion <- binTray.signVersion(binTraySubject, binTrayRepo, s"$groupId:$name", version)
-          syncToMavenCentral <- binTray.syncToMavenCentral(binTraySubject, binTrayRepo, s"$groupId:$name", version)
+          publishSourceJar <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$name/$version/$name-$version-sources.jar", emptyJar)
+          signVersion <- binTray.signVersion(binTraySubject, binTrayRepo, packageName, version)
+          publishVersion <- binTray.publishVersion(binTraySubject, binTrayRepo, packageName, version)
+          syncToMavenCentral <- binTray.syncToMavenCentral(binTraySubject, binTrayRepo, packageName, version)
         } yield syncToMavenCentral
       }
 

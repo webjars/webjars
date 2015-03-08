@@ -14,7 +14,7 @@ class BinTray(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) {
 
   val username = config.getString("bintray.username").get
   val password = config.getString("bintray.password").get
-  val gpgPassphrase = config.getString("bintray.pgp.passphrase").get
+  val gpgPassphrase = config.getString("bintray.gpg.passphrase").get
 
   val ossUsername = config.getString("oss.username").get
   val ossPassword = config.getString("oss.password").get
@@ -91,9 +91,8 @@ class BinTray(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) {
     }
   }
 
-  def publishMavenArtifact(subject: String, repo: String, packageName: String, path: String, jarBytes: Array[Byte], publish: Boolean = false): Future[JsValue] = {
-    val publishValue = if (publish) 1 else 0
-    ws(s"/maven/$subject/$repo/$packageName/$path;publish=$publishValue").withHeaders("X-GPG-PASSPHRASE" -> gpgPassphrase).put(jarBytes).flatMap { response =>
+  def uploadMavenArtifact(subject: String, repo: String, packageName: String, path: String, jarBytes: Array[Byte]): Future[JsValue] = {
+    ws(s"/maven/$subject/$repo/$packageName/$path").withHeaders("X-GPG-PASSPHRASE" -> gpgPassphrase).put(jarBytes).flatMap { response =>
       response.status match {
         case Status.CREATED => Future.successful(response.json)
         case _ => Future.failed(new Exception(response.body))
@@ -101,8 +100,17 @@ class BinTray(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) {
     }
   }
 
+  def publishVersion(subject: String, repo: String, packageName: String, version: String): Future[JsValue] = {
+    ws(s"/content/$subject/$repo/$packageName/$version/publish").post(EmptyContent()).flatMap { response =>
+      response.status match {
+        case Status.OK => Future.successful(response.json)
+        case _ => Future.failed(new Exception("Publish failed: " + response.body))
+      }
+    }
+  }
+
   def signVersion(subject: String, repo: String, packageName: String, version: String): Future[JsValue] = {
-    ws(s"//gpg/$subject/$repo/$packageName/versions/$version").withHeaders("X-GPG-PASSPHRASE" -> gpgPassphrase).post(EmptyContent()).flatMap { response =>
+    ws(s"/gpg/$subject/$repo/$packageName/versions/$version").withHeaders("X-GPG-PASSPHRASE" -> gpgPassphrase).post(EmptyContent()).flatMap { response =>
       response.status match {
         case Status.OK => Future.successful(response.json)
         case _ => Future.failed(new Exception("Signing failed: " + response.body))

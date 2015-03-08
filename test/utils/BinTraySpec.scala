@@ -32,6 +32,10 @@ class BinTraySpec extends PlaySpecification {
       val result = await(binTray.publishMavenArtifact("webjars", "maven", "foo", "org/webjars/bower/foo/0.0.1/foo-0.0.1.jar", bytes))
       (result \ "message").asOpt[String] must beSome ("success")
     }
+    "sign an artifact" in {
+      val result = await(binTray.signVersion("webjars", "maven", "foo", "0.0.1"))
+      (result \ "message").asOpt[String] must beSome ("success")
+    }
   }
 
   step {
