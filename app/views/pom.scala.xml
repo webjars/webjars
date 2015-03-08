@@ -1,0 +1,57 @@
+@(packageInfo: utils.PackageInfo, mavenDependencies: Map[String, String])
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <packaging>jar</packaging>
+    <groupId>org.webjars.bower</groupId>
+    <artifactId>@packageInfo.artifactId</artifactId>
+    <version>@packageInfo.version</version>
+    <name>@packageInfo.artifactId</name>
+    <description>WebJar for @packageInfo.artifactId</description>
+    <url>http://webjars.org</url>
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <requirejs>
+            {
+                @* todo *@
+            }
+        </requirejs>
+    </properties>
+
+    <scm>
+        <url>@packageInfo.gitHubHome.get</url>
+        <connection>@packageInfo.sourceUri.get</connection>
+        <developerConnection>@packageInfo.sourceUri.get</developerConnection>
+        <tag>v@packageInfo.version</tag>
+    </scm>
+
+    <developers>
+        <developer>
+            <id>webjars</id>
+            <url>http://webjars.org</url>
+        </developer>
+    </developers>
+
+    <licenses>
+        @packageInfo.licenses.map { license =>
+        <license>
+            <name>@license</name>
+            <url>https://spdx.org/licenses/@license#licenseText</url>
+            <distribution>repo</distribution>
+        </license>
+        }
+    </licenses>
+
+    <dependencies>
+        @mavenDependencies.map { case (name, version) =>
+        <dependency>
+            <groupId>org.webjars.bower</groupId>
+            <artifactId>@name</artifactId>
+            <version>@version</version>
+        </dependency>
+        }
+    </dependencies>
+
+</project>
