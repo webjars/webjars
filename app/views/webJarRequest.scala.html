@@ -1,4 +1,4 @@
-@(maybeGitHubToken: Option[String] = None, maybeGitHubUsername: Option[String] = None)
+@(form: Form[Application.WebJarRequest], maybeGitHubToken: Option[String] = None, maybeGitHubUsername: Option[String] = None)
 
 @main("WebJars - Request New WebJar") {
 
@@ -27,7 +27,7 @@
                                 </div>
                             } { gitHubUsername =>
                                 <div class="col-sm-2">
-                                    <input type="text" class="form-control" value="@gitHubUsername" readonly>
+                                    <input type="text" class="form-control" name="gitHubUsername" value="@gitHubUsername" readonly>
                                 </div>
                             }
                             <span id="helpId" class="help-block col-sm-6">Connecting to GitHub makes it easy to gather required info and file the request</span>
@@ -37,27 +37,27 @@
                         @maybeGitHubToken.map { gitHubToken =>
                             <input type="hidden" name="gitHubToken" value="@gitHubToken">
                         }
-                        <div class="form-group">
+                        <div class="form-group  @form.error("webJarId").fold("")(_ => "has-error")">
                             <label for="webJarId" class="col-sm-2 control-label">WebJar ID</label>
                             <div class="col-sm-2">
                                 <input type="text" class="form-control" id="webJarId" name="webJarId" placeholder="jquery" aria-describedby="helpId" required>
                             </div>
                             <span id="helpId" class="help-block col-sm-6">The Bower/NPM module ID or GitHub repo name</span>
                         </div>
-                        <div class="form-group">
+                        <div class="form-group  @form.error("webJarName").fold("")(_ => "has-error")">
                             <label for="webJarName" class="col-sm-2 control-label">WebJar Name</label>
                             <div class="col-sm-2">
                                 <input type="text" class="form-control" id="webJarName" name="webJarName" placeholder="jQuery" required>
                             </div>
                         </div>
-                        <div class="form-group">
+                        <div class="form-group  @form.error("webJarVersion").fold("")(_ => "has-error")">
                             <label for="webJarVersion" class="col-sm-2 control-label">WebJar Version</label>
                             <div class="col-sm-2">
                                 <input type="text" class="form-control" id="webJarVersion" name="webJarVersion" placeholder="1.11.1" aria-describedby="helpVersion" required>
                             </div>
                             <span id="helpVersion" class="help-block col-sm-6">There <strong>MUST</strong> be a corresponding tagged / versioned download</span>
                         </div>
-                        <div class="form-group">
+                        <div class="form-group  @form.error("repoUrl").fold("")(_ => "has-error")">
                             <label for="repoUrl" class="col-sm-2 control-label">Library Repo URL</label>
                             <div class="col-sm-4">
                                 <input type="text" class="form-control" id="repoUrl" name="repoUrl" placeholder="https://github.com/foo/bar">
@@ -70,13 +70,13 @@
                             </div>
                             <span id="helpMain" class="help-block col-sm-6">(Optional) Used for RequireJS</span>
                         </div>
-                        <div class="form-group">
+                        <div class="form-group  @form.error("licenseId").fold("")(_ => "has-error")">
                             <label for="licenseId" class="col-sm-2 control-label">Library License ID</label>
                             <div class="col-sm-2">
                                 <input type="text" class="form-control" id="licenseId" name="licenseId" placeholder="MIT" required>
                             </div>
                         </div>
-                        <div class="form-group">
+                        <div class="form-group  @form.error("licenseUrl").fold("")(_ => "has-error")">
                             <label for="licenseUrl" class="col-sm-2 control-label">Library License URL</label>
                             <div class="col-sm-4">
                                 <input type="url" class="form-control" id="licenseUrl" name="licenseUrl" placeholder="http://github.com/foo/bar/blob/master/LICENSE" required>

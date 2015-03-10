@@ -12,6 +12,8 @@ import play.api.libs.MimeTypes
 import play.api.libs.concurrent.Akka
 import play.api.libs.iteratee.Enumerator
 import play.api.libs.json.Json
+import play.api.data.Forms._
+import play.api.data._
 import play.api.mvc.{Action, Controller, Request, Result}
 import utils.MavenCentral.{NotFoundResponseException, UnexpectedResponseException}
 import utils.{GithubUtil, MavenCentral}
@@ -133,46 +135,45 @@ object Application extends Controller {
     Ok(views.html.contributing())
   }
 
+  case class WebJarRequest(gitHubToken: String, id: String, name: String, version: String, repoUrl: String, mainJs: Option[String], licenseId: String, licenseUrl: String)
+
+  lazy val webJarRequestForm = Form(
+    mapping(
+      "gitHubToken" -> nonEmptyText,
+      "webJarId" -> nonEmptyText,
+      "webJarName" -> nonEmptyText,
+      "webJarVersion" -> nonEmptyText,
+      "repoUrl" -> nonEmptyText,
+      "mainJs" -> optional(text),
+      "licenseId" -> nonEmptyText,
+      "licenseUrl" -> nonEmptyText
+    )(WebJarRequest.apply)(WebJarRequest.unapply)
+  )
+
   def webJarRequest = Action.async { request =>
     request.flash.get(X_GITHUB_ACCESS_TOKEN).map { accessToken =>
       github.user(accessToken).map { user =>
         val login = (user \ "login").as[String]
-        Ok(views.html.webJarRequest(Some(accessToken), Some(login)))
+        Ok(views.html.webJarRequest(webJarRequestForm, Some(accessToken), Some(login)))
       }
     } getOrElse {
-      Future.successful(Ok(views.html.webJarRequest()))
+      Future.successful(Ok(views.html.webJarRequest(webJarRequestForm)))
     }
   }
 
   def makeWebJarRequest = Action.async(parse.urlFormEncoded) { implicit request =>
 
-    import play.api.data.Forms._
-    import play.api.data._
-
-    case class WebJarRequest(gitHubToken: String, id: String, name: String, version: String, repoUrl: String, mainJs: Option[String], licenseId: String, licenseUrl: String)
-
-    val webJarRequestForm = Form(
-      mapping(
-        "gitHubToken" -> nonEmptyText,
-        "webJarId" -> nonEmptyText,
-        "webJarName" -> nonEmptyText,
-        "webJarVersion" -> nonEmptyText,
-        "repoUrl" -> nonEmptyText,
-        "mainJs" -> optional(text),
-        "licenseId" -> nonEmptyText,
-        "licenseUrl" -> nonEmptyText
-      )(WebJarRequest.apply)(WebJarRequest.unapply)
-    )
-
     webJarRequestForm.bindFromRequest().fold(
       formWithErrors => {
-        Future.successful(BadRequest(views.html.webJarRequest()))
+        val gitHubToken = request.body.get("gitHubToken").flatMap(_.headOption)
+        val gitHubUsername = request.body.get("gitHubUsername").flatMap(_.headOption)
+        Future.successful(BadRequest(views.html.webJarRequest(formWithErrors, gitHubToken, gitHubUsername)))
       },
       webJarRequest => {
         github.user(webJarRequest.gitHubToken).flatMap { user =>
-          val login = (user \ "login").as[String]
-          val email = (user \ "email").as[String]
-          val name = (user \ "name").as[String]
+          val login = (user \ "login").asOpt[String].getOrElse("")
+          val email = (user \ "email").asOpt[String].getOrElse("")
+          val name = (user \ "name").asOpt[String].getOrElse("")
 
           github.contents(webJarRequest.gitHubToken, "webjars", "webjars-template-zip", "pom.xml").flatMap { templatePom =>
             val pom = templatePom
@@ -189,12 +190,7 @@ object Application extends Controller {
 
             val issueTitle = s"WebJar Request: ${webJarRequest.id}"
 
-            val issueBody =
-              s"""
-                 |```
-                 |$pom
-                 |```
-               """.stripMargin
+            val issueBody = pom
 
             github.createIssue(webJarRequest.gitHubToken, "webjars", "webjars", issueTitle, issueBody).map { issueResponse =>
               val url = (issueResponse \ "html_url").as[String]
