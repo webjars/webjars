@@ -154,7 +154,7 @@ object Application extends Controller {
     request.flash.get(X_GITHUB_ACCESS_TOKEN).map { accessToken =>
       github.user(accessToken).map { user =>
         val login = (user \ "login").as[String]
-        Ok(views.html.webJarRequest(webJarRequestForm, Some(accessToken), Some(login)))
+        Ok(views.html.webJarRequest(weSome(accessToken), Some(login)))
       }
     } getOrElse {
       Future.successful(Ok(views.html.webJarRequest(webJarRequestForm)))
@@ -190,7 +190,12 @@ object Application extends Controller {
 
             val issueTitle = s"WebJar Request: ${webJarRequest.id}"
 
-            val issueBody = pom
+            val issueBody =
+              s"""
+                 |```
+                 |$pom
+                 |```
+               """.stripMargin
 
             github.createIssue(webJarRequest.gitHubToken, "webjars", "webjars", issueTitle, issueBody).map { issueResponse =>
               val url = (issueResponse \ "html_url").as[String]
