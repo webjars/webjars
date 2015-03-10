@@ -4,7 +4,7 @@ import java.io.ByteArrayInputStream
 import java.net.URI
 import java.util.zip.ZipInputStream
 
-import play.api.http.Status
+import play.api.http.{HeaderNames, Status}
 import play.api.libs.iteratee.Iteratee
 import play.api.libs.json.Reads._
 import play.api.libs.json._
@@ -22,17 +22,35 @@ class Bower(implicit ec: ExecutionContext, ws: WSAPI) {
     ws.url(s"$BASE_URL/info/$packageName/$version").get().flatMap { response =>
       response.status match {
         case Status.OK =>
-          val info = response.json.as[PackageInfo]
-          if (info.licenses.length == 0) {
-            gitHubLicenseDetect(info).map { license =>
-              info.copy(licenses = Seq(license))
-            } recoverWith {
-              case e: Exception =>
-                Future.successful(info)
+          // deal with GitHub redirects
+          val initialInfo = response.json.as[PackageInfo]
+          val infoFuture: Future[PackageInfo] = initialInfo.gitHubHome.toOption.fold(Future.successful(initialInfo)) { gitHubHome =>
+            ws.url(gitHubHome).withFollowRedirects(false).get().flatMap { homeTestResponse =>
+              homeTestResponse.status match {
+                case Status.MOVED_PERMANENTLY =>
+                  homeTestResponse.header(HeaderNames.LOCATION).fold(Future.successful(initialInfo)) { actualHome =>
+                    val newSource = actualHome.replaceFirst("https://", "git://") + ".git"
+                    Future.successful(initialInfo.copy(source = newSource, homepage = actualHome))
+                  }
+                case _ =>
+                  Future.successful(initialInfo)
+              }
             }
           }
-          else {
-            Future.successful(info)
+
+          infoFuture.flatMap { info =>
+            // detect licenses if they are not specified in the bower.json
+            if (info.licenses.length == 0) {
+              gitHubLicenseDetect(info).map { license =>
+                info.copy(licenses = Seq(license))
+              } recoverWith {
+                case e: Exception =>
+                  Future.successful(info)
+              }
+            }
+            else {
+              Future.successful(info)
+            }
           }
         case _ =>
           Future.failed(new Exception(response.body))
@@ -86,6 +104,7 @@ case class PackageInfo(artifactId: String, version: String, homepage: String, so
   }
   lazy val gitHubHome: Try[String] = gitHubOrgRepo.map(orgRepo => s"https://github.com/$orgRepo")
   lazy val issuesUrl: Try[String] = gitHubHome.map(_ + "/issues")
+
 }
 
 object PackageInfo {

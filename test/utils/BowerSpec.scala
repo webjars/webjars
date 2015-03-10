@@ -28,6 +28,11 @@ class BowerSpec extends PlaySpecification {
       await(bower.info("bootstrap", "3.3.2")).dependencies must contain("jquery" -> ">= 1.9.1")
     }
   }
+  "dc.js" should {
+    "have the corrected source url" in {
+      await(bower.info("dc.js", "1.7.3")).source must beEqualTo("git://github.com/dc-js/dc.js.git")
+    }
+  }
 
   step(ws.close())
 
