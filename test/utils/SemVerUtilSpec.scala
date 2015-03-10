@@ -76,6 +76,8 @@ class SemVerUtilSpec extends Specification {
       SemVerUtil.convertSemVerToMaven("~1.2")         must be equalTo Some("[1.2,1.3)")
       SemVerUtil.convertSemVerToMaven("~1.2.3")       must be equalTo Some("[1.2.3,1.3)")
       SemVerUtil.convertSemVerToMaven("~1.2.3-alpha") must be equalTo Some("[1.2.3-alpha,1.3)")
+
+      SemVerUtil.convertSemVerToMaven("~1.x")         must be equalTo Some("[1.0.0,2)")
     }
     "work with caret ranges" in {
       SemVerUtil.convertSemVerToMaven("^1.2.3")        must be equalTo Some("[1.2.3,2)")
