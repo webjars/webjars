@@ -1,5 +1,7 @@
 package utils
 
+import java.util.concurrent.TimeUnit
+
 import play.api.test._
 
 import scala.concurrent.ExecutionContext
@@ -31,6 +33,11 @@ class BowerSpec extends PlaySpecification {
   "dc.js" should {
     "have the corrected source url" in {
       await(bower.info("dc.js", "1.7.3")).source must beEqualTo("git://github.com/dc-js/dc.js.git")
+    }
+  }
+  "sjcl" should {
+    "download" in {
+      await(bower.zip("sjcl", "1.0.2"), 1, TimeUnit.MINUTES).available must beEqualTo(1)
     }
   }
 

@@ -77,7 +77,7 @@ class Bower(implicit ec: ExecutionContext, ws: WSAPI) {
     ws.url(s"$BASE_URL/download/$packageName/$version").getStream().flatMap {
       case (headers, enumerator) =>
 
-        val bodyFuture = enumerator |>>> Iteratee.fold(Array.empty[Byte])(_ ++ _)
+        val bodyFuture = enumerator |>>> Iteratee.consume[Array[Byte]]()
 
         bodyFuture.map { rawBody =>
           new ZipInputStream(new ByteArrayInputStream(rawBody))

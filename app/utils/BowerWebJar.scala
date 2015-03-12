@@ -48,8 +48,10 @@ object BowerWebJar extends App {
         zip <- bower.zip(name, version)
         jar = WebJarUtils.createWebJar(zip, pom, name, version)
       } yield (packageInfo, pom, jar)
-
+      
       val binTrayFuture = webJarFuture.flatMap { case (packageInfo, pom, jar) =>
+        println("Created Bower WebJar: " + packageInfo)
+
         val packageName = s"$groupId:$name"
         for {
           createPackage <- binTray.getOrCreatePackage(binTraySubject, binTrayRepo, packageName, s"WebJar for $name", Seq("webjar", name), packageInfo.licenses, packageInfo.source, Some(packageInfo.homepage), packageInfo.issuesUrl.toOption, packageInfo.gitHubOrgRepo.toOption)
