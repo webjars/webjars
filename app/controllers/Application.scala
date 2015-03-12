@@ -3,7 +3,7 @@ package controllers
 import akka.actor.{Actor, ActorRef, Props}
 import akka.pattern.ask
 import akka.util.Timeout
-import models.WebJar
+import models.{WebJarCatalog, WebJar}
 import org.joda.time._
 import org.joda.time.format.{DateTimeFormat, DateTimeFormatter}
 import play.api.Play
@@ -29,26 +29,62 @@ object Application extends Controller {
 
   val github = GithubUtil(Play.current)
 
-  def index = Action.async { implicit request =>
-    MavenCentral.allWebJars.map { allWebJars =>
-      val acceptHash = MurmurHash3.seqHash(request.acceptedTypes)
-      val hash = MurmurHash3.listHash(allWebJars, acceptHash)
+
+  def index = Action {
+    Ok(views.html.index())
+  }
+
+  def classicList = Action.async { implicit request =>
+    MavenCentral.webJars(WebJarCatalog.CLASSIC).map { allWebJars =>
+      val hash = MurmurHash3.seqHash(allWebJars)
       val etag = "\"" + hash + "\""
       if (request.headers.get(IF_NONE_MATCH).contains(etag)) {
         NotModified
       }
       else {
-        Ok(views.html.index(allWebJars)).withHeaders(ETAG -> etag)
+        Ok(views.html.classicList(allWebJars)).withHeaders(ETAG -> etag)
       }
     } recover {
       case e: Exception =>
-        InternalServerError(views.html.index(Seq.empty[WebJar]))
+        InternalServerError(views.html.classicList(Seq.empty[WebJar]))
     }
+  }
+
+  def classicListJson = Action.async { implicit request =>
+    MavenCentral.webJars(WebJarCatalog.CLASSIC).map { allWebJars =>
+      val hash = MurmurHash3.seqHash(allWebJars)
+      val etag = "\"" + hash + "\""
+      if (request.headers.get(IF_NONE_MATCH).contains(etag)) {
+        NotModified
+      }
+      else {
+        Ok(Json.toJson(allWebJars)).withHeaders(ETAG -> etag)
+      }
+    } recover {
+      case e: Exception =>
+        InternalServerError(Json.toJson(Seq.empty[WebJar]))
+    }
+  }
+
+  def bowerList = Action.async { implicit request =>
+    Future.successful(NotImplemented)
+  }
+
+  def bowerListJson = Action.async { implicit request =>
+    Future.successful(NotImplemented)
   }
 
   def allWebJars = CorsAction {
     Action.async { implicit request =>
-      MavenCentral.allWebJars.map { allWebJars =>
+      val classicFuture = MavenCentral.webJars(WebJarCatalog.CLASSIC)
+      val bowerFuture = MavenCentral.webJars(WebJarCatalog.BOWER)
+
+      val allFuture = for {
+        classic <- classicFuture
+        bower <- bowerFuture
+      } yield classic ++ bower
+
+      allFuture.map { allWebJars =>
         val acceptHash = MurmurHash3.seqHash(request.acceptedTypes)
         val hash = MurmurHash3.listHash(allWebJars, acceptHash)
         val etag = "\"" + hash + "\""
@@ -78,6 +114,12 @@ object Application extends Controller {
         case ure: UnexpectedResponseException =>
           Status(ure.response.status)(s"Problems retrieving WebJar ($artifactId : $version) - ${ure.response.statusText}")
       }
+    }
+  }
+
+  def listFilesBower(artifactId: String, version: String) = CorsAction {
+    Action.async { implicit request =>
+      Future.successful(NotImplemented)
     }
   }
 
@@ -118,6 +160,12 @@ object Application extends Controller {
         case e: Exception =>
           InternalServerError(s"Could not find WebJar ($artifactId : $webJarVersion)\n${e.getMessage}")
       }
+    }
+  }
+
+  def fileBower(artifactId: String, webJarVersion: String, file: String) = CorsAction {
+    Action.async { request =>
+      Future.successful(NotImplemented)
     }
   }
 

@@ -11,7 +11,9 @@ import akka.actor.{ActorRef, Props}
 import akka.pattern.ask
 import akka.util.Timeout
 import com.ning.http.client.providers.netty.NettyResponse
-import models.{WebJar, WebJarVersion}
+import models.WebJarCatalog
+import models.WebJarCatalog.WebJarCatalog
+import models.{WebJarCatalog, WebJar, WebJarVersion}
 import org.webjars.WebJarAssetLocator
 import play.api.Play.current
 import play.api.cache.Cache
@@ -80,8 +82,6 @@ object MavenCentral {
   val primaryBaseJarUrl = Play.current.configuration.getString("webjars.jarUrl.primary").get
   val fallbackBaseJarUrl = Play.current.configuration.getString("webjars.jarUrl.fallback").get
 
-  val ALL_WEBJARS_CACHE_KEY: String = "allWebJars"
-
   def fetchWebJarNameAndUrl(artifactId: String, version: String): Future[(String, String)] = {
     getPom(artifactId, version).flatMap { xml =>
       val artifactId = (xml \ "artifactId").text
@@ -120,11 +120,13 @@ object MavenCentral {
     }
   }
 
-  def fetchWebJars(): Future[List[WebJar]] = {
+  def fetchWebJars(catalog: WebJarCatalog): Future[List[WebJar]] = {
 
-    Logger.info("Getting the full WebJar list")
+    Logger.info("Getting the WebJars for " + catalog.toString)
 
-    WS.url(Play.configuration.getString("webjars.searchGroupUrl").get).get().flatMap { response =>
+    val searchUrl = Play.configuration.getString("webjars.searchGroupUrl").get.format(catalog.toString)
+
+    WS.url(searchUrl).get().flatMap { response =>
 
       val allVersions = (response.json \ "response" \ "docs").as[List[JsObject]].map { jsObject =>
         ((jsObject \ "a").as[String], (jsObject \ "v").as[String])
@@ -152,7 +154,7 @@ object MavenCentral {
           webJarVersionsFuture.flatMap { webJarVersions =>
             MavenCentral.fetchWebJarNameAndUrl(artifactId, webJarVersions.map(_.number).head).map {
               case (name, url) =>
-                WebJar(artifactId, name, url, webJarVersions)
+                WebJar(catalog.toString, artifactId, name, url, webJarVersions)
             }
           }
       } map { webJars =>
@@ -163,14 +165,24 @@ object MavenCentral {
     }
   }
 
-  def allWebJars: Future[List[WebJar]] = {
-    Cache.getAs[List[WebJar]](ALL_WEBJARS_CACHE_KEY).map(Future.successful).getOrElse {
-      implicit val timeout = Timeout(25.seconds)
-      val fetchWebJarsFuture = (webJarFetcher ? FetchWebJars).mapTo[List[WebJar]]
-      fetchWebJarsFuture.foreach { fetchedWebJars =>
-        Cache.set(ALL_WEBJARS_CACHE_KEY, fetchedWebJars, 1.hour)
+  def webJars(catalog: WebJarCatalog): Future[List[WebJar]] = {
+    Cache.getAs[List[WebJar]](catalog.toString).map(Future.successful).getOrElse {
+      Akka.system.actorSelection(catalog.toString).resolveOne(1.second).flatMap { actorRef =>
+        // in-flight request exists
+        Future.failed(new Exception("Existing request for WebJars"))
+      } recoverWith {
+        // no request so make one
+        case _ =>
+          implicit val timeout = Timeout(10.minutes)
+          val webJarFetcher = Akka.system.actorOf(Props(classOf[WebJarFetcher], catalog), catalog.toString)
+          val fetchWebJarsFuture = (webJarFetcher ? FetchWebJars).mapTo[List[WebJar]]
+          fetchWebJarsFuture.foreach { fetchedWebJars =>
+            Akka.system.stop(webJarFetcher)
+            Cache.set(catalog.toString, fetchedWebJars, 1.hour)
+          }
+          // fail cause this is will likely take a long time
+          Future.failed(new Exception("Making new request for WebJars"))
       }
-      fetchWebJarsFuture
     }
   }
 

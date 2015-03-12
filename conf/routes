@@ -6,13 +6,21 @@ GET            /robots.txt                              controllers.Assets.at(pa
 GET            /files/robots.txt                        controllers.Assets.at(path="/public", file="robots.txt")
 
 GET            /all                                     controllers.Application.allWebJars()
+GET            /classic                                 controllers.Application.classicList()
+GET            /list/classic                            controllers.Application.classicListJson()
+GET            /bower                                   controllers.Application.bowerList()
+GET            /list/bower                              controllers.Application.bowerListJson()
 GET            /listfiles/:artifactId/:version          controllers.Application.listFiles(artifactId, version)
+GET            /listfiles/bower/:artifactId/:version    controllers.Application.listFilesBower(artifactId, version)
 GET            /documentation                           controllers.Application.documentation()
 GET            /contributing                            controllers.Application.contributing()
 GET            /request                                 controllers.Application.webJarRequest()
 POST           /request                                 controllers.Application.makeWebJarRequest()
 
 GET            /mockcentral/searchgroup                 controllers.MockCentral.searchGroup()
+
+GET            /files/bower/:artifactId/:version/*file  controllers.Application.fileBower(artifactId, version, file)
+OPTIONS        /files/bower/:artifactId/:version/*file  controllers.Application.fileOptions(artifactId, version, file)
 
 GET            /files/:artifactId/:version/*file        controllers.Application.file(artifactId, version, file)
 OPTIONS        /files/:artifactId/:version/*file        controllers.Application.fileOptions(artifactId, version, file)

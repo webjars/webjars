@@ -4,7 +4,7 @@ import java.util.Calendar
 
 import play.api.libs.json.Json
 
-case class WebJar(artifactId: String, name: String, sourceUrl: String, versions: List[WebJarVersion]) extends Serializable
+case class WebJar(groupId: String, artifactId: String, name: String, sourceUrl: String, versions: List[WebJarVersion]) extends Serializable
 
 case class WebJarVersion(number: String, numFiles: Int = 0)
 
@@ -74,3 +74,8 @@ object WebJarVersion {
   }
 }
 
+object WebJarCatalog extends Enumeration {
+  type WebJarCatalog = Value
+  val CLASSIC = Value("org.webjars")
+  val BOWER = Value("org.webjars.bower")
+}
