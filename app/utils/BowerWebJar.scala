@@ -38,7 +38,7 @@ object BowerWebJar extends App {
     }
 
     StandaloneWS.withWs { implicit ws =>
-      val bower = Bower(executionContext, ws)
+      val bower = Bower(executionContext, ws.client)
       val binTray = BinTray(executionContext, ws, config)
 
       val webJarFuture = for {

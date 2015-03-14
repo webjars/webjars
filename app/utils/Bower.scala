@@ -14,9 +14,27 @@ import play.api.libs.ws._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
-class Bower(implicit ec: ExecutionContext, ws: WSAPI) {
+class Bower(implicit ec: ExecutionContext, ws: WSClient) {
 
   val BASE_URL = "https://bower-as-a-service.herokuapp.com"
+
+  def all: Future[JsArray] = {
+    ws.url("https://bower-component-list.herokuapp.com/").get().flatMap { response =>
+      response.status match {
+        case Status.OK => Future.successful(response.json.as[JsArray])
+        case _ => Future.failed(new Exception(response.body))
+      }
+    }
+  }
+
+  def info(packageName: String): Future[JsValue] = {
+    ws.url(s"$BASE_URL/info/$packageName").get().flatMap { response =>
+      response.status match {
+        case Status.OK => Future.successful(response.json)
+        case _ => Future.failed(new Exception(response.body))
+      }
+    }
+  }
 
   def info(packageName: String, version: String): Future[PackageInfo] = {
     ws.url(s"$BASE_URL/info/$packageName/$version").get().flatMap { response =>
@@ -88,7 +106,7 @@ class Bower(implicit ec: ExecutionContext, ws: WSAPI) {
 }
 
 object Bower {
-  def apply(implicit ec: ExecutionContext, ws: WSAPI) = new Bower()
+  def apply(implicit ec: ExecutionContext, ws: WSClient) = new Bower()
 }
 
 case class PackageInfo(artifactId: String, version: String, homepage: String, source: String, licenses: Seq[String], dependencies: Map[String, String]) {

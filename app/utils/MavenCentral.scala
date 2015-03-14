@@ -25,12 +25,14 @@ import play.api.{Logger, Play}
 import shade.memcached.Codec
 
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
 import scala.io.Source
 import scala.xml.{Elem, XML}
 
 object MavenCentral {
+
+  lazy val bower = Bower(ExecutionContext.global, WS.client(Play.current))
 
   lazy val webJarFetcher: ActorRef = Akka.system.actorOf(Props[WebJarFetcher])
 
@@ -139,8 +141,13 @@ object MavenCentral {
         case (artifactId, versions) =>
           val webJarVersionsFuture = Future.sequence {
             versions.map { version =>
-              MavenCentral.getFileList(artifactId, version).map { fileList =>
-                WebJarVersion(version, fileList.length)
+              catalog match {
+                case WebJarCatalog.CLASSIC =>
+                  MavenCentral.getFileList(artifactId, version).map { fileList =>
+                    WebJarVersion(version, fileList.length)
+                  }
+                case WebJarCatalog.BOWER =>
+                  Future.successful(WebJarVersion(version))
               }
             }
           } map { webJarVersions =>
@@ -152,9 +159,21 @@ object MavenCentral {
       val webJarsFuture: Future[List[WebJar]] = Future.traverse(webJarsWithFutureVersions) {
         case (artifactId, webJarVersionsFuture) =>
           webJarVersionsFuture.flatMap { webJarVersions =>
-            MavenCentral.fetchWebJarNameAndUrl(artifactId, webJarVersions.map(_.number).head).map {
-              case (name, url) =>
-                WebJar(catalog.toString, artifactId, name, url, webJarVersions)
+            val latestVersion = webJarVersions.map(_.number).head
+
+            catalog match {
+              case WebJarCatalog.CLASSIC =>
+                MavenCentral.fetchWebJarNameAndUrl(artifactId, latestVersion).map {
+                  case (name, url) =>
+                    WebJar(catalog.toString, artifactId, name, url, webJarVersions)
+                }
+              case WebJarCatalog.BOWER =>
+                bower.info(artifactId, latestVersion).map { bowerInfo =>
+                  WebJar(catalog.toString, artifactId, artifactId, bowerInfo.gitHubHome.getOrElse(bowerInfo.homepage), webJarVersions)
+                } recover {
+                  case e: Exception =>
+                    WebJar(catalog.toString, artifactId, artifactId, "", webJarVersions)
+                }
             }
           }
       } map { webJars =>
