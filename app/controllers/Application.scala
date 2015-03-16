@@ -75,7 +75,7 @@ object Application extends Controller {
     }
   }
 
-  def bowerPackages(query: String) = Action.async { request =>
+  def bowerPackages(query: String, page: Int) = Action.async { request =>
     val allBowerPackagesFuture = Cache.getAs[JsArray]("bower-packages").fold {
       bower.all.map { json =>
         Cache.set("bower-packages", json, 1.hour)
@@ -102,10 +102,17 @@ object Application extends Controller {
       }
 
       // sort by popularity
-      val sorted = allMatches.sortBy(p => (p \ "stars").as[Int])
+      val sorted = allMatches.sortBy(p => (p \ "stars").as[Int]).reverse
 
-      // just return the top 30
-      Ok(Json.toJson(sorted.reverse.take(30)))
+      // return this page
+      val results = sorted.grouped(30).slice(page - 1, page).next()
+
+      val json = Json.obj(
+        "results" -> Json.toJson(results),
+        "total_count" -> sorted.size
+      )
+
+      Ok(json)
     } recover {
       case e: Exception =>
         InternalServerError

@@ -58,33 +58,57 @@ $(function() {
       });
   };
 
+  function formatBowerPackageName(item) {
+    return item.website.split("://")[1];
+  }
+
   $("#newBowerWebJarName").select2({
     placeholder: "Bower Package Name",
+    id: function(item) {
+      return item.name;
+    },
     ajax: {
       url: "/_bower/packages",
       dataType: "json",
       quietMillis: 250,
       data: function (term, page) {
         return {
-          query: term
+          query: term,
+          page: page || 1
         };
       },
       results: function (data, page) {
-        return {results: data};
+        return {
+          results: data.results,
+          more: (page * 30) < data.total_count
+        };
       },
       cache: true
     },
-    initSelection: function(element, callback) {
-      var id = $(element).val();
-      if (id !== "") {
-        console.log("init");
-        //$.ajax("https://api.github.com/repositories/" + id, {
-        //  dataType: "json"
-        //}).done(function(data) { callback(data); });
-      }
+    formatResult: formatBowerPackageName,
+    formatSelection: formatBowerPackageName
+  }).on("change", function(event) {
+    $("#newBowerWebJarVersion").select2("enable", true);
+    $("#newBowerWebJarVersion").select2("data", []);
+  });
+
+  $("#newBowerWebJarVersion").select2({
+    placeholder: "Version",
+    id: function(item) {
+      return item;
+    },
+    query: function(query) {
+      var name = $("#newBowerWebJarName").select2("val");
+
+      $.getJSON("/_bower/versions/" + name, function(data) {
+        query.callback({results: data});
+      });
     },
     formatResult: function(item) {
-      return item.name;
+      return item;
+    },
+    formatSelection: function(item) {
+      return item;
     }
   });
 

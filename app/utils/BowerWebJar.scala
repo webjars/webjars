@@ -45,14 +45,15 @@ object BowerWebJar extends App {
         packageInfo <- bower.info(name, version)
         mavenDependencies <- convertNpmDependenciesToMaven(packageInfo.dependencies)
         pom = views.xml.pom(packageInfo, mavenDependencies).toString()
-        zip <- bower.zip(name, version)
-        jar = WebJarUtils.createWebJar(zip, pom, name, version)
+        zip <- bower.zip(packageInfo.artifactId, version)
+        jar = WebJarUtils.createWebJar(zip, pom, packageInfo.artifactId, version)
       } yield (packageInfo, pom, jar)
       
       val binTrayFuture = webJarFuture.flatMap { case (packageInfo, pom, jar) =>
-        println("Created Bower WebJar: " + packageInfo)
-
+        // do not used the provided name because it may not be the canonical name
+        val name = packageInfo.artifactId
         val packageName = s"$groupId:$name"
+
         for {
           createPackage <- binTray.getOrCreatePackage(binTraySubject, binTrayRepo, packageName, s"WebJar for $name", Seq("webjar", name), packageInfo.licenses, packageInfo.source, Some(packageInfo.homepage), packageInfo.issuesUrl.toOption, packageInfo.gitHubOrgRepo.toOption)
           createVersion <- binTray.createVersion(binTraySubject, binTrayRepo, packageName, version, s"$name WebJar release $version", Some(s"v$version"))

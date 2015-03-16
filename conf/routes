@@ -9,7 +9,7 @@ GET            /all                                                       contro
 GET            /classic                                                   controllers.Application.classicList()
 GET            /bower                                                     controllers.Application.bowerList()
 GET            /list/:groupId                                             controllers.Application.webJarList(groupId)
-GET            /_bower/packages                                           controllers.Application.bowerPackages(query)
+GET            /_bower/packages                                           controllers.Application.bowerPackages(query, page: Int)
 GET            /_bower/versions/:packageName                              controllers.Application.bowerPackageVersions(packageName)
 GET            /listfiles/:artifactId/:version                            controllers.Application.listFiles(groupId = "org.webjars", artifactId, version)
 GET            /listfiles/:groupId/:artifactId/:version                   controllers.Application.listFiles(groupId, artifactId, version)

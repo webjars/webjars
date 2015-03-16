@@ -4,7 +4,7 @@
 
 @main("WebJars - Web Libraries in Jars") {
 
-    <script type='text/javascript'>
+    <script type='text/javascript' xmlns="http://www.w3.org/1999/html">
         var buildTool = "sbt" ;
     </script>
 
@@ -17,15 +17,12 @@
         <div class="panel-body">
             <form class="form-inline">
                 <div class="form-group">
-                    <div id="newBowerWebJarName">
-                    </div>
+                    <input id="newBowerWebJarName" type="text" style="width: 400px;"/>
                 </div>
                 <div class="form-group">
-                    <select id="newBowerWebJarVersion" class="form-control" title="Version">
-                        <option value="">Version</option>
-                    </select>
+                    <input id="newBowerWebJarVersion" type="text" style="width: 200px;" disabled/>
                 </div>
-                <button type="submit" class="btn btn-default">Deploy!</button>
+                <button type="submit" class="btn btn-default btn-sm">Deploy!</button>
             </form>
         </div>
     </div>
