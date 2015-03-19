@@ -17,6 +17,7 @@ GET            /documentation                                             contro
 GET            /contributing                                              controllers.Application.contributing()
 GET            /request                                                   controllers.Application.webJarRequest()
 POST           /request                                                   controllers.Application.makeWebJarRequest()
+POST           /deploy/bower/:artifactId/:version                         controllers.Application.deployBower(artifactId, version, channelId)
 
 GET            /mockcentral/searchgroup                                   controllers.MockCentral.searchGroup()
 

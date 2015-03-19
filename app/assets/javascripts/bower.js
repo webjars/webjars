@@ -1,4 +1,5 @@
 var webjars = [];
+var buildTool = "sbt" ;
 
 $(function() {
   $.getJSON("/list/org.webjars.bower", function(data) {
@@ -110,9 +111,51 @@ $(function() {
     formatSelection: function(item) {
       return item;
     }
+  }).on("change", function(event) {
+    $("#deployBowerButton").attr("disabled", false);
+  });
+
+  $("#deployBower").submit(function(event) {
+    event.preventDefault();
+
+    $("#deployBowerButton").attr("disabled", true);
+
+    var artifactId = $("#newBowerWebJarName").select2("val");
+    var version = $("#newBowerWebJarVersion").select2("val");
+
+    var pusher = new Pusher(window.pusherKey);
+    var channelId = guid();
+    var channel = pusher.subscribe(channelId);
+    channel.bind("update", function(data) {
+      console.log(data);
+    });
+    channel.bind("success", function(data) {
+      console.log(data);
+    });
+    channel.bind("failure", function(data) {
+      console.log(data);
+    });
+
+    $.ajax("/deploy/bower/" + artifactId + "/" + version + "?channelId=" + channelId, {
+      method: "post",
+      success: function(data) {
+        console.log(data);
+      }
+    });
   });
 
 });
+
+// from: http://stackoverflow.com/a/105074/77409
+function guid() {
+  function s4() {
+    return Math.floor((1 + Math.random()) * 0x10000)
+      .toString(16)
+      .substring(1);
+  }
+  return s4() + s4() + '-' + s4() + '-' + s4() + '-' +
+    s4() + '-' + s4() + s4() + s4();
+}
 
 function selectedVersion(artifactId) {
   return row(artifactId).find(".versions").val();

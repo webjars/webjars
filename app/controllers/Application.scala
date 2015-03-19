@@ -18,7 +18,7 @@ import play.api.data._
 import play.api.libs.ws.WS
 import play.api.mvc._
 import utils.MavenCentral.{NotFoundResponseException, UnexpectedResponseException}
-import utils.{Bower, GithubUtil, MavenCentral}
+import utils._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{ExecutionContext, Future}
@@ -31,6 +31,8 @@ object Application extends Controller {
 
   lazy val github = GithubUtil(Play.current)
   lazy val bower = Bower(ExecutionContext.global, WS.client(Play.current))
+  lazy val heroku = Heroku(ExecutionContext.global, WS.client(Play.current), Play.current.configuration)
+  lazy val pusher = Pusher(ExecutionContext.global, WS.client(Play.current), Play.current.configuration)
 
   def index = Action {
     Ok(views.html.index())
@@ -68,10 +70,10 @@ object Application extends Controller {
 
   def bowerList = Action.async { request =>
     MavenCentral.webJars(WebJarCatalog.BOWER).map {
-      maybeCached(request, webJars => Ok(views.html.bowerList(webJars)))
+      maybeCached(request, webJars => Ok(views.html.bowerList(webJars, pusher.key)))
     } recover {
       case e: Exception =>
-        InternalServerError(views.html.bowerList(Seq.empty[WebJar]))
+        InternalServerError(views.html.bowerList(Seq.empty[WebJar], pusher.key))
     }
   }
 
@@ -306,6 +308,18 @@ object Application extends Controller {
     )
   }
 
+  def deployBower(artifactId: String, version: String, channelId: String) = Action.async {
+    val app = Play.current.configuration.getString("bower.herokuapp").get
+
+    bower.info(artifactId, version).flatMap { packageInfo =>
+      // use the normalized packageInfo artifactId
+      val cmd = s"pub ${packageInfo.artifactId} ${packageInfo.version} $channelId"
+      heroku.dynoCreate(app, false, cmd, "2X").map { createJson =>
+        Ok(createJson)
+      }
+    }
+  }
+
   def githubAuthorize  = Action { implicit request =>
     Redirect(github.authUrl)
   }
@@ -403,5 +417,6 @@ object Application extends Controller {
     else ""
 
   ////
+
 
 }

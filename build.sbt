@@ -10,6 +10,7 @@ libraryDependencies ++= Seq(
   ws,
   cache,
   filters,
+  "commons-codec" % "commons-codec" % "1.10",
   "org.webjars" %% "webjars-play" % "2.3.0",
   "org.webjars" % "bootstrap" % "3.3.1",
   "org.webjars" % "select2" % "3.5.2",

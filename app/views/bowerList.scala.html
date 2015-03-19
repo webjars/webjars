@@ -1,12 +1,14 @@
-@(webjars: Iterable[WebJar])
+@(webjars: Iterable[WebJar], pusherKey: String)
 
 @import java.net.URLEncoder
 
 @main("WebJars - Web Libraries in Jars") {
 
-    <script type='text/javascript' xmlns="http://www.w3.org/1999/html">
-        var buildTool = "sbt" ;
+    <script>
+        var pusherKey = "@pusherKey";
     </script>
+
+    <script src="//js.pusher.com/2.2/pusher.min.js"></script>
 
     <script type="text/javascript" src="@routes.Assets.at("javascripts/bower.js")"></script>
 
@@ -15,14 +17,14 @@
             <h3 class="panel-title">Add a Bower WebJar</h3>
         </div>
         <div class="panel-body">
-            <form class="form-inline">
+            <form id="deployBower" class="form-inline">
                 <div class="form-group">
                     <input id="newBowerWebJarName" type="text" style="width: 400px;"/>
                 </div>
                 <div class="form-group">
                     <input id="newBowerWebJarVersion" type="text" style="width: 200px;" disabled/>
                 </div>
-                <button type="submit" class="btn btn-default btn-sm">Deploy!</button>
+                <button id="deployBowerButton" type="submit" class="btn btn-default btn-sm" disabled>Deploy!</button>
             </form>
         </div>
     </div>

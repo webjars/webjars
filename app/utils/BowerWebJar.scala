@@ -15,8 +15,7 @@ object BowerWebJar extends App {
   val groupId = "org.webjars.bower"
   val mavenBaseDir = "org/webjars/bower"
 
-
-  def release(name: String, version: String)(implicit executionContext: ExecutionContext, config: Configuration): Future[PackageInfo] = {
+  def release(name: String, version: String, maybepusherChannelId: Option[String])(implicit executionContext: ExecutionContext, config: Configuration): Future[PackageInfo] = {
 
     // converts JsResult to Future
     def packageInfo(json: JsValue): Future[PackageInfo] = Json.fromJson[PackageInfo](json).fold(
@@ -38,15 +37,28 @@ object BowerWebJar extends App {
     }
 
     StandaloneWS.withWs { implicit ws =>
+
       val bower = Bower(executionContext, ws.client)
       val binTray = BinTray(executionContext, ws, config)
+      val pusher = Pusher(executionContext, ws.client, config)
 
+      def push(event: String, message: String): Unit = {
+        maybepusherChannelId.foreach { pusherChannelId =>
+          pusher.push(pusherChannelId, event, message)
+        }
+      }
+      
       val webJarFuture = for {
         packageInfo <- bower.info(name, version)
+        _ = push("update", "Got Bower info: " + packageInfo.toString)
         mavenDependencies <- convertNpmDependenciesToMaven(packageInfo.dependencies)
+        _ = push("update", "Converted dependencies to Maven: " + mavenDependencies.toString())
         pom = views.xml.pom(packageInfo, mavenDependencies).toString()
+        _ = push("update", "Generated POM: " + pom.toString)
         zip <- bower.zip(packageInfo.artifactId, version)
+        _ = push("update", "Fetched Bower zip")
         jar = WebJarUtils.createWebJar(zip, pom, packageInfo.artifactId, version)
+        _ = push("update", "Created WebJar")
       } yield (packageInfo, pom, jar)
       
       val binTrayFuture = webJarFuture.flatMap { case (packageInfo, pom, jar) =>
@@ -56,17 +68,31 @@ object BowerWebJar extends App {
 
         for {
           createPackage <- binTray.getOrCreatePackage(binTraySubject, binTrayRepo, packageName, s"WebJar for $name", Seq("webjar", name), packageInfo.licenses, packageInfo.source, Some(packageInfo.homepage), packageInfo.issuesUrl.toOption, packageInfo.gitHubOrgRepo.toOption)
+          _ = push("update", "Created BinTray Package:" + createPackage.toString)
           createVersion <- binTray.createVersion(binTraySubject, binTrayRepo, packageName, version, s"$name WebJar release $version", Some(s"v$version"))
+          _ = push("update", "Created BinTray Version:" + createVersion.toString)
           publishPom <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$name/$version/$name-$version.pom", pom.getBytes)
           publishJar <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$name/$version/$name-$version.jar", jar)
           emptyJar = WebJarUtils.emptyJar()
           publishSourceJar <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$name/$version/$name-$version-sources.jar", emptyJar)
+          _ = push("update", "Published BinTray Assets")
           signVersion <- binTray.signVersion(binTraySubject, binTrayRepo, packageName, version)
+          _ = push("update", "Signed BinTray Assets")
           publishVersion <- binTray.publishVersion(binTraySubject, binTrayRepo, packageName, version)
+          _ = push("update", "Published BinTray Version")
           syncToMavenCentral <- binTray.syncToMavenCentral(binTraySubject, binTrayRepo, packageName, version)
+          _ = push("update", "Synced With Maven Central")
         } yield syncToMavenCentral
       }
 
+      binTrayFuture.onComplete {
+        case Success(s) =>
+          push("success", "Deployed! " + s.toString)
+        case Failure(f) =>
+          push("failure", "Failed! " + f.getMessage)
+      }
+
+      // return the packageInfo
       binTrayFuture.flatMap(_ => webJarFuture.map(_._1))
     }
   }
@@ -80,10 +106,11 @@ object BowerWebJar extends App {
   else {
     val name = args(0)
     val version = args(1)
+    val maybepusherChannelId = if (args.length == 3) { Some(args(2)) } else { None }
 
     val config = Configuration.load(new File("."), Mode.Prod)
 
-    release(name, version)(ExecutionContext.global, config).onComplete {
+    release(name, version, maybepusherChannelId)(ExecutionContext.global, config).onComplete {
       case Success(s) =>
         println("Done!")
       case Failure(f) =>
