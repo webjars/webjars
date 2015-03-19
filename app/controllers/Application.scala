@@ -324,6 +324,8 @@ object Application extends Controller {
       else {
         BowerWebJar.release(packageInfo.artifactId, packageInfo.version, Some(channelId))(ExecutionContext.global, Play.current.configuration).map { result =>
           Ok(Json.toJson(result))
+        } recover {
+          case e: Exception => InternalServerError(e.getMessage)
         }
       }
     }

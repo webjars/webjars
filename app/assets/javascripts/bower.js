@@ -118,6 +118,15 @@ $(function() {
   $("#deployBower").submit(function(event) {
     event.preventDefault();
 
+    var deployLog = $("#deployLog");
+    function log(message) {
+      var t = deployLog.text();
+      deployLog.text(message + "\n" + t);
+    }
+
+    deployLog.addClass("show");
+    deployLog.removeClass("hidden");
+
     $("#deployBowerButton").attr("disabled", true);
 
     var artifactId = $("#newBowerWebJarName").select2("val");
@@ -127,14 +136,18 @@ $(function() {
     var channelId = guid();
     var channel = pusher.subscribe(channelId);
     channel.bind("update", function(data) {
-      console.log(data);
+      log(data);
     });
     channel.bind("success", function(data) {
-      console.log(data);
+      log(data);
+      $("#deployBowerButton").attr("disabled", false);
     });
     channel.bind("failure", function(data) {
-      console.log(data);
+      log(data);
+      $("#deployBowerButton").attr("disabled", false);
     });
+
+    deployLog.text("Starting Deploy");
 
     $.ajax("/deploy/bower/" + artifactId + "/" + version + "?channelId=" + channelId, {
       method: "post",

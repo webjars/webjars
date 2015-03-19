@@ -18,8 +18,6 @@ class Pusher(implicit ec: ExecutionContext, ws: WSClient, config: Configuration)
 
   def push(channelId: String, event: String, message: String): Future[JsValue] = {
 
-    println(channelId, event, message)
-
     val json = Json.obj(
       "data" -> message,
       "name" -> event,

@@ -3,10 +3,11 @@ package utils
 import play.api.Configuration
 import play.api.http.Status
 import play.api.libs.json.{JsValue, Json}
-import play.api.libs.ws.{WSAPI, WSAuthScheme, WSRequestHolder}
+import play.api.libs.ws.{WSResponse, WSAPI, WSAuthScheme, WSRequestHolder}
 import play.api.mvc.Results.EmptyContent
 
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.Try
 
 class BinTray(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) {
 
@@ -24,6 +25,12 @@ class BinTray(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) {
     ws
       .url(BASE_URL + path)
       .withAuth(username, password, WSAuthScheme.BASIC)
+  }
+
+  def error(response: WSResponse): String = {
+    Try {
+      (response.json \ "message").as[String]
+    } getOrElse response.body
   }
 
   def createPackage(subject: String, repo: String, name: String, desc: String, labels: Seq[String], licenses: Seq[String], vcsUrl: String, websiteUrl: Option[String], issueTrackerUrl: Option[String], githubRepo: Option[String]): Future[JsValue] = {
@@ -44,7 +51,7 @@ class BinTray(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) {
         case Status.CREATED =>
           Future.successful(response.json)
         case _ =>
-          Future.failed(new Exception(response.body))
+          Future.failed(new Exception(error(response)))
       }
     }
   }
@@ -69,7 +76,7 @@ class BinTray(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) {
     ws(s"/packages/$subject/$repo/$name").delete().flatMap { response =>
       response.status match {
         case Status.OK => Future.successful(response.json)
-        case _ => Future.failed(new Exception(response.body))
+        case _ => Future.failed(new Exception(error(response)))
       }
     }
   }
@@ -86,7 +93,7 @@ class BinTray(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) {
         case Status.CREATED =>
           Future.successful(response.json)
         case _ =>
-          Future.failed(new Exception(response.body))
+          Future.failed(new Exception(error(response)))
       }
     }
   }
@@ -95,7 +102,7 @@ class BinTray(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) {
     ws(s"/maven/$subject/$repo/$packageName/$path").withHeaders("X-GPG-PASSPHRASE" -> gpgPassphrase).put(jarBytes).flatMap { response =>
       response.status match {
         case Status.CREATED => Future.successful(response.json)
-        case _ => Future.failed(new Exception(response.body))
+        case _ => Future.failed(new Exception(error(response)))
       }
     }
   }
@@ -104,7 +111,7 @@ class BinTray(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) {
     ws(s"/content/$subject/$repo/$packageName/$version/publish").post(EmptyContent()).flatMap { response =>
       response.status match {
         case Status.OK => Future.successful(response.json)
-        case _ => Future.failed(new Exception("Publish failed: " + response.body))
+        case _ => Future.failed(new Exception(error(response)))
       }
     }
   }
@@ -113,7 +120,7 @@ class BinTray(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) {
     ws(s"/gpg/$subject/$repo/$packageName/versions/$version").withHeaders("X-GPG-PASSPHRASE" -> gpgPassphrase).post(EmptyContent()).flatMap { response =>
       response.status match {
         case Status.OK => Future.successful(response.json)
-        case _ => Future.failed(new Exception("Signing failed: " + response.body))
+        case _ => Future.failed(new Exception(error(response)))
       }
     }
   }
@@ -128,7 +135,7 @@ class BinTray(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) {
     ws(s"/maven_central_sync/$subject/$repo/$packageName/versions/$version").post(json).flatMap { response =>
       response.status match {
         case Status.OK => Future.successful(response.json)
-        case _ => Future.failed(new Exception(response.body))
+        case _ => Future.failed(new Exception(error(response)))
       }
     }
   }
