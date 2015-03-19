@@ -10,12 +10,12 @@ import scala.util.{Failure, Success}
 
 object BowerWebJar extends App {
 
-  val binTraySubject = "webjars"
-  val binTrayRepo = "maven"
-  val groupId = "org.webjars.bower"
-  val mavenBaseDir = "org/webjars/bower"
-
   def release(name: String, version: String, maybepusherChannelId: Option[String])(implicit executionContext: ExecutionContext, config: Configuration): Future[PackageInfo] = {
+
+    val binTraySubject = "webjars"
+    val binTrayRepo = "maven"
+    val groupId = "org.webjars.bower"
+    val mavenBaseDir = "org/webjars/bower"
 
     // converts JsResult to Future
     def packageInfo(json: JsValue): Future[PackageInfo] = Json.fromJson[PackageInfo](json).fold(

@@ -310,12 +310,21 @@ object Application extends Controller {
 
   def deployBower(artifactId: String, version: String, channelId: String) = Action.async {
     val app = Play.current.configuration.getString("bower.herokuapp").get
+    val fork = Play.current.configuration.getBoolean("bower.fork").get
 
     bower.info(artifactId, version).flatMap { packageInfo =>
       // use the normalized packageInfo artifactId
-      val cmd = s"pub ${packageInfo.artifactId} ${packageInfo.version} $channelId"
-      heroku.dynoCreate(app, false, cmd, "2X").map { createJson =>
-        Ok(createJson)
+
+      if (fork) {
+        val cmd = s"pub ${packageInfo.artifactId} ${packageInfo.version} $channelId"
+        heroku.dynoCreate(app, false, cmd, "2X").map { createJson =>
+          Ok(createJson)
+        }
+      }
+      else {
+        BowerWebJar.release(packageInfo.artifactId, packageInfo.version, Some(channelId))(ExecutionContext.global, Play.current.configuration).map { result =>
+          Ok(Json.toJson(result))
+        }
       }
     }
   }

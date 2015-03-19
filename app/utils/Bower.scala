@@ -134,4 +134,6 @@ object PackageInfo {
     (__ \ "license").read[Seq[String]].orElse((__ \ "license").read[String].map(Seq(_))).orElse(Reads.pure(Seq.empty[String])) ~
     (__ \ "dependencies").read[Map[String, String]].orElse(Reads.pure(Map.empty[String, String]))
   )(PackageInfo.apply _)
+
+  implicit def jsonWrites: Writes[PackageInfo] = Json.writes[PackageInfo]
 }
