@@ -14,7 +14,7 @@ object WebJar {
 }
 
 object WebJarVersion {
-  def cacheKey(artifactId: String, version: String): String = artifactId + "-" + version + "-files"
+  def cacheKey(groupId: String, artifactId: String, version: String): String = groupId + "-" + artifactId + "-" + version + "-files"
 
   // todo, this doesn't work on date-based versions that follow non-standard formats (e.g. ace)
   implicit object WebJarVersionOrdering extends Ordering[WebJarVersion] {

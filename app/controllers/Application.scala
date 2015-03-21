@@ -162,18 +162,17 @@ object Application extends Controller {
   }
   
   def listFiles(groupId: String, artifactId: String, version: String) = CorsAction {
-    // todo: groupId
     Action.async { implicit request =>
-      MavenCentral.getFileList(artifactId, version).map { fileList =>
+      MavenCentral.getFileList(groupId, artifactId, version).map { fileList =>
           render {
-            case Accepts.Html() => Ok(views.html.filelist(artifactId, version, fileList))
+            case Accepts.Html() => Ok(views.html.filelist(groupId, artifactId, version, fileList))
             case Accepts.Json() => Ok(Json.toJson(fileList))
           }
       } recover {
         case nf: NotFoundResponseException =>
-          NotFound(s"WebJar Not Found $artifactId : $version")
+          NotFound(s"WebJar Not Found $groupId : $artifactId : $version")
         case ure: UnexpectedResponseException =>
-          Status(ure.response.status)(s"Problems retrieving WebJar ($artifactId : $version) - ${ure.response.statusText}")
+          Status(ure.response.status)(s"Problems retrieving WebJar ($groupId : $artifactId : $version) - ${ure.response.statusText}")
       }
     }
   }
@@ -188,21 +187,24 @@ object Application extends Controller {
   lazy val fileRateLimiter = Akka.system.actorOf(Props(classOf[RequestTracker], 10, Period.minutes(1)))
   
   def file(groupId: String, artifactId: String, webJarVersion: String, file: String) = CorsAction {
-    // todo: groupId
     Action.async { request =>
       val pathPrefix = s"META-INF/resources/webjars/$artifactId/"
 
-      MavenCentral.getFile(artifactId, webJarVersion).map { jarInputStream =>
+      MavenCentral.getFile(groupId, artifactId, webJarVersion).map { case (jarInputStream, inputStream) =>
         Stream.continually(jarInputStream.getNextJarEntry).takeWhile(_ != null).find { jarEntry =>
           // this allows for sloppyness where the webJarVersion and path differ
           // todo: eventually be more strict but since this has been allowed many WebJars do not have version and path consistency
           jarEntry.getName.startsWith(pathPrefix) && jarEntry.getName.endsWith(s"/$file")
         }.fold {
           jarInputStream.close()
-          NotFound(s"Found WebJar ($artifactId : $webJarVersion) but could not find: $pathPrefix$webJarVersion/$file")
+          inputStream.close()
+          NotFound(s"Found WebJar ($groupId : $artifactId : $webJarVersion) but could not find: $pathPrefix$webJarVersion/$file")
         } { jarEntry =>
           val enumerator = Enumerator.fromStream(jarInputStream)
-          enumerator.onDoneEnumerating(jarInputStream.close())
+          enumerator.onDoneEnumerating {
+            jarInputStream.close()
+            inputStream.close()
+          }
 
           //// From Play's Assets controller
           val contentType = MimeTypes.forFileName(file).map(m => m + addCharsetIfNeeded(m)).getOrElse(BINARY)
@@ -216,11 +218,11 @@ object Application extends Controller {
         }
       } recover {
         case nf: NotFoundResponseException =>
-          NotFound(s"WebJar Not Found $artifactId : $webJarVersion")
+          NotFound(s"WebJar Not Found $groupId : $artifactId : $webJarVersion")
         case ure: UnexpectedResponseException =>
-          Status(ure.response.status)(s"Problems retrieving WebJar ($artifactId : $webJarVersion) - ${ure.response.statusText}")
+          Status(ure.response.status)(s"Problems retrieving WebJar ($groupId : $artifactId : $webJarVersion) - ${ure.response.statusText}")
         case e: Exception =>
-          InternalServerError(s"Could not find WebJar ($artifactId : $webJarVersion)\n${e.getMessage}")
+          InternalServerError(s"Could not find WebJar ($groupId : $artifactId : $webJarVersion)\n${e.getMessage}")
       }
     }
   }

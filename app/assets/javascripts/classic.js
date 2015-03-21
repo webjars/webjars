@@ -1,7 +1,7 @@
 var webjars = [];
 
 $(function() {
-  $.getJSON("/list/classic", function(data) {
+  $.getJSON("/list/org.webjars", function(data) {
     webjars = data;
 
     $("tr").each(function (i, tr) {

@@ -7,7 +7,7 @@ import java.util.jar.JarInputStream
 import java.util.zip.{DeflaterOutputStream, InflaterInputStream}
 
 import actors.{FetchWebJars, WebJarFetcher}
-import akka.actor.{ActorRef, Props}
+import akka.actor.{ActorNotFound, ActorRef, Props}
 import akka.pattern.ask
 import akka.util.Timeout
 import com.ning.http.client.providers.netty.NettyResponse
@@ -143,7 +143,7 @@ object MavenCentral {
             versions.map { version =>
               catalog match {
                 case WebJarCatalog.CLASSIC =>
-                  MavenCentral.getFileList(artifactId, version).map { fileList =>
+                  MavenCentral.getFileList(catalog.toString, artifactId, version).map { fileList =>
                     WebJarVersion(version, fileList.length)
                   }
                 case WebJarCatalog.BOWER =>
@@ -186,12 +186,12 @@ object MavenCentral {
 
   def webJars(catalog: WebJarCatalog): Future[List[WebJar]] = {
     Cache.getAs[List[WebJar]](catalog.toString).map(Future.successful).getOrElse {
-      Akka.system.actorSelection(catalog.toString).resolveOne(1.second).flatMap { actorRef =>
+      Akka.system.actorSelection("user/" + catalog.toString).resolveOne(1.second).flatMap { actorRef =>
         // in-flight request exists
         Future.failed(new Exception("Existing request for WebJars"))
       } recoverWith {
         // no request so make one
-        case _ =>
+        case e: ActorNotFound =>
           implicit val timeout = Timeout(10.minutes)
           val webJarFetcher = Akka.system.actorOf(Props(classOf[WebJarFetcher], catalog), catalog.toString)
           val fetchWebJarsFuture = (webJarFetcher ? FetchWebJars).mapTo[List[WebJar]]
@@ -223,8 +223,8 @@ object MavenCentral {
     }
   }
 
-  private def fetchFileList(artifactId: String, version: String): Future[List[String]] = {
-    getFile(artifactId, version).map { jarInputStream =>
+  private def fetchFileList(groupId: String, artifactId: String, version: String): Future[List[String]] = {
+    getFile(groupId, artifactId, version).map { case (jarInputStream, inputStream) =>
       val webJarFiles = Stream.continually(jarInputStream.getNextJarEntry).
         takeWhile(_ != null).
         filterNot(_.isDirectory).
@@ -232,15 +232,16 @@ object MavenCentral {
         filter(_.startsWith(WebJarAssetLocator.WEBJARS_PATH_PREFIX)).
         toList
       jarInputStream.close()
+      inputStream.close()
       webJarFiles
     }
   }
 
-  def getFileList(artifactId: String, version: String): Future[List[String]] = {
-    val cacheKey = WebJarVersion.cacheKey(artifactId, version)
+  def getFileList(groupId: String, artifactId: String, version: String): Future[List[String]] = {
+    val cacheKey = WebJarVersion.cacheKey(groupId, artifactId, version)
     Global.memcached.get[List[String]](cacheKey).flatMap { maybeFileList =>
       maybeFileList.map(Future.successful).getOrElse {
-        val fileListFuture = fetchFileList(artifactId, version)
+        val fileListFuture = fetchFileList(groupId, artifactId, version)
         fileListFuture.foreach { fileList =>
           Global.memcached.set(cacheKey, fileList, Duration.Inf)
         }
@@ -249,30 +250,34 @@ object MavenCentral {
     }
   }
 
-  def getFile(artifactId: String, version: String): Future[JarInputStream] = {
-    val tmpFile = new File(tempDir, s"$artifactId-$version.jar")
+  def getFile(groupId: String, artifactId: String, version: String): Future[(JarInputStream, InputStream)] = {
+    val tmpFile = new File(tempDir, s"$groupId-$artifactId-$version.jar")
 
     if (tmpFile.exists()) {
-      Future.successful(new JarInputStream(Files.newInputStream(tmpFile.toPath)))
+      val fileInputStream = Files.newInputStream(tmpFile.toPath)
+      Future.successful((new JarInputStream(fileInputStream), fileInputStream))
     }
     else {
-      val fileInputStreamFuture = getFileInputStream(primaryBaseJarUrl, artifactId, version).recoverWith {
+      val fileInputStreamFuture = getFileInputStream(primaryBaseJarUrl, groupId, artifactId, version).recoverWith {
         case _ =>
-          getFileInputStream(fallbackBaseJarUrl, artifactId, version)
+          getFileInputStream(fallbackBaseJarUrl, groupId, artifactId, version)
       }
 
       fileInputStreamFuture.map { fileInputStream =>
         // todo: not thread safe!
         // write to the fs
         Files.copy(fileInputStream, tmpFile.toPath)
+        fileInputStream.close()
+
+        val tmpFileInputStream = Files.newInputStream(tmpFile.toPath)
         // read it from the fs since we've drained the http response
-        new JarInputStream(Files.newInputStream(tmpFile.toPath))
+        (new JarInputStream(tmpFileInputStream), tmpFileInputStream)
       }
     }
   }
 
-  def getFileInputStream(baseJarUrl: String, artifactId: String, version: String): Future[InputStream] = {
-    val url = baseJarUrl.format(artifactId, URLEncoder.encode(version, "UTF-8"), artifactId, URLEncoder.encode(version, "UTF-8"))
+  def getFileInputStream(baseJarUrl: String, groupId: String, artifactId: String, version: String): Future[InputStream] = {
+    val url = baseJarUrl.format(groupId.replace(".", "/"), artifactId, URLEncoder.encode(version, "UTF-8"), artifactId, URLEncoder.encode(version, "UTF-8"))
     WS.url(url).get().flatMap { response =>
       response.status match {
         case Status.OK =>
