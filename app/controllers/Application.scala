@@ -78,6 +78,8 @@ object Application extends Controller {
   }
 
   def bowerPackages(query: String, page: Int) = Action.async { request =>
+    val pageSize = 30
+
     val allBowerPackagesFuture = Cache.getAs[JsArray]("bower-packages").fold {
       bower.all.map { json =>
         Cache.set("bower-packages", json, 1.hour)
@@ -107,7 +109,8 @@ object Application extends Controller {
       val sorted = allMatches.sortBy(p => (p \ "stars").as[Int]).reverse
 
       // return this page
-      val results = sorted.grouped(30).slice(page - 1, page).next()
+      val startIndex = (page - 1) * pageSize
+      val results = sorted.slice(startIndex, startIndex + pageSize)
 
       val json = Json.obj(
         "results" -> Json.toJson(results),
