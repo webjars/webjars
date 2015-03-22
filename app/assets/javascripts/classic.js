@@ -1,7 +1,7 @@
 var webjars = [];
 
 $(function() {
-  $.getJSON("/all", function(data) {
+  $.getJSON("/list/org.webjars", function(data) {
     webjars = data;
 
     $("tr").each(function (i, tr) {
@@ -10,6 +10,8 @@ $(function() {
         webjar['row'] = $(tr);
       }
     });
+  }).fail(function() {
+    console.log("error");
   });
 
   $(".file-list-link").click(onFileList);

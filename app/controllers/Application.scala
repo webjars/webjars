@@ -3,23 +3,25 @@ package controllers
 import akka.actor.{Actor, ActorRef, Props}
 import akka.pattern.ask
 import akka.util.Timeout
-import models.WebJar
+import models.{WebJarCatalog, WebJar}
 import org.joda.time._
 import org.joda.time.format.{DateTimeFormat, DateTimeFormatter}
 import play.api.Play
 import play.api.Play.current
+import play.api.cache.Cache
 import play.api.libs.MimeTypes
 import play.api.libs.concurrent.Akka
 import play.api.libs.iteratee.Enumerator
-import play.api.libs.json.Json
+import play.api.libs.json.{JsObject, JsArray, Json}
 import play.api.data.Forms._
 import play.api.data._
-import play.api.mvc.{Action, Controller, Request, Result}
+import play.api.libs.ws.WS
+import play.api.mvc._
 import utils.MavenCentral.{NotFoundResponseException, UnexpectedResponseException}
-import utils.{GithubUtil, MavenCentral}
+import utils._
 
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
 import scala.util.hashing.MurmurHash3
 
@@ -27,37 +29,131 @@ object Application extends Controller {
 
   val X_GITHUB_ACCESS_TOKEN = "X-GITHUB-ACCESS-TOKEN"
 
-  val github = GithubUtil(Play.current)
+  lazy val github = GithubUtil(Play.current)
+  lazy val bower = Bower(ExecutionContext.global, WS.client(Play.current))
+  lazy val heroku = Heroku(ExecutionContext.global, WS.client(Play.current), Play.current.configuration)
+  lazy val pusher = Pusher(ExecutionContext.global, WS.client(Play.current), Play.current.configuration)
 
-  def index = Action.async { implicit request =>
-    MavenCentral.allWebJars.map { allWebJars =>
-      val acceptHash = MurmurHash3.seqHash(request.acceptedTypes)
-      val hash = MurmurHash3.listHash(allWebJars, acceptHash)
-      val etag = "\"" + hash + "\""
-      if (request.headers.get(IF_NONE_MATCH).contains(etag)) {
-        NotModified
-      }
-      else {
-        Ok(views.html.index(allWebJars)).withHeaders(ETAG -> etag)
-      }
+  def index = Action {
+    Ok(views.html.index())
+  }
+
+  private def maybeCached[A](request: RequestHeader, f: Seq[A] => Result)(seq: Seq[A]): Result = {
+    val hash = MurmurHash3.seqHash(seq)
+    val etag = "\"" + hash + "\""
+    if (request.headers.get(IF_NONE_MATCH).contains(etag)) {
+      NotModified
+    }
+    else {
+      f(seq).withHeaders(ETAG -> etag)
+    }
+  }
+
+  def classicList = Action.async { request =>
+    MavenCentral.webJars(WebJarCatalog.CLASSIC).map {
+      maybeCached(request, webJars => Ok(views.html.classicList(webJars)))
     } recover {
       case e: Exception =>
-        InternalServerError(views.html.index(Seq.empty[WebJar]))
+        InternalServerError(views.html.classicList(Seq.empty[WebJar]))
+    }
+  }
+
+  def webJarList(groupId: String) = Action.async { implicit request =>
+    val catalog = WebJarCatalog.withName(groupId)
+    MavenCentral.webJars(catalog).map {
+      maybeCached(request, webJars => Ok(Json.toJson(webJars)))
+    } recover {
+      case e: Exception =>
+        InternalServerError(Json.toJson(Seq.empty[WebJar]))
+    }
+  }
+
+  def bowerList = Action.async { request =>
+    MavenCentral.webJars(WebJarCatalog.BOWER).map {
+      maybeCached(request, webJars => Ok(views.html.bowerList(webJars, pusher.key)))
+    } recover {
+      case e: Exception =>
+        InternalServerError(views.html.bowerList(Seq.empty[WebJar], pusher.key))
+    }
+  }
+
+  def bowerPackages(query: String, page: Int) = Action.async { request =>
+    val pageSize = 30
+
+    val allBowerPackagesFuture = Cache.getAs[JsArray]("bower-packages").fold {
+      bower.all.map { json =>
+        Cache.set("bower-packages", json, 1.hour)
+        json
+      }
+    } (Future.successful)
+
+    allBowerPackagesFuture.map { allBowerPackages =>
+
+      // the bower index has duplicates
+      val deduped = allBowerPackages.as[Seq[JsObject]].groupBy(_ \ "website")
+
+      // the common name isn't identifiable so lets get all of the names
+      val withNames = deduped.mapValues { packages =>
+        val names = packages.map(_ \ "name")
+        packages.head + ("names", Json.toJson(names))
+      }
+
+      // match on names, keywords, or description
+      val allMatches = withNames.values.toIndexedSeq.filter { bowerPackage =>
+        (bowerPackage \ "names").as[Seq[String]].exists(_.toLowerCase.contains(query.toLowerCase)) ||
+        (bowerPackage \ "keywords").asOpt[Seq[String]].getOrElse(Seq.empty[String]).exists(_.toLowerCase.contains(query.toLowerCase)) ||
+        (bowerPackage \ "description").asOpt[String].map(_.toLowerCase).exists(_.contains(query.toLowerCase))
+      }
+
+      // sort by popularity
+      val sorted = allMatches.sortBy(p => (p \ "stars").as[Int]).reverse
+
+      // return this page
+      val startIndex = (page - 1) * pageSize
+      val results = sorted.slice(startIndex, startIndex + pageSize)
+
+      val json = Json.obj(
+        "results" -> Json.toJson(results),
+        "total_count" -> sorted.size
+      )
+
+      Ok(json)
+    } recover {
+      case e: Exception =>
+        InternalServerError
+    }
+  }
+
+  def bowerPackageVersions(packageName: String) = Action.async { request =>
+    val packageVersionsFuture = Cache.getAs[Seq[String]](s"bower-versions-$packageName").fold {
+      bower.info(packageName).map { json =>
+        val versions = (json \ "versions").as[Seq[String]]
+        val cleanVersions = versions.filterNot(_.contains("sha"))
+        Cache.set(s"bower-versions-$packageName", cleanVersions, 1.hour)
+        cleanVersions
+      }
+    } (Future.successful)
+
+    packageVersionsFuture.map { json =>
+      Ok(Json.toJson(json))
+    } recover {
+      case e: Exception =>
+        InternalServerError
     }
   }
 
   def allWebJars = CorsAction {
     Action.async { implicit request =>
-      MavenCentral.allWebJars.map { allWebJars =>
-        val acceptHash = MurmurHash3.seqHash(request.acceptedTypes)
-        val hash = MurmurHash3.listHash(allWebJars, acceptHash)
-        val etag = "\"" + hash + "\""
-        if (request.headers.get(IF_NONE_MATCH).contains(etag)) {
-          NotModified
-        }
-        else {
-          Ok(Json.toJson(allWebJars)).withHeaders(ETAG -> etag)
-        }
+      val classicFuture = MavenCentral.webJars(WebJarCatalog.CLASSIC)
+      val bowerFuture = MavenCentral.webJars(WebJarCatalog.BOWER)
+
+      val allFuture = for {
+        classicWebJars <- classicFuture
+        bowerWebJars <- bowerFuture
+      } yield classicWebJars ++ bowerWebJars
+
+      allFuture.map {
+        maybeCached(request, webJars => Ok(Json.toJson(webJars)))
       } recover {
         case e: Exception =>
           InternalServerError(Json.arr())
@@ -65,40 +161,50 @@ object Application extends Controller {
     }
   }
   
-  def listFiles(artifactId: String, version: String) = CorsAction {
+  def listFiles(groupId: String, artifactId: String, version: String) = CorsAction {
     Action.async { implicit request =>
-      MavenCentral.getFileList(artifactId, version).map { fileList =>
+      MavenCentral.getFileList(groupId, artifactId, version).map { fileList =>
           render {
-            case Accepts.Html() => Ok(views.html.filelist(artifactId, version, fileList))
+            case Accepts.Html() => Ok(views.html.filelist(groupId, artifactId, version, fileList))
             case Accepts.Json() => Ok(Json.toJson(fileList))
           }
       } recover {
         case nf: NotFoundResponseException =>
-          NotFound(s"WebJar Not Found $artifactId : $version")
+          NotFound(s"WebJar Not Found $groupId : $artifactId : $version")
         case ure: UnexpectedResponseException =>
-          Status(ure.response.status)(s"Problems retrieving WebJar ($artifactId : $version) - ${ure.response.statusText}")
+          Status(ure.response.status)(s"Problems retrieving WebJar ($groupId : $artifactId : $version) - ${ure.response.statusText}")
       }
+    }
+  }
+
+  def listFilesBower(artifactId: String, version: String) = CorsAction {
+    Action.async { implicit request =>
+      Future.successful(NotImplemented)
     }
   }
 
   // max 10 requests per minute
   lazy val fileRateLimiter = Akka.system.actorOf(Props(classOf[RequestTracker], 10, Period.minutes(1)))
   
-  def file(artifactId: String, webJarVersion: String, file: String) = CorsAction {
+  def file(groupId: String, artifactId: String, webJarVersion: String, file: String) = CorsAction {
     Action.async { request =>
       val pathPrefix = s"META-INF/resources/webjars/$artifactId/"
 
-      MavenCentral.getFile(artifactId, webJarVersion).map { jarInputStream =>
+      MavenCentral.getFile(groupId, artifactId, webJarVersion).map { case (jarInputStream, inputStream) =>
         Stream.continually(jarInputStream.getNextJarEntry).takeWhile(_ != null).find { jarEntry =>
           // this allows for sloppyness where the webJarVersion and path differ
           // todo: eventually be more strict but since this has been allowed many WebJars do not have version and path consistency
           jarEntry.getName.startsWith(pathPrefix) && jarEntry.getName.endsWith(s"/$file")
         }.fold {
           jarInputStream.close()
-          NotFound(s"Found WebJar ($artifactId : $webJarVersion) but could not find: $pathPrefix$webJarVersion/$file")
+          inputStream.close()
+          NotFound(s"Found WebJar ($groupId : $artifactId : $webJarVersion) but could not find: $pathPrefix$webJarVersion/$file")
         } { jarEntry =>
           val enumerator = Enumerator.fromStream(jarInputStream)
-          enumerator.onDoneEnumerating(jarInputStream.close())
+          enumerator.onDoneEnumerating {
+            jarInputStream.close()
+            inputStream.close()
+          }
 
           //// From Play's Assets controller
           val contentType = MimeTypes.forFileName(file).map(m => m + addCharsetIfNeeded(m)).getOrElse(BINARY)
@@ -112,16 +218,16 @@ object Application extends Controller {
         }
       } recover {
         case nf: NotFoundResponseException =>
-          NotFound(s"WebJar Not Found $artifactId : $webJarVersion")
+          NotFound(s"WebJar Not Found $groupId : $artifactId : $webJarVersion")
         case ure: UnexpectedResponseException =>
-          Status(ure.response.status)(s"Problems retrieving WebJar ($artifactId : $webJarVersion) - ${ure.response.statusText}")
+          Status(ure.response.status)(s"Problems retrieving WebJar ($groupId : $artifactId : $webJarVersion) - ${ure.response.statusText}")
         case e: Exception =>
-          InternalServerError(s"Could not find WebJar ($artifactId : $webJarVersion)\n${e.getMessage}")
+          InternalServerError(s"Could not find WebJar ($groupId : $artifactId : $webJarVersion)\n${e.getMessage}")
       }
     }
   }
 
-  def fileOptions(artifactId: String, version: String, file: String) = CorsAction {
+  def fileOptions(file: String) = CorsAction {
     Action { request =>
       Ok.withHeaders(ACCESS_CONTROL_ALLOW_HEADERS -> Seq(CONTENT_TYPE).mkString(","))
     }
@@ -205,6 +311,29 @@ object Application extends Controller {
         }
       }
     )
+  }
+
+  def deployBower(artifactId: String, version: String, channelId: String) = Action.async {
+    val app = Play.current.configuration.getString("bower.herokuapp").get
+    val fork = Play.current.configuration.getBoolean("bower.fork").get
+
+    bower.info(artifactId, version).flatMap { packageInfo =>
+      // use the normalized packageInfo artifactId
+
+      if (fork) {
+        val cmd = s"pub ${packageInfo.artifactId} ${packageInfo.version} $channelId"
+        heroku.dynoCreate(app, false, cmd, "2X").map { createJson =>
+          Ok(createJson)
+        }
+      }
+      else {
+        BowerWebJar.release(packageInfo.artifactId, packageInfo.version, Some(channelId))(ExecutionContext.global, Play.current.configuration).map { result =>
+          Ok(Json.toJson(result))
+        } recover {
+          case e: Exception => InternalServerError(e.getMessage)
+        }
+      }
+    }
   }
 
   def githubAuthorize  = Action { implicit request =>
@@ -304,5 +433,6 @@ object Application extends Controller {
     else ""
 
   ////
+
 
 }

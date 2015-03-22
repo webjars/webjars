@@ -9,7 +9,7 @@ import scala.concurrent.ExecutionContext
 class BowerSpec extends PlaySpecification {
 
   val ws = StandaloneWS.apply()
-  val bower = Bower(ExecutionContext.global, ws)
+  val bower = Bower(ExecutionContext.global, ws.client)
 
   "jquery info" should {
     "work with a correct version" in {

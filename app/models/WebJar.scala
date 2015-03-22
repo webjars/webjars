@@ -4,7 +4,7 @@ import java.util.Calendar
 
 import play.api.libs.json.Json
 
-case class WebJar(artifactId: String, name: String, sourceUrl: String, versions: List[WebJarVersion]) extends Serializable
+case class WebJar(groupId: String, artifactId: String, name: String, sourceUrl: String, versions: List[WebJarVersion]) extends Serializable
 
 case class WebJarVersion(number: String, numFiles: Int = 0)
 
@@ -14,7 +14,7 @@ object WebJar {
 }
 
 object WebJarVersion {
-  def cacheKey(artifactId: String, version: String): String = artifactId + "-" + version + "-files"
+  def cacheKey(groupId: String, artifactId: String, version: String): String = groupId + "-" + artifactId + "-" + version + "-files"
 
   // todo, this doesn't work on date-based versions that follow non-standard formats (e.g. ace)
   implicit object WebJarVersionOrdering extends Ordering[WebJarVersion] {
@@ -74,3 +74,8 @@ object WebJarVersion {
   }
 }
 
+object WebJarCatalog extends Enumeration {
+  type WebJarCatalog = Value
+  val CLASSIC = Value("org.webjars")
+  val BOWER = Value("org.webjars.bower")
+}
