@@ -50,7 +50,7 @@ $(function() {
           return;
       }
       $("tr[data-artifact]").each(function(){
-          if( $(this).data("artifact").indexOf(search) == -1 ) {
+          if( $(this).data("artifact").toLowerCase().indexOf(search.toLowerCase()) == -1 ) {
               $(this).hide();
           }
           else {
