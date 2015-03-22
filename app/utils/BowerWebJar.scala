@@ -53,7 +53,7 @@ object BowerWebJar extends App {
         _ <- push("update", "Got Bower info")
         mavenDependencies <- convertNpmDependenciesToMaven(packageInfo.dependencies)
         _ <- push("update", "Converted dependencies to Maven")
-        pom = views.xml.pom(packageInfo, mavenDependencies).toString()
+        pom = templates.xml.pom(packageInfo, mavenDependencies).toString()
         _ <- push("update", "Generated POM")
         zip <- bower.zip(packageInfo.artifactId, version)
         _ <- push("update", "Fetched Bower zip")

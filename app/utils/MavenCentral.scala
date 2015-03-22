@@ -195,9 +195,11 @@ object MavenCentral {
           implicit val timeout = Timeout(10.minutes)
           val webJarFetcher = Akka.system.actorOf(Props(classOf[WebJarFetcher], catalog), catalog.toString)
           val fetchWebJarsFuture = (webJarFetcher ? FetchWebJars).mapTo[List[WebJar]]
-          fetchWebJarsFuture.foreach { fetchedWebJars =>
+          fetchWebJarsFuture.onComplete { maybeWebJars =>
             Akka.system.stop(webJarFetcher)
-            Cache.set(catalog.toString, fetchedWebJars, 1.hour)
+            maybeWebJars.foreach { fetchedWebJars =>
+              Cache.set(catalog.toString, fetchedWebJars, 1.hour)
+            }
           }
           // fail cause this is will likely take a long time
           Future.failed(new Exception("Making new request for WebJars"))

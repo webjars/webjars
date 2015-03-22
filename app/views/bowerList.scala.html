@@ -2,7 +2,7 @@
 
 @import java.net.URLEncoder
 
-@main("WebJars - Web Libraries in Jars") {
+@main("WebJars - Bower WebJars") {
 
     <script>
         var pusherKey = "@pusherKey";
@@ -11,6 +11,8 @@
     <script src="//js.pusher.com/2.2/pusher.min.js"></script>
 
     <script type="text/javascript" src="@routes.Assets.at("javascripts/bower.js")"></script>
+
+    <div class="container-fluid" style="padding-top: 25px;">
 
     <div class="panel panel-default">
         <div class="panel-heading">
@@ -87,5 +89,5 @@
             }
         </tbody>
     </table>
-
+    </div>
 }

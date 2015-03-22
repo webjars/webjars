@@ -1,15 +1,55 @@
 @main("WebJars - Web Libraries in Jars") {
 
-    <div class="well">
-        <div>
+    <div class="jumbotron" style="margin-bottom: 0px;">
+        <div class="container">
             <h4><strong>WebJars are client-side web libraries (e.g. jQuery & Bootstrap) packaged into JAR (Java Archive) files.</strong></h4>
             <ul>
                 <li>Explicitly and easily manage the client-side dependencies in JVM-based web applications</li>
-                <li>Use JVM-based build tools (e.g. Maven, Gradle, SBT, ...) to download your client-side dependencies</li>
+                <li>Use JVM-based build tools (e.g. Maven, Gradle, sbt, ...) to download your client-side dependencies</li>
                 <li>Know which client-side dependencies you are using</li>
                 <li>Transitive dependencies are automatically resolved and optionally loaded via RequireJS</li>
+                <li>Deployed on <a href="http://search.maven.org/" target="_blank">Maven Central</a></li>
                 <li>Public CDN, generously provided by: <a href="http://www.jsdelivr.com" target="_blank"><img src="http://www.jsdelivr.com/img/jsdelivrLogo.png" height="20"></a></li>
             </ul>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>WebJars come in two flavors:</h2>
+
+        <div class="row">
+            <div class="col-md-4">
+                <div class="panel panel-default">
+                    <div class="panel-heading">
+                        <h3 class="panel-title">Bower WebJars</h3>
+                    </div>
+                    <div class="panel-body">
+                        <ul>
+                            <li>Instant creation & deployment</li>
+                            <li>On-demand releases by anyone</li>
+                            <li>No RequireJS config (at the moment)</li>
+                            <li>Artifact contents mirror Bower package</li>
+                        </ul>
+                        <a href="@routes.Application.bowerList()" class="btn btn-primary center-block">Browse Bower WebJars</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="panel panel-default">
+                    <div class="panel-heading">
+                        <h3 class="panel-title">Classic WebJars</h3>
+                    </div>
+                    <div class="panel-body">
+                        <ul>
+                            <li>Manual packaging & deployment</li>
+                            <li>On-demand by the WebJars team</li>
+                            <li>Human-created RequireJS config</li>
+                            <li>Great for pre-Bower libs</li>
+                        </ul>
+                        <a href="@routes.Application.classicList()" class="btn btn-primary center-block">Browse Classic WebJars</a>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
