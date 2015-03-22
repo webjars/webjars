@@ -24,7 +24,6 @@ import play.api.libs.ws.{WS, WSResponse}
 import play.api.{Logger, Play}
 import shade.memcached.Codec
 
-import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
 import scala.io.Source
@@ -32,7 +31,9 @@ import scala.xml.{Elem, XML}
 
 object MavenCentral {
 
-  lazy val bower = Bower(ExecutionContext.global, WS.client(Play.current))
+  implicit val ec: ExecutionContext = Akka.system(Play.current).dispatchers.lookup("mavencentral.dispatcher")
+
+  lazy val bower = Bower(ec, WS.client(Play.current))
 
   lazy val webJarFetcher: ActorRef = Akka.system.actorOf(Props[WebJarFetcher])
 
