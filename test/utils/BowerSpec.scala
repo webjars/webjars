@@ -37,7 +37,7 @@ class BowerSpec extends PlaySpecification {
   }
   "sjcl" should {
     "download" in {
-      await(bower.zip("sjcl", "1.0.2"), 1, TimeUnit.MINUTES).available must beEqualTo(1)
+      await(bower.zip("sjcl", "1.0.2"), 1, TimeUnit.MINUTES)._1.available() must beEqualTo(1)
     }
   }
 
