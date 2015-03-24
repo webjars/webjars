@@ -1,5 +1,6 @@
 package controllers
 
+import java.io.FileNotFoundException
 import akka.actor.{Actor, ActorRef, Props}
 import akka.pattern.ask
 import akka.util.Timeout
@@ -169,10 +170,12 @@ object Application extends Controller {
             case Accepts.Json() => Ok(Json.toJson(fileList))
           }
       } recover {
-        case nf: NotFoundResponseException =>
+        case nf: FileNotFoundException =>
           NotFound(s"WebJar Not Found $groupId : $artifactId : $version")
         case ure: UnexpectedResponseException =>
           Status(ure.response.status)(s"Problems retrieving WebJar ($groupId : $artifactId : $version) - ${ure.response.statusText}")
+        case e: Exception =>
+          InternalServerError(e.getMessage)
       }
     }
   }
@@ -190,34 +193,38 @@ object Application extends Controller {
     Action.async { request =>
       val pathPrefix = s"META-INF/resources/webjars/$artifactId/"
 
-      MavenCentral.getFile(groupId, artifactId, webJarVersion).map { case (jarInputStream, inputStream) =>
-        Stream.continually(jarInputStream.getNextJarEntry).takeWhile(_ != null).find { jarEntry =>
-          // this allows for sloppyness where the webJarVersion and path differ
-          // todo: eventually be more strict but since this has been allowed many WebJars do not have version and path consistency
-          jarEntry.getName.startsWith(pathPrefix) && jarEntry.getName.endsWith(s"/$file")
-        }.fold {
-          jarInputStream.close()
-          inputStream.close()
-          NotFound(s"Found WebJar ($groupId : $artifactId : $webJarVersion) but could not find: $pathPrefix$webJarVersion/$file")
-        } { jarEntry =>
-          val enumerator = Enumerator.fromStream(jarInputStream)
-          enumerator.onDoneEnumerating {
+      Future.fromTry {
+        MavenCentral.getFile(groupId, artifactId, webJarVersion).map { case (jarInputStream, inputStream) =>
+          Stream.continually(jarInputStream.getNextJarEntry).takeWhile(_ != null).find { jarEntry =>
+            // this allows for sloppyness where the webJarVersion and path differ
+            // todo: eventually be more strict but since this has been allowed many WebJars do not have version and path consistency
+            jarEntry.getName.startsWith(pathPrefix) && jarEntry.getName.endsWith(s"/$file")
+          }.fold {
             jarInputStream.close()
             inputStream.close()
+            NotFound(s"Found WebJar ($groupId : $artifactId : $webJarVersion) but could not find: $pathPrefix$webJarVersion/$file")
+          } { jarEntry =>
+            val enumerator = Enumerator.fromStream(jarInputStream)
+            enumerator.onDoneEnumerating {
+              jarInputStream.close()
+              inputStream.close()
+            }
+
+            //// From Play's Assets controller
+            val contentType = MimeTypes.forFileName(file).map(m => m + addCharsetIfNeeded(m)).getOrElse(BINARY)
+            ////
+
+            Ok.feed(enumerator).as(contentType).withHeaders(
+              CACHE_CONTROL -> "max-age=290304000, public",
+              DATE -> df.print({
+                new java.util.Date
+              }.getTime),
+              LAST_MODIFIED -> df.print(jarEntry.getLastModifiedTime.toMillis)
+            )
           }
-
-          //// From Play's Assets controller
-          val contentType = MimeTypes.forFileName(file).map(m => m + addCharsetIfNeeded(m)).getOrElse(BINARY)
-          ////
-
-          Ok.feed(enumerator).as(contentType).withHeaders(
-            CACHE_CONTROL -> "max-age=290304000, public",
-            DATE -> df.print({ new java.util.Date }.getTime),
-            LAST_MODIFIED -> df.print(jarEntry.getLastModifiedTime.toMillis)
-          )
         }
       } recover {
-        case nf: NotFoundResponseException =>
+        case nf: FileNotFoundException =>
           NotFound(s"WebJar Not Found $groupId : $artifactId : $webJarVersion")
         case ure: UnexpectedResponseException =>
           Status(ure.response.status)(s"Problems retrieving WebJar ($groupId : $artifactId : $webJarVersion) - ${ure.response.statusText}")

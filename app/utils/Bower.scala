@@ -1,7 +1,7 @@
 package utils
 
-import java.io.ByteArrayInputStream
-import java.net.URI
+import java.io.{InputStream, ByteArrayInputStream}
+import java.net.{URL, URI}
 import java.util.zip.ZipInputStream
 
 import play.api.http.{HeaderNames, Status}
@@ -91,15 +91,14 @@ class Bower(implicit ec: ExecutionContext, ws: WSClient) {
     tryLicense.getOrElse(Future.failed(new Exception("Could not get license")))
   }
 
-  def zip(packageName: String, version: String): Future[ZipInputStream] = {
-    ws.url(s"$BASE_URL/download/$packageName/$version").getStream().flatMap {
-      case (headers, enumerator) =>
-
-        val bodyFuture = enumerator |>>> Iteratee.consume[Array[Byte]]()
-
-        bodyFuture.map { rawBody =>
-          new ZipInputStream(new ByteArrayInputStream(rawBody))
-        }
+  def zip(packageName: String, version: String): Future[(ZipInputStream, InputStream)] = {
+    Future.fromTry {
+      Try {
+        val url = new URL(s"$BASE_URL/download/$packageName/$version")
+        val inputStream = url.openConnection().getInputStream
+        val zipInputStream = new ZipInputStream(inputStream)
+        (zipInputStream, inputStream)
+      }
     }
   }
 

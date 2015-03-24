@@ -1,6 +1,6 @@
 package utils
 
-import java.io.{ByteArrayOutputStream, OutputStream}
+import java.io.{InputStream, ByteArrayOutputStream, OutputStream}
 import java.util.jar.JarOutputStream
 import java.util.zip.{ZipEntry, ZipInputStream}
 
@@ -8,7 +8,9 @@ import scala.annotation.tailrec
 
 object WebJarUtils {
 
-  def createWebJar(zip: ZipInputStream, pom: String, name: String, version: String): Array[Byte] = {
+  def createWebJar(zip: (ZipInputStream, InputStream), pom: String, name: String, version: String): Array[Byte] = {
+
+    val (zipInputStream, inputStream) = zip
 
     def createDir(dir: String, jar: JarOutputStream): Unit = {
       val ze = new ZipEntry(dir)
@@ -25,7 +27,7 @@ object WebJarUtils {
 
     val byteArrayOutputStream = new ByteArrayOutputStream()
 
-    val jar = new JarOutputStream(byteArrayOutputStream) //new FileOutputStream("/tmp/foo.jar"))
+    val jar = new JarOutputStream(byteArrayOutputStream)
 
     createDir(s"META-INF/", jar)
     createDir(s"META-INF/maven/", jar)
@@ -51,7 +53,7 @@ object WebJarUtils {
     createDir(webJarPrefix, jar)
 
     // copy zip to jar, excluding .bower.json
-    val zipEntryTraverable = new ZipEntryTraversableClass(zip)
+    val zipEntryTraverable = new ZipEntryTraversableClass(zipInputStream)
 
     zipEntryTraverable.foreach { ze =>
       if (ze.getName != ".bower.json") {
@@ -62,7 +64,8 @@ object WebJarUtils {
       }
     }
 
-    zip.close()
+    zipInputStream.close()
+    inputStream.close()
     jar.close()
 
     byteArrayOutputStream.toByteArray

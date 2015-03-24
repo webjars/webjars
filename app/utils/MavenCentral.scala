@@ -1,13 +1,13 @@
 package utils
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream, File, InputStream}
-import java.net.URLEncoder
+import java.io._
+import java.net.{URL, URLEncoder}
 import java.nio.file.Files
 import java.util.jar.JarInputStream
 import java.util.zip.{DeflaterOutputStream, InflaterInputStream}
 
 import actors.{FetchWebJars, WebJarFetcher}
-import akka.actor.{ActorNotFound, ActorRef, Props}
+import akka.actor._
 import akka.pattern.ask
 import akka.util.Timeout
 import com.ning.http.client.providers.netty.NettyResponse
@@ -27,6 +27,8 @@ import shade.memcached.Codec
 import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
 import scala.io.Source
+import scala.util.control.NonFatal
+import scala.util.{Failure, Success, Try}
 import scala.xml.{Elem, XML}
 
 object MavenCentral {
@@ -187,6 +189,7 @@ object MavenCentral {
 
   def webJars(catalog: WebJarCatalog): Future[List[WebJar]] = {
     Cache.getAs[List[WebJar]](catalog.toString).map(Future.successful).getOrElse {
+      // todo: for some reason this blocks longer than 1 second if things are busy
       Akka.system.actorSelection("user/" + catalog.toString).resolveOne(1.second).flatMap { actorRef =>
         // in-flight request exists
         Future.failed(new Exception("Existing request for WebJars"))
@@ -218,15 +221,14 @@ object MavenCentral {
     Global.memcached.get[Elem](cacheKey).flatMap { maybeElem =>
       maybeElem.map(Future.successful).getOrElse {
         val pomFuture = fetchPom(id, version)
-        pomFuture.foreach { pom =>
-          Global.memcached.set(cacheKey, pom, Duration.Inf)
+        pomFuture.flatMap { pom =>
+          Global.memcached.set(cacheKey, pom, Duration.Inf).map(_ => pom)
         }
-        pomFuture
       }
     }
   }
 
-  private def fetchFileList(groupId: String, artifactId: String, version: String): Future[List[String]] = {
+  private def fetchFileList(groupId: String, artifactId: String, version: String): Try[List[String]] = {
     getFile(groupId, artifactId, version).map { case (jarInputStream, inputStream) =>
       val webJarFiles = Stream.continually(jarInputStream.getNextJarEntry).
         takeWhile(_ != null).
@@ -248,17 +250,17 @@ object MavenCentral {
         fileListFuture.foreach { fileList =>
           Global.memcached.set(cacheKey, fileList, Duration.Inf)
         }
-        fileListFuture
+        Future.fromTry(fileListFuture)
       }
     }
   }
 
-  def getFile(groupId: String, artifactId: String, version: String): Future[(JarInputStream, InputStream)] = {
+  def getFile(groupId: String, artifactId: String, version: String): Try[(JarInputStream, InputStream)] = {
     val tmpFile = new File(tempDir, s"$groupId-$artifactId-$version.jar")
 
     if (tmpFile.exists()) {
       val fileInputStream = Files.newInputStream(tmpFile.toPath)
-      Future.successful((new JarInputStream(fileInputStream), fileInputStream))
+      Success((new JarInputStream(fileInputStream), fileInputStream))
     }
     else {
       val fileInputStreamFuture = getFileInputStream(primaryBaseJarUrl, groupId, artifactId, version).recoverWith {
@@ -279,18 +281,10 @@ object MavenCentral {
     }
   }
 
-  def getFileInputStream(baseJarUrl: String, groupId: String, artifactId: String, version: String): Future[InputStream] = {
-    val url = baseJarUrl.format(groupId.replace(".", "/"), artifactId, URLEncoder.encode(version, "UTF-8"), artifactId, URLEncoder.encode(version, "UTF-8"))
-    WS.url(url).get().flatMap { response =>
-      response.status match {
-        case Status.OK =>
-          Future.successful(response.underlying[NettyResponse].getResponseBodyAsStream)
-        case Status.NOT_FOUND =>
-          Future.failed(NotFoundResponseException(response))
-        case _ =>
-          Logger.error(s"Unexpected response retrieving $url - ${response.statusText} ${response.body}")
-          Future.failed(UnexpectedResponseException(response))
-      }
+  def getFileInputStream(baseJarUrl: String, groupId: String, artifactId: String, version: String): Try[InputStream] = {
+    Try {
+      val url = new URL(baseJarUrl.format(groupId.replace(".", "/"), artifactId, URLEncoder.encode(version, "UTF-8"), artifactId, URLEncoder.encode(version, "UTF-8")))
+      url.openConnection().getInputStream
     }
   }
 
