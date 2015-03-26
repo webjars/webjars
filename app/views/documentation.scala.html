@@ -167,37 +167,37 @@
                     <li>
                         Register our webjars-servlet-2.x Maven dependency in your web application:
                         <pre><code>&lt;dependency&gt;
-&lt;groupId&gt;org.webjars&lt;/groupId&gt;
-&lt;artifactId&gt;webjars-servlet-2.x&lt;/artifactId&gt;
-&lt;version&gt;1.0&lt;/version&gt;
+    &lt;groupId&gt;org.webjars&lt;/groupId&gt;
+    &lt;artifactId&gt;webjars-servlet-2.x&lt;/artifactId&gt;
+    &lt;version&gt;1.0&lt;/version&gt;
 &lt;/dependency&gt;</code></pre>
                     </li>
                     <li>
-                        Register <strong><pre>WebjarsServlet</pre></strong> servlet in your web.xml:
+                        Register <strong>WebjarsServlet</strong> in your web.xml:
                         <pre><code>&lt;!--Webjars Servlet--&gt;
 &lt;servlet&gt;
-&lt;servlet-name&gt;WebjarsServlet&lt;/servlet-name&gt;
-&lt;servlet-class&gt;org.webjars.servlet.WebjarsServlet&lt;/servlet-class&gt;
-&lt;load-on-startup&gt;2&lt;/load-on-startup&gt;
+    &lt;servlet-name&gt;WebjarsServlet&lt;/servlet-name&gt;
+    &lt;servlet-class&gt;org.webjars.servlet.WebjarsServlet&lt;/servlet-class&gt;
+    &lt;load-on-startup&gt;2&lt;/load-on-startup&gt;
 &lt;/servlet&gt;
 &lt;servlet-mapping&gt;
-&lt;servlet-name&gt;WebjarsServlet&lt;/servlet-name&gt;
-&lt;url-pattern&gt;/webjars/*&lt;/url-pattern&gt;
+    &lt;servlet-name&gt;WebjarsServlet&lt;/servlet-name&gt;
+    &lt;url-pattern&gt;/webjars/*&lt;/url-pattern&gt;
 &lt;/servlet-mapping&gt;</code></pre>
                     </li>
                 </ol>
 
-                By default the Webjars resources will be cached by your browser. If for whatever reason you need to disable the cache, you can do so by using the <strong><pre>disableCache</pre></strong> configuration property like this:
+                By default the Webjars resources will be cached by your browser. If for whatever reason you need to disable the cache, you can do so by using the <strong>disableCache</strong> configuration property like this:
 
                 <pre><code>&lt;!--Webjars Servlet--&gt;
 &lt;servlet&gt;
-&lt;servlet-name&gt;WebjarsServlet&lt;/servlet-name&gt;
-&lt;servlet-class&gt;org.webjars.servlet.WebjarsServlet&lt;/servlet-class&gt;
-&lt;init-param&gt;
-&lt;param-name&gt;disableCache&lt;/param-name&gt;
-&lt;param-value&gt;true&lt;/param-value&gt;
-&lt;/init-param&gt;
-&lt;load-on-startup&gt;2&lt;/load-on-startup&gt;
+    &lt;servlet-name&gt;WebjarsServlet&lt;/servlet-name&gt;
+    &lt;servlet-class&gt;org.webjars.servlet.WebjarsServlet&lt;/servlet-class&gt;
+    &lt;init-param&gt;
+        &lt;param-name&gt;disableCache&lt;/param-name&gt;
+        &lt;param-value&gt;true&lt;/param-value&gt;
+    &lt;/init-param&gt;
+    &lt;load-on-startup&gt;2&lt;/load-on-startup&gt;
 &lt;/servlet&gt;</code></pre>
 
             </div>
