@@ -22,6 +22,7 @@
                 <li class="active"><a href="#play2" data-toggle="tab">Play Framework 2</a></li>
                 <li><a href="#xitrum" data-toggle="tab">Xitrum</a></li>
                 <li><a href="#servlet3" data-toggle="tab">Servlet 3</a></li>
+                <li><a href="#servlet2" data-toggle="tab">Servlet 2</a></li>
                 <li><a href="#jsf" data-toggle="tab">JSF</a></li>
                 <li><a href="#grails" data-toggle="tab">Grails</a></li>
                 <li><a href="#dropwizard" data-toggle="tab">Dropwizard</a></li>
@@ -151,6 +152,53 @@
                 <br>
                 Then simply reference the resource like:
                 <pre><code>&lt;link rel='stylesheet' href='webjars/bootstrap/3.1.0/css/bootstrap.min.css'&gt;</code></pre>
+
+            </div>
+
+                <!-- Servlet 2 -->
+            <div class="tab-pane" id="servlet2">
+                <h3>Instructions for Servlet 2</h3>
+
+                Webjars resources can now be referenced in legacy apps that are still running on Servlet containers that are not compliant with the Servlet 3 specification (e.g. Tomcat 6).
+
+                <h4>Usage</h4>
+
+                <ol>
+                    <li>
+                        Register our webjars-servlet-2.x Maven dependency in your web application:
+                        <pre><code>&lt;dependency&gt;
+&lt;groupId&gt;org.webjars&lt;/groupId&gt;
+&lt;artifactId&gt;webjars-servlet-2.x&lt;/artifactId&gt;
+&lt;version&gt;1.0&lt;/version&gt;
+&lt;/dependency&gt;</code></pre>
+                    </li>
+                    <li>
+                        Register <strong><pre>WebjarsServlet</pre></strong> servlet in your web.xml:
+                        <pre><code>&lt;!--Webjars Servlet--&gt;
+&lt;servlet&gt;
+&lt;servlet-name&gt;WebjarsServlet&lt;/servlet-name&gt;
+&lt;servlet-class&gt;org.webjars.servlet.WebjarsServlet&lt;/servlet-class&gt;
+&lt;load-on-startup&gt;2&lt;/load-on-startup&gt;
+&lt;/servlet&gt;
+&lt;servlet-mapping&gt;
+&lt;servlet-name&gt;WebjarsServlet&lt;/servlet-name&gt;
+&lt;url-pattern&gt;/webjars/*&lt;/url-pattern&gt;
+&lt;/servlet-mapping&gt;</code></pre>
+                    </li>
+                </ol>
+
+                By default the Webjars resources will be cached by your browser. If for whatever reason you need to disable the cache, you can do so by using the <strong><pre>disableCache</pre></strong> configuration property like this:
+
+                <pre><code>&lt;!--Webjars Servlet--&gt;
+&lt;servlet&gt;
+&lt;servlet-name&gt;WebjarsServlet&lt;/servlet-name&gt;
+&lt;servlet-class&gt;org.webjars.servlet.WebjarsServlet&lt;/servlet-class&gt;
+&lt;init-param&gt;
+&lt;param-name&gt;disableCache&lt;/param-name&gt;
+&lt;param-value&gt;true&lt;/param-value&gt;
+&lt;/init-param&gt;
+&lt;load-on-startup&gt;2&lt;/load-on-startup&gt;
+&lt;/servlet&gt;</code></pre>
 
             </div>
 
