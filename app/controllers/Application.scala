@@ -102,6 +102,7 @@ object Application extends Controller {
       // match on names, keywords, or description
       val allMatches = withNames.values.toIndexedSeq.filter { bowerPackage =>
         (bowerPackage \ "names").as[Seq[String]].exists(_.toLowerCase.contains(query.toLowerCase)) ||
+        (bowerPackage \ "website").asOpt[String].map(_.toLowerCase).exists(_.contains(query.toLowerCase)) ||
         (bowerPackage \ "keywords").asOpt[Seq[String]].getOrElse(Seq.empty[String]).exists(_.toLowerCase.contains(query.toLowerCase)) ||
         (bowerPackage \ "description").asOpt[String].map(_.toLowerCase).exists(_.contains(query.toLowerCase))
       }
@@ -121,7 +122,7 @@ object Application extends Controller {
       Ok(json)
     } recover {
       case e: Exception =>
-        InternalServerError
+        InternalServerError(e.getMessage)
     }
   }
 

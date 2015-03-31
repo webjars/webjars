@@ -96,7 +96,7 @@ object BowerWebJar extends App {
           push("failure",
             s"""Failed!
               |${e.getMessage}
-              |Please file an issue: https://github.com/webjars/webjars/issues
+              |If you feel you have reached this failure in error, please file an issue: https://github.com/webjars/webjars/issues
             """.stripMargin).flatMap(_ => Future.failed(e))
       }
     }
