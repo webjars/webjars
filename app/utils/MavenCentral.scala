@@ -35,8 +35,6 @@ object MavenCentral {
 
   implicit val ec: ExecutionContext = Akka.system(Play.current).dispatchers.lookup("mavencentral.dispatcher")
 
-  lazy val bower = Bower(ec, WS.client(Play.current))
-
   lazy val webJarFetcher: ActorRef = Akka.system.actorOf(Props[WebJarFetcher])
 
   lazy val tempDir: File = {
@@ -87,8 +85,8 @@ object MavenCentral {
   val primaryBaseJarUrl = Play.current.configuration.getString("webjars.jarUrl.primary").get
   val fallbackBaseJarUrl = Play.current.configuration.getString("webjars.jarUrl.fallback").get
 
-  def fetchWebJarNameAndUrl(artifactId: String, version: String): Future[(String, String)] = {
-    getPom(artifactId, version).flatMap { xml =>
+  def fetchWebJarNameAndUrl(groupId: String, artifactId: String, version: String): Future[(String, String)] = {
+    getPom(groupId, artifactId, version).flatMap { xml =>
       val artifactId = (xml \ "artifactId").text
       val rawName = (xml \ "name").text
       val name = if (rawName.contains("${") || (rawName.length == 0)) {
@@ -108,7 +106,7 @@ object MavenCentral {
         else {
           // try the parent pom
           val parentArtifactId = (xml \ "parent" \ "artifactId").text
-          getPom(parentArtifactId, version).map { parentXml =>
+          getPom(groupId, parentArtifactId, version).map { parentXml =>
             (parentXml \ "scm" \ "url").text
           }
         }
@@ -164,19 +162,9 @@ object MavenCentral {
           webJarVersionsFuture.flatMap { webJarVersions =>
             val latestVersion = webJarVersions.map(_.number).head
 
-            catalog match {
-              case WebJarCatalog.CLASSIC =>
-                MavenCentral.fetchWebJarNameAndUrl(artifactId, latestVersion).map {
-                  case (name, url) =>
-                    WebJar(catalog.toString, artifactId, name, url, webJarVersions)
-                }
-              case WebJarCatalog.BOWER =>
-                bower.info(artifactId, latestVersion).map { bowerInfo =>
-                  WebJar(catalog.toString, artifactId, artifactId, bowerInfo.gitHubHome.getOrElse(bowerInfo.homepage), webJarVersions)
-                } recover {
-                  case e: Exception =>
-                    WebJar(catalog.toString, artifactId, artifactId, "", webJarVersions)
-                }
+            MavenCentral.fetchWebJarNameAndUrl(catalog.toString, artifactId, latestVersion).map {
+              case (name, url) =>
+                WebJar(catalog.toString, artifactId, name, url, webJarVersions)
             }
           }
       } map { webJars =>
@@ -211,16 +199,17 @@ object MavenCentral {
     }
   }
 
-  private def fetchPom(id: String, version: String): Future[Elem] = {
-    val url = s"http://repo1.maven.org/maven2/org/webjars/$id/$version/$id-$version.pom"
+  private def fetchPom(groupId: String, artifactId: String, version: String): Future[Elem] = {
+    val groupIdPath = groupId.replace(".", "/")
+    val url = s"http://repo1.maven.org/maven2/$groupIdPath/$artifactId/$version/$artifactId-$version.pom"
     WS.url(url).get().map(_.xml)
   }
 
-  def getPom(id: String, version: String): Future[Elem] = {
-    val cacheKey = s"pom-$id"
+  def getPom(groupId: String, artifactId: String, version: String): Future[Elem] = {
+    val cacheKey = s"pom-$groupId-$artifactId"
     Global.memcached.get[Elem](cacheKey).flatMap { maybeElem =>
       maybeElem.map(Future.successful).getOrElse {
-        val pomFuture = fetchPom(id, version)
+        val pomFuture = fetchPom(groupId, artifactId, version)
         pomFuture.flatMap { pom =>
           Global.memcached.set(cacheKey, pom, Duration.Inf).map(_ => pom)
         }
