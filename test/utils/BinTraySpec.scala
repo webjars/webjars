@@ -15,11 +15,11 @@ class BinTraySpec extends PlaySpecification {
 
   "BinTray" should {
     "create a package" in {
-      val result = await(binTray.createPackage("webjars", "maven", "foo", "foo description", Seq("test"), Seq("MIT"), "http://github.com/webjars/webjars", Some("http://webjars.org"), Some("http://github.com/webjars/webjars/issues"), Some("webjars/webjars")))
+      val result = await(binTray.createPackage("webjars", "test", "foo", "foo description", Seq("test"), Seq("MIT"), "http://github.com/webjars/webjars", Some("http://webjars.org"), Some("http://github.com/webjars/webjars/issues"), Some("webjars/webjars")))
       (result \ "created").asOpt[Date] must beSome
     }
     "create a version" in {
-      val result = await(binTray.createVersion("webjars", "maven", "foo", "0.0.1", "Release 0.0.1"))
+      val result = await(binTray.createVersion("webjars", "test", "foo", "0.0.1", "Release 0.0.1"))
       (result \ "created").asOpt[Date] must beSome
     }
     "publish a maven release" in {
@@ -28,17 +28,17 @@ class BinTraySpec extends PlaySpecification {
         inputStream.close()
         fileBytes
       }.get
-      val result = await(binTray.uploadMavenArtifact("webjars", "maven", "foo", "org/webjars/bower/foo/0.0.1/foo-0.0.1.jar", bytes))
+      val result = await(binTray.uploadMavenArtifact("webjars", "test", "foo", "org/webjars/bower/foo/0.0.1/foo-0.0.1.jar", bytes))
       (result \ "message").asOpt[String] must beSome ("success")
     }
     "sign an artifact" in {
-      val result = await(binTray.signVersion("webjars", "maven", "foo", "0.0.1"))
+      val result = await(binTray.signVersion("webjars", "test", "foo", "0.0.1"))
       (result \ "message").asOpt[String] must beSome ("success")
     }
   }
 
   step {
-    await(binTray.deletePackage("webjars", "maven", "foo"))
+    await(binTray.deletePackage("webjars", "test", "foo"))
   }
 
   step(ws.close())
