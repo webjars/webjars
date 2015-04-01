@@ -35,6 +35,17 @@ class BinTraySpec extends PlaySpecification {
       val result = await(binTray.signVersion("webjars", "test", "foo", "0.0.1"))
       (result \ "message").asOpt[String] must beSome ("success")
     }
+    "convert licenses to accepted ones" in {
+      val licenses = Seq("BSD 2-Clause", "BSD-2-Clause", "bsd2clause")
+      val result = await(binTray.convertLicenses(licenses))
+      result.size must be equalTo 3
+      result(0) must be equalTo "BSD 2-Clause"
+      result(1) must be equalTo "BSD 2-Clause"
+      result(2) must be equalTo "BSD 2-Clause"
+    }
+    "fail to convert incompatible licenses" in {
+      await(binTray.convertLicenses(Seq("foo"))) must throwA[Exception]
+    }
   }
 
   step {

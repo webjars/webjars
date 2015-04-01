@@ -66,8 +66,12 @@ object BowerWebJar extends App {
         val name = packageInfo.artifactId
         val packageName = s"$groupId:$name"
 
+
+
         for {
-          createPackage <- binTray.getOrCreatePackage(binTraySubject, binTrayRepo, packageName, s"WebJar for $name", Seq("webjar", name), packageInfo.licenses, packageInfo.source, Some(packageInfo.homepage), packageInfo.issuesUrl.toOption, packageInfo.gitHubOrgRepo.toOption)
+          licensesForBinTray <- binTray.convertLicenses(packageInfo.licenses)
+          _ <- push("update", "Converted project licenses")
+          createPackage <- binTray.getOrCreatePackage(binTraySubject, binTrayRepo, packageName, s"WebJar for $name", Seq("webjar", name), licensesForBinTray, packageInfo.source, Some(packageInfo.homepage), packageInfo.issuesUrl.toOption, packageInfo.gitHubOrgRepo.toOption)
           _ <- push("update", "Created BinTray Package")
           createVersion <- binTray.createVersion(binTraySubject, binTrayRepo, packageName, version, s"$name WebJar release $version", Some(s"v$version"))
           _ <- push("update", "Created BinTray Version")
