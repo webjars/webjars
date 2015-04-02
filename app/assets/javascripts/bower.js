@@ -115,7 +115,7 @@ $(function() {
     $("#deployBowerButton").attr("disabled", false);
   });
 
-  $("#deployBower").submit(function(event) {
+  $("#deployBowerButton").click(function(event) {
     event.preventDefault();
 
     var deployLog = $("#deployLog");
@@ -140,10 +140,12 @@ $(function() {
     });
     channel.bind("success", function(data) {
       log(data);
+      pusher.disconnect();
       $("#deployBowerButton").attr("disabled", false);
     });
     channel.bind("failure", function(data) {
       log(data);
+      pusher.disconnect();
       $("#deployBowerButton").attr("disabled", false);
     });
 

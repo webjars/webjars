@@ -12,32 +12,43 @@
 
     <script type="text/javascript" src="@routes.Assets.at("javascripts/bower.js")"></script>
 
-    <div class="container-fluid" style="padding-top: 25px;">
-
-    <div class="panel panel-default">
-        <div class="panel-heading">
-            <h3 class="panel-title">Add a Bower WebJar</h3>
-        </div>
-        <div class="panel-body">
-            <form id="deployBower" class="form-inline">
-                <div class="form-group">
-                    <input id="newBowerWebJarName" type="text" style="width: 400px;"/>
+    <div class="modal fade" id="newBowerWebJarModal" tabindex="-1" role="dialog" aria-labelledby="newBowerWebJarModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                    <h4 class="modal-title" id="newBowerWebJarModalLabel">Add a New Bower WebJar</h4>
                 </div>
-                <div class="form-group">
-                    <input id="newBowerWebJarVersion" type="text" style="width: 200px;" disabled/>
+                <div class="modal-body">
+                    <form id="deployBower" class="form">
+                        <div class="form-group">
+                            <input id="newBowerWebJarName" type="text" style="width: 400px;"/>
+                        </div>
+                        <div class="form-group">
+                            <input id="newBowerWebJarVersion" type="text" style="width: 200px;" disabled/>
+                        </div>
+                    </form>
+                    <p>Deploy Log</p>
+                    <pre id="deployLog" style="height: 200px; white-space: pre-line; word-break: normal;" disabled></pre>
                 </div>
-                <button id="deployBowerButton" type="submit" class="btn btn-default btn-sm" disabled>Deploy!</button>
-            </form>
-            <pre id="deployLog" class="hidden" style="height: 200px;">
-            </pre>
+                <div class="modal-footer">
+                    <button id="deployBowerButton" type="button" class="btn btn-default pull-left" disabled>Deploy!</button>
+                </div>
+            </div>
         </div>
     </div>
+
+    <div class="container-fluid" style="padding-top: 25px;">
 
     <h2 style="float: left">Deployed Bower WebJars</h2>
 
     <div class="pull-left btn-group" style="margin: 20px 40px 0px 40px">
         <input type="text" class="form-control" id="search" placeholder="Filter">
         <span class="glyphicon glyphicon-remove" id="clearSearch"></span>
+    </div>
+
+    <div class="pull-right" style="float: right; margin-top: 20px;">
+        <button type="button" class="btn btn-info" data-toggle="modal" data-target="#newBowerWebJarModal">Add a New Bower WebJar</button>
     </div>
 
     <table class="table table-striped table-bordered table-condensed">
