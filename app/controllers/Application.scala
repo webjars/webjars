@@ -325,21 +325,17 @@ object Application extends Controller {
     val app = Play.current.configuration.getString("bower.herokuapp").get
     val fork = Play.current.configuration.getBoolean("bower.fork").get
 
-    bower.info(artifactId, version).flatMap { packageInfo =>
-      // use the normalized packageInfo artifactId
-
-      if (fork) {
-        val cmd = s"pub ${packageInfo.artifactId} ${packageInfo.version} $channelId"
-        heroku.dynoCreate(app, false, cmd, "2X").map { createJson =>
-          Ok(createJson)
-        }
+    if (fork) {
+      val cmd = s"pub $artifactId $version $channelId"
+      heroku.dynoCreate(app, false, cmd, "2X").map { createJson =>
+        Ok(createJson)
       }
-      else {
-        BowerWebJar.release(packageInfo.artifactId, packageInfo.version, Some(channelId))(ExecutionContext.global, Play.current.configuration).map { result =>
-          Ok(Json.toJson(result))
-        } recover {
-          case e: Exception => InternalServerError(e.getMessage)
-        }
+    }
+    else {
+      BowerWebJar.release(artifactId, version, Some(channelId))(ExecutionContext.global, Play.current.configuration).map { result =>
+        Ok(Json.toJson(result))
+      } recover {
+        case e: Exception => InternalServerError(e.getMessage)
       }
     }
   }

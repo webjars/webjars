@@ -55,7 +55,7 @@ object BowerWebJar extends App {
         _ <- push("update", "Converted dependencies to Maven")
         pom = templates.xml.pom(packageInfo, mavenDependencies).toString()
         _ <- push("update", "Generated POM")
-        zip <- bower.zip(packageInfo.artifactId, version)
+        zip <- bower.zip(name, version)
         _ <- push("update", "Fetched Bower zip")
         jar = WebJarUtils.createWebJar(zip, pom, packageInfo.artifactId, version)
         _ <- push("update", "Created WebJar")
@@ -65,9 +65,7 @@ object BowerWebJar extends App {
         // do not used the provided name because it may not be the canonical name
         val name = packageInfo.artifactId
         val packageName = s"$groupId:$name"
-
-
-
+        
         for {
           licensesForBinTray <- binTray.convertLicenses(packageInfo.licenses)
           _ <- push("update", "Converted project licenses")
