@@ -1,13 +1,13 @@
-@(packageInfo: utils.PackageInfo, mavenDependencies: Map[String, String])<?xml version="1.0" encoding="UTF-8"?>
+@(artifactId: String, packageInfo: utils.PackageInfo, mavenDependencies: Map[String, String])<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <packaging>jar</packaging>
     <groupId>org.webjars.bower</groupId>
-    <artifactId>@packageInfo.artifactId</artifactId>
+    <artifactId>@artifactId</artifactId>
     <version>@packageInfo.version</version>
-    <name>@packageInfo.artifactId</name>
-    <description>WebJar for @packageInfo.artifactId</description>
+    <name>@packageInfo.name</name>
+    <description>WebJar for @packageInfo.name</description>
     <url>http://webjars.org</url>
 
     <properties>

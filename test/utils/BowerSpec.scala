@@ -13,7 +13,7 @@ class BowerSpec extends PlaySpecification {
 
   "jquery info" should {
     "work with a correct version" in {
-      await(bower.info("jquery", "1.11.1")).artifactId must equalTo("jquery")
+      await(bower.info("jquery", "1.11.1")).name must equalTo("jquery")
     }
     "fail with an invalid version" in {
       await(bower.info("jquery", "0.0.0")) must throwA[Exception]

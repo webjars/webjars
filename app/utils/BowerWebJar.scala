@@ -10,7 +10,7 @@ import scala.util.{Failure, Success}
 
 object BowerWebJar extends App {
 
-  def release(name: String, version: String, maybepusherChannelId: Option[String])(implicit executionContext: ExecutionContext, config: Configuration): Future[PackageInfo] = {
+  def release(artifactId: String, version: String, maybepusherChannelId: Option[String])(implicit executionContext: ExecutionContext, config: Configuration): Future[PackageInfo] = {
 
     val binTraySubject = "webjars"
     val binTrayRepo = "maven"
@@ -49,34 +49,32 @@ object BowerWebJar extends App {
       }
       
       val webJarFuture = for {
-        packageInfo <- bower.info(name, version)
+        packageInfo <- bower.info(artifactId, version)
         _ <- push("update", "Got Bower info")
         mavenDependencies <- convertNpmDependenciesToMaven(packageInfo.dependencies)
         _ <- push("update", "Converted dependencies to Maven")
-        pom = templates.xml.pom(packageInfo, mavenDependencies).toString()
+        pom = templates.xml.pom(artifactId, packageInfo, mavenDependencies).toString()
         _ <- push("update", "Generated POM")
-        zip <- bower.zip(name, version)
+        zip <- bower.zip(artifactId, version)
         _ <- push("update", "Fetched Bower zip")
-        jar = WebJarUtils.createWebJar(zip, pom, packageInfo.artifactId, version)
+        jar = WebJarUtils.createWebJar(zip, pom, artifactId, version)
         _ <- push("update", "Created WebJar")
       } yield (packageInfo, pom, jar)
 
       webJarFuture.flatMap { case (packageInfo, pom, jar) =>
-        // do not used the provided name because it may not be the canonical name
-        val name = packageInfo.artifactId
-        val packageName = s"$groupId:$name"
-        
+        val packageName = s"$groupId:$artifactId"
+
         for {
           licensesForBinTray <- binTray.convertLicenses(packageInfo.licenses)
           _ <- push("update", "Converted project licenses")
-          createPackage <- binTray.getOrCreatePackage(binTraySubject, binTrayRepo, packageName, s"WebJar for $name", Seq("webjar", name), licensesForBinTray, packageInfo.source, Some(packageInfo.homepage), packageInfo.issuesUrl.toOption, packageInfo.gitHubOrgRepo.toOption)
+          createPackage <- binTray.getOrCreatePackage(binTraySubject, binTrayRepo, packageName, s"WebJar for $artifactId", Seq("webjar", artifactId), licensesForBinTray, packageInfo.source, Some(packageInfo.homepage), packageInfo.issuesUrl.toOption, packageInfo.gitHubOrgRepo.toOption)
           _ <- push("update", "Created BinTray Package")
-          createVersion <- binTray.createVersion(binTraySubject, binTrayRepo, packageName, version, s"$name WebJar release $version", Some(s"v$version"))
+          createVersion <- binTray.createVersion(binTraySubject, binTrayRepo, packageName, version, s"$artifactId WebJar release $version", Some(s"v$version"))
           _ <- push("update", "Created BinTray Version")
-          publishPom <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$name/$version/$name-$version.pom", pom.getBytes)
-          publishJar <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$name/$version/$name-$version.jar", jar)
+          publishPom <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/$version/$artifactId-$version.pom", pom.getBytes)
+          publishJar <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/$version/$artifactId-$version.jar", jar)
           emptyJar = WebJarUtils.emptyJar()
-          publishSourceJar <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$name/$version/$name-$version-sources.jar", emptyJar)
+          publishSourceJar <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/$version/$artifactId-$version-sources.jar", emptyJar)
           _ <- push("update", "Published BinTray Assets")
           signVersion <- binTray.signVersion(binTraySubject, binTrayRepo, packageName, version)
           _ <- push("update", "Signed BinTray Assets")
@@ -88,7 +86,7 @@ object BowerWebJar extends App {
             s"""Deployed!
               |It will take a few hours for the Maven Central index to update but you should be able to start using the Bower WebJar now.
               |GroupID = $groupId
-              |ArtifactID = ${packageInfo.artifactId}
+              |ArtifactID = $artifactId
               |Version = ${packageInfo.version}
             """.stripMargin)
         } yield packageInfo

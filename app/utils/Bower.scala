@@ -108,7 +108,7 @@ object Bower {
   def apply(implicit ec: ExecutionContext, ws: WSClient) = new Bower()
 }
 
-case class PackageInfo(artifactId: String, version: String, homepage: String, source: String, licenses: Seq[String], dependencies: Map[String, String]) {
+case class PackageInfo(name: String, version: String, homepage: String, source: String, licenses: Seq[String], dependencies: Map[String, String]) {
 
   lazy val sourceUri: Try[URI] = Try { new URI(source) }
   lazy val gitHubOrg: Try[String] = sourceUri.map(_.getPath.split("/")(1))

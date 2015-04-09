@@ -90,18 +90,9 @@ object Application extends Controller {
 
     allBowerPackagesFuture.map { allBowerPackages =>
 
-      // the bower index has duplicates
-      val deduped = allBowerPackages.as[Seq[JsObject]].groupBy(_ \ "website")
-
-      // the common name isn't identifiable so lets get all of the names
-      val withNames = deduped.mapValues { packages =>
-        val names = packages.map(_ \ "name")
-        packages.head + ("names", Json.toJson(names))
-      }
-
       // match on names, keywords, or description
-      val allMatches = withNames.values.toIndexedSeq.filter { bowerPackage =>
-        (bowerPackage \ "names").as[Seq[String]].exists(_.toLowerCase.contains(query.toLowerCase)) ||
+      val allMatches = allBowerPackages.as[Seq[JsObject]].filter { bowerPackage =>
+        (bowerPackage \ "name").asOpt[String].map(_.toLowerCase).exists(_.contains(query.toLowerCase)) ||
         (bowerPackage \ "website").asOpt[String].map(_.toLowerCase).exists(_.contains(query.toLowerCase)) ||
         (bowerPackage \ "keywords").asOpt[Seq[String]].getOrElse(Seq.empty[String]).exists(_.toLowerCase.contains(query.toLowerCase)) ||
         (bowerPackage \ "description").asOpt[String].map(_.toLowerCase).exists(_.contains(query.toLowerCase))

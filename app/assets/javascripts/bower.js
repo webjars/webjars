@@ -60,7 +60,7 @@ $(function() {
   };
 
   function formatBowerPackageName(item) {
-    return item.website.split("://")[1];
+    return item.name + " (" + item.website.split("://")[1] + ")";
   }
 
   $("#newBowerWebJarName").select2({
