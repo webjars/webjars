@@ -43,6 +43,12 @@ class BinTraySpec extends PlaySpecification {
       result(1) must be equalTo "BSD 2-Clause"
       result(2) must be equalTo "BSD 2-Clause"
     }
+    "convert SPDX to BinTray" in {
+      val licenses = Seq("OFL-1.1")
+      val result = await(binTray.convertLicenses(licenses))
+      result.size must be equalTo 1
+      result(0) must be equalTo "Openfont-1.1"
+    }
     "fail to convert incompatible licenses" in {
       await(binTray.convertLicenses(Seq("foo"))) must throwA[Exception]
     }
