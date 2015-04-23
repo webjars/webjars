@@ -146,15 +146,41 @@ class BinTray(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) {
     Future.sequence {
       licenses.map { license =>
 
-        // see if the license is in the spdxToBinTrayLicenses map
-        // if not, normalize the name and look for it in availableLicenses
-        val maybeAcceptableLicense: Option[String] = spdxToBinTrayLicenses.get(license).orElse {
-          availableLicenses.find { availableLicense =>
-            license.replace(" ", "").replace("-", "").toLowerCase == availableLicense.replace(" ", "").replace("-", "").toLowerCase
+        val maybeFetchedLicense = if (license.startsWith("http://") || license.startsWith("https://")) {
+          ws.url(license).get().flatMap { licenseTextResponse =>
+            licenseTextResponse.status match {
+              case Status.OK =>
+                ws.url("https://oss-license-detector.herokuapp.com/").post(licenseTextResponse.body).flatMap { licenseResponse =>
+                  licenseResponse.status match {
+                    case Status.OK =>
+                      Future.successful(licenseResponse.body)
+                    case _ =>
+                      Future.failed(new Exception(licenseResponse.body))
+                  }
+                }
+              case _ =>
+                Future.failed(new Exception(licenseTextResponse.body))
+            }
           }
         }
+        else {
+          Future.successful(license)
+        }
 
-        maybeAcceptableLicense.fold(Future.failed[String](new Exception(s"License $license is not acceptable on BinTray")))(Future.successful)
+        maybeFetchedLicense.flatMap { fetchedLicense =>
+
+          // see if the license is in the spdxToBinTrayLicenses map
+          // if not, normalize the name and look for it in availableLicenses
+          val maybeAcceptableLicense: Option[String] = spdxToBinTrayLicenses.get(fetchedLicense).orElse {
+            availableLicenses.find { availableLicense =>
+              fetchedLicense.replace(" ", "").replace("-", "").toLowerCase == availableLicense.replace(" ", "").replace("-", "").toLowerCase
+            }
+          }
+
+          maybeAcceptableLicense.fold(Future.failed[String](new Exception(s"License $fetchedLicense is not acceptable on BinTray")))(Future.successful)
+
+        }
+
       }
     }
   }

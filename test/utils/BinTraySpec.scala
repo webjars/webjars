@@ -49,6 +49,12 @@ class BinTraySpec extends PlaySpecification {
       result.size must be equalTo 1
       result(0) must be equalTo "Openfont-1.1"
     }
+    "convert license URL to license" in {
+      val licenses = Seq("http://polymer.github.io/LICENSE.txt")
+      val result = await(binTray.convertLicenses(licenses))
+      result.size must be equalTo 1
+      result(0) must be equalTo "BSD 3-Clause"
+    }
     "fail to convert incompatible licenses" in {
       await(binTray.convertLicenses(Seq("foo"))) must throwA[Exception]
     }
