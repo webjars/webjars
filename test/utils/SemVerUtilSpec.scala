@@ -39,6 +39,7 @@ class SemVerUtilSpec extends Specification {
     }
     "work with range sets" in {
       SemVerUtil.convertSemVerToMaven(">=1.0.0 <1.4.0")  must be equalTo Some("[1.0.0,1.4.0)")
+      SemVerUtil.convertSemVerToMaven(">= 0.10.1 < 0.12.0")  must be equalTo Some("[0.10.1,0.12.0)")
     }
     "work with hyphen ranges" in {
       SemVerUtil.convertSemVerToMaven("1 - 2")           must be equalTo Some("[1,2]")
