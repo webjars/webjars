@@ -1,6 +1,6 @@
 package controllers
 
-import java.io.FileNotFoundException
+import java.io.{BufferedInputStream, FileNotFoundException}
 import akka.actor.{Actor, ActorRef, Props}
 import akka.pattern.ask
 import akka.util.Timeout
@@ -12,13 +12,12 @@ import play.api.Play.current
 import play.api.cache.Cache
 import play.api.libs.MimeTypes
 import play.api.libs.concurrent.Akka
-import play.api.libs.iteratee.Enumerator
 import play.api.libs.json.{JsObject, JsArray, Json}
 import play.api.data.Forms._
 import play.api.data._
 import play.api.libs.ws.WS
 import play.api.mvc._
-import utils.MavenCentral.{NotFoundResponseException, UnexpectedResponseException}
+import utils.MavenCentral.UnexpectedResponseException
 import utils._
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -196,21 +195,19 @@ object Application extends Controller {
             inputStream.close()
             NotFound(s"Found WebJar ($groupId : $artifactId : $webJarVersion) but could not find: $pathPrefix$webJarVersion/$file")
           } { jarEntry =>
-            val enumerator = Enumerator.fromStream(jarInputStream)
-            enumerator.onDoneEnumerating {
-              jarInputStream.close()
-              inputStream.close()
-            }
+            val bis = new BufferedInputStream(jarInputStream)
+            val bArray = Stream.continually(bis.read).takeWhile(_ != -1).map(_.toByte).toArray
+            bis.close()
+            jarInputStream.close()
+            inputStream.close()
 
             //// From Play's Assets controller
             val contentType = MimeTypes.forFileName(file).map(m => m + addCharsetIfNeeded(m)).getOrElse(BINARY)
             ////
 
-            Ok.feed(enumerator).as(contentType).withHeaders(
+            Ok(bArray).as(contentType).withHeaders(
               CACHE_CONTROL -> "max-age=290304000, public",
-              DATE -> df.print({
-                new java.util.Date
-              }.getTime),
+              DATE -> df.print((new java.util.Date).getTime),
               LAST_MODIFIED -> df.print(jarEntry.getLastModifiedTime.toMillis)
             )
           }
