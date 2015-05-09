@@ -1,6 +1,6 @@
 package utils
 
-import play.api.Configuration
+import play.api.{Logger, Configuration}
 import play.api.http.Status
 import play.api.libs.json.{JsValue, Json}
 import play.api.libs.ws.{WSResponse, WSAPI, WSAuthScheme, WSRequestHolder}
@@ -155,12 +155,16 @@ class BinTray(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) {
                     case Status.OK =>
                       Future.successful(licenseResponse.body)
                     case _ =>
+                      Logger.error("License fetch error: " + license + " " + licenseTextResponse.body + " " + licenseResponse.body)
                       Future.failed(new Exception(licenseResponse.body))
                   }
                 }
               case _ =>
                 Future.failed(new Exception(licenseTextResponse.body))
             }
+          } recoverWith {
+            case e: Exception =>
+              Future.failed(new Exception(s"$license could not be converted to a knowable license"))
           }
         }
         else {
