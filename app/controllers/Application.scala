@@ -315,7 +315,7 @@ object Application extends Controller {
 
     if (fork) {
       val cmd = s"pub $artifactId $version $channelId"
-      heroku.dynoCreate(app, false, cmd, "2X").map { createJson =>
+      heroku.dynoCreate(app, false, cmd, "Standard-2X").map { createJson =>
         Ok(createJson)
       }
     }
