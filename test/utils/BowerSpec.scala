@@ -44,7 +44,7 @@ class BowerSpec extends PlaySpecification {
     "download" in {
       val is = new BufferedInputStream(await(bower.zip("sjcl", "1.0.2"), 1, TimeUnit.MINUTES))
       val zis = new ArchiveStreamFactory().createArchiveInputStream(is)
-      zis.available() must beGreaterThan(0)
+      zis.getNextEntry.getName must beEqualTo(".bower.json")
     }
   }
 
