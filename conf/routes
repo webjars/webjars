@@ -27,6 +27,7 @@ GET            /mockcentral/searchgroup                                   contro
 
 GET            /files/org.webjars/:artifactId/:version/*file              controllers.Application.file(groupId = "org.webjars", artifactId, version, file)
 GET            /files/org.webjars.bower/:artifactId/:version/*file        controllers.Application.file(groupId = "org.webjars.bower", artifactId, version, file)
+GET            /files/org.webjars.npm/:artifactId/:version/*file          controllers.Application.file(groupId = "org.webjars.npm", artifactId, version, file)
 GET            /files/:artifactId/:version/*file                          controllers.Application.file(groupId = "org.webjars", artifactId, version, file)
 OPTIONS        /files/*file                                               controllers.Application.fileOptions(file)
 

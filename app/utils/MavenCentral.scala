@@ -147,7 +147,7 @@ object MavenCentral {
                   MavenCentral.getFileList(catalog.toString, artifactId, version).map { fileList =>
                     WebJarVersion(version, fileList.length)
                   }
-                case WebJarCatalog.BOWER =>
+                case WebJarCatalog.BOWER | WebJarCatalog.NPM =>
                   Future.successful(WebJarVersion(version))
               }
             }
