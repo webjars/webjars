@@ -348,7 +348,7 @@ object Application extends Controller {
     val fork = Play.current.configuration.getBoolean("bower.fork").get
 
     if (fork) {
-      val cmd = s"pub-bower $artifactId $version $channelId"
+      val cmd = s"pubbower $artifactId $version $channelId"
       heroku.dynoCreate(app, false, cmd, "Standard-2X").map { createJson =>
         Ok(createJson)
       }
@@ -367,7 +367,7 @@ object Application extends Controller {
     val fork = Play.current.configuration.getBoolean("bower.fork").get
 
     if (fork) {
-      val cmd = s"pub-npm $artifactId $version $channelId"
+      val cmd = s"pubnpm $artifactId $version $channelId"
       heroku.dynoCreate(app, false, cmd, "Standard-2X").map { createJson =>
         Ok(createJson)
       }
