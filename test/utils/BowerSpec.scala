@@ -5,6 +5,7 @@ import java.util.concurrent.TimeUnit
 import play.api.test._
 
 import scala.concurrent.ExecutionContext
+import scala.util.Try
 
 class BowerSpec extends PlaySpecification {
 
@@ -32,12 +33,20 @@ class BowerSpec extends PlaySpecification {
   }
   "dc.js" should {
     "have the corrected source url" in {
-      await(bower.info("dc.js", "1.7.3")).source must beEqualTo("git://github.com/dc-js/dc.js.git")
+      await(bower.info("dc.js", "1.7.3")).sourceUrl must beEqualTo("git://github.com/dc-js/dc.js.git")
     }
   }
   "sjcl" should {
     "download" in {
-      await(bower.zip("sjcl", "1.0.2"), 1, TimeUnit.MINUTES)._1.available() must beEqualTo(1)
+      await(bower.zip("sjcl", "1.0.2"), 1, TimeUnit.MINUTES).available() must beGreaterThan(0)
+    }
+  }
+  "gitHubLicenseDetect" should {
+    "detect the license" in {
+      await(bower.gitHubLicenseDetect(Try("twbs/bootstrap"))) must beEqualTo("MIT")
+    }
+    "detect another license" in {
+      await(bower.gitHubLicenseDetect(Try("angular/angular"))) must beEqualTo("Apache-2.0")
     }
   }
 

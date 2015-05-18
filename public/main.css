@@ -51,3 +51,8 @@ pre {
 .navbar-brand.active {
     color: #fff;
 }
+
+.select2-container .select2-choice {
+    height: 30px;
+    line-height: 30px;
+}

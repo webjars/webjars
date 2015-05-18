@@ -1,9 +1,9 @@
-@(artifactId: String, packageInfo: utils.PackageInfo, mavenDependencies: Map[String, String])<?xml version="1.0" encoding="UTF-8"?>
+@(groupId: String, artifactId: String, packageInfo: utils.PackageInfo, mavenDependencies: Map[String, String])<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <packaging>jar</packaging>
-    <groupId>org.webjars.bower</groupId>
+    <groupId>@groupId</groupId>
     <artifactId>@artifactId</artifactId>
     <version>@packageInfo.version</version>
     <name>@packageInfo.name</name>
@@ -12,17 +12,12 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <requirejs>
-            {
-                @* todo *@
-            }
-        </requirejs>
     </properties>
 
     <scm>
-        <url>@packageInfo.gitHubHome.get</url>
-        <connection>@packageInfo.sourceUri.get</connection>
-        <developerConnection>@packageInfo.sourceUri.get</developerConnection>
+        <url>@packageInfo.sourceUrl</url>
+        <connection>@packageInfo.sourceConnectionUrl</connection>
+        <developerConnection>@packageInfo.sourceConnectionUrl</developerConnection>
         <tag>v@packageInfo.version</tag>
     </scm>
 
@@ -46,7 +41,7 @@
     <dependencies>
         @mavenDependencies.map { case (name, version) =>
         <dependency>
-            <groupId>org.webjars.bower</groupId>
+            <groupId>@groupId</groupId>
             <artifactId>@name</artifactId>
             <version>@version</version>
         </dependency>

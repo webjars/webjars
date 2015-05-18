@@ -12,10 +12,12 @@ libraryDependencies ++= Seq(
   filters,
   "com.typesafe.akka" %% "akka-actor" % "2.3.9",
   "commons-codec" % "commons-codec" % "1.10",
+  "org.apache.commons" % "commons-compress" % "1.9",
   "org.webjars" %% "webjars-play" % "2.3.0",
   "org.webjars" % "bootstrap" % "3.3.4",
   "org.webjars" % "select2" % "3.5.2",
   "org.webjars" % "highlightjs" % "8.0-3",
+  "org.webjars.bower" % "jquery-typewatch" % "2.2.1" exclude("org.webjars.bower", "jquery"),
   "com.bionicspirit" %% "shade" % "1.6.0"
 )
 

@@ -8,9 +8,12 @@ GET            /files/robots.txt                                          contro
 GET            /all                                                       controllers.Application.allWebJars()
 GET            /classic                                                   controllers.Application.classicList()
 GET            /bower                                                     controllers.Application.bowerList()
+GET            /npm                                                       controllers.Application.npmList()
 GET            /list/:groupId                                             controllers.Application.webJarList(groupId)
 GET            /_bower/packages                                           controllers.Application.bowerPackages(query, page: Int)
 GET            /_bower/versions/:packageName                              controllers.Application.bowerPackageVersions(packageName)
+GET            /_npm/exists/:packageName                                  controllers.Application.npmPackageExists(packageName)
+GET            /_npm/versions/:packageName                                controllers.Application.npmPackageVersions(packageName)
 GET            /listfiles/:artifactId/:version                            controllers.Application.listFiles(groupId = "org.webjars", artifactId, version)
 GET            /listfiles/:groupId/:artifactId/:version                   controllers.Application.listFiles(groupId, artifactId, version)
 GET            /documentation                                             controllers.Application.documentation()
@@ -18,6 +21,7 @@ GET            /contributing                                              contro
 GET            /request                                                   controllers.Application.webJarRequest()
 POST           /request                                                   controllers.Application.makeWebJarRequest()
 POST           /deploy/bower/:artifactId/:version                         controllers.Application.deployBower(artifactId, version, channelId)
+POST           /deploy/npm/:artifactId/:version                           controllers.Application.deployNPM(artifactId, version, channelId)
 
 GET            /mockcentral/searchgroup                                   controllers.MockCentral.searchGroup()
 

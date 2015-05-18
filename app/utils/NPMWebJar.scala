@@ -8,17 +8,17 @@ import play.api.{Configuration, Mode}
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
-object BowerWebJar extends App {
+object NPMWebJar extends App {
 
   def release(artifactId: String, version: String, maybepusherChannelId: Option[String])(implicit executionContext: ExecutionContext, config: Configuration): Future[PackageInfo] = {
 
     val binTraySubject = "webjars"
     val binTrayRepo = "maven"
-    val groupId = "org.webjars.bower"
-    val mavenBaseDir = "org/webjars/bower"
+    val groupId = "org.webjars.npm"
+    val mavenBaseDir = "org/webjars/npm"
 
     // converts JsResult to Future
-    def packageInfo(json: JsValue): Future[PackageInfo] = Json.fromJson[PackageInfo](json)(Bower.jsonReads).fold(
+    def packageInfo(json: JsValue): Future[PackageInfo] = Json.fromJson[PackageInfo](json)(NPM.jsonReads).fold(
       errors => Future.failed(new Exception(errors.toString())),
       Future.successful
     )
@@ -38,7 +38,7 @@ object BowerWebJar extends App {
 
     StandaloneWS.withWs { implicit ws =>
 
-      val bower = Bower(executionContext, ws.client)
+      val npm = NPM(executionContext, ws.client)
       val binTray = BinTray(executionContext, ws, config)
       val pusher = Pusher(executionContext, ws.client, config)
 
@@ -49,16 +49,16 @@ object BowerWebJar extends App {
       }
       
       val webJarFuture = for {
-        packageInfo <- bower.info(artifactId, version)
-        _ <- push("update", "Got Bower info")
+        packageInfo <- npm.info(artifactId, version)
+        _ <- push("update", "Got NPM info")
         mavenDependencies <- convertNpmDependenciesToMaven(packageInfo.dependencies)
         _ <- push("update", "Converted dependencies to Maven")
         pom = templates.xml.pom(groupId, artifactId, packageInfo, mavenDependencies).toString()
         _ <- push("update", "Generated POM")
-        zip <- bower.zip(artifactId, version)
-        _ <- push("update", "Fetched Bower zip")
-        jar = WebJarUtils.createWebJar(zip, "", Set(".bower.json"), pom, groupId, artifactId, version)
-        _ <- push("update", "Created Bower WebJar")
+        tgz <- npm.tgz(artifactId, version)
+        _ <- push("update", "Fetched NPM tgz")
+        jar = WebJarUtils.createWebJar(tgz, "package/", Set("node_modules"), pom, groupId, artifactId, version)
+        _ <- push("update", "Created NPM WebJar")
       } yield (packageInfo, pom, jar)
 
       webJarFuture.flatMap { case (packageInfo, pom, jar) =>
@@ -84,7 +84,7 @@ object BowerWebJar extends App {
           _ <- push("update", "Synced With Maven Central")
           _ <- push("success",
             s"""Deployed!
-              |It will take a few hours for the Maven Central index to update but you should be able to start using the Bower WebJar now.
+              |It will take a few hours for the Maven Central index to update but you should be able to start using the NPM WebJar now.
               |GroupID = $groupId
               |ArtifactID = $artifactId
               |Version = ${packageInfo.version}
@@ -106,7 +106,7 @@ object BowerWebJar extends App {
   System.setProperty("play.akka.daemonic", "on")
 
   if (args.length < 2) {
-    println("You must specify the Bower artifact name and version")
+    println("You must specify the NPM artifact name and version")
   }
   else {
     val name = args(0)

@@ -42,6 +42,7 @@
                     <a class="navbar-brand @if(title.indexOf("Web Libraries in Jars") > -1) { active }" href="@routes.Application.index()">WebJars</a>
                     <ul class="nav navbar-nav">
                         <li @if(title.toLowerCase.indexOf("doc") > -1) { class="active" }><a href="@routes.Application.documentation()">Documentation</a></li>
+                        <li @if(title.toLowerCase.indexOf("npm") > -1) { class="active" }><a href="@routes.Application.npmList()">NPM WebJars</a></li>
                         <li @if(title.toLowerCase.indexOf("bower") > -1) { class="active" }><a href="@routes.Application.bowerList()">Bower WebJars</a></li>
                         <li @if(title.toLowerCase.indexOf("classic") > -1) { class="active" }><a href="@routes.Application.classicList()">Classic WebJars</a></li>
                     </ul>
