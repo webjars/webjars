@@ -1,7 +1,11 @@
 package utils
 
+import java.io.BufferedInputStream
 import java.util.concurrent.TimeUnit
+import java.util.zip.ZipInputStream
 
+import org.apache.commons.compress.archivers.ArchiveStreamFactory
+import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream
 import play.api.test._
 
 import scala.concurrent.ExecutionContext
@@ -38,15 +42,9 @@ class BowerSpec extends PlaySpecification {
   }
   "sjcl" should {
     "download" in {
-      await(bower.zip("sjcl", "1.0.2"), 1, TimeUnit.MINUTES).available() must beGreaterThan(0)
-    }
-  }
-  "gitHubLicenseDetect" should {
-    "detect the license" in {
-      await(bower.gitHubLicenseDetect(Try("twbs/bootstrap"))) must beEqualTo("MIT")
-    }
-    "detect another license" in {
-      await(bower.gitHubLicenseDetect(Try("angular/angular"))) must beEqualTo("Apache-2.0")
+      val is = new BufferedInputStream(await(bower.zip("sjcl", "1.0.2"), 1, TimeUnit.MINUTES))
+      val zis = new ArchiveStreamFactory().createArchiveInputStream(is)
+      zis.available() must beGreaterThan(0)
     }
   }
 
