@@ -15,9 +15,24 @@
     </div>
 
     <div class="container">
-        <h2>WebJars come in two flavors:</h2>
+        <h2>WebJars come in three flavors:</h2>
 
         <div class="row">
+            <div class="col-md-4">
+                <div class="panel panel-default">
+                    <div class="panel-heading">
+                        <h3 class="panel-title">NPM WebJars</h3>
+                    </div>
+                    <div class="panel-body">
+                        <ul>
+                            <li>Instant creation & deployment</li>
+                            <li>On-demand releases by anyone</li>
+                            <li>Artifact contents mirror NPM package</li>
+                        </ul>
+                        <a href="@routes.Application.npmList()" class="btn btn-primary center-block">Browse NPM WebJars</a>
+                    </div>
+                </div>
+            </div>
             <div class="col-md-4">
                 <div class="panel panel-default">
                     <div class="panel-heading">
@@ -27,7 +42,6 @@
                         <ul>
                             <li>Instant creation & deployment</li>
                             <li>On-demand releases by anyone</li>
-                            <li>No RequireJS config (at the moment)</li>
                             <li>Artifact contents mirror Bower package</li>
                         </ul>
                         <a href="@routes.Application.bowerList()" class="btn btn-primary center-block">Browse Bower WebJars</a>
@@ -44,7 +58,6 @@
                             <li>Manual packaging & deployment</li>
                             <li>On-demand by the WebJars team</li>
                             <li>Human-created RequireJS config</li>
-                            <li>Great for pre-Bower libs</li>
                         </ul>
                         <a href="@routes.Application.classicList()" class="btn btn-primary center-block">Browse Classic WebJars</a>
                     </div>

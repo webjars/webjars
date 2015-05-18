@@ -1,10 +1,15 @@
 package utils
 
+import java.io.BufferedInputStream
 import java.util.concurrent.TimeUnit
+import java.util.zip.ZipInputStream
 
+import org.apache.commons.compress.archivers.ArchiveStreamFactory
+import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream
 import play.api.test._
 
 import scala.concurrent.ExecutionContext
+import scala.util.Try
 
 class BowerSpec extends PlaySpecification {
 
@@ -32,12 +37,14 @@ class BowerSpec extends PlaySpecification {
   }
   "dc.js" should {
     "have the corrected source url" in {
-      await(bower.info("dc.js", "1.7.3")).source must beEqualTo("git://github.com/dc-js/dc.js.git")
+      await(bower.info("dc.js", "1.7.3")).sourceUrl must beEqualTo("git://github.com/dc-js/dc.js.git")
     }
   }
   "sjcl" should {
     "download" in {
-      await(bower.zip("sjcl", "1.0.2"), 1, TimeUnit.MINUTES)._1.available() must beEqualTo(1)
+      val is = new BufferedInputStream(await(bower.zip("sjcl", "1.0.2"), 1, TimeUnit.MINUTES))
+      val zis = new ArchiveStreamFactory().createArchiveInputStream(is)
+      zis.getNextEntry.getName must beEqualTo(".bower.json")
     }
   }
 

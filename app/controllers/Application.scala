@@ -12,10 +12,11 @@ import play.api.Play.current
 import play.api.cache.Cache
 import play.api.libs.MimeTypes
 import play.api.libs.concurrent.Akka
-import play.api.libs.json.{JsObject, JsArray, Json}
+import play.api.libs.json.{JsValue, JsObject, JsArray, Json}
 import play.api.data.Forms._
 import play.api.data._
 import play.api.libs.ws.WS
+import play.api.mvc.Results.EmptyContent
 import play.api.mvc._
 import utils.MavenCentral.UnexpectedResponseException
 import utils._
@@ -31,6 +32,7 @@ object Application extends Controller {
 
   lazy val github = GithubUtil(Play.current)
   lazy val bower = Bower(ExecutionContext.global, WS.client(Play.current))
+  lazy val npm = NPM(ExecutionContext.global, WS.client(Play.current))
   lazy val heroku = Heroku(ExecutionContext.global, WS.client(Play.current), Play.current.configuration)
   lazy val pusher = Pusher(ExecutionContext.global, WS.client(Play.current), Play.current.configuration)
 
@@ -74,6 +76,15 @@ object Application extends Controller {
     } recover {
       case e: Exception =>
         InternalServerError(views.html.bowerList(Seq.empty[WebJar], pusher.key))
+    }
+  }
+
+  def npmList = Action.async { request =>
+    MavenCentral.webJars(WebJarCatalog.NPM).map {
+      maybeCached(request, webJars => Ok(views.html.npmList(webJars, pusher.key)))
+    } recover {
+      case e: Exception =>
+        InternalServerError(views.html.npmList(Seq.empty[WebJar], pusher.key))
     }
   }
 
@@ -123,6 +134,29 @@ object Application extends Controller {
         val cleanVersions = versions.filterNot(_.contains("sha"))
         Cache.set(s"bower-versions-$packageName", cleanVersions, 1.hour)
         cleanVersions
+      }
+    } (Future.successful)
+
+    packageVersionsFuture.map { json =>
+      Ok(Json.toJson(json))
+    } recover {
+      case e: Exception =>
+        InternalServerError
+    }
+  }
+
+  def npmPackageExists(packageName: String) = Action.async {
+    npm.latest(packageName).map(_ => Ok).recover { case e: Exception =>
+      InternalServerError(e.getMessage)
+    }
+  }
+
+  def npmPackageVersions(packageName: String) = Action.async {
+    val packageVersionsFuture = Cache.getAs[Seq[String]](s"npm-versions-$packageName").fold {
+      npm.info(packageName).map { json =>
+        val versions = (json \ "versions" \\ "version").map(_.as[String])
+        Cache.set(s"npm-versions-$packageName", versions, 1.hour)
+        versions
       }
     } (Future.successful)
 
@@ -314,13 +348,32 @@ object Application extends Controller {
     val fork = Play.current.configuration.getBoolean("bower.fork").get
 
     if (fork) {
-      val cmd = s"pub $artifactId $version $channelId"
+      val cmd = s"pub-bower $artifactId $version $channelId"
       heroku.dynoCreate(app, false, cmd, "Standard-2X").map { createJson =>
         Ok(createJson)
       }
     }
     else {
       BowerWebJar.release(artifactId, version, Some(channelId))(ExecutionContext.global, Play.current.configuration).map { result =>
+        Ok(Json.toJson(result))
+      } recover {
+        case e: Exception => InternalServerError(e.getMessage)
+      }
+    }
+  }
+
+  def deployNPM(artifactId: String, version: String, channelId: String) = Action.async {
+    val app = Play.current.configuration.getString("bower.herokuapp").get
+    val fork = Play.current.configuration.getBoolean("bower.fork").get
+
+    if (fork) {
+      val cmd = s"pub-npm $artifactId $version $channelId"
+      heroku.dynoCreate(app, false, cmd, "Standard-2X").map { createJson =>
+        Ok(createJson)
+      }
+    }
+    else {
+      NPMWebJar.release(artifactId, version, Some(channelId))(ExecutionContext.global, Play.current.configuration).map { result =>
         Ok(Json.toJson(result))
       } recover {
         case e: Exception => InternalServerError(e.getMessage)
@@ -425,6 +478,5 @@ object Application extends Controller {
     else ""
 
   ////
-
 
 }
