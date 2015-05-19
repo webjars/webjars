@@ -37,42 +37,48 @@ class Bower(implicit ec: ExecutionContext, ws: WSClient) {
     }
   }
 
-  def info(packageName: String, version: String): Future[PackageInfo] = {
+  def rawInfo(packageName: String, version: String): Future[PackageInfo] = {
     ws.url(s"$BASE_URL/info/$packageName/$version").get().flatMap { response =>
       response.status match {
         case Status.OK =>
-          // deal with GitHub redirects
-          val initialInfo = response.json.as[PackageInfo](Bower.jsonReads)
-          val infoFuture: Future[PackageInfo] = initialInfo.gitHubHome.toOption.fold(Future.successful(initialInfo)) { gitHubHome =>
-            ws.url(gitHubHome).withFollowRedirects(false).get().flatMap { homeTestResponse =>
-              homeTestResponse.status match {
-                case Status.MOVED_PERMANENTLY =>
-                  homeTestResponse.header(HeaderNames.LOCATION).fold(Future.successful(initialInfo)) { actualHome =>
-                    val newSource = actualHome.replaceFirst("https://", "git://") + ".git"
-                    Future.successful(initialInfo.copy(sourceUrl = newSource, homepage = actualHome))
-                  }
-                case _ =>
-                  Future.successful(initialInfo)
-              }
-            }
-          }
-
-          infoFuture.flatMap { info =>
-            // detect licenses if they are not specified in the bower.json
-            if (info.licenses.length == 0) {
-              licenseUtils.gitHubLicenseDetect(info.gitHubOrgRepo).map { license =>
-                info.copy(licenses = Seq(license))
-              } recoverWith {
-                case e: Exception =>
-                  Future.successful(info)
-              }
-            }
-            else {
-              Future.successful(info)
-            }
-          }
+          Future.successful(response.json.as[PackageInfo](Bower.jsonReads))
         case _ =>
           Future.failed(new Exception(response.body))
+      }
+    }
+  }
+
+  def info(packageName: String, version: String): Future[PackageInfo] = {
+    rawInfo(packageName, version).flatMap { initialInfo =>
+      // deal with GitHub redirects
+
+      val infoFuture: Future[PackageInfo] = initialInfo.gitHubHome.toOption.fold(Future.successful(initialInfo)) { gitHubHome =>
+        ws.url(gitHubHome).withFollowRedirects(false).get().flatMap { homeTestResponse =>
+          homeTestResponse.status match {
+            case Status.MOVED_PERMANENTLY =>
+              homeTestResponse.header(HeaderNames.LOCATION).fold(Future.successful(initialInfo)) { actualHome =>
+                val newSource = actualHome.replaceFirst("https://", "git://") + ".git"
+                Future.successful(initialInfo.copy(sourceUrl = newSource, homepage = actualHome))
+              }
+            case _ =>
+              Future.successful(initialInfo)
+          }
+        }
+      }
+
+      infoFuture.flatMap { info =>
+        // detect licenses if they are not specified in the bower.json
+        if (info.licenses.length == 0) {
+          licenseUtils.gitHubLicenseDetect(info.gitHubOrgRepo).map { license =>
+            info.copy(licenses = Seq(license))
+          } recoverWith {
+            case e: Exception =>
+              Future.successful(info)
+          }
+        }
+        else {
+          Future.successful(info)
+        }
       }
     }
   }
