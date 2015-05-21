@@ -192,7 +192,8 @@ class BinTray(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) {
   val spdxToBinTrayLicenses = Map(
     "OFL-1.1" -> "Openfont-1.1",
     "Artistic-2.0" -> "Artistic-License-2.0",
-    "Apache 2" -> "Apache-2.0"
+    "Apache 2" -> "Apache-2.0",
+    "BSD-3" -> "BSD-3-Clause"
   )
 
   // from: https://bintray.com/docs/api/
