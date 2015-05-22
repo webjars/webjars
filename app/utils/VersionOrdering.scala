@@ -5,7 +5,8 @@ import java.util.Calendar
 object VersionOrdering extends Ordering[String] {
 
   def unmalform(s: String): String = {
-    val fixRc = s.replaceAllLiterally("rc", ".rc.")
+    val fixBeta = s.replaceAllLiterally("beta", ".beta.")
+    val fixRc = fixBeta.replaceAllLiterally("rc", ".rc.")
     val justDots = fixRc.replaceAllLiterally("-", ".").replaceAllLiterally("..", ".")
     val betterDate = if (justDots.matches("(\\d\\d)\\.(\\d\\d)\\.(\\d\\d\\d\\d)")) {
       val parts = justDots.split('.').map(_.toInt)

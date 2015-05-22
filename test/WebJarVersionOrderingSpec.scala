@@ -4,15 +4,16 @@ import org.specs2.mutable._
 import utils.VersionOrdering
 
 class WebJarVersionOrderingSpec extends Specification {
-  
+
   "WebJarVersionOrdering" should {
 
     "deal with malformed version" in {
       VersionOrdering.unmalform("0rc1") must beEqualTo("0.rc.1")
+      VersionOrdering.unmalform("0beta1") must beEqualTo("0.beta.1")
     }
 
     "sort in the correct order" in {
-      
+
       val correct = Seq(
         WebJarVersion("1.1.1"),
         WebJarVersion("1.1.2"),
@@ -46,6 +47,8 @@ class WebJarVersionOrderingSpec extends Specification {
         WebJarVersion("1.0.8"),
         WebJarVersion("1.1.1"),
         WebJarVersion("1.1.4"),
+        WebJarVersion("1.2.0beta1"),
+        WebJarVersion("1.2.0-beta2"),
         WebJarVersion("1.2.0rc1"),
         WebJarVersion("1.2.0-rc.2"),
         WebJarVersion("1.2.0-rc.3"),
@@ -75,7 +78,8 @@ class WebJarVersionOrderingSpec extends Specification {
         WebJarVersion("1.3.0-beta.2"),
         WebJarVersion("1.3.0-beta.7"),
         WebJarVersion("1.3.0-beta.7-1"),
-        WebJarVersion("1.3.0-beta.15")
+        WebJarVersion("1.3.0-beta.15"),
+        WebJarVersion("1.3.0")
       )
 
       correct.reverse.sorted must beEqualTo(correct)
