@@ -1,35 +1,22 @@
 package utils
 
-import java.io._
-import java.net.{URL, URLEncoder}
-import java.nio.file.Files
-import java.util.jar.JarInputStream
-import java.util.zip.{DeflaterOutputStream, InflaterInputStream}
-
 import actors.{FetchWebJars, WebJarFetcher}
 import akka.actor._
 import akka.pattern.ask
 import akka.util.Timeout
-import com.ning.http.client.providers.netty.NettyResponse
-import models.WebJarCatalog
 import models.WebJarCatalog.WebJarCatalog
 import models.{WebJarCatalog, WebJar, WebJarVersion}
-import org.webjars.WebJarAssetLocator
 import play.api.Play.current
 import play.api.cache.Cache
-import play.api.http.Status
 import play.api.libs.concurrent.Akka
 import play.api.libs.json.{JsObject, Json}
-import play.api.libs.ws.{WS, WSResponse}
+import play.api.libs.ws.WS
 import play.api.{Logger, Play}
-import shade.memcached.Codec
+import Memcache._
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
-import scala.io.Source
-import scala.util.control.NonFatal
-import scala.util.{Failure, Success, Try}
-import scala.xml.{Elem, XML}
+import scala.xml.Elem
 
 object MavenCentral {
 
@@ -37,53 +24,11 @@ object MavenCentral {
 
   lazy val webJarFetcher: ActorRef = Akka.system.actorOf(Props[WebJarFetcher])
 
-  lazy val tempDir: File = {
-    Files.createTempDirectory("webjars").toFile
-  }
-
   implicit val webJarVersionReads = Json.reads[WebJarVersion]
   implicit val webJarVersionWrites = Json.writes[WebJarVersion]
 
   implicit val webJarReads = Json.reads[WebJar]
   implicit val webJarWrites = Json.writes[WebJar]
-
-  // from: http://stackoverflow.com/questions/15079332/round-tripping-through-deflater-in-scala-fails
-
-  def compress(bytes: Array[Byte]): Array[Byte] = {
-    val deflater = new java.util.zip.Deflater
-    val baos = new ByteArrayOutputStream
-    val dos = new DeflaterOutputStream(baos, deflater)
-    dos.write(bytes)
-    dos.finish()
-    dos.close()
-    baos.close()
-    deflater.end()
-    baos.toByteArray
-  }
-
-  def decompress(bytes: Array[Byte]): Array[Byte] = {
-    val inflater = new java.util.zip.Inflater()
-    val bytesIn = new ByteArrayInputStream(bytes)
-    val in = new InflaterInputStream(bytesIn, inflater)
-    val out = Source.fromInputStream(in).map(_.toByte).toArray
-    in.close()
-    bytesIn.close()
-    inflater.end()
-    out
-  }
-
-  implicit object StringsCodec extends Codec[List[String]] {
-    def serialize(fileList: List[String]): Array[Byte] = compress(Json.toJson(fileList).toString().getBytes)
-    def deserialize(data: Array[Byte]): List[String] = Json.parse(decompress(data)).as[List[String]]
-  }
-
-  implicit object ElemCode extends Codec[Elem] {
-    def serialize(elem: Elem): Array[Byte] = compress(elem.toString().getBytes)
-    def deserialize(data: Array[Byte]): Elem = XML.loadString(new String(decompress(data)))
-  }
-
-  val primaryBaseJarUrl = Play.current.configuration.getString("webjars.jarUrl.primary").get
-  val fallbackBaseJarUrl = Play.current.configuration.getString("webjars.jarUrl.fallback").get
 
   def fetchWebJarNameAndUrl(groupId: String, artifactId: String, version: String): Future[(String, String)] = {
     getPom(groupId, artifactId, version).flatMap { xml =>
@@ -144,7 +89,7 @@ object MavenCentral {
             versions.map { version =>
               catalog match {
                 case WebJarCatalog.CLASSIC =>
-                  MavenCentral.getFileList(catalog.toString, artifactId, version).map { fileList =>
+                  WebJarsFileService.getFileList(catalog.toString, artifactId, version).map { fileList =>
                     WebJarVersion(version, fileList.length)
                   }
                 case WebJarCatalog.BOWER | WebJarCatalog.NPM =>
@@ -215,74 +160,6 @@ object MavenCentral {
         }
       }
     }
-  }
-
-  private def fetchFileList(groupId: String, artifactId: String, version: String): Try[List[String]] = {
-    getFile(groupId, artifactId, version).map { case (jarInputStream, inputStream) =>
-      val webJarFiles = Stream.continually(jarInputStream.getNextJarEntry).
-        takeWhile(_ != null).
-        filterNot(_.isDirectory).
-        map(_.getName).
-        filter(_.startsWith(WebJarAssetLocator.WEBJARS_PATH_PREFIX)).
-        toList
-      jarInputStream.close()
-      inputStream.close()
-      webJarFiles
-    }
-  }
-
-  def getFileList(groupId: String, artifactId: String, version: String): Future[List[String]] = {
-    val cacheKey = WebJarVersion.cacheKey(groupId, artifactId, version)
-    Global.memcached.get[List[String]](cacheKey).flatMap { maybeFileList =>
-      maybeFileList.map(Future.successful).getOrElse {
-        val fileListFuture = fetchFileList(groupId, artifactId, version)
-        fileListFuture.foreach { fileList =>
-          Global.memcached.set(cacheKey, fileList, Duration.Inf)
-        }
-        Future.fromTry(fileListFuture)
-      }
-    }
-  }
-
-  def getFile(groupId: String, artifactId: String, version: String): Try[(JarInputStream, InputStream)] = {
-    val tmpFile = new File(tempDir, s"$groupId-$artifactId-$version.jar")
-
-    if (tmpFile.exists()) {
-      val fileInputStream = Files.newInputStream(tmpFile.toPath)
-      Success((new JarInputStream(fileInputStream), fileInputStream))
-    }
-    else {
-      val fileInputStreamFuture = getFileInputStream(primaryBaseJarUrl, groupId, artifactId, version).recoverWith {
-        case _ =>
-          getFileInputStream(fallbackBaseJarUrl, groupId, artifactId, version)
-      }
-
-      fileInputStreamFuture.map { fileInputStream =>
-        // todo: not thread safe!
-        // write to the fs
-        Files.copy(fileInputStream, tmpFile.toPath)
-        fileInputStream.close()
-
-        val tmpFileInputStream = Files.newInputStream(tmpFile.toPath)
-        // read it from the fs since we've drained the http response
-        (new JarInputStream(tmpFileInputStream), tmpFileInputStream)
-      }
-    }
-  }
-
-  def getFileInputStream(baseJarUrl: String, groupId: String, artifactId: String, version: String): Try[InputStream] = {
-    Try {
-      val url = new URL(baseJarUrl.format(groupId.replace(".", "/"), artifactId, URLEncoder.encode(version, "UTF-8"), artifactId, URLEncoder.encode(version, "UTF-8")))
-      url.openConnection().getInputStream
-    }
-  }
-
-  case class NotFoundResponseException(response: WSResponse) extends RuntimeException {
-    override def getMessage: String = response.statusText
-  }
-
-  case class UnexpectedResponseException(response: WSResponse) extends RuntimeException {
-    override def getMessage: String = response.statusText
   }
 
 }
