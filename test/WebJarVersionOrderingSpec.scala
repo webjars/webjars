@@ -1,15 +1,14 @@
-package test
-
 import models.WebJarVersion
 import models.WebJarVersion.WebJarVersionOrdering
 import org.specs2.mutable._
+import utils.VersionOrdering
 
 class WebJarVersionOrderingSpec extends Specification {
   
   "WebJarVersionOrdering" should {
 
     "deal with malformed version" in {
-      WebJarVersionOrdering.unmalform("0rc1") must beEqualTo("0.rc.1")
+      VersionOrdering.unmalform("0rc1") must beEqualTo("0.rc.1")
     }
 
     "sort in the correct order" in {

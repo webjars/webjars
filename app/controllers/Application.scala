@@ -150,7 +150,7 @@ object Application extends Controller {
   def npmPackageVersions(packageName: String) = Action.async {
     val packageVersionsFuture = Cache.getAs[Seq[String]](s"npm-versions-$packageName").fold {
       npm.info(packageName).map { json =>
-        val versions = (json \ "versions" \\ "version").map(_.as[String])
+        val versions = (json \ "versions" \\ "version").map(_.as[String]).sorted(VersionOrdering).reverse
         Cache.set(s"npm-versions-$packageName", versions, 1.hour)
         versions
       }
