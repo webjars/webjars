@@ -1,24 +1,20 @@
 package controllers
 
-import java.io.{BufferedInputStream, FileNotFoundException}
+import java.io.FileNotFoundException
 import akka.actor.{Actor, ActorRef, Props}
 import akka.pattern.ask
 import akka.util.Timeout
 import models.{WebJarCatalog, WebJar}
 import org.joda.time._
-import org.joda.time.format.{DateTimeFormat, DateTimeFormatter}
 import play.api.Play
 import play.api.Play.current
 import play.api.cache.Cache
-import play.api.libs.MimeTypes
 import play.api.libs.concurrent.Akka
-import play.api.libs.json.{JsValue, JsObject, JsArray, Json}
+import play.api.libs.json.{JsObject, JsArray, Json}
 import play.api.data.Forms._
 import play.api.data._
 import play.api.libs.ws.WS
-import play.api.mvc.Results.EmptyContent
 import play.api.mvc._
-import utils.MavenCentral.UnexpectedResponseException
 import utils._
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -186,75 +182,28 @@ object Application extends Controller {
       }
     }
   }
-  
+
   def listFiles(groupId: String, artifactId: String, version: String) = CorsAction {
     Action.async { implicit request =>
-      MavenCentral.getFileList(groupId, artifactId, version).map { fileList =>
-          render {
-            case Accepts.Html() => Ok(views.html.filelist(groupId, artifactId, version, fileList))
-            case Accepts.Json() => Ok(Json.toJson(fileList))
-          }
+      WebJarsFileService.getFileList(groupId, artifactId, version).map { fileList =>
+        render {
+          case Accepts.Html() => Ok(views.html.filelist(groupId, artifactId, version, fileList))
+          case Accepts.Json() => Ok(Json.toJson(fileList))
+        }
       } recover {
         case nf: FileNotFoundException =>
           NotFound(s"WebJar Not Found $groupId : $artifactId : $version")
-        case ure: UnexpectedResponseException =>
-          Status(ure.response.status)(s"Problems retrieving WebJar ($groupId : $artifactId : $version) - ${ure.response.statusText}")
         case e: Exception =>
-          InternalServerError(e.getMessage)
+          InternalServerError(s"Problems retrieving WebJar ($groupId : $artifactId : $version) - ${e.getMessage}")
       }
-    }
-  }
-
-  def listFilesBower(artifactId: String, version: String) = CorsAction {
-    Action.async { implicit request =>
-      Future.successful(NotImplemented)
     }
   }
 
   // max 10 requests per minute
   lazy val fileRateLimiter = Akka.system.actorOf(Props(classOf[RequestTracker], 10, Period.minutes(1)))
-  
-  def file(groupId: String, artifactId: String, webJarVersion: String, file: String) = CorsAction {
-    Action.async { request =>
-      val pathPrefix = s"META-INF/resources/webjars/$artifactId/"
 
-      Future.fromTry {
-        MavenCentral.getFile(groupId, artifactId, webJarVersion).map { case (jarInputStream, inputStream) =>
-          Stream.continually(jarInputStream.getNextJarEntry).takeWhile(_ != null).find { jarEntry =>
-            // this allows for sloppyness where the webJarVersion and path differ
-            // todo: eventually be more strict but since this has been allowed many WebJars do not have version and path consistency
-            jarEntry.getName.startsWith(pathPrefix) && jarEntry.getName.endsWith(s"/$file")
-          }.fold {
-            jarInputStream.close()
-            inputStream.close()
-            NotFound(s"Found WebJar ($groupId : $artifactId : $webJarVersion) but could not find: $pathPrefix$webJarVersion/$file")
-          } { jarEntry =>
-            val bis = new BufferedInputStream(jarInputStream)
-            val bArray = Stream.continually(bis.read).takeWhile(_ != -1).map(_.toByte).toArray
-            bis.close()
-            jarInputStream.close()
-            inputStream.close()
-
-            //// From Play's Assets controller
-            val contentType = MimeTypes.forFileName(file).map(m => m + addCharsetIfNeeded(m)).getOrElse(BINARY)
-            ////
-
-            Ok(bArray).as(contentType).withHeaders(
-              CACHE_CONTROL -> "max-age=290304000, public",
-              DATE -> df.print((new java.util.Date).getTime),
-              LAST_MODIFIED -> df.print(jarEntry.getLastModifiedTime.toMillis)
-            )
-          }
-        }
-      } recover {
-        case nf: FileNotFoundException =>
-          NotFound(s"WebJar Not Found $groupId : $artifactId : $webJarVersion")
-        case ure: UnexpectedResponseException =>
-          Status(ure.response.status)(s"Problems retrieving WebJar ($groupId : $artifactId : $webJarVersion) - ${ure.response.statusText}")
-        case e: Exception =>
-          InternalServerError(s"Could not find WebJar ($groupId : $artifactId : $webJarVersion)\n${e.getMessage}")
-      }
-    }
+  def file(groupId: String, artifactId: String, version: String, file: String) = Action {
+    MovedPermanently(s"http://webjars-file-service.herokuapp.com/files/$groupId/$artifactId/$version/$file")
   }
 
   def fileOptions(file: String) = CorsAction {
@@ -457,26 +406,5 @@ object Application extends Controller {
     }
 
   }
-
-  //// From Play's Asset controller
-
-  private val timeZoneCode = "GMT"
-
-  //Dateformatter is immutable and threadsafe
-  private val df: DateTimeFormatter =
-    DateTimeFormat.forPattern("EEE, dd MMM yyyy HH:mm:ss '" + timeZoneCode + "'").withLocale(java.util.Locale.ENGLISH).withZone(DateTimeZone.forID(timeZoneCode))
-
-  //Dateformatter is immutable and threadsafe
-  private val dfp: DateTimeFormatter =
-    DateTimeFormat.forPattern("EEE, dd MMM yyyy HH:mm:ss").withLocale(java.util.Locale.ENGLISH).withZone(DateTimeZone.forID(timeZoneCode))
-
-  private lazy val defaultCharSet = Play.configuration.getString("default.charset").getOrElse("utf-8")
-
-  private def addCharsetIfNeeded(mimeType: String): String =
-    if (MimeTypes.isText(mimeType))
-      "; charset=" + defaultCharSet
-    else ""
-
-  ////
 
 }
