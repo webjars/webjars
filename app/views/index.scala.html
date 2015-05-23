@@ -1,3 +1,5 @@
+@(webjars: Iterable[WebJar])
+
 @main("WebJars - Web Libraries in Jars") {
 
     <div class="jumbotron" style="margin-bottom: 0px;">
@@ -29,7 +31,7 @@
                             <li>On-demand releases by anyone</li>
                             <li>Artifact contents mirror NPM package</li>
                         </ul>
-                        <a href="@routes.Application.npmList()" class="btn btn-primary center-block">Browse NPM WebJars</a>
+                        <a href="@routes.Application.npmList()" class="btn btn-primary center-block">Browse & Add NPM WebJars</a>
                     </div>
                 </div>
             </div>
@@ -44,7 +46,7 @@
                             <li>On-demand releases by anyone</li>
                             <li>Artifact contents mirror Bower package</li>
                         </ul>
-                        <a href="@routes.Application.bowerList()" class="btn btn-primary center-block">Browse Bower WebJars</a>
+                        <a href="@routes.Application.bowerList()" class="btn btn-primary center-block">Browse & Add Bower WebJars</a>
                     </div>
                 </div>
             </div>
@@ -59,11 +61,21 @@
                             <li>On-demand by the WebJars team</li>
                             <li>Human-created RequireJS config</li>
                         </ul>
-                        <a href="@routes.Application.classicList()" class="btn btn-primary center-block">Browse Classic WebJars</a>
+                        <a href="@routes.Application.classicList()" class="btn btn-primary center-block">Browse & Request Classic WebJars</a>
                     </div>
                 </div>
             </div>
         </div>
+
+        <h2 style="float: left">All Deployed WebJars</h2>
+
+        <div class="pull-left btn-group" style="margin: 20px 40px 0px 40px">
+            <input type="text" class="form-control" id="search" placeholder="Filter">
+            <span class="glyphicon glyphicon-remove" id="clearSearch"></span>
+        </div>
+
+        @webJarList(webjars, false)
+
     </div>
 
 }

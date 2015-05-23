@@ -87,13 +87,8 @@ object MavenCentral {
         case (artifactId, versions) =>
           val webJarVersionsFuture = Future.sequence {
             versions.map { version =>
-              catalog match {
-                case WebJarCatalog.CLASSIC =>
-                  WebJarsFileService.getFileList(catalog.toString, artifactId, version).map { fileList =>
-                    WebJarVersion(version, fileList.length)
-                  }
-                case WebJarCatalog.BOWER | WebJarCatalog.NPM =>
-                  Future.successful(WebJarVersion(version))
+              WebJarsFileService.getFileList(catalog.toString, artifactId, version).map { fileList =>
+                WebJarVersion(version, fileList.length)
               }
             }
           } map { webJarVersions =>
@@ -142,6 +137,18 @@ object MavenCentral {
           Future.failed(new Exception("Making new request for WebJars"))
       }
     }
+  }
+
+  def webJars: Future[List[WebJar]] = {
+    val classicFuture = MavenCentral.webJars(WebJarCatalog.CLASSIC)
+    val bowerFuture = MavenCentral.webJars(WebJarCatalog.BOWER)
+    val npmFuture = MavenCentral.webJars(WebJarCatalog.NPM)
+
+    for {
+      classicWebJars <- classicFuture
+      bowerWebJars <- bowerFuture
+      npmWebJars <- npmFuture
+    } yield classicWebJars ++ bowerWebJars ++ npmWebJars
   }
 
   private def fetchPom(groupId: String, artifactId: String, version: String): Future[Elem] = {

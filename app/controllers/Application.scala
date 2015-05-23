@@ -32,8 +32,13 @@ object Application extends Controller {
   lazy val heroku = Heroku(ExecutionContext.global, WS.client(Play.current), Play.current.configuration)
   lazy val pusher = Pusher(ExecutionContext.global, WS.client(Play.current), Play.current.configuration)
 
-  def index = Action {
-    Ok(views.html.index())
+  def index = Action.async { request =>
+    MavenCentral.webJars.map {
+      maybeCached(request, webJars => Ok(views.html.index(webJars)))
+    } recover {
+      case e: Exception =>
+        InternalServerError(views.html.index(Seq.empty[WebJar]))
+    }
   }
 
   private def maybeCached[A](request: RequestHeader, f: Seq[A] => Result)(seq: Seq[A]): Result = {
@@ -166,17 +171,7 @@ object Application extends Controller {
 
   def allWebJars = CorsAction {
     Action.async { implicit request =>
-      val classicFuture = MavenCentral.webJars(WebJarCatalog.CLASSIC)
-      val bowerFuture = MavenCentral.webJars(WebJarCatalog.BOWER)
-      val npmFuture = MavenCentral.webJars(WebJarCatalog.NPM)
-
-      val allFuture = for {
-        classicWebJars <- classicFuture
-        bowerWebJars <- bowerFuture
-        npmWebJars <- npmFuture
-      } yield classicWebJars ++ bowerWebJars ++ npmWebJars
-
-      allFuture.map {
+      MavenCentral.webJars.map {
         maybeCached(request, webJars => Ok(Json.toJson(webJars)))
       } recover {
         case e: Exception =>
