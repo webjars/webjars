@@ -4,7 +4,7 @@ import java.io.InputStream
 import java.net.URL
 import java.util.zip.GZIPInputStream
 
-import play.api.http.Status
+import play.api.http.{HeaderNames, Status}
 import play.api.libs.json._
 import play.api.libs.functional.syntax._
 import play.api.libs.ws.WSClient
@@ -42,16 +42,33 @@ class NPM(implicit ec: ExecutionContext, ws: WSClient) {
         case Status.OK =>
           val initialInfo = response.json.as[PackageInfo](NPM.jsonReads)
 
-          if (initialInfo.licenses.length == 0) {
-            licenseUtils.gitHubLicenseDetect(initialInfo.gitHubOrgRepo).map { license =>
-              initialInfo.copy(licenses = Seq(license))
-            } recoverWith {
-              case e: Exception =>
-                Future.successful(initialInfo)
+          // deal with GitHub redirects
+          val infoFuture: Future[PackageInfo] = initialInfo.gitHubHome.toOption.fold(Future.successful(initialInfo)) { gitHubHome =>
+            ws.url(gitHubHome).withFollowRedirects(false).get().flatMap { homeTestResponse =>
+              homeTestResponse.status match {
+                case Status.MOVED_PERMANENTLY =>
+                  homeTestResponse.header(HeaderNames.LOCATION).fold(Future.successful(initialInfo)) { actualHome =>
+                    val newSource = actualHome.replaceFirst("https://", "git://") + ".git"
+                    Future.successful(initialInfo.copy(sourceUrl = newSource, homepage = actualHome))
+                  }
+                case _ =>
+                  Future.successful(initialInfo)
+              }
             }
           }
-          else {
-            Future.successful(initialInfo)
+
+          infoFuture.flatMap { info =>
+            if (info.licenses.isEmpty) {
+              licenseUtils.gitHubLicenseDetect(initialInfo.gitHubOrgRepo).map { license =>
+                info.copy(licenses = Seq(license))
+              } recoverWith {
+                case e: Exception =>
+                  Future.successful(info)
+              }
+            }
+            else {
+              Future.successful(info)
+            }
           }
         case _ =>
           Future.failed(new Exception(response.body))
@@ -76,18 +93,24 @@ object NPM {
 
   implicit def jsonReads: Reads[PackageInfo] = {
     val sourceConnectionUrlReader = (__ \ "repository" \ "url").read[String]
+
     val sourceUrlReader = sourceConnectionUrlReader.map { sourceConnectionUrl =>
-      sourceConnectionUrl.stripPrefix("git+").stripSuffix(".git")
+      sourceConnectionUrl.replace("git://", "https://").stripSuffix(".git")
     }
+
+    val licenseReader = (__ \ "license").read[Seq[String]]
+      .orElse((__ \ "license").read[String].map(Seq(_)))
+      .orElse((__ \ "licenses").read[Seq[JsObject]].map(_.map(_.\("type").as[String])))
+      .orElse(Reads.pure(Seq.empty[String]))
 
     (
       (__ \ "name").read[String] ~
       (__ \ "version").read[String] ~
-      (__ \ "homepage").read[String] ~
+      (__ \ "homepage").read[String].orElse(sourceUrlReader) ~
       sourceUrlReader ~
       sourceConnectionUrlReader ~
       (__ \ "bugs" \ "url").read[String] ~
-      (__ \ "license").read[Seq[String]].orElse((__ \ "license").read[String].map(Seq(_))).orElse(Reads.pure(Seq.empty[String])) ~
+      licenseReader ~
       (__ \ "dependencies").read[Map[String, String]].orElse(Reads.pure(Map.empty[String, String]))
     )(PackageInfo.apply _)
   }
