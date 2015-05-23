@@ -168,11 +168,13 @@ object Application extends Controller {
     Action.async { implicit request =>
       val classicFuture = MavenCentral.webJars(WebJarCatalog.CLASSIC)
       val bowerFuture = MavenCentral.webJars(WebJarCatalog.BOWER)
+      val npmFuture = MavenCentral.webJars(WebJarCatalog.NPM)
 
       val allFuture = for {
         classicWebJars <- classicFuture
         bowerWebJars <- bowerFuture
-      } yield classicWebJars ++ bowerWebJars
+        npmWebJars <- npmFuture
+      } yield classicWebJars ++ bowerWebJars ++ npmWebJars
 
       allFuture.map {
         maybeCached(request, webJars => Ok(Json.toJson(webJars)))
@@ -198,9 +200,6 @@ object Application extends Controller {
       }
     }
   }
-
-  // max 10 requests per minute
-  lazy val fileRateLimiter = Akka.system.actorOf(Props(classOf[RequestTracker], 10, Period.minutes(1)))
 
   def file(groupId: String, artifactId: String, version: String, file: String) = Action {
     MovedPermanently(s"http://webjars-file-service.herokuapp.com/files/$groupId/$artifactId/$version/$file")
@@ -354,57 +353,6 @@ object Application extends Controller {
       ACCESS_CONTROL_ALLOW_ORIGIN -> "*",
       ACCESS_CONTROL_ALLOW_METHODS -> "GET"
     )
-  }
-
-  case class RateLimit[A](actorRef: ActorRef)(action: Action[A]) extends Action[A] {
-
-    implicit val actorTimeout = Timeout(1.second)
-
-    def apply(request: Request[A]): Future[Result] = {
-      // get the IP which might be in the form 1.2.3.4,6.7.8.9 in which case we want the last one
-      val ip: IP = request.headers.get(X_FORWARDED_FOR).getOrElse(request.remoteAddress).split(",").reverse.head
-      (actorRef ? ip).flatMap {
-        case ExceededLimit => Future.successful(TooManyRequest)
-        case _ => action(request)
-      } recoverWith {
-        case _ => action(request)
-      }
-    }
-
-    lazy val parser = action.parser
-  }
-
-  type IP = String
-  case object ExceededLimit
-  case object UnderLimit
-
-  class RequestTracker(maxRequests: Int, period: ReadablePeriod) extends Actor {
-
-    type Requests = Seq[DateTime]
-
-    var ipRates: Map[IP, Requests] = Map.empty[IP, Requests]
-
-    override def receive = {
-      case ip: IP =>
-        val now = DateTime.now()
-
-        // update the map
-        ipRates.get(ip).fold {
-          ipRates = ipRates + (ip -> Seq(now))
-        } { requests =>
-          val updatedRequests = requests.filter(_.isAfter(now.minus(period))) :+ now
-          ipRates = ipRates.updated(ip, updatedRequests)
-        }
-
-        // determine if the rate has been exceeded
-        if (ipRates(ip).size >= maxRequests) {
-          sender ! ExceededLimit
-        }
-        else {
-          sender ! UnderLimit
-        }
-    }
-
   }
 
 }

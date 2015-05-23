@@ -2,16 +2,17 @@ package utils
 
 import java.io.BufferedInputStream
 import java.util.concurrent.TimeUnit
-import java.util.zip.ZipInputStream
 
+import akka.util.Timeout
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
-import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream
 import play.api.test._
 
 import scala.concurrent.ExecutionContext
-import scala.util.Try
+import scala.concurrent.duration._
 
 class BowerSpec extends PlaySpecification {
+
+  override implicit def defaultAwaitTimeout: Timeout = 30.seconds
 
   val ws = StandaloneWS.apply()
   val bower = Bower(ExecutionContext.global, ws.client)

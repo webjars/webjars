@@ -1,12 +1,16 @@
 package utils
 
 
+import akka.util.Timeout
 import play.api.test._
 
 import scala.concurrent.ExecutionContext
+import scala.concurrent.duration._
 import scala.util.Try
 
 class LicenseUtilsSpec extends PlaySpecification {
+
+  override implicit def defaultAwaitTimeout: Timeout = 30.seconds
 
   val ws = StandaloneWS.apply()
   val licenseUtils = LicenseUtils(ExecutionContext.global, ws.client)
