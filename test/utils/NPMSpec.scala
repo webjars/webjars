@@ -18,6 +18,11 @@ class NPMSpec extends PlaySpecification {
       await(npm.info("chokidar", "1.0.1")).licenses must contain ("MIT")
     }
   }
+  "is-dotfile" should {
+    "have a license" in {
+      await(npm.info("is-dotfile", "1.0.0")).licenses must contain ("MIT")
+    }
+  }
   "inflight 1.0.4" should {
     "have the correct github url" in {
       await(npm.info("inflight", "1.0.4")).gitHubHome must beASuccessfulTry("https://github.com/npm/inflight")
