@@ -100,6 +100,7 @@ object NPM {
 
     val licenseReader = (__ \ "license").read[Seq[String]]
       .orElse((__ \ "license").read[String].map(Seq(_)))
+      .orElse((__ \ "license").read[JsObject].map(_.\("type").as[String]).map(Seq(_)))
       .orElse((__ \ "licenses").read[Seq[JsObject]].map(_.map(_.\("type").as[String])))
       .orElse(Reads.pure(Seq.empty[String]))
 
