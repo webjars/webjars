@@ -33,6 +33,11 @@ class NPMSpec extends PlaySpecification {
       await(npm.info("inherits", "2.0.1")).homepage must beEqualTo ("https://github.com/isaacs/inherits")
     }
   }
+  "simple-fmt" should {
+    "have a issue tracking url" in {
+      await(npm.info("simple-fmt", "0.1.0")).issuesUrl must beEqualTo ("https://github.com/olov/simple-fmt/issues")
+    }
+  }
 
   step(ws.close())
 
