@@ -104,13 +104,16 @@ object NPM {
       .orElse((__ \ "licenses").read[Seq[JsObject]].map(_.map(_.\("type").as[String])))
       .orElse(Reads.pure(Seq.empty[String]))
 
+    val bugsReader = (__ \ "bugs" \ "url").read[String]
+      .orElse(sourceUrlReader.map(_ + "/issues"))
+
     (
       (__ \ "name").read[String] ~
       (__ \ "version").read[String] ~
       (__ \ "homepage").read[String].orElse(sourceUrlReader) ~
       sourceUrlReader ~
       sourceConnectionUrlReader ~
-      (__ \ "bugs" \ "url").read[String] ~
+      bugsReader ~
       licenseReader ~
       (__ \ "dependencies").read[Map[String, String]].orElse(Reads.pure(Map.empty[String, String]))
     )(PackageInfo.apply _)
