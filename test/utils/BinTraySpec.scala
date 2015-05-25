@@ -43,7 +43,7 @@ class BinTraySpec extends PlaySpecification {
       result(1) must be equalTo "BSD 2-Clause"
       result(2) must be equalTo "BSD 2-Clause"
       result(3) must be equalTo "GPL-2.0"
-      result(3) must be equalTo "GPL-3.0"
+      result(4) must be equalTo "GPL-3.0"
     }
     "convert SPDX to BinTray" in {
       val licenses = Seq("OFL-1.1")
