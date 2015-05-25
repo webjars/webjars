@@ -7,4 +7,4 @@ This is source for the http://www.webjars.org website.  This is also the place t
 
 For more information about WebJars visit the website: http://www.webjars.org
 
-[ ![Codeship Status for webjars/webjars](https://codeship.io/projects/039e78a0-e059-0131-8449-5ecac741d9a0/status)](https://codeship.io/projects/25138)
+[![Travis CI Build Status](https://travis-ci.org/webjars/webjars.svg?branch=master)](https://travis-ci.org/webjars/webjars)
