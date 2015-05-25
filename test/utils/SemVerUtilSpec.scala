@@ -76,12 +76,15 @@ class SemVerUtilSpec extends Specification {
       SemVerUtil.convertSemVerToMaven("1.2.3-dev-r - 1.3.4-dev-r") must be equalTo Some("[1.2.3-dev-r,1.3.4-dev-r]")
     }
     "work with X ranges" in {
-      SemVerUtil.convertSemVerToMaven("")    must be equalTo Some("[0,)")
-      SemVerUtil.convertSemVerToMaven("*")   must be equalTo Some("[0,)")
-      SemVerUtil.convertSemVerToMaven("1")   must be equalTo Some("[1,2)")
-      SemVerUtil.convertSemVerToMaven("1.x") must be equalTo Some("[1,2)")
-      SemVerUtil.convertSemVerToMaven("1.X") must be equalTo Some("[1,2)")
-      SemVerUtil.convertSemVerToMaven("1.*") must be equalTo Some("[1,2)")
+      SemVerUtil.convertSemVerToMaven("")      must be equalTo Some("[0,)")
+      SemVerUtil.convertSemVerToMaven("*")     must be equalTo Some("[0,)")
+      SemVerUtil.convertSemVerToMaven("1")     must be equalTo Some("[1,2)")
+      SemVerUtil.convertSemVerToMaven("1.x")   must be equalTo Some("[1,2)")
+      SemVerUtil.convertSemVerToMaven("1.x.x") must be equalTo Some("[1,2)")
+      SemVerUtil.convertSemVerToMaven("1.X")   must be equalTo Some("[1,2)")
+      SemVerUtil.convertSemVerToMaven("1.X.X") must be equalTo Some("[1,2)")
+      SemVerUtil.convertSemVerToMaven("1.*")   must be equalTo Some("[1,2)")
+      SemVerUtil.convertSemVerToMaven("1.*.*") must be equalTo Some("[1,2)")
 
       SemVerUtil.convertSemVerToMaven("1.2")   must be equalTo Some("[1.2,1.3)")
       SemVerUtil.convertSemVerToMaven("1.2.x") must be equalTo Some("[1.2,1.3)")
