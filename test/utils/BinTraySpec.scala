@@ -36,12 +36,14 @@ class BinTraySpec extends PlaySpecification {
       (result \ "message").asOpt[String] must beSome ("success")
     }
     "convert licenses to accepted ones" in {
-      val licenses = Seq("BSD 2-Clause", "BSD-2-Clause", "bsd2clause")
+      val licenses = Seq("BSD 2-Clause", "BSD-2-Clause", "bsd2clause", "GPLv2", "GPLv3")
       val result = await(binTray.convertLicenses(licenses))
-      result.size must be equalTo 3
+      result.size must be equalTo 5
       result(0) must be equalTo "BSD 2-Clause"
       result(1) must be equalTo "BSD 2-Clause"
       result(2) must be equalTo "BSD 2-Clause"
+      result(3) must be equalTo "GPL-2.0"
+      result(3) must be equalTo "GPL-3.0"
     }
     "convert SPDX to BinTray" in {
       val licenses = Seq("OFL-1.1")
