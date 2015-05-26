@@ -195,7 +195,8 @@ class BinTray(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) {
     "Apache 2" -> "Apache-2.0",
     "BSD-3" -> "BSD 3-Clause",
     "GPLv2" -> "GPL-2.0",
-    "GPLv3" -> "GPL-3.0"
+    "GPLv3" -> "GPL-3.0",
+    "MIT/X11" -> "MIT"
   )
 
   // from: https://bintray.com/docs/api/
