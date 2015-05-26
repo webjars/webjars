@@ -15,7 +15,7 @@ class BinTraySpec extends PlaySpecification {
 
   "BinTray" should {
     "create a package" in {
-      val result = await(binTray.createPackage("webjars", "test", "foo", "foo description", Seq("test"), Seq("MIT"), "http://github.com/webjars/webjars", Some("http://webjars.org"), Some("http://github.com/webjars/webjars/issues"), Some("webjars/webjars")))
+      val result = await(binTray.createPackage("webjars", "test", "foo", "foo description", Seq("test"), Set("MIT"), "http://github.com/webjars/webjars", Some("http://webjars.org"), Some("http://github.com/webjars/webjars/issues"), Some("webjars/webjars")))
       (result \ "created").asOpt[Date] must beSome
     }
     "create a version" in {
@@ -38,28 +38,27 @@ class BinTraySpec extends PlaySpecification {
     "convert licenses to accepted ones" in {
       val licenses = Seq("BSD 2-Clause", "BSD-2-Clause", "bsd2clause", "GPLv2", "GPLv3", "MIT/X11")
       val result = await(binTray.convertLicenses(licenses))
-      result.size must be equalTo 6
-      result(0) must be equalTo "BSD 2-Clause"
-      result(1) must be equalTo "BSD 2-Clause"
-      result(2) must be equalTo "BSD 2-Clause"
-      result(3) must be equalTo "GPL-2.0"
-      result(4) must be equalTo "GPL-3.0"
-      result(5) must be equalTo "MIT"
+      result must be equalTo Set("GPL-2.0", "BSD 2-Clause", "GPL-3.0", "MIT")
     }
     "convert SPDX to BinTray" in {
       val licenses = Seq("OFL-1.1")
       val result = await(binTray.convertLicenses(licenses))
-      result.size must be equalTo 1
-      result(0) must be equalTo "Openfont-1.1"
+      result must be equalTo Set("Openfont-1.1")
     }
     "convert license URL to license" in {
       val licenses = Seq("http://polymer.github.io/LICENSE.txt")
       val result = await(binTray.convertLicenses(licenses))
-      result.size must be equalTo 1
-      result(0) must be equalTo "BSD 3-Clause"
+      result must be equalTo Set("BSD 3-Clause")
     }
     "fail to convert incompatible licenses" in {
       await(binTray.convertLicenses(Seq("foo"))) must throwA[Exception]
+    }
+    "fail on license conversion if no valid licenses are found" in {
+      await(binTray.convertLicenses(Seq())) must throwA[Exception]
+    }
+    "succeed with at least one valid license" in {
+      val licenses = await(binTray.convertLicenses(Seq("foo", "MIT")))
+      licenses must be equalTo Set("MIT")
     }
   }
 

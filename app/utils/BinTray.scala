@@ -33,7 +33,7 @@ class BinTray(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) {
     } getOrElse response.body
   }
 
-  def createPackage(subject: String, repo: String, name: String, desc: String, labels: Seq[String], licenses: Seq[String], vcsUrl: String, websiteUrl: Option[String], issueTrackerUrl: Option[String], githubRepo: Option[String]): Future[JsValue] = {
+  def createPackage(subject: String, repo: String, name: String, desc: String, labels: Seq[String], licenses: Set[String], vcsUrl: String, websiteUrl: Option[String], issueTrackerUrl: Option[String], githubRepo: Option[String]): Future[JsValue] = {
 
     val json = Json.obj(
       "name" -> name,
@@ -65,7 +65,7 @@ class BinTray(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) {
     }
   }
 
-  def getOrCreatePackage(subject: String, repo: String, name: String, desc: String, labels: Seq[String], licenses: Seq[String], vcsUrl: String, websiteUrl: Option[String], issueTrackerUrl: Option[String], githubRepo: Option[String]): Future[JsValue] = {
+  def getOrCreatePackage(subject: String, repo: String, name: String, desc: String, labels: Seq[String], licenses: Set[String], vcsUrl: String, websiteUrl: Option[String], issueTrackerUrl: Option[String], githubRepo: Option[String]): Future[JsValue] = {
     getPackage(subject, repo, name).recoverWith {
       case e: Exception =>
         createPackage(subject, repo, name, desc, labels, licenses, vcsUrl, websiteUrl, issueTrackerUrl, githubRepo)
@@ -140,13 +140,10 @@ class BinTray(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) {
     }
   }
 
-  // this returns a Future as a way to deal with failure
-  // a Try would be better but wouldn't compose in a for comprehension with Futures
-  def convertLicenses(licenses: Seq[String]): Future[Seq[String]] = {
+  def convertLicenses(licenses: Seq[String]): Future[Set[String]] = {
     Future.sequence {
       licenses.map { license =>
-
-        val maybeFetchedLicense = if (license.startsWith("http://") || license.startsWith("https://")) {
+        if (license.startsWith("http://") || license.startsWith("https://")) {
           ws.url(license).get().flatMap { licenseTextResponse =>
             licenseTextResponse.status match {
               case Status.OK =>
@@ -170,26 +167,24 @@ class BinTray(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) {
         else {
           Future.successful(license)
         }
-
-        maybeFetchedLicense.flatMap { fetchedLicense =>
-
-          // see if the license is in the spdxToBinTrayLicenses map
-          // if not, normalize the name and look for it in availableLicenses
-          val maybeAcceptableLicense: Option[String] = spdxToBinTrayLicenses.get(fetchedLicense).orElse {
-            availableLicenses.find { availableLicense =>
-              fetchedLicense.replace(" ", "").replace("-", "").toLowerCase == availableLicense.replace(" ", "").replace("-", "").toLowerCase
-            }
-          }
-
-          maybeAcceptableLicense.fold(Future.failed[String](new Exception(s"License $fetchedLicense is not acceptable on BinTray")))(Future.successful)
-
-        }
-
       }
+    } flatMap { detectedLicenses =>
+
+      val acceptedLicenses = detectedLicenses.map { detectedLicense =>
+        // try to get the normalized license from the common license map
+        // if not found there, try to get the normalized license from the available license map
+        normalizedCommonToBinTrayLicenses.getOrElse(normalize(detectedLicense), normalizedAvailableLicenses.getOrElse(normalize(detectedLicense), detectedLicense))
+      }.toSet.intersect(availableLicenses)  // keep only the licenses that are in the list of available licenses
+
+      // if no valid licenses, then fail
+      if (acceptedLicenses.nonEmpty) Future.successful(acceptedLicenses)
+      else Future.failed(new Exception(s"No valid licenses found. Provided licenses: $licenses"))
     }
   }
 
-  val spdxToBinTrayLicenses = Map(
+  def normalize(s: String): String = s.replace(" ", "").replace("-", "").toLowerCase
+
+  val commonToBinTrayLicenses = Map(
     "OFL-1.1" -> "Openfont-1.1",
     "Artistic-2.0" -> "Artistic-License-2.0",
     "Apache 2" -> "Apache-2.0",
@@ -199,9 +194,12 @@ class BinTray(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) {
     "MIT/X11" -> "MIT"
   )
 
+  val normalizedCommonToBinTrayLicenses = commonToBinTrayLicenses.map { case (from, to) => normalize(from) -> to }
+
   // from: https://bintray.com/docs/api/
   val availableLicenses = Set("AFL-3.0", "AGPL-V3", "Apache-1.0", "Apache-1.1", "Apache-2.0", "APL-1.0", "APSL-2.0", "Artistic-License-2.0", "Attribution", "Bouncy-Castle", "BSD", "BSD 2-Clause", "BSD 3-Clause", "BSL-1.0", "CA-TOSL-1.1", "CC0-1.0", "CDDL-1.0", "Codehaus", "CPAL-1.0", "CPL-1.0", "CPOL-1.02", "CUAOFFICE-1.0", "Day", "Day-Addendum", "ECL2", "Eiffel-2.0", "Entessa-1.0", "EPL-1.0", "EUDATAGRID", "EUPL-1.1", "Fair", "Frameworx-1.0", "Go", "GPL-2.0", "GPL-2.0+CE", "GPL-3.0", "Historical", "HSQLDB", "IBMPL-1.0", "IPAFont-1.0", "ISC", "IU-Extreme-1.1.1", "JA-SIG", "JSON", "JTidy", "LGPL-2.1", "LGPL-3.0", "Lucent-1.02", "MirOS", "MIT", "Motosoto-0.9.1", "Mozilla-1.1", "MPL-2.0", "MS-PL", "MS-RL", "Multics", "NASA-1.3", "NAUMEN", "Nethack", "Nokia-1.0a", "NOSL-3.0", "NTP", "NUnit-2.6.3", "NUnit-Test-Adapter-2.6.3", "OCLC-2.0", "Openfont-1.1", "Opengroup", "OpenSSL", "OSL-3.0", "PHP-3.0", "PostgreSQL", "Public Domain", "Public Domain - SUN", "PythonPL", "PythonSoftFoundation", "QTPL-1.0", "Real-1.0", "RicohPL", "RPL-1.5", "Scala", "SimPL-2.0", "Sleepycat", "SUNPublic-1.0", "Sybase-1.0", "TMate", "Unlicense", "UoI-NCSA", "VovidaPL-1.0", "W3C", "WTFPL", "wxWindows", "Xnet", "ZLIB", "ZPL-2.0")
 
+  val normalizedAvailableLicenses = availableLicenses.map(license => normalize(license) -> license).toMap
 }
 
 object BinTray {
