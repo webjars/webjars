@@ -9,9 +9,12 @@ import scala.util.Try
 
 case class PackageInfo(name: String, version: String, homepage: String, sourceUrl: String, sourceConnectionUrl: String, issuesUrl: String, licenses: Seq[String], dependencies: Map[String, String]) {
 
-  lazy val sourceUri: Try[URI] = Try { new URI(sourceUrl) }
-  lazy val gitHubOrg: Try[String] = sourceUri.map(_.getPath.split("/")(1))
-  lazy val gitHubRepo: Try[String] = sourceUri.map(_.getPath.split("/")(2).stripSuffix(".git"))
+  lazy val sourceUri: Try[URI] = Try(new URI(sourceUrl))
+
+  lazy val gitHubUri: Try[URI] = sourceUri.filter(_.getHost.endsWith("github.com"))
+
+  lazy val gitHubOrg: Try[String] = gitHubUri.map(_.getPath.split("/")(1))
+  lazy val gitHubRepo: Try[String] = gitHubUri.map(_.getPath.split("/")(2).stripSuffix(".git"))
   lazy val gitHubOrgRepo: Try[String] = {
     for {
       org <- gitHubOrg

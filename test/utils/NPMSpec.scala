@@ -34,8 +34,14 @@ class NPMSpec extends PlaySpecification {
     }
   }
   "simple-fmt" should {
-    "have a issue tracking url" in {
+    "have an issue tracking url" in {
       await(npm.info("simple-fmt", "0.1.0")).issuesUrl must beEqualTo ("https://github.com/olov/simple-fmt/issues")
+    }
+  }
+  "weinre 2.0.0-pre-I0Z7U9OV" should {
+    "have a correct vcs url" in {
+      val info = await(npm.info("weinre", "2.0.0-pre-I0Z7U9OV"))
+      info.gitHubHome must beAFailedTry
     }
   }
 
