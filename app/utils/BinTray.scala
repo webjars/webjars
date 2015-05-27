@@ -13,12 +13,12 @@ class BinTray(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) {
 
   val BASE_URL = "https://bintray.com/api/v1"
 
-  val username = config.getString("bintray.username").get
-  val password = config.getString("bintray.password").get
-  val gpgPassphrase = config.getString("bintray.gpg.passphrase").get
+  lazy val username = config.getString("bintray.username").get
+  lazy val password = config.getString("bintray.password").get
+  lazy val gpgPassphrase = config.getString("bintray.gpg.passphrase").get
 
-  val ossUsername = config.getString("oss.username").get
-  val ossPassword = config.getString("oss.password").get
+  lazy val ossUsername = config.getString("oss.username").get
+  lazy val ossPassword = config.getString("oss.password").get
 
 
   def ws(path: String): WSRequestHolder = {
