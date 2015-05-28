@@ -178,7 +178,16 @@ class BinTray(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) {
 
       // if no valid licenses, then fail
       if (acceptedLicenses.nonEmpty) Future.successful(acceptedLicenses)
-      else Future.failed(new Exception(s"No valid licenses found. Provided licenses: $licenses"))
+      else {
+        val detectedLicensesMsg = if (licenses.isEmpty) "No licenses were found." else s"Detected licenses: ${licenses.mkString}"
+        val msg =
+          s"""No valid licenses found. $detectedLicensesMsg
+             |The acceptable licenses on BinTray are at: https://bintray.com/docs/api/#_footnote_1
+             |License detection first uses the package metadata (e.g. package.json or bower.json) and falls back to looking for a LICENSE, LICENSE.txt, or LICENSE.md file in the master branch of the GitHub repo.
+             |Since these methods failed to detect a valid license you will need to work with the upstream project to add discoverable license metadata to a release or to the GitHub repo.
+           """.stripMargin
+        Future.failed(new Exception(msg))
+      }
     }
   }
 
