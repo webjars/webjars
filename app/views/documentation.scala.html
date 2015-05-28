@@ -37,16 +37,16 @@
 
             <!-- Play Framework 2 -->
             <div class="tab-pane active" id="play2">
-                <h3>Instructions for Play 2.3 (<a href="http://typesafe.com/activator/template/webjars-sample-play2">Sample Source</a>)</h3>
+                <h3>Instructions for Play 2.4 (<a href="http://typesafe.com/activator/template/webjars-sample-play2">Sample Source</a>)</h3>
                 WebJars can be added as dependencies to an app by simply adding them to the <span class="label label-info">build.sbt</span> file.  There is also a helper library named <span class="label label-info">webjars-play</span> that makes it easy to reference WebJar assets.  Here is an example <span class="label label-info">build.sbt</span> file with <span class="label label-info">webjars-play</span> and the <span class="label label-info">bootstrap</span> WebJar as dependencies:<br>
                 <pre><code>libraryDependencies ++= Seq(
-  "org.webjars" %% "webjars-play" % "2.3.0-2",
+  "org.webjars" %% "webjars-play" % "2.4.0",
   "org.webjars" % "bootstrap" % "3.1.1-2"
 )</code></pre>
                 <br>
                 After changing a Play 2's dependencies you will need to restart Play.<br>
                 <br>
-                In Play 2.3 WebJars are automatically available as static assets.  If you have a route like:
+                In Play 2.4 WebJars are automatically available as static assets.  If you have a route like:
                 <pre><code>GET         /assets/*file           controllers.Assets.at(path="/public", file)</code></pre>
                 <br/>
                 Then a WebJar file like <code>bootstrap.css</code> is available at:
