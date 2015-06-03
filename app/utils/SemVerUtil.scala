@@ -56,8 +56,8 @@ object SemVerUtil {
         val leftVersionRange = SemVerVersionRange(limit = Limits.GTE, major = major, tag = tag)
         val rightVersionRange = SemVerVersionRange(limit = Limits.LT, major = major.map(_ + 1), tag = tag)
         Some(Right(SemVerXRange(leftVersionRange, rightVersionRange)))
-      // >=1.2.3 | <=1.2.3 | >1.2.3 | <1.2.3
-      case r"^(>=|<=|>|<)${SomeLimit(limit)} ?(\d+)${SomeInt(major)}\.?(\d*)${SomeInt(minor)}\.?(\d*)${SomeInt(patch)}-?([\w.-]*)${SomeString(tag)}$$" =>
+      // >=1.2.3 | <=1.2.3 | >1.2.3 | <1.2.3 | >=1.0.x
+      case r"^(>=|<=|>|<)${SomeLimit(limit)} ?(\d+)${SomeInt(major)}\.?(\d*|\*)${SomeInt(minor)}\.?(\d*|\*)${SomeInt(patch)}-?([\w.-]*)${SomeString(tag)}$$" =>
         Some(Left(SemVerVersionRange(limit, major, minor, patch, tag)))
       // >=1.0.0 <1.4.0
       case r"^(>=|<=|>|<) ?${SomeLimit(leftLimit)}(\d+)${SomeInt(leftMajor)}\.?(\d*|\*)${SomeInt(leftMinor)}\.?(\d*|\*)${SomeInt(leftPatch)}-?([\w.-]*)${SomeString(leftTag)} (>=|<=|>|<) ?${SomeLimit(rightLimit)}(\d+)${SomeInt(rightMajor)}\.?(\d*|\*)${SomeInt(rightMinor)}\.?(\d*|\*)${SomeInt(rightPatch)}-?([\w.-]*)${SomeString(rightTag)}$$" =>
@@ -80,10 +80,10 @@ object SemVerUtil {
         val desugaredPatch = patch.orElse(Some(0))
 
         val leftVersionRange = SemVerVersionRange(Limits.GTE, major, desugaredMinor, desugaredPatch, tag)
-        val rightVersionRange = if (major == Some(0) && minor == Some(0) && patch.isDefined) {
+        val rightVersionRange = if (major.contains(0) && minor.contains(0) && patch.isDefined) {
           SemVerVersionRange(Limits.LT, major, minor, patch.map(_ + 1), None)
         }
-        else if (major == Some(0) && minor.isDefined) {
+        else if (major.contains(0) && minor.isDefined) {
           SemVerVersionRange(Limits.LT, major, minor.map(_ + 1), None, None)
         }
         else {

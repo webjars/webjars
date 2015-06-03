@@ -27,6 +27,7 @@ class SemVerUtilSpec extends Specification {
       SemVerUtil.convertSemVerToMaven(">=1.2.3")       must be equalTo Some("[1.2.3,)")
       SemVerUtil.convertSemVerToMaven(">=1.2.3-alpha") must be equalTo Some("[1.2.3-alpha,)")
       SemVerUtil.convertSemVerToMaven(">=1.2.3-dev-r") must be equalTo Some("[1.2.3-dev-r,)")
+      SemVerUtil.convertSemVerToMaven(">=1.9.x")       must be equalTo Some("[1.9,)")
 
       SemVerUtil.convertSemVerToMaven("<1")           must be equalTo Some("(,1)")
       SemVerUtil.convertSemVerToMaven("< 1")          must be equalTo Some("(,1)")
