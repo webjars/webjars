@@ -95,45 +95,6 @@ object Application extends Controller {
     }
   }
 
-  def bowerPackages(query: String, page: Int) = Action.async { request =>
-    val pageSize = 30
-
-    val allBowerPackagesFuture = Cache.getAs[JsArray]("bower-packages").fold {
-      bower.all.map { json =>
-        Cache.set("bower-packages", json, 1.hour)
-        json
-      }
-    } (Future.successful)
-
-    allBowerPackagesFuture.map { allBowerPackages =>
-
-      // match on names, keywords, or description
-      val allMatches = allBowerPackages.as[Seq[JsObject]].filter { bowerPackage =>
-        (bowerPackage \ "name").asOpt[String].map(_.toLowerCase).exists(_.contains(query.toLowerCase)) ||
-        (bowerPackage \ "website").asOpt[String].map(_.toLowerCase).exists(_.contains(query.toLowerCase)) ||
-        (bowerPackage \ "keywords").asOpt[Seq[String]].getOrElse(Seq.empty[String]).exists(_.toLowerCase.contains(query.toLowerCase)) ||
-        (bowerPackage \ "description").asOpt[String].map(_.toLowerCase).exists(_.contains(query.toLowerCase))
-      }
-
-      // sort by popularity
-      val sorted = allMatches.sortBy(p => (p \ "stars").as[Int]).reverse
-
-      // return this page
-      val startIndex = (page - 1) * pageSize
-      val results = sorted.slice(startIndex, startIndex + pageSize)
-
-      val json = Json.obj(
-        "results" -> Json.toJson(results),
-        "total_count" -> sorted.size
-      )
-
-      Ok(json)
-    } recover {
-      case e: Exception =>
-        InternalServerError(e.getMessage)
-    }
-  }
-
   def bowerPackageVersions(packageName: String) = Action.async { request =>
     val packageVersionsFuture = Cache.getAs[Seq[String]](s"bower-versions-$packageName").fold {
       bower.info(packageName).map { json =>

@@ -19,15 +19,6 @@ class Bower(implicit ec: ExecutionContext, ws: WSClient) {
 
   val licenseUtils = LicenseUtils(ec, ws)
 
-  def all: Future[JsArray] = {
-    ws.url("https://bower-component-list.herokuapp.com/").get().flatMap { response =>
-      response.status match {
-        case Status.OK => Future.successful(response.json.as[JsArray])
-        case _ => Future.failed(new Exception(response.body))
-      }
-    }
-  }
-
   def info(packageName: String): Future[JsValue] = {
     ws.url(s"$BASE_URL/info/$packageName").get().flatMap { response =>
       response.status match {
