@@ -48,6 +48,11 @@ class BowerSpec extends PlaySpecification {
       zis.getNextEntry.getName must beEqualTo(".bower.json")
     }
   }
+  "angular" should {
+    "have an MIT license" in {
+      await(bower.info("angular", "1.4.0")).licenses must contain("MIT")
+    }
+  }
 
   step(ws.close())
 
