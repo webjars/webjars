@@ -29,6 +29,7 @@
                 <li><a href="#springmvc" data-toggle="tab">Spring MVC</a></li>
                 <li><a href="#tapestry" data-toggle="tab">Apache Tapestry</a></li>
                 <li><a href="#wicket" data-toggle="tab">Apache Wicket</a></li>
+		<li><a href="#pippo" data-toggle="tab">Pippo</a></li>
                 <li><a href="#ring" data-toggle="tab">Ring (Clojure)</a></li>
             </ul>
         </div>
@@ -505,7 +506,33 @@ public void renderHead(IHeaderResponse response) {
 </code></pre>
             </div>
 
+	<!-- Pippo -->
+            <div class="tab-pane" id="pippo">
+                <h3>Instructions for Pippo</h3>
 
+                The Pippo integration of Webjars is pretty straightforward.
+
+                <h4>Maven Example (<a href="https://github.com/decebals/pippo/tree/master/pippo-demo/pippo-demo-ajax">example app</a>)</h4>
+
+                First you have to let Pippo know you are using webjars. This can be done in <span class="label label-info">Application.onInit method</span>:
+                <pre><code>
+public class AjaxApplication extends Application {
+
+    @Override
+    protected void onInit() {
+            
+        addWebjarsResourceRoute();
+        //business code here
+    }
+}</code></pre>
+                <br>
+                Then simply reference the resource like 
+                <pre><code>&lt;link href="${webjarsAt('bootstrap/3.3.1/css/bootstrap.min.css')}" rel="stylesheet"&gt;</code></pre>
+		for css or 
+		<pre><code>&lt;script src="${webjarsAt('intercooler-js/0.4.10/src/intercooler.js')}"&gt;&lt;/script&gt;</code></pre>
+		for js.
+                <br>
+                
             <!-- Ring (Clojure) -->
             <div class="tab-pane" id="ring">
                 <h3>Instructions for Ring (<a href="https://github.com/webjars/sample-clojure">example app</a>)</h3>
