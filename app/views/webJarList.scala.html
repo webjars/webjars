@@ -48,11 +48,8 @@
                                 case "org.webjars" => {
                                     <a href="@webjar.sourceUrl/issues/new" class="btn btn-primary btn-sm" title="Request a new version" role="button"><span class="glyphicon glyphicon-plus"></span></a>
                                 }
-                                case "org.webjars.bower" => {
-                                    <button title="Create a new version" type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#newBowerWebJarModal"><span class="glyphicon glyphicon-plus"></span></button>
-                                }
-                                case "org.webjars.npm" => {
-                                    <button title="Create a new version" type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#newNPMWebJarModal"><span class="glyphicon glyphicon-plus"></span></button>
+                                case _ => {
+                                    <button title="Create a new version" type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#newWebJarModal" data-artifact-id="@webjar.artifactId"><span class="glyphicon glyphicon-plus"></span></button>
                                 }
                             }
                         }

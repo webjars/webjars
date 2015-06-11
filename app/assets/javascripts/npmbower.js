@@ -1,24 +1,26 @@
 $(function() {
 
-  $("#newWebJarName").typeWatch({
-    callback: function(packageName) {
-      $("#newWebJarName").parent().removeClass("has-error").removeClass("has-success");
-      $("#newWebJarNameFeedback").removeClass("glyphicon-ok").removeClass("glyphicon-remove");
+  function checkPackageName(packageName) {
+    $("#newWebJarName").parent().removeClass("has-error").removeClass("has-success");
+    $("#newWebJarNameFeedback").removeClass("glyphicon-ok").removeClass("glyphicon-remove");
 
-      $.ajax({
-        url: "/_" + webJarType + "/exists/" + packageName,
-        success: function(data, status) {
-          $("#newWebJarName").parent().addClass("has-success");
-          $("#newWebJarNameFeedback").addClass("glyphicon-ok").removeClass("hidden");
-          $("#newWebJarVersion").select2("enable", true);
-        },
-        error: function(data, status) {
-          $("#newWebJarName").parent().addClass("has-error");
-          $("#newWebJarNameFeedback").addClass("glyphicon-remove").removeClass("hidden");
-          $("#newWebJarVersion").select2("enable", false);
-        }
-      });
-    },
+    $.ajax({
+      url: "/_" + webJarType + "/exists/" + packageName,
+      success: function(data, status) {
+        $("#newWebJarName").parent().addClass("has-success");
+        $("#newWebJarNameFeedback").addClass("glyphicon-ok").removeClass("hidden");
+        $("#newWebJarVersion").select2("enable", true);
+      },
+      error: function(data, status) {
+        $("#newWebJarName").parent().addClass("has-error");
+        $("#newWebJarNameFeedback").addClass("glyphicon-remove").removeClass("hidden");
+        $("#newWebJarVersion").select2("enable", false);
+      }
+    });
+  }
+
+  $("#newWebJarName").typeWatch({
+    callback: checkPackageName,
     wait: 750,
     captureLength: 0
   });
@@ -87,6 +89,19 @@ $(function() {
         console.log(data);
       }
     });
+  });
+
+  $('#newWebJarModal').on('show.bs.modal', function (event) {
+    var artifactId = $(event.relatedTarget).data('artifact-id');
+    if (artifactId != undefined) {
+      $("#newWebJarName").val(artifactId);
+      checkPackageName(artifactId);
+    }
+    else {
+      $("#newWebJarName").val("");
+      $("#newWebJarName").parent().removeClass("has-error").removeClass("has-success");
+      $("#newWebJarNameFeedback").removeClass("glyphicon-ok").removeClass("glyphicon-remove");
+    }
   });
 
 });
