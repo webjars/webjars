@@ -1,21 +1,21 @@
 $(function() {
 
-  $("#newNPMWebJarName").typeWatch({
+  $("#newWebJarName").typeWatch({
     callback: function(packageName) {
-      $("#newNPMWebJarName").parent().removeClass("has-error").removeClass("has-success");
-      $("#newNPMWebJarNameFeedback").removeClass("glyphicon-ok").removeClass("glyphicon-remove");
+      $("#newWebJarName").parent().removeClass("has-error").removeClass("has-success");
+      $("#newWebJarNameFeedback").removeClass("glyphicon-ok").removeClass("glyphicon-remove");
 
       $.ajax({
-        url: "/_npm/exists/" + packageName,
+        url: "/_" + webJarType + "/exists/" + packageName,
         success: function(data, status) {
-          $("#newNPMWebJarName").parent().addClass("has-success");
-          $("#newNPMWebJarNameFeedback").addClass("glyphicon-ok").removeClass("hidden");
-          $("#newNPMWebJarVersion").select2("enable", true);
+          $("#newWebJarName").parent().addClass("has-success");
+          $("#newWebJarNameFeedback").addClass("glyphicon-ok").removeClass("hidden");
+          $("#newWebJarVersion").select2("enable", true);
         },
         error: function(data, status) {
-          $("#newNPMWebJarName").parent().addClass("has-error");
-          $("#newNPMWebJarNameFeedback").addClass("glyphicon-remove").removeClass("hidden");
-          $("#newNPMWebJarVersion").select2("enable", false);
+          $("#newWebJarName").parent().addClass("has-error");
+          $("#newWebJarNameFeedback").addClass("glyphicon-remove").removeClass("hidden");
+          $("#newWebJarVersion").select2("enable", false);
         }
       });
     },
@@ -23,15 +23,15 @@ $(function() {
     captureLength: 0
   });
 
-  $("#newNPMWebJarVersion").select2({
+  $("#newWebJarVersion").select2({
     placeholder: "Version",
     id: function(item) {
       return item;
     },
     query: function(query) {
-      var name = $("#newNPMWebJarName").val();
+      var name = $("#newWebJarName").val();
 
-      $.getJSON("/_npm/versions/" + name, function(data) {
+      $.getJSON("/_" + webJarType + "/versions/" + name, function(data) {
         query.callback({results: data});
       });
     },
@@ -42,10 +42,10 @@ $(function() {
       return item;
     }
   }).on("change", function(event) {
-    $("#deployNPMButton").attr("disabled", false);
+    $("#deployButton").attr("disabled", false);
   });
 
-  $("#deployNPMButton").click(function(event) {
+  $("#deployButton").click(function(event) {
     event.preventDefault();
 
     var deployLog = $("#deployLog");
@@ -57,10 +57,10 @@ $(function() {
     deployLog.addClass("show");
     deployLog.removeClass("hidden");
 
-    $("#deployNPMButton").attr("disabled", true);
+    $("#deployButton").attr("disabled", true);
 
-    var artifactId = $("#newNPMWebJarName").val();
-    var version = $("#newNPMWebJarVersion").select2("val");
+    var artifactId = $("#newWebJarName").val();
+    var version = $("#newWebJarVersion").select2("val");
 
     var pusher = new Pusher(window.pusherKey);
     var channelId = guid();
@@ -71,17 +71,17 @@ $(function() {
     channel.bind("success", function(data) {
       log(data);
       pusher.disconnect();
-      $("#deployNPMButton").attr("disabled", false);
+      $("#deployButton").attr("disabled", false);
     });
     channel.bind("failure", function(data) {
       log(data);
       pusher.disconnect();
-      $("#deployNPMButton").attr("disabled", false);
+      $("#deployButton").attr("disabled", false);
     });
 
     deployLog.text("Starting Deploy");
 
-    $.ajax("/deploy/npm/" + artifactId + "/" + version + "?channelId=" + channelId, {
+    $.ajax("/deploy/" + webJarType + "/" + artifactId + "/" + version + "?channelId=" + channelId, {
       method: "post",
       success: function(data) {
         console.log(data);

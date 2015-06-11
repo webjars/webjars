@@ -73,19 +73,25 @@ object Application extends Controller {
 
   def bowerList = Action.async { request =>
     MavenCentral.webJars(WebJarCatalog.BOWER).map {
-      maybeCached(request, webJars => Ok(views.html.bowerList(webJars, pusher.key)))
+      maybeCached(request, webJars => Ok(views.html.npmbowerList(webJars, pusher.key, "Bower", "bower")))
     } recover {
       case e: Exception =>
-        InternalServerError(views.html.bowerList(Seq.empty[WebJar], pusher.key))
+        InternalServerError(views.html.npmbowerList(Seq.empty[WebJar], pusher.key, "Bower", "bower"))
     }
   }
 
   def npmList = Action.async { request =>
     MavenCentral.webJars(WebJarCatalog.NPM).map {
-      maybeCached(request, webJars => Ok(views.html.npmList(webJars, pusher.key)))
+      maybeCached(request, webJars => Ok(views.html.npmbowerList(webJars, pusher.key, "NPM", "npm")))
     } recover {
       case e: Exception =>
-        InternalServerError(views.html.npmList(Seq.empty[WebJar], pusher.key))
+        InternalServerError(views.html.npmbowerList(Seq.empty[WebJar], pusher.key, "NPM", "npm"))
+    }
+  }
+
+  def bowerPackageExists(packageName: String) = Action.async {
+    bower.info(packageName).map(_ => Ok).recover { case e: Exception =>
+      InternalServerError(e.getMessage)
     }
   }
 

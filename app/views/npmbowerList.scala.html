@@ -1,0 +1,67 @@
+@(webjars: Iterable[WebJar], pusherKey: String, title: String, webJarType: String)
+
+@import java.net.URLEncoder
+
+@main(s"WebJars - $title WebJars") {
+
+    <script>
+        var pusherKey = "@pusherKey";
+    </script>
+
+    <script src="//js.pusher.com/2.2/pusher.min.js"></script>
+
+    <script src="@StaticWebJarAssets.getUrlBower("jquery.typewatch.js")"></script>
+
+    <script>
+        var webJarType = "@webJarType";
+    </script>
+
+    <script type="text/javascript" src="@routes.Assets.at("javascripts/npmbower.js")"></script>
+
+    <div class="modal fade" id="newWebJarModal" tabindex="-1" role="dialog" aria-labelledby="newWebJarModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                    <h4 class="modal-title" id="newWebJarModalLabel">Add a New @title WebJar</h4>
+                </div>
+                <div class="modal-body">
+                    <form id="deploy" class="form-inline">
+                        <div class="form-group has-feedback">
+                            <label class="control-label sr-only" for="newWebJarName">@title Package Name (case sensitive)</label>
+                            <input type="text" class="form-control input-sm" id="newWebJarName" aria-describedby="newWebJarNameStatus" style="width: 280px" placeholder="@title Package Name (case sensitive)">
+                            <span id="newWebJarNameFeedback" class="glyphicon form-control-feedback hidden" aria-hidden="true"></span>
+                            <span id="newWebJarNameStatus" class="sr-only">(success)</span>
+                        </div>
+                        <div class="form-group">
+                            <label for="newWebJarVersion" class="control-label sr-only">@title Package Version</label>
+                            <input id="newWebJarVersion" type="text" style="width: 284px" disabled data-placeholder="Version"/>
+                        </div>
+                    </form>
+                    <h5>Deploy Log</h5>
+                    <pre id="deployLog" style="height: 200px; white-space: pre-line; word-break: normal;" disabled></pre>
+                </div>
+                <div class="modal-footer">
+                    <button id="deployButton" type="button" class="btn btn-default pull-left" disabled>Deploy!</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container-fluid" style="padding-top: 25px;">
+
+        <h2 style="float: left">Deployed @title WebJars</h2>
+
+        <div class="pull-left btn-group" style="margin: 20px 40px 0px 40px">
+            <input type="text" class="form-control" id="search" placeholder="Filter">
+            <span class="glyphicon glyphicon-remove" id="clearSearch"></span>
+        </div>
+
+        <div class="pull-right" style="float: right; margin-top: 20px;">
+            <button type="button" class="btn btn-info" data-toggle="modal" data-target="#newWebJarModal">Add a New @title WebJar</button>
+        </div>
+
+        @webJarList(webjars)
+
+    </div>
+}

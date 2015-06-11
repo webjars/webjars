@@ -10,7 +10,7 @@ GET            /classic                                                   contro
 GET            /bower                                                     controllers.Application.bowerList()
 GET            /npm                                                       controllers.Application.npmList()
 GET            /list/:groupId                                             controllers.Application.webJarList(groupId)
-GET            /_bower/packages                                           controllers.Application.bowerPackages(query, page: Int)
+GET            /_bower/exists/:packageName                                controllers.Application.bowerPackageExists(packageName)
 GET            /_bower/versions/:packageName                              controllers.Application.bowerPackageVersions(packageName)
 GET            /_npm/exists/:packageName                                  controllers.Application.npmPackageExists(packageName)
 GET            /_npm/versions/:packageName                                controllers.Application.npmPackageVersions(packageName)
