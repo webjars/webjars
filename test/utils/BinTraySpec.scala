@@ -2,13 +2,17 @@ package utils
 
 import java.util.Date
 
+import akka.util.Timeout
 import org.apache.commons.io.IOUtils
 import play.api.Play
 import play.api.test._
 
 import scala.concurrent.ExecutionContext
+import scala.concurrent.duration._
 
 class BinTraySpec extends PlaySpecification {
+
+  override implicit def defaultAwaitTimeout: Timeout = 60.seconds
 
   val ws = StandaloneWS()
   val binTray = BinTray(ExecutionContext.global, ws, FakeApplication().configuration)
