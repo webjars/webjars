@@ -107,6 +107,7 @@ object BowerWebJar extends App {
 
   if (args.length < 2) {
     println("You must specify the Bower artifact name and version")
+    sys.exit(1)
   }
   else {
     val name = args(0)
@@ -118,9 +119,11 @@ object BowerWebJar extends App {
     release(name, version, maybepusherChannelId)(ExecutionContext.global, config).onComplete {
       case Success(s) =>
         println("Done!")
+        sys.exit()
       case Failure(f) =>
         println("Error: ", f)
-    }(ExecutionContext.global)
+        sys.exit()
+    } (ExecutionContext.global)
   }
 
 }
