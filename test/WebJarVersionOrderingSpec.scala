@@ -96,5 +96,19 @@ class WebJarVersionOrderingSpec extends Specification {
       correct.reverse.sorted must beEqualTo(correct)
     }
 
+    "deal with SHA versions" in {
+      val correct = Seq(
+        WebJarVersion("1.2.0rc1"),
+        WebJarVersion("2.3.0-12"),
+        WebJarVersion("10.0.6"),
+        WebJarVersion("04.10.2013"),
+        WebJarVersion("0bafe48a77"),
+        WebJarVersion("3768da3142"),
+        WebJarVersion("b1d6033")
+      )
+
+      correct.reverse.sorted must beEqualTo(correct)
+    }
+
   }
 }
