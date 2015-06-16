@@ -40,11 +40,11 @@ object VersionOrdering extends Ordering[String] {
       }
     }
 
-    // determine if either of the versions might be SHA values
+    // determine if either of the versions might be SHA values, which we want at the beginning
     (isSHA(a), isSHA(b)) match {
       case (true, true) ⇒ a.compareTo(b)
-      case (true, false) ⇒ 1
-      case (false, true) ⇒ -1
+      case (true, false) ⇒ -1
+      case (false, true) ⇒ 1
       case _ ⇒
         // Neither is SHA. Handle common case.
         val aParts = unmalform(a).split('.').map(betaRc)

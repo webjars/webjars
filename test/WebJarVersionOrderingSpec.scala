@@ -98,17 +98,40 @@ class WebJarVersionOrderingSpec extends Specification {
 
     "deal with SHA versions" in {
       val correct = Seq(
+        WebJarVersion("0bafe48a77"),
+        WebJarVersion("3768da3142"),
+        WebJarVersion("b1d6033"),
         WebJarVersion("1.2.0rc1"),
         WebJarVersion("2.3.0-12"),
         WebJarVersion("10.0.6"),
-        WebJarVersion("04.10.2013"),
-        WebJarVersion("0bafe48a77"),
-        WebJarVersion("3768da3142"),
-        WebJarVersion("b1d6033")
+        WebJarVersion("04.10.2013")
       )
 
       correct.reverse.sorted must beEqualTo(correct)
-    }
 
+      // Specific case from "smart-table"
+      val correct2 = Seq(
+        WebJarVersion("b1d6033"),
+        WebJarVersion("1.2.6"),
+        WebJarVersion("1.3.0"),
+        WebJarVersion("1.4.0"),
+        WebJarVersion("1.4.2"),
+        WebJarVersion("1.4.3"),
+        WebJarVersion("1.4.4"),
+        WebJarVersion("1.4.5"),
+        WebJarVersion("1.4.6"),
+        WebJarVersion("1.4.7"),
+        WebJarVersion("1.4.8"),
+        WebJarVersion("1.4.9"),
+        WebJarVersion("1.4.10"),
+        WebJarVersion("1.4.11"),
+        WebJarVersion("2.0.1"),
+        WebJarVersion("2.0.3"),
+        WebJarVersion("2.0.3-1")
+      )
+
+      correct2.reverse.sorted must beEqualTo(correct2)
+
+    }
   }
 }
