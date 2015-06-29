@@ -115,6 +115,9 @@ class SemVerUtilSpec extends Specification {
       SemVerUtil.convertSemVerToMaven("^1.x") must be equalTo Some("[1.0.0,2)")
       SemVerUtil.convertSemVerToMaven("^0.x") must be equalTo Some("[0.0.0,1)")
     }
+    "work with crazy stuff" in {
+      SemVerUtil.convertSemVerToMaven("latest") must be equalTo Some("[0,)")
+    }
   }
 
 }

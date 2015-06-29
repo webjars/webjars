@@ -90,6 +90,9 @@ object SemVerUtil {
           SemVerVersionRange(Limits.LT, major.map(_ + 1), None, None, None)
         }
         Some(Right(SemVerCaretRange(leftVersionRange, rightVersionRange)))
+      // latest
+      case "latest" =>
+        Some(Left(SemVerVersionRange(Limits.GTE, Some(0))))
       case _ =>
         None
     }
