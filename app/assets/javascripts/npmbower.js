@@ -56,9 +56,6 @@ $(function() {
       deployLog.text(message + "\n" + t);
     }
 
-    deployLog.addClass("show");
-    deployLog.removeClass("hidden");
-
     $("#deployButton").attr("disabled", true);
 
     var artifactId = $("#newWebJarName").val();
@@ -102,6 +99,11 @@ $(function() {
       $("#newWebJarName").parent().removeClass("has-error").removeClass("has-success");
       $("#newWebJarNameFeedback").removeClass("glyphicon-ok").removeClass("glyphicon-remove");
     }
+
+    $("#newWebJarVersion").select2("val", "");
+    $("#newWebJarVersion").select2("enable", false);
+
+    $("#deployLog").text("");
   });
 
 });
