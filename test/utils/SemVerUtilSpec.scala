@@ -118,6 +118,10 @@ class SemVerUtilSpec extends Specification {
     "work with crazy stuff" in {
       SemVerUtil.convertSemVerToMaven("latest") must be equalTo Some("[0,)")
     }
+    "work with || syntax" in {
+      SemVerUtil.convertSemVerToMaven("^1.3.0 || >1.4.0-beta.0")  must be equalTo Some("[1.3.0,2),(1.4.0-beta.0,)")
+      SemVerUtil.convertSemVerToMaven("2 || 3 || 4")              must be equalTo Some("[2,3),[3,4),[4,5)")
+    }
   }
 
 }

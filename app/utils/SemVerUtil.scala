@@ -7,10 +7,17 @@ import scala.util.Try
 object SemVerUtil {
 
   def convertSemVerToMaven(version: String): Option[String] = {
-    val maybeSemVer = parseSemVer(version)
-
-    maybeSemVer.flatMap { semVer =>
-      semVer.fold(_.maven, _.maven)
+    if (version.contains("||")) {
+      val versions = version.replaceAllLiterally(" || ", "||").split("\\|\\|").flatMap(parseSemVer)
+      if (versions.isEmpty) {
+        None
+      }
+      else {
+        Some(versions.flatMap(_.fold(_.maven, _.maven)).mkString(","))
+      }
+    }
+    else {
+      parseSemVer(version).flatMap(_.fold(_.maven, _.maven))
     }
   }
 
