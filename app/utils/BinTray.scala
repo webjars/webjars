@@ -92,6 +92,8 @@ class BinTray(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) {
       response.status match {
         case Status.CREATED =>
           Future.successful(response.json)
+        case Status.CONFLICT =>
+          Future.failed(BinTray.VersionExists(error(response)))
         case _ =>
           Future.failed(new Exception(error(response)))
       }
@@ -209,8 +211,13 @@ class BinTray(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) {
   val availableLicenses = Set("AFL-3.0", "AGPL-V3", "Apache-1.0", "Apache-1.1", "Apache-2.0", "APL-1.0", "APSL-2.0", "Artistic-License-2.0", "Attribution", "Bouncy-Castle", "BSD", "BSD 2-Clause", "BSD 3-Clause", "BSL-1.0", "CA-TOSL-1.1", "CC0-1.0", "CDDL-1.0", "Codehaus", "CPAL-1.0", "CPL-1.0", "CPOL-1.02", "CUAOFFICE-1.0", "Day", "Day-Addendum", "ECL2", "Eiffel-2.0", "Entessa-1.0", "EPL-1.0", "EUDATAGRID", "EUPL-1.1", "Fair", "Frameworx-1.0", "Go", "GPL-2.0", "GPL-2.0+CE", "GPL-3.0", "Historical", "HSQLDB", "IBMPL-1.0", "IPAFont-1.0", "ISC", "IU-Extreme-1.1.1", "JA-SIG", "JSON", "JTidy", "LGPL-2.1", "LGPL-3.0", "Lucent-1.02", "MirOS", "MIT", "Motosoto-0.9.1", "Mozilla-1.1", "MPL-2.0", "MS-PL", "MS-RL", "Multics", "NASA-1.3", "NAUMEN", "Nethack", "Nokia-1.0a", "NOSL-3.0", "NTP", "NUnit-2.6.3", "NUnit-Test-Adapter-2.6.3", "OCLC-2.0", "Openfont-1.1", "Opengroup", "OpenSSL", "OSL-3.0", "PHP-3.0", "PostgreSQL", "Public Domain", "Public Domain - SUN", "PythonPL", "PythonSoftFoundation", "QTPL-1.0", "Real-1.0", "RicohPL", "RPL-1.5", "Scala", "SimPL-2.0", "Sleepycat", "SUNPublic-1.0", "Sybase-1.0", "TMate", "Unlicense", "UoI-NCSA", "VovidaPL-1.0", "W3C", "WTFPL", "wxWindows", "Xnet", "ZLIB", "ZPL-2.0")
 
   val normalizedAvailableLicenses = availableLicenses.map(license => normalize(license) -> license).toMap
+
 }
 
 object BinTray {
   def apply(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) = new BinTray()
+
+  case class VersionExists(message: String) extends Exception {
+    override def getMessage = message
+  }
 }

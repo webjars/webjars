@@ -69,17 +69,24 @@ object NPMWebJar extends App {
           _ <- push("update", "Converted project licenses")
           createPackage <- binTray.getOrCreatePackage(binTraySubject, binTrayRepo, packageName, s"WebJar for $artifactId", Seq("webjar", artifactId), licensesForBinTray, packageInfo.sourceUrl, Some(packageInfo.homepage), Some(packageInfo.issuesUrl), packageInfo.gitHubOrgRepo.toOption)
           _ <- push("update", "Created BinTray Package")
-          createVersion <- binTray.createVersion(binTraySubject, binTrayRepo, packageName, version, s"$artifactId WebJar release $version", Some(s"v$version"))
-          _ <- push("update", "Created BinTray Version")
-          publishPom <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/$version/$artifactId-$version.pom", pom.getBytes)
-          publishJar <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/$version/$artifactId-$version.jar", jar)
-          emptyJar = WebJarUtils.emptyJar()
-          publishSourceJar <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/$version/$artifactId-$version-sources.jar", emptyJar)
-          _ <- push("update", "Published BinTray Assets")
-          signVersion <- binTray.signVersion(binTraySubject, binTrayRepo, packageName, version)
-          _ <- push("update", "Signed BinTray Assets")
-          publishVersion <- binTray.publishVersion(binTraySubject, binTrayRepo, packageName, version)
-          _ <- push("update", "Published BinTray Version")
+
+          binTrayPublishFuture = for {
+            createVersion <- binTray.createVersion(binTraySubject, binTrayRepo, packageName, version, s"$artifactId WebJar release $version", Some(s"v$version"))
+            _ <- push("update", "Created BinTray Version")
+            publishPom <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/$version/$artifactId-$version.pom", pom.getBytes)
+            publishJar <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/$version/$artifactId-$version.jar", jar)
+            emptyJar = WebJarUtils.emptyJar()
+            publishSourceJar <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/$version/$artifactId-$version-sources.jar", emptyJar)
+            _ <- push("update", "Published BinTray Assets")
+            signVersion <- binTray.signVersion(binTraySubject, binTrayRepo, packageName, version)
+            _ <- push("update", "Signed BinTray Assets")
+            publishVersion <- binTray.publishVersion(binTraySubject, binTrayRepo, packageName, version)
+            _ <- push("update", "Published BinTray Version")
+          } yield (createVersion, publishPom, publishPom, publishSourceJar, signVersion, publishVersion)
+
+          // do not fail if the binTray version already exists
+          binTrayPublish <- binTrayPublishFuture.recover { case e: BinTray.VersionExists => e.getMessage }
+
           syncToMavenCentral <- binTray.syncToMavenCentral(binTraySubject, binTrayRepo, packageName, version)
           _ <- push("update", "Synced With Maven Central")
           _ <- push("success",
