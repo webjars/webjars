@@ -1,19 +1,19 @@
 $(function() {
 
   function checkPackageName(packageName) {
-    $("#newWebJarName").parent().removeClass("has-error").removeClass("has-success");
-    $("#newWebJarNameFeedback").removeClass("glyphicon-ok").removeClass("glyphicon-remove");
+    $("#newWebJarName").parent().removeClass("has-error has-success");
+    $("#newWebJarNameFeedback").removeClass("glyphicon-ok glyphicon-remove hidden").addClass("glyphicon-refresh spin");
 
     $.ajax({
       url: "/_" + webJarType + "/exists/" + packageName,
       success: function(data, status) {
         $("#newWebJarName").parent().addClass("has-success");
-        $("#newWebJarNameFeedback").addClass("glyphicon-ok").removeClass("hidden");
+        $("#newWebJarNameFeedback").addClass("glyphicon-ok").removeClass("glyphicon-refresh spin");
         $("#newWebJarVersion").select2("enable", true);
       },
       error: function(data, status) {
         $("#newWebJarName").parent().addClass("has-error");
-        $("#newWebJarNameFeedback").addClass("glyphicon-remove").removeClass("hidden");
+        $("#newWebJarNameFeedback").addClass("glyphicon-remove").removeClass("glyphicon-refresh spin");
         $("#newWebJarVersion").select2("enable", false);
       }
     });
@@ -21,7 +21,7 @@ $(function() {
 
   $("#newWebJarName").typeWatch({
     callback: checkPackageName,
-    wait: 750,
+    wait: 600,
     captureLength: 0
   });
 
