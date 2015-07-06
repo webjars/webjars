@@ -113,23 +113,22 @@ object Application extends Controller {
     }
   }
 
-  def npmPackageExists(packageName: String) = Action.async {
-    npm.latest(packageName).map(_ => Ok).recover { case e: Exception =>
+  def npmPackageExists(packageNameOrGitRepo: String) = Action.async {
+    npm.versions(packageNameOrGitRepo).map(_ => Ok).recover { case e: Exception =>
       InternalServerError(e.getMessage)
     }
   }
 
-  def npmPackageVersions(packageName: String) = Action.async {
-    val packageVersionsFuture = Cache.getAs[Seq[String]](s"npm-versions-$packageName").fold {
-      npm.info(packageName).map { json =>
-        val versions = (json \ "versions" \\ "version").map(_.as[String]).sorted(VersionOrdering).reverse
-        Cache.set(s"npm-versions-$packageName", versions, 1.hour)
+  def npmPackageVersions(packageNameOrGitRepo: String) = Action.async {
+    val packageVersionsFuture = Cache.getAs[Seq[String]](s"npm-versions-$packageNameOrGitRepo").fold {
+      npm.versions(packageNameOrGitRepo).map { versions =>
+        Cache.set(s"npm-versions-$packageNameOrGitRepo", versions, 1.hour)
         versions
       }
     } (Future.successful)
 
-    packageVersionsFuture.map { json =>
-      Ok(Json.toJson(json))
+    packageVersionsFuture.map { versions =>
+      Ok(Json.toJson(versions))
     } recover {
       case e: Exception =>
         InternalServerError

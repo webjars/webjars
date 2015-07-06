@@ -13,6 +13,7 @@ libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-actor" % "2.3.9",
   "commons-codec" % "commons-codec" % "1.10",
   "org.apache.commons" % "commons-compress" % "1.9",
+  "org.eclipse.jgit" % "org.eclipse.jgit" % "4.0.0.201506090130-r",
   "org.webjars" %% "webjars-play" % "2.3.0",
   "org.webjars" % "bootstrap" % "3.3.4",
   "org.webjars" % "select2" % "3.5.2",

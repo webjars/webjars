@@ -17,61 +17,75 @@ class NPM(implicit ec: ExecutionContext, ws: WSClient) {
   val BASE_URL = "http://registry.npmjs.org"
 
   val licenseUtils = LicenseUtils(ec, ws)
+  val git = Git(ec, ws)
 
-  def latest(packageName: String): Future[JsValue] = {
-    ws.url(s"$BASE_URL/$packageName/latest").get().flatMap { response =>
-      response.status match {
-        case Status.OK => Future.successful(response.json)
-        case _ => Future.failed(new Exception(response.body))
+  def versions(packageNameOrGitRepo: String): Future[Seq[String]] = {
+    if (packageNameOrGitRepo.contains("/")) {
+      git.versions(packageNameOrGitRepo)
+    }
+    else {
+      ws.url(s"$BASE_URL/$packageNameOrGitRepo").get().flatMap { response =>
+        response.status match {
+          case Status.OK =>
+            val versions = (response.json \ "versions" \\ "version").map(_.as[String]).sorted(VersionOrdering).reverse
+            Future.successful(versions)
+          case _ => Future.failed(new Exception(response.body))
+        }
       }
     }
   }
 
-  def info(packageName: String): Future[JsValue] = {
-    ws.url(s"$BASE_URL/$packageName").get().flatMap { response =>
-      response.status match {
-        case Status.OK => Future.successful(response.json)
-        case _ => Future.failed(new Exception(response.body))
-      }
-    }
-  }
+  def info(packageNameOrGitRepo: String, maybeVersion: Option[String] = None): Future[PackageInfo] = {
 
-  def info(packageName: String, version: String): Future[PackageInfo] = {
-    ws.url(s"$BASE_URL/$packageName/$version").get().flatMap { response =>
-      response.status match {
-        case Status.OK =>
-          val initialInfo = response.json.as[PackageInfo](NPM.jsonReads)
+    def packageInfo(packageJson: JsValue): Future[PackageInfo] = {
+      val initialInfo = packageJson.as[PackageInfo](NPM.jsonReads)
 
-          // deal with GitHub redirects
-          val infoFuture: Future[PackageInfo] = initialInfo.gitHubHome.toOption.fold(Future.successful(initialInfo)) { gitHubHome =>
-            ws.url(gitHubHome).withFollowRedirects(false).get().flatMap { homeTestResponse =>
-              homeTestResponse.status match {
-                case Status.MOVED_PERMANENTLY =>
-                  homeTestResponse.header(HeaderNames.LOCATION).fold(Future.successful(initialInfo)) { actualHome =>
-                    val newSource = actualHome.replaceFirst("https://", "git://") + ".git"
-                    Future.successful(initialInfo.copy(sourceUrl = newSource, homepage = actualHome))
-                  }
-                case _ =>
-                  Future.successful(initialInfo)
+      // deal with GitHub redirects
+      val infoFuture: Future[PackageInfo] = initialInfo.gitHubHome.toOption.fold(Future.successful(initialInfo)) { gitHubHome =>
+        ws.url(gitHubHome).withFollowRedirects(false).get().flatMap { homeTestResponse =>
+          homeTestResponse.status match {
+            case Status.MOVED_PERMANENTLY =>
+              homeTestResponse.header(HeaderNames.LOCATION).fold(Future.successful(initialInfo)) { actualHome =>
+                val newSource = actualHome.replaceFirst("https://", "git://") + ".git"
+                Future.successful(initialInfo.copy(sourceUrl = newSource, homepage = actualHome))
               }
-            }
+            case _ =>
+              Future.successful(initialInfo)
           }
+        }
+      }
 
-          infoFuture.flatMap { info =>
-            if (info.licenses.isEmpty) {
-              licenseUtils.gitHubLicenseDetect(initialInfo.gitHubOrgRepo).map { license =>
-                info.copy(licenses = Seq(license))
-              } recoverWith {
-                case e: Exception =>
-                  Future.successful(info)
-              }
-            }
-            else {
+      infoFuture.flatMap { info =>
+        if (info.licenses.isEmpty) {
+          licenseUtils.gitHubLicenseDetect(initialInfo.gitHubOrgRepo).map { license =>
+            info.copy(licenses = Seq(license))
+          } recoverWith {
+            case e: Exception =>
               Future.successful(info)
-            }
           }
-        case _ =>
-          Future.failed(new Exception(response.body))
+        }
+        else {
+          Future.successful(info)
+        }
+      }
+    }
+
+    if (packageNameOrGitRepo.contains("/")) {
+      git.file(packageNameOrGitRepo, maybeVersion, "package.json").flatMap { packageJsonString =>
+        packageInfo(Json.parse(packageJsonString))
+      }
+    }
+    else {
+      val url = maybeVersion.fold(s"$BASE_URL/$packageNameOrGitRepo") { version =>
+        s"$BASE_URL/$packageNameOrGitRepo/$version"
+      }
+      ws.url(url).get().flatMap { response =>
+        response.status match {
+          case Status.OK =>
+            packageInfo(response.json)
+          case _ =>
+            Future.failed(new Exception(response.body))
+        }
       }
     }
   }
