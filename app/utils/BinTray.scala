@@ -110,7 +110,8 @@ class BinTray(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) {
   }
 
   def publishVersion(subject: String, repo: String, packageName: String, version: String): Future[JsValue] = {
-    ws(s"/content/$subject/$repo/$packageName/$version/publish").post(EmptyContent()).flatMap { response =>
+    val json = Json.obj("publish_wait_for_secs" -> -1)
+    ws(s"/content/$subject/$repo/$packageName/$version/publish").post(json).flatMap { response =>
       response.status match {
         case Status.OK => Future.successful(response.json)
         case _ => Future.failed(new Exception(error(response)))

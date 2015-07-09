@@ -29,7 +29,7 @@ class BinTraySpec extends PlaySpecification {
         val result = await(binTray.createVersion("webjars", "test", "foo", "0.0.1", "Release 0.0.1"))
         (result \ "created").asOpt[Date] must beSome
       }
-      "publish a maven release" in {
+      "upload a maven artifact" in {
         val bytes = Play.resourceAsStream("foo.jar")(FakeApplication()).map { inputStream =>
           val fileBytes = IOUtils.toByteArray(inputStream)
           inputStream.close()
@@ -41,6 +41,10 @@ class BinTraySpec extends PlaySpecification {
       "sign an artifact" in {
         val result = await(binTray.signVersion("webjars", "test", "foo", "0.0.1"))
         (result \ "message").asOpt[String] must beSome("success")
+      }
+      "publish an artifact" in {
+        val result = await(binTray.publishVersion("webjars", "test", "foo", "0.0.1"))
+        (result \ "files").asOpt[Int] must beSome(2)
       }
 
       step {
