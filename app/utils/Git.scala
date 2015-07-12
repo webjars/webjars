@@ -66,10 +66,8 @@ class Git(implicit ec: ExecutionContext, ws: WSClient) {
     }
   }
 
-  def file(gitRepo: String, version: Option[String], file: String): Future[String] = {
+  def cloneOrCheckout(gitRepo: String, version: Option[String]): Future[File] = {
     val baseDir = new File(cacheDir.toFile, gitRepo)
-
-    def readfile = Source.fromFile(new File(baseDir, file)).mkString
 
     if (!baseDir.exists()) {
       // clone the repo
@@ -84,7 +82,7 @@ class Git(implicit ec: ExecutionContext, ws: WSClient) {
 
             clone.call()
 
-            readfile
+            baseDir
           }
         }
       }
@@ -97,27 +95,28 @@ class Git(implicit ec: ExecutionContext, ws: WSClient) {
 
       checkout.call()
 
-      Future.successful(readfile)
+      Future.successful(baseDir)
     }
   }
 
+  def file(gitRepo: String, version: Option[String], file: String): Future[String] = {
+    cloneOrCheckout(gitRepo, version).map { baseDir =>
+      Source.fromFile(new File(baseDir, file)).mkString
+    }
+  }
 
-  def tar(url: String): Future[InputStream] = {
-    // apply .npmignore
-    // ignore .git
-    // create tar
+  def tar(gitRepo: String, version: Option[String], excludes: Set[String]): Future[InputStream] = {
+    cloneOrCheckout(gitRepo, version).flatMap { baseDir =>
+      // todo: apply .npmignore
 
-    /*
-    Future.fromTry {
-      Try {
-        val url = new URL(s"$BASE_URL/$packageName/-/$packageName-$version.tgz")
-        val inputStream = url.openConnection().getInputStream
-        val gzipInputStream = new GZIPInputStream(inputStream)
-        gzipInputStream
+      val resolvedExcludes = excludes.map(new File(baseDir, _))
+
+      val allExcludes = Set(new File(baseDir, ".git")) ++ resolvedExcludes
+
+      Future.fromTry {
+        ArchiveUtils.tarDir(baseDir, allExcludes)
       }
     }
-    */
-    ???
   }
 
 }

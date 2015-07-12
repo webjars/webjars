@@ -1,7 +1,10 @@
 package utils
 
 
+import java.io.BufferedInputStream
+
 import akka.util.Timeout
+import org.apache.commons.compress.archivers.ArchiveStreamFactory
 import play.api.test._
 
 import scala.concurrent.ExecutionContext
@@ -65,50 +68,22 @@ class GitSpec extends PlaySpecification {
     }
   }
 
-  /*
-  "git info" should {
-    "work with git://host/path.git" in {
-      val info = await(git.info("git://github.com/mochajs/mocha.git"))
-      info.name must equalTo ("mocha")
-    }
-    "work with git://host/path.git#commit-ish" in {
-      val info = await(git.info("git://github.com/mochajs/mocha.git#4727d357ea"))
-      info.name must equalTo ("mocha")
-    }
-    "work with git+ssh://host/path.git#commit-ish" in {
-      val info = await(git.info("git+ssh://github.com/mochajs/mocha.git#4727d357ea"))
-      info.name must equalTo ("mocha")
-    }
-    "work with git+ssh://host:path.git#commit-ish" in {
-      val info = await(git.info("git+ssh://github.com:mochajs/mocha.git#4727d357ea"))
-      info.name must equalTo ("mocha")
-    }
-    "work with git+http://host/path.git#commit-ish" in {
-      val info = await(git.info("git+http://github.com/mochajs/mocha.git#4727d357ea"))
-      info.name must equalTo ("mocha")
-    }
-    "work with git+https://host/path.git#commit-ish" in {
-      val info = await(git.info("git+https://github.com/mochajs/mocha.git#4727d357ea"))
-      info.name must equalTo ("mocha")
-    }
-    "work with http://host/path.git#4727d357ea" in {
-      val info = await(git.info("http://github.com/mochajs/mocha.git#4727d357ea"))
-      info.name must equalTo ("mocha")
-    }
-    "work with https://host/path.git#commit-ish" in {
-      val info = await(git.info("https://github.com/mochajs/mocha.git#4727d357ea"))
-      info.name must equalTo ("mocha")
-    }
-    "work with githuborg/repo" in {
-      val info = await(git.info("mochajs/mocha"))
-      info.name must equalTo ("mocha")
-    }
-    "work with githuborg/repo#commit-ish" in {
-      val info = await(git.info("mochajs/mocha#4727d357ea"))
-      info.name must equalTo ("mocha")
+  "git tar" should {
+    "fetch a tar" in {
+      val tar = await(git.tar("mochajs/mocha", Some("2.2.5"), Set("node_modules")))
+
+      val bufferedInputStream = new BufferedInputStream(tar)
+      val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(bufferedInputStream)
+
+      bufferedInputStream.available() must beEqualTo (645120)
+
+      val files = Stream.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName).toSeq
+      files.size must beEqualTo (178)
+      files.exists(_.contains("node_modules")) must beFalse
+      files.exists(_.contains(".git")) must beFalse
     }
   }
-  */
+
 
   step(ws.close())
 

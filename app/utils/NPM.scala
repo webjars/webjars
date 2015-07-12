@@ -90,13 +90,18 @@ class NPM(implicit ec: ExecutionContext, ws: WSClient) {
     }
   }
 
-  def tgz(packageName: String, version: String): Future[InputStream] = {
-    Future.fromTry {
-      Try {
-        val url = new URL(s"$BASE_URL/$packageName/-/$packageName-$version.tgz")
-        val inputStream = url.openConnection().getInputStream
-        val gzipInputStream = new GZIPInputStream(inputStream)
-        gzipInputStream
+  def tgz(packageNameOrGitRepo: String, version: String): Future[InputStream] = {
+    if (packageNameOrGitRepo.contains("/")) {
+      git.tar(packageNameOrGitRepo, Some(version), Set("node_modules"))
+    }
+    else {
+      Future.fromTry {
+        Try {
+          val url = new URL(s"$BASE_URL/$packageNameOrGitRepo/-/$packageNameOrGitRepo-$version.tgz")
+          val inputStream = url.openConnection().getInputStream
+          val gzipInputStream = new GZIPInputStream(inputStream)
+          gzipInputStream
+        }
       }
     }
   }

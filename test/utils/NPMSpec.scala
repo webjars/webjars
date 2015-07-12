@@ -1,6 +1,9 @@
 package utils
 
+import java.io.BufferedInputStream
+
 import akka.util.Timeout
+import org.apache.commons.compress.archivers.ArchiveStreamFactory
 import play.api.test._
 
 import scala.concurrent.ExecutionContext
@@ -67,6 +70,15 @@ class NPMSpec extends PlaySpecification {
       val info = await(npm.info("mochajs/mocha", Some("2.2.5")))
       info.name must beEqualTo ("mocha")
       info.version must beEqualTo ("2.2.5")
+    }
+  }
+  "git repo tagged version zip" should {
+    "work" in {
+      val tgz = await(npm.tgz("mochajs/mocha", "2.2.5"))
+      val bufferedInputStream = new BufferedInputStream(tgz)
+      val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(bufferedInputStream)
+
+      bufferedInputStream.available() must beEqualTo (645120)
     }
   }
 
