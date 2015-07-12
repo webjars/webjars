@@ -1,7 +1,7 @@
 package utils
 
 import java.io.InputStream
-import java.net.URL
+import java.net.{URI, URL}
 import java.util.zip.GZIPInputStream
 
 import play.api.http.{HeaderNames, Status}
@@ -37,6 +37,8 @@ class NPM(implicit ec: ExecutionContext, ws: WSClient) {
 
   def info(packageNameOrGitRepo: String, maybeVersion: Option[String] = None): Future[PackageInfo] = {
 
+    // todo: fix scm urls if this was a git repo
+
     def packageInfo(packageJson: JsValue): Future[PackageInfo] = {
       val initialInfo = packageJson.as[PackageInfo](NPM.jsonReads)
 
@@ -71,9 +73,14 @@ class NPM(implicit ec: ExecutionContext, ws: WSClient) {
     }
 
     if (packageNameOrGitRepo.contains("/")) {
-      git.file(packageNameOrGitRepo, maybeVersion, "package.json").flatMap { packageJsonString =>
-        packageInfo(Json.parse(packageJsonString))
+      versions(packageNameOrGitRepo).flatMap { versions =>
+        // if version was set use it, otherwise use the latest version
+        val version = maybeVersion.orElse(versions.headOption)
+        git.file(packageNameOrGitRepo, version, "package.json").flatMap { packageJsonString =>
+          packageInfo(Json.parse(packageJsonString))
+        }
       }
+
     }
     else {
       val url = maybeVersion.fold(s"$BASE_URL/$packageNameOrGitRepo") { version =>
@@ -103,6 +110,62 @@ class NPM(implicit ec: ExecutionContext, ws: WSClient) {
           gzipInputStream
         }
       }
+    }
+  }
+
+  def convertNpmDependenciesToMaven(npmDependencies: Map[String, String]): Future[Map[String, String]] = {
+    val maybeMavenDeps = npmDependencies.map { case (npmName, npmVersionOrUrl) =>
+      if (npmVersionOrUrl.contains("/")) {
+
+        val (url, maybeVersion) = if (npmVersionOrUrl.contains("#")) {
+          val parts = npmVersionOrUrl.split("#")
+          (parts.head, parts.lastOption)
+        }
+        else {
+          (npmVersionOrUrl, None)
+        }
+
+        artifactId(url).flatMap { artifactId =>
+          maybeVersion.fold {
+            versions(url).map { versions =>
+              artifactId -> versions.head
+            }
+          } { version =>
+            Future.successful(artifactId -> version)
+          }
+        }
+      }
+      else {
+        val maybeMavenVersion = SemVerUtil.convertSemVerToMaven(npmVersionOrUrl)
+        maybeMavenVersion.fold {
+          Future.failed[(String, String)](new Exception(s"Could not convert npm version to maven for: $npmName $npmVersionOrUrl"))
+        } { mavenVersion =>
+          Future.successful(npmName -> mavenVersion)
+        }
+      }
+    }
+
+    Future.sequence(maybeMavenDeps).map(_.toMap)
+  }
+
+  // converts git urls to unique artifactId's
+  def artifactId(nameOrUrlish: String): Future[String] = {
+    if (nameOrUrlish.contains("/")) {
+      git.gitUrl(nameOrUrlish).flatMap { gitUrl =>
+        Future.fromTry {
+          Try {
+            val uri = new URI(gitUrl.stripSuffix(".git"))
+
+            val host = uri.getHost.replaceAll("[^\\w\\d]", "-")
+            val path = uri.getPath.replaceAll("[^\\w\\d]", "-")
+
+            host + path
+          }
+        }
+      }
+    }
+    else {
+      Future.successful(nameOrUrlish)
     }
   }
 

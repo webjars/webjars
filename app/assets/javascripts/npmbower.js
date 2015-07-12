@@ -3,6 +3,8 @@ $(function() {
   function checkPackageName(packageName) {
     $("#newWebJarName").parent().removeClass("has-error has-success");
     $("#newWebJarNameFeedback").removeClass("glyphicon-ok glyphicon-remove hidden").addClass("glyphicon-refresh spin");
+    $("#newWebJarVersion").select2("val", "");
+    $("#newWebJarVersion").select2("enable", false);
 
     $.ajax({
       url: "/_" + webJarType + "/exists?name=" + packageName,
