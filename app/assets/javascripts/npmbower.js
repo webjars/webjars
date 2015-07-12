@@ -5,7 +5,7 @@ $(function() {
     $("#newWebJarNameFeedback").removeClass("glyphicon-ok glyphicon-remove hidden").addClass("glyphicon-refresh spin");
 
     $.ajax({
-      url: "/_" + webJarType + "/exists/" + packageName,
+      url: "/_" + webJarType + "/exists?name=" + packageName,
       success: function(data, status) {
         $("#newWebJarName").parent().addClass("has-success");
         $("#newWebJarNameFeedback").addClass("glyphicon-ok").removeClass("glyphicon-refresh spin");
@@ -33,7 +33,7 @@ $(function() {
     query: function(query) {
       var name = $("#newWebJarName").val();
 
-      $.getJSON("/_" + webJarType + "/versions/" + name, function(data) {
+      $.getJSON("/_" + webJarType + "/versions?name=" + name, function(data) {
         query.callback({results: data});
       });
     },
@@ -80,7 +80,7 @@ $(function() {
 
     deployLog.text("Starting Deploy");
 
-    $.ajax("/deploy/" + webJarType + "/" + artifactId + "/" + version + "?channelId=" + channelId, {
+    $.ajax("/_" + webJarType + "/deploy?name=" + artifactId + "&version=" + version + "&channelId=" + channelId, {
       method: "post",
       success: function(data) {
         console.log(data);

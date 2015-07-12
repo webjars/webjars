@@ -1,16 +1,9 @@
 package utils
 
 import java.io.{File, InputStream}
-import java.net.URL
 import java.nio.file.Files
-import java.util.zip.GZIPInputStream
-
-import org.eclipse.jgit.api.CreateBranchCommand.SetupUpstreamMode
-import org.eclipse.jgit.util.FileUtils
 import play.api.http.{HeaderNames, Status}
-import play.api.libs.json._
 import play.api.libs.ws.WSClient
-import play.api.mvc.Results
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.io.Source
@@ -60,7 +53,7 @@ class Git(implicit ec: ExecutionContext, ws: WSClient) {
             .setTags(true)
             .call()
 
-          tags.asScala.map(_.getName).toSeq
+          tags.asScala.map(_.getName.stripPrefix("refs/tags/")).toSeq.sorted(VersionOrdering).reverse
         }
       }
     }

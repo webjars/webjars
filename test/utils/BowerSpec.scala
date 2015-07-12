@@ -45,7 +45,8 @@ class BowerSpec extends PlaySpecification {
     "download" in {
       val is = new BufferedInputStream(await(bower.zip("sjcl", "1.0.2"), 1, TimeUnit.MINUTES))
       val zis = new ArchiveStreamFactory().createArchiveInputStream(is)
-      zis.getNextEntry.getName must beEqualTo(".bower.json")
+      val files = Stream.continually(zis.getNextEntry).takeWhile(_ != null).map(_.getName).toSeq
+      files must contain ("sjcl.js")
     }
   }
   "angular" should {

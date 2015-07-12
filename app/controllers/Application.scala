@@ -271,18 +271,18 @@ object Application extends Controller {
     }
   }
 
-  def deployNPM(artifactId: String, version: String, channelId: String) = Action.async {
+  def deployNPM(nameOrUrlish: String, version: String, channelId: String) = Action.async {
     val app = Play.current.configuration.getString("bower.herokuapp").get
     val fork = Play.current.configuration.getBoolean("bower.fork").get
 
     if (fork) {
-      val cmd = s"pubnpm $artifactId $version $channelId"
+      val cmd = s"pubnpm $nameOrUrlish $version $channelId"
       heroku.dynoCreate(app, false, cmd, "Standard-2X").map { createJson =>
         Ok(createJson)
       }
     }
     else {
-      NPMWebJar.release(artifactId, version, Some(channelId))(ExecutionContext.global, Play.current.configuration).map { result =>
+      NPMWebJar.release(nameOrUrlish, version, Some(channelId))(ExecutionContext.global, Play.current.configuration).map { result =>
         Ok(Json.toJson(result))
       } recover {
         case e: Exception => InternalServerError(e.getMessage)
