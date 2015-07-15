@@ -1,5 +1,7 @@
 package utils
 
+import java.net.URL
+
 import play.api.{Logger, Configuration}
 import play.api.http.Status
 import play.api.libs.json.{JsValue, Json}
@@ -147,7 +149,19 @@ class BinTray(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) {
     Future.sequence {
       licenses.map { license =>
         if (license.startsWith("http://") || license.startsWith("https://")) {
-          ws.url(license).get().flatMap { licenseTextResponse =>
+
+          // sometimes this url points to the license on GitHub which can't be heuristically converted to an actual license so change the url to the raw content
+          val licenseUrl = new URL(license)
+
+          val rawLicenseUrl = if (licenseUrl.getHost.endsWith("github.com")) {
+            val path = licenseUrl.getPath.replaceAll("/blob", "")
+            s"https://raw.githubusercontent.com$path"
+          }
+          else {
+            licenseUrl.toString
+          }
+
+          ws.url(rawLicenseUrl).get().flatMap { licenseTextResponse =>
             licenseTextResponse.status match {
               case Status.OK =>
                 ws.url("https://oss-license-detector.herokuapp.com/").post(licenseTextResponse.body).flatMap { licenseResponse =>

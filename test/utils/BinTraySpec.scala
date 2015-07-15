@@ -64,8 +64,13 @@ class BinTraySpec extends PlaySpecification {
       val result = await(binTray.convertLicenses(licenses))
       result must be equalTo Set("Openfont-1.1")
     }
-    "convert license URL to license" in {
+    "convert raw license URL to license" in {
       val licenses = Seq("http://polymer.github.io/LICENSE.txt")
+      val result = await(binTray.convertLicenses(licenses))
+      result must be equalTo Set("BSD 3-Clause")
+    }
+    "convert github license URL to license" in {
+      val licenses = Seq("https://github.com/facebook/flux/blob/master/LICENSE")
       val result = await(binTray.convertLicenses(licenses))
       result must be equalTo Set("BSD 3-Clause")
     }
