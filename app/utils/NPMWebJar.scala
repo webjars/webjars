@@ -77,12 +77,13 @@ object NPMWebJar extends App {
             publishJar <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/$version/$artifactId-$version.jar", jar)
             emptyJar = WebJarUtils.emptyJar()
             publishSourceJar <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/$version/$artifactId-$version-sources.jar", emptyJar)
+            publishJavadocJar <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/$version/$artifactId-$version-javadoc.jar", emptyJar)
             _ <- push("update", "Published BinTray Assets")
             signVersion <- binTray.signVersion(binTraySubject, binTrayRepo, packageName, version)
             _ <- push("update", "Signed BinTray Assets")
             publishVersion <- binTray.publishVersion(binTraySubject, binTrayRepo, packageName, version)
             _ <- push("update", "Published BinTray Version")
-          } yield (createVersion, publishPom, publishPom, publishSourceJar, signVersion, publishVersion)
+          } yield (createVersion, publishPom, publishPom, publishSourceJar, publishJavadocJar, signVersion, publishVersion)
 
           // do not fail if the binTray version already exists
           binTrayPublish <- binTrayPublishFuture.recover { case e: BinTray.VersionExists => e.getMessage }
