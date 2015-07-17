@@ -84,6 +84,10 @@ class BinTraySpec extends PlaySpecification {
       val licenses = await(binTray.convertLicenses(Seq("foo", "MIT")))
       licenses must be equalTo Set("MIT")
     }
+    "work with SPDX OR expressions" in {
+      val licenses = await(binTray.convertLicenses(Seq("(Apache-2.0 OR MIT)")))
+      licenses must be equalTo Set("Apache-2.0", "MIT")
+    }
   }
 
   step(ws.close())

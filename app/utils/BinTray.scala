@@ -147,7 +147,7 @@ class BinTray(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) {
 
   def convertLicenses(licenses: Seq[String]): Future[Set[String]] = {
     Future.sequence {
-      licenses.map { license =>
+      licenses.flatMap { license =>
         if (license.startsWith("http://") || license.startsWith("https://")) {
 
           // sometimes this url points to the license on GitHub which can't be heuristically converted to an actual license so change the url to the raw content
@@ -161,28 +161,34 @@ class BinTray(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) {
             licenseUrl.toString
           }
 
-          ws.url(rawLicenseUrl).get().flatMap { licenseTextResponse =>
-            licenseTextResponse.status match {
-              case Status.OK =>
-                ws.url("https://oss-license-detector.herokuapp.com/").post(licenseTextResponse.body).flatMap { licenseResponse =>
-                  licenseResponse.status match {
-                    case Status.OK =>
-                      Future.successful(licenseResponse.body)
-                    case _ =>
-                      Logger.error("License fetch error: " + license + " " + licenseTextResponse.body + " " + licenseResponse.body)
-                      Future.failed(new Exception(licenseResponse.body))
+          Seq {
+            ws.url(rawLicenseUrl).get().flatMap { licenseTextResponse =>
+              licenseTextResponse.status match {
+                case Status.OK =>
+                  ws.url("https://oss-license-detector.herokuapp.com/").post(licenseTextResponse.body).flatMap { licenseResponse =>
+                    licenseResponse.status match {
+                      case Status.OK =>
+                        Future.successful(licenseResponse.body)
+                      case _ =>
+                        Logger.error("License fetch error: " + license + " " + licenseTextResponse.body + " " + licenseResponse.body)
+                        Future.failed(new Exception(licenseResponse.body))
+                    }
                   }
-                }
-              case _ =>
-                Future.failed(new Exception(licenseTextResponse.body))
+                case _ =>
+                  Future.failed(new Exception(licenseTextResponse.body))
+              }
+            } recoverWith {
+              case e: Exception =>
+                Future.failed(new Exception(s"$license could not be converted to a knowable license"))
             }
-          } recoverWith {
-            case e: Exception =>
-              Future.failed(new Exception(s"$license could not be converted to a knowable license"))
           }
         }
+        else if (license.startsWith("(") && license.endsWith(")") && !license.contains("AND")) {
+          // SPDX license expression
+          license.stripPrefix("(").stripSuffix(")").split(" OR ").toSeq.map(Future.successful)
+        }
         else {
-          Future.successful(license)
+          Seq(Future.successful(license))
         }
       }
     } flatMap { detectedLicenses =>
