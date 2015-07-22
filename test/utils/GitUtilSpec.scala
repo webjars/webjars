@@ -84,6 +84,21 @@ class GitUtilSpec extends PlaySpecification {
     }
   }
 
+  "artifactId" should {
+    "convert a name to a name" in {
+      await(git.artifactId("foo")) must beEqualTo ("foo")
+    }
+    "convert a github url to a name" in {
+      await(git.artifactId("mochajs/mocha")) must beEqualTo ("github-com-mochajs-mocha")
+    }
+    "convert a git:// url to a name" in {
+      await(git.artifactId("git://github.com/mochajs/mocha.git")) must beEqualTo ("github-com-mochajs-mocha")
+    }
+    "convert a https:// url to a name" in {
+      await(git.artifactId("https://github.com/mochajs/mocha.git")) must beEqualTo ("github-com-mochajs-mocha")
+    }
+  }
+
 
   step(ws.close())
 

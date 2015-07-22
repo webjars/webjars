@@ -20,6 +20,7 @@ object NPMWebJar extends App {
     StandaloneWS.withWs { implicit ws =>
 
       val npm = NPM(executionContext, ws.client)
+      val git = GitUtil(executionContext, ws.client)
       val binTray = BinTray(executionContext, ws, config)
       val pusher = Pusher(executionContext, ws.client, config)
 
@@ -30,7 +31,7 @@ object NPMWebJar extends App {
       }
 
       val webJarFuture = for {
-        artifactId <- npm.artifactId(nameOrUrlish)
+        artifactId <- git.artifactId(nameOrUrlish)
         _ <- push("update", s"Determined Artifact Name: $artifactId")
         packageInfo <- npm.info(nameOrUrlish, Some(version))
         _ <- push("update", "Got NPM info")

@@ -139,7 +139,7 @@ class NPM(implicit ec: ExecutionContext, ws: WSClient) {
           (npmVersionOrUrl, None)
         }
 
-        artifactId(url).flatMap { artifactId =>
+        git.artifactId(url).flatMap { artifactId =>
           maybeVersion.fold {
             versions(url).map { versions =>
               artifactId -> versions.head
@@ -160,27 +160,6 @@ class NPM(implicit ec: ExecutionContext, ws: WSClient) {
     }
 
     Future.sequence(maybeMavenDeps).map(_.toMap)
-  }
-
-  // converts git urls to unique artifactId's
-  def artifactId(nameOrUrlish: String): Future[String] = {
-    if (nameOrUrlish.contains("/")) {
-      git.gitUrl(nameOrUrlish).flatMap { gitUrl =>
-        Future.fromTry {
-          Try {
-            val uri = new URI(gitUrl.stripSuffix(".git"))
-
-            val host = uri.getHost.replaceAll("[^\\w\\d]", "-")
-            val path = uri.getPath.replaceAll("[^\\w\\d]", "-")
-
-            host + path
-          }
-        }
-      }
-    }
-    else {
-      Future.successful(nameOrUrlish)
-    }
   }
 
 }

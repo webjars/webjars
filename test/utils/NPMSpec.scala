@@ -139,20 +139,6 @@ class NPMSpec extends PlaySpecification {
       mavenDeps.get("github-com-btford-route-recognizer") must beSome ("0.1.1")
     }
   }
-  "artifactId" should {
-    "convert a name to a name" in {
-      await(npm.artifactId("foo")) must beEqualTo ("foo")
-    }
-    "convert a github url to a name" in {
-      await(npm.artifactId("mochajs/mocha")) must beEqualTo ("github-com-mochajs-mocha")
-    }
-    "convert a git:// url to a name" in {
-      await(npm.artifactId("git://github.com/mochajs/mocha.git")) must beEqualTo ("github-com-mochajs-mocha")
-    }
-    "convert a https:// url to a name" in {
-      await(npm.artifactId("https://github.com/mochajs/mocha.git")) must beEqualTo ("github-com-mochajs-mocha")
-    }
-  }
 
   step(ws.close())
 

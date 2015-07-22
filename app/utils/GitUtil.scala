@@ -1,6 +1,7 @@
 package utils
 
 import java.io.{File, InputStream}
+import java.net.URI
 import java.nio.file.Files
 import org.eclipse.jgit.api.Git
 import play.api.http.{HeaderNames, Status}
@@ -42,6 +43,27 @@ class GitUtil(implicit ec: ExecutionContext, ws: WSClient) {
     }
     else {
       Future.successful(jgitReadyUrl)
+    }
+  }
+
+  // converts git urls to unique artifactId's
+  def artifactId(nameOrUrlish: String): Future[String] = {
+    if (nameOrUrlish.contains("/")) {
+      gitUrl(nameOrUrlish).flatMap { gitUrl =>
+        Future.fromTry {
+          Try {
+            val uri = new URI(gitUrl.stripSuffix(".git"))
+
+            val host = uri.getHost.replaceAll("[^\\w\\d]", "-")
+            val path = uri.getPath.replaceAll("[^\\w\\d]", "-")
+
+            host + path
+          }
+        }
+      }
+    }
+    else {
+      Future.successful(nameOrUrlish)
     }
   }
 
