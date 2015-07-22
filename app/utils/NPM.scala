@@ -17,7 +17,7 @@ class NPM(implicit ec: ExecutionContext, ws: WSClient) {
   val BASE_URL = "http://registry.npmjs.org"
 
   val licenseUtils = LicenseUtils(ec, ws)
-  val git = Git(ec, ws)
+  val git = GitUtil(ec, ws)
 
   def versions(packageNameOrGitRepo: String): Future[Seq[String]] = {
     if (packageNameOrGitRepo.contains("/")) {
@@ -37,38 +37,52 @@ class NPM(implicit ec: ExecutionContext, ws: WSClient) {
 
   def info(packageNameOrGitRepo: String, maybeVersion: Option[String] = None): Future[PackageInfo] = {
 
-    // todo: fix scm urls if this was a git repo
-
     def packageInfo(packageJson: JsValue): Future[PackageInfo] = {
-      val initialInfo = packageJson.as[PackageInfo](NPM.jsonReads)
 
-      // deal with GitHub redirects
-      val infoFuture: Future[PackageInfo] = initialInfo.gitHubHome.toOption.fold(Future.successful(initialInfo)) { gitHubHome =>
-        ws.url(gitHubHome).withFollowRedirects(false).get().flatMap { homeTestResponse =>
-          homeTestResponse.status match {
-            case Status.MOVED_PERMANENTLY =>
-              homeTestResponse.header(HeaderNames.LOCATION).fold(Future.successful(initialInfo)) { actualHome =>
-                val newSource = actualHome.replaceFirst("https://", "git://") + ".git"
-                Future.successful(initialInfo.copy(sourceUrl = newSource, homepage = actualHome))
-              }
-            case _ =>
-              Future.successful(initialInfo)
-          }
+      val maybeForkPackageJsonFuture = if (packageNameOrGitRepo.contains("/")) {
+        // this is a git repo so its package.json values might be wrong
+        git.gitUrl(packageNameOrGitRepo).map { gitUrl =>
+          // replace the repository.url with the possible fork's git url
+          packageJson.as[JsObject] ++ Json.obj("repository" -> Json.obj("url" -> gitUrl))
         }
       }
+      else {
+        Future.successful(packageJson)
+      }
 
-      infoFuture.flatMap { info =>
-        if (info.licenses.isEmpty) {
-          licenseUtils.gitHubLicenseDetect(initialInfo.gitHubOrgRepo).map { license =>
-            info.copy(licenses = Seq(license))
-          } recoverWith {
-            case e: Exception =>
-              Future.successful(info)
+      maybeForkPackageJsonFuture.flatMap { maybeForPackageJson =>
+
+        val initialInfo = maybeForPackageJson.as[PackageInfo](NPM.jsonReads)
+
+        // deal with GitHub redirects
+        val infoFuture: Future[PackageInfo] = initialInfo.gitHubHome.toOption.fold(Future.successful(initialInfo)) { gitHubHome =>
+          ws.url(gitHubHome).withFollowRedirects(false).get().flatMap { homeTestResponse =>
+            homeTestResponse.status match {
+              case Status.MOVED_PERMANENTLY =>
+                homeTestResponse.header(HeaderNames.LOCATION).fold(Future.successful(initialInfo)) { actualHome =>
+                  val newSource = actualHome.replaceFirst("https://", "git://") + ".git"
+                  Future.successful(initialInfo.copy(sourceUrl = newSource, homepage = actualHome))
+                }
+              case _ =>
+                Future.successful(initialInfo)
+            }
           }
         }
-        else {
-          Future.successful(info)
+
+        infoFuture.flatMap { info =>
+          if (info.licenses.isEmpty) {
+            licenseUtils.gitHubLicenseDetect(initialInfo.gitHubOrgRepo).map { license =>
+              info.copy(licenses = Seq(license))
+            } recoverWith {
+              case e: Exception =>
+                Future.successful(info)
+            }
+          }
+          else {
+            Future.successful(info)
+          }
         }
+
       }
     }
 

@@ -2,6 +2,7 @@ package utils
 
 import java.io.{File, InputStream}
 import java.nio.file.Files
+import org.eclipse.jgit.api.Git
 import play.api.http.{HeaderNames, Status}
 import play.api.libs.ws.WSClient
 
@@ -10,7 +11,7 @@ import scala.io.Source
 import scala.util.Try
 import scala.collection.JavaConverters._
 
-class Git(implicit ec: ExecutionContext, ws: WSClient) {
+class GitUtil(implicit ec: ExecutionContext, ws: WSClient) {
 
   val cacheDir = Files.createTempDirectory("git")
 
@@ -48,7 +49,7 @@ class Git(implicit ec: ExecutionContext, ws: WSClient) {
     gitUrl(gitRepo).flatMap { url =>
       Future.fromTry {
         Try {
-          val tags = org.eclipse.jgit.api.Git.lsRemoteRepository()
+          val tags = Git.lsRemoteRepository()
             .setRemote(url)
             .setTags(true)
             .call()
@@ -67,7 +68,7 @@ class Git(implicit ec: ExecutionContext, ws: WSClient) {
       gitUrl(gitRepo).flatMap { url =>
         Future.fromTry {
           Try {
-            val clone = org.eclipse.jgit.api.Git.cloneRepository()
+            val clone = Git.cloneRepository()
               .setURI(url)
               .setDirectory(baseDir)
 
@@ -82,7 +83,7 @@ class Git(implicit ec: ExecutionContext, ws: WSClient) {
     }
     else {
       // checkout the version
-      val checkout = org.eclipse.jgit.api.Git.open(baseDir).checkout()
+      val checkout = Git.open(baseDir).checkout()
 
       version.fold(checkout.setName("origin/master"))(checkout.setName)
 
@@ -114,6 +115,6 @@ class Git(implicit ec: ExecutionContext, ws: WSClient) {
 
 }
 
-object Git {
-  def apply(implicit ec: ExecutionContext, ws: WSClient) = new Git()
+object GitUtil {
+  def apply(implicit ec: ExecutionContext, ws: WSClient) = new GitUtil()
 }

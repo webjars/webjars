@@ -64,6 +64,8 @@ class NPMSpec extends PlaySpecification {
       val info = await(npm.info("visionmedia/mocha"))
       info.name must beEqualTo ("mocha")
       info.version mustNotEqual ""
+      info.sourceConnectionUrl must beEqualTo ("https://github.com/mochajs/mocha")
+      info.sourceUrl must beEqualTo ("https://github.com/mochajs/mocha")
     }
   }
   "git repo tagged version info" should {
@@ -80,6 +82,30 @@ class NPMSpec extends PlaySpecification {
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(bufferedInputStream)
 
       bufferedInputStream.available() must beEqualTo (645120)
+    }
+  }
+  "git fork - github short url" should {
+    "have the correct urls" in {
+      val info = await(npm.info("btford/route-recognizer"))
+      info.name must beEqualTo ("route-recognizer")
+      info.version mustNotEqual ""
+      info.homepage must beEqualTo ("https://github.com/btford/route-recognizer")
+      info.sourceConnectionUrl must beEqualTo ("https://github.com/btford/route-recognizer")
+      info.sourceUrl must beEqualTo ("https://github.com/btford/route-recognizer")
+      info.issuesUrl must beEqualTo ("https://github.com/btford/route-recognizer/issues")
+      info.gitHubHome must beASuccessfulTry("https://github.com/btford/route-recognizer")
+    }
+  }
+  "git fork - git url" should {
+    "have the correct urls" in {
+      val info = await(npm.info("git://github.com/btford/route-recognizer"))
+      info.name must beEqualTo ("route-recognizer")
+      info.version mustNotEqual ""
+      info.homepage must beEqualTo ("https://github.com/btford/route-recognizer")
+      info.sourceConnectionUrl must beEqualTo ("git://github.com/btford/route-recognizer")
+      info.sourceUrl must beEqualTo ("https://github.com/btford/route-recognizer")
+      info.issuesUrl must beEqualTo ("https://github.com/btford/route-recognizer/issues")
+      info.gitHubHome must beASuccessfulTry("https://github.com/btford/route-recognizer")
     }
   }
   "converting npm deps to maven" should {

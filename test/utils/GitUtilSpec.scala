@@ -10,12 +10,12 @@ import play.api.test._
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
-class GitSpec extends PlaySpecification {
+class GitUtilSpec extends PlaySpecification {
 
   override implicit def defaultAwaitTimeout: Timeout = 30.seconds
 
   val ws = StandaloneWS.apply()
-  val git = Git(ExecutionContext.global, ws.client)
+  val git = GitUtil(ExecutionContext.global, ws.client)
 
   "git versions" should {
     "not work with an invalid git url" in {
@@ -55,7 +55,7 @@ class GitSpec extends PlaySpecification {
     "fetch a file with a version" in {
       val file = await(git.file("mochajs/mocha", Some("2.2.5"), "package.json"))
       file.length must beEqualTo (1683)
-      file.contains(""""version": "2.2.5"""")
+      file.contains(""""version": "2.2.5"""") must beTrue
     }
     "fetch a file" in {
       val file = await(git.file("mochajs/mocha", None, "package.json"))
@@ -64,7 +64,7 @@ class GitSpec extends PlaySpecification {
     "fetch a file with a different version" in {
       val file = await(git.file("mochajs/mocha", Some("2.2.4"), "package.json"))
       file.length must beEqualTo (1663)
-      file.contains(""""version": "2.2.4"""")
+      file.contains(""""version": "2.2.4"""") must beTrue
     }
   }
 
