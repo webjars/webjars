@@ -20,7 +20,7 @@ class NPM(implicit ec: ExecutionContext, ws: WSClient) {
   val git = GitUtil(ec, ws)
 
   def versions(packageNameOrGitRepo: String): Future[Seq[String]] = {
-    if (packageNameOrGitRepo.contains("/")) {
+    if (git.isGit(packageNameOrGitRepo)) {
       git.versions(packageNameOrGitRepo)
     }
     else {
@@ -39,7 +39,7 @@ class NPM(implicit ec: ExecutionContext, ws: WSClient) {
 
     def packageInfo(packageJson: JsValue): Future[PackageInfo] = {
 
-      val maybeForkPackageJsonFuture = if (packageNameOrGitRepo.contains("/")) {
+      val maybeForkPackageJsonFuture = if (git.isGit(packageNameOrGitRepo)) {
         // this is a git repo so its package.json values might be wrong
         git.gitUrl(packageNameOrGitRepo).map { gitUrl =>
           // replace the repository.url with the possible fork's git url
@@ -86,7 +86,7 @@ class NPM(implicit ec: ExecutionContext, ws: WSClient) {
       }
     }
 
-    if (packageNameOrGitRepo.contains("/")) {
+    if (git.isGit(packageNameOrGitRepo)) {
       versions(packageNameOrGitRepo).flatMap { versions =>
         // if version was set use it, otherwise use the latest version
         val version = maybeVersion.orElse(versions.headOption)
@@ -112,7 +112,7 @@ class NPM(implicit ec: ExecutionContext, ws: WSClient) {
   }
 
   def tgz(packageNameOrGitRepo: String, version: String): Future[InputStream] = {
-    if (packageNameOrGitRepo.contains("/")) {
+    if (git.isGit(packageNameOrGitRepo)) {
       git.tar(packageNameOrGitRepo, Some(version), Set("node_modules"))
     }
     else {
@@ -125,41 +125,6 @@ class NPM(implicit ec: ExecutionContext, ws: WSClient) {
         }
       }
     }
-  }
-
-  def convertNpmDependenciesToMaven(npmDependencies: Map[String, String]): Future[Map[String, String]] = {
-    val maybeMavenDeps = npmDependencies.map { case (npmName, npmVersionOrUrl) =>
-      if (npmVersionOrUrl.contains("/")) {
-
-        val (url, maybeVersion) = if (npmVersionOrUrl.contains("#")) {
-          val parts = npmVersionOrUrl.split("#")
-          (parts.head, parts.lastOption)
-        }
-        else {
-          (npmVersionOrUrl, None)
-        }
-
-        git.artifactId(url).flatMap { artifactId =>
-          maybeVersion.fold {
-            versions(url).map { versions =>
-              artifactId -> versions.head
-            }
-          } { version =>
-            Future.successful(artifactId -> version)
-          }
-        }
-      }
-      else {
-        val maybeMavenVersion = SemVerUtil.convertSemVerToMaven(npmVersionOrUrl)
-        maybeMavenVersion.fold {
-          Future.failed[(String, String)](new Exception(s"Could not convert npm version to maven for: $npmName $npmVersionOrUrl"))
-        } { mavenVersion =>
-          Future.successful(npmName -> mavenVersion)
-        }
-      }
-    }
-
-    Future.sequence(maybeMavenDeps).map(_.toMap)
   }
 
 }

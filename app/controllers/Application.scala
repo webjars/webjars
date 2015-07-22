@@ -89,19 +89,17 @@ object Application extends Controller {
     }
   }
 
-  def bowerPackageExists(packageName: String) = Action.async {
-    bower.info(packageName).map(_ => Ok).recover { case e: Exception =>
+  def bowerPackageExists(packageNameOrGitRepo: String) = Action.async {
+    bower.versions(packageNameOrGitRepo).map(_ => Ok).recover { case e: Exception =>
       InternalServerError(e.getMessage)
     }
   }
 
-  def bowerPackageVersions(packageName: String) = Action.async { request =>
-    val packageVersionsFuture = Cache.getAs[Seq[String]](s"bower-versions-$packageName").fold {
-      bower.info(packageName).map { json =>
-        val versions = (json \ "versions").as[Seq[String]]
-        val cleanVersions = versions.filterNot(_.contains("sha"))
-        Cache.set(s"bower-versions-$packageName", cleanVersions, 1.hour)
-        cleanVersions
+  def bowerPackageVersions(packageNameOrGitRepo: String) = Action.async { request =>
+    val packageVersionsFuture = Cache.getAs[Seq[String]](s"bower-versions-$packageNameOrGitRepo").fold {
+      bower.versions(packageNameOrGitRepo).map { versions =>
+        Cache.set(s"bower-versions-$packageNameOrGitRepo", versions, 1.hour)
+        versions
       }
     } (Future.successful)
 

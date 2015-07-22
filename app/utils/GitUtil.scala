@@ -18,6 +18,10 @@ class GitUtil(implicit ec: ExecutionContext, ws: WSClient) {
 
   val licenseUtils = LicenseUtils(ec, ws)
 
+  def isGit(packageNameOrGitRepo: String): Boolean = {
+    packageNameOrGitRepo.contains("/")
+  }
+
   def gitUrl(gitRepo: String): Future[String] = {
     val resolvedUrl = if (gitRepo.contains("://")) {
       gitRepo

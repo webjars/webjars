@@ -108,37 +108,6 @@ class NPMSpec extends PlaySpecification {
       info.gitHubHome must beASuccessfulTry("https://github.com/btford/route-recognizer")
     }
   }
-  "converting npm deps to maven" should {
-    "work with standard npm deps" in {
-      val npmDeps = Map(
-        "traceur" -> "^0.0.72"
-      )
-      val mavenDeps = await(npm.convertNpmDependenciesToMaven(npmDeps))
-      mavenDeps.get("traceur") must beSome ("[0.0.72,0.0.73)")
-    }
-    "work with versionless git npm deps" in {
-      val npmDeps = Map(
-        "route-recognizer" -> "git://github.com/btford/route-recognizer"
-      )
-      val mavenDeps = await(npm.convertNpmDependenciesToMaven(npmDeps))
-      val latestVersion = await(npm.versions("git://github.com/btford/route-recognizer")).headOption
-      mavenDeps.get("github-com-btford-route-recognizer") must beEqualTo (latestVersion)
-    }
-    "work with versioned git npm deps" in {
-      val npmDeps = Map(
-        "route-recognizer" -> "git://github.com/btford/route-recognizer#0.1.1"
-      )
-      val mavenDeps = await(npm.convertNpmDependenciesToMaven(npmDeps))
-      mavenDeps.get("github-com-btford-route-recognizer") must beSome ("0.1.1")
-    }
-    "work with github npm deps" in {
-      val npmDeps = Map(
-        "route-recognizer" -> "btford/route-recognizer#0.1.1"
-      )
-      val mavenDeps = await(npm.convertNpmDependenciesToMaven(npmDeps))
-      mavenDeps.get("github-com-btford-route-recognizer") must beSome ("0.1.1")
-    }
-  }
 
   step(ws.close())
 
