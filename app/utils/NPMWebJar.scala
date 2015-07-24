@@ -2,7 +2,7 @@ package utils
 
 import java.io.File
 
-import play.api.libs.json.{JsNull, JsValue, Json}
+import play.api.libs.json.{JsNull, JsValue}
 import play.api.{Configuration, Mode}
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -10,58 +10,43 @@ import scala.util.{Failure, Success}
 
 object NPMWebJar extends App {
 
-  def release(artifactId: String, version: String, maybepusherChannelId: Option[String])(implicit executionContext: ExecutionContext, config: Configuration): Future[PackageInfo] = {
+  def release(nameOrUrlish: String, version: String, maybepusherChannelId: Option[String])(implicit executionContext: ExecutionContext, config: Configuration): Future[PackageInfo] = {
 
     val binTraySubject = "webjars"
     val binTrayRepo = "maven"
     val groupId = "org.webjars.npm"
     val mavenBaseDir = "org/webjars/npm"
 
-    // converts JsResult to Future
-    def packageInfo(json: JsValue): Future[PackageInfo] = Json.fromJson[PackageInfo](json)(NPM.jsonReads).fold(
-      errors => Future.failed(new Exception(errors.toString())),
-      Future.successful
-    )
-
-    def convertNpmDependenciesToMaven(npmDependencies: Map[String, String]): Future[Map[String, String]] = {
-      val maybeMavenDeps = npmDependencies.map { case (npmName, npmVersion) =>
-        val maybeMavenVersion = SemVerUtil.convertSemVerToMaven(npmVersion)
-        maybeMavenVersion.fold {
-          Future.failed[(String, String)](new Exception(s"Could not convert npm version to maven for: $npmName $npmVersion"))
-        } { mavenVersion =>
-          Future.successful(npmName -> mavenVersion)
-        }
-      }
-
-      Future.sequence(maybeMavenDeps).map(_.toMap)
-    }
-
     StandaloneWS.withWs { implicit ws =>
 
       val npm = NPM(executionContext, ws.client)
+      val git = GitUtil(executionContext, ws.client)
       val binTray = BinTray(executionContext, ws, config)
       val pusher = Pusher(executionContext, ws.client, config)
+      val maven = MavenUtil(executionContext, git)
 
       def push(event: String, message: String): Future[JsValue] = {
         maybepusherChannelId.fold(Future.successful[JsValue](JsNull)) { pusherChannelId =>
           pusher.push(pusherChannelId, event, message)
         }
       }
-      
+
       val webJarFuture = for {
-        packageInfo <- npm.info(artifactId, version)
+        artifactId <- git.artifactId(nameOrUrlish)
+        _ <- push("update", s"Determined Artifact Name: $artifactId")
+        packageInfo <- npm.info(nameOrUrlish, Some(version))
         _ <- push("update", "Got NPM info")
-        mavenDependencies <- convertNpmDependenciesToMaven(packageInfo.dependencies)
+        mavenDependencies <- maven.convertNpmBowerDependenciesToMaven(packageInfo.dependencies)
         _ <- push("update", "Converted dependencies to Maven")
         pom = templates.xml.pom(groupId, artifactId, packageInfo, mavenDependencies).toString()
         _ <- push("update", "Generated POM")
-        tgz <- npm.tgz(artifactId, version)
+        tgz <- npm.tgz(nameOrUrlish, version)
         _ <- push("update", "Fetched NPM tgz")
-        jar = WebJarUtils.createWebJar(tgz, "package/", Set("node_modules"), pom, groupId, artifactId, version)
+        jar = WebJarUtils.createWebJar(tgz, "package/", Set("node_modules"), pom, groupId, artifactId, packageInfo.version)
         _ <- push("update", "Created NPM WebJar")
-      } yield (packageInfo, pom, jar)
+      } yield (artifactId, packageInfo, pom, jar)
 
-      webJarFuture.flatMap { case (packageInfo, pom, jar) =>
+      webJarFuture.flatMap { case (artifactId, packageInfo, pom, jar) =>
         val packageName = s"$groupId:$artifactId"
 
         for {
@@ -71,24 +56,24 @@ object NPMWebJar extends App {
           _ <- push("update", "Created BinTray Package")
 
           binTrayPublishFuture = for {
-            createVersion <- binTray.createVersion(binTraySubject, binTrayRepo, packageName, version, s"$artifactId WebJar release $version", Some(s"v$version"))
+            createVersion <- binTray.createVersion(binTraySubject, binTrayRepo, packageName, packageInfo.version, s"$artifactId WebJar release ${packageInfo.version}", Some(s"v${packageInfo.version}"))
             _ <- push("update", "Created BinTray Version")
-            publishPom <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/$version/$artifactId-$version.pom", pom.getBytes)
-            publishJar <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/$version/$artifactId-$version.jar", jar)
+            publishPom <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/${packageInfo.version}/$artifactId-${packageInfo.version}.pom", pom.getBytes)
+            publishJar <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/${packageInfo.version}/$artifactId-${packageInfo.version}.jar", jar)
             emptyJar = WebJarUtils.emptyJar()
-            publishSourceJar <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/$version/$artifactId-$version-sources.jar", emptyJar)
-            publishJavadocJar <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/$version/$artifactId-$version-javadoc.jar", emptyJar)
+            publishSourceJar <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/${packageInfo.version}/$artifactId-${packageInfo.version}-sources.jar", emptyJar)
+            publishJavadocJar <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/${packageInfo.version}/$artifactId-${packageInfo.version}-javadoc.jar", emptyJar)
             _ <- push("update", "Published BinTray Assets")
-            signVersion <- binTray.signVersion(binTraySubject, binTrayRepo, packageName, version)
+            signVersion <- binTray.signVersion(binTraySubject, binTrayRepo, packageName, packageInfo.version)
             _ <- push("update", "Signed BinTray Assets")
-            publishVersion <- binTray.publishVersion(binTraySubject, binTrayRepo, packageName, version)
+            publishVersion <- binTray.publishVersion(binTraySubject, binTrayRepo, packageName, packageInfo.version)
             _ <- push("update", "Published BinTray Version")
           } yield (createVersion, publishPom, publishPom, publishSourceJar, publishJavadocJar, signVersion, publishVersion)
 
           // do not fail if the binTray version already exists
           binTrayPublish <- binTrayPublishFuture.recover { case e: BinTray.VersionExists => e.getMessage }
 
-          syncToMavenCentral <- binTray.syncToMavenCentral(binTraySubject, binTrayRepo, packageName, version)
+          syncToMavenCentral <- binTray.syncToMavenCentral(binTraySubject, binTrayRepo, packageName, packageInfo.version)
           _ <- push("update", "Synced With Maven Central")
           _ <- push("success",
             s"""Deployed!

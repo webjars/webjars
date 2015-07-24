@@ -89,19 +89,17 @@ object Application extends Controller {
     }
   }
 
-  def bowerPackageExists(packageName: String) = Action.async {
-    bower.info(packageName).map(_ => Ok).recover { case e: Exception =>
+  def bowerPackageExists(packageNameOrGitRepo: String) = Action.async {
+    bower.versions(packageNameOrGitRepo).map(_ => Ok).recover { case e: Exception =>
       InternalServerError(e.getMessage)
     }
   }
 
-  def bowerPackageVersions(packageName: String) = Action.async { request =>
-    val packageVersionsFuture = Cache.getAs[Seq[String]](s"bower-versions-$packageName").fold {
-      bower.info(packageName).map { json =>
-        val versions = (json \ "versions").as[Seq[String]]
-        val cleanVersions = versions.filterNot(_.contains("sha"))
-        Cache.set(s"bower-versions-$packageName", cleanVersions, 1.hour)
-        cleanVersions
+  def bowerPackageVersions(packageNameOrGitRepo: String) = Action.async { request =>
+    val packageVersionsFuture = Cache.getAs[Seq[String]](s"bower-versions-$packageNameOrGitRepo").fold {
+      bower.versions(packageNameOrGitRepo).map { versions =>
+        Cache.set(s"bower-versions-$packageNameOrGitRepo", versions, 1.hour)
+        versions
       }
     } (Future.successful)
 
@@ -113,23 +111,22 @@ object Application extends Controller {
     }
   }
 
-  def npmPackageExists(packageName: String) = Action.async {
-    npm.latest(packageName).map(_ => Ok).recover { case e: Exception =>
+  def npmPackageExists(packageNameOrGitRepo: String) = Action.async {
+    npm.versions(packageNameOrGitRepo).map(_ => Ok).recover { case e: Exception =>
       InternalServerError(e.getMessage)
     }
   }
 
-  def npmPackageVersions(packageName: String) = Action.async {
-    val packageVersionsFuture = Cache.getAs[Seq[String]](s"npm-versions-$packageName").fold {
-      npm.info(packageName).map { json =>
-        val versions = (json \ "versions" \\ "version").map(_.as[String]).sorted(VersionOrdering).reverse
-        Cache.set(s"npm-versions-$packageName", versions, 1.hour)
+  def npmPackageVersions(packageNameOrGitRepo: String) = Action.async {
+    val packageVersionsFuture = Cache.getAs[Seq[String]](s"npm-versions-$packageNameOrGitRepo").fold {
+      npm.versions(packageNameOrGitRepo).map { versions =>
+        Cache.set(s"npm-versions-$packageNameOrGitRepo", versions, 1.hour)
         versions
       }
     } (Future.successful)
 
-    packageVersionsFuture.map { json =>
-      Ok(Json.toJson(json))
+    packageVersionsFuture.map { versions =>
+      Ok(Json.toJson(versions))
     } recover {
       case e: Exception =>
         InternalServerError
@@ -272,18 +269,18 @@ object Application extends Controller {
     }
   }
 
-  def deployNPM(artifactId: String, version: String, channelId: String) = Action.async {
+  def deployNPM(nameOrUrlish: String, version: String, channelId: String) = Action.async {
     val app = Play.current.configuration.getString("bower.herokuapp").get
     val fork = Play.current.configuration.getBoolean("bower.fork").get
 
     if (fork) {
-      val cmd = s"pubnpm $artifactId $version $channelId"
+      val cmd = s"pubnpm $nameOrUrlish $version $channelId"
       heroku.dynoCreate(app, false, cmd, "Standard-2X").map { createJson =>
         Ok(createJson)
       }
     }
     else {
-      NPMWebJar.release(artifactId, version, Some(channelId))(ExecutionContext.global, Play.current.configuration).map { result =>
+      NPMWebJar.release(nameOrUrlish, version, Some(channelId))(ExecutionContext.global, Play.current.configuration).map { result =>
         Ok(Json.toJson(result))
       } recover {
         case e: Exception => InternalServerError(e.getMessage)
