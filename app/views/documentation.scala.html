@@ -31,6 +31,7 @@
                 <li><a href="#wicket" data-toggle="tab">Apache Wicket</a></li>
 		<li><a href="#pippo" data-toggle="tab">Pippo</a></li>
                 <li><a href="#ring" data-toggle="tab">Ring (Clojure)</a></li>
+                <li><a href="#dandelion" data-toggle="tab">Dandelion</a></li>
             </ul>
         </div>
 
@@ -578,6 +579,58 @@ public class AjaxApplication extends Application {
                 The right asset will be transparently accessed and served with proper HTTP caching behavior.
             </div>
 
+            <!-- Dandelion -->
+            <div class="tab-pane" id="wicket">
+                <h3>Instructions for Dandelion</h3>
+
+                When writing bundles, you can configure assets to be fetched from multiple locations: <code>webapp</code>, <code>classpath</code> and more.
+                <br>
+                <a href="http://dandelion.github.io/">Dandelion</a> also provides a WebJars integration via a dedicated locator for WebJars.
+                <br>
+                First, you have to add dandelion-webjars as dependency to your application in the <span class="label label-info">pom.xml</span> file:
+                <pre><code>&lt;dependencies&gt;
+    &lt;dependency&gt;
+        &lt;groupId&gt;com.github.dandelion&lt;/groupId&gt;
+        &lt;artifactId&gt;dandelion-webjars&lt;/artifactId&gt;
+        &lt;version&gt;1.1.0&lt;/version&gt;
+    &lt;/dependency&gt;
+&lt;/dependencies&gt;</code></pre>
+                <br>
+
+                And a WebJar dependency like:
+
+                <pre><code>&lt;dependencies&gt;
+    &lt;dependency&gt;
+        &lt;groupId&gt;org.webjars&lt;/groupId&gt;
+        &lt;artifactId&gt;jquery&lt;/artifactId&gt;
+        &lt;version&gt;1.11.3&lt;/version&gt;
+    &lt;/dependency&gt;
+&lt;/dependencies&gt;</code></pre>
+                <br>
+
+                Then, in your bundle definition, configure the asset as follows:
+                <pre><code>{
+    "assets": [
+        {
+            "version": "1.11.3",
+            "locations": {
+                "webjar": "jquery.js"
+            }
+        }
+    ]
+}</code></pre>
+                <span class="label label-success">Note</span>
+                Note the usage of the <code>webjar</code> location key, that tells Dandelion to fetch the asset from a WebJar.
+                <br>
+                <span class="label label-success">Note</span>
+                Since Dandelion uses <a href="https://github.com/webjars/webjars-locator/">webjars-locator</a> internally, you just need to specify the name of the asset, path excluded but extension included.
+                <br>
+                Dandelion will finally generate the following client-side HTML markup:
+                <pre><code>&lt;script src="/[contextPath]/webjars/jquery/1.11.3/jquery.js"&gt;&lt;/script&gt;</code></pre>
+                
+                <br>
+                A sample application is available here: <a href="https://github.com/dandelion/dandelion-core-samples/tree/master/core-thymeleaf-webjars"></a>
+            </div>
         </div>
     </div>
     </div>
