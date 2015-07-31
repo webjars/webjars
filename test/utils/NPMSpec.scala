@@ -108,6 +108,11 @@ class NPMSpec extends PlaySpecification {
       info.gitHubHome must beASuccessfulTry("https://github.com/btford/route-recognizer")
     }
   }
+  "info on amp-ui 3.2.0" should {
+    "fail with a nice error" in {
+      await(npm.info("amp-ui", Some("3.2.0"))) must throwA[Exception]("The source repository for amp-ui 3.2.0 could not be determined but is required to published to Maven Central.  This will need to be fixed in the project's package metadata.")
+    }
+  }
 
   step(ws.close())
 

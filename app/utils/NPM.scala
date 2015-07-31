@@ -52,35 +52,39 @@ class NPM(implicit ec: ExecutionContext, ws: WSClient) {
 
       maybeForkPackageJsonFuture.flatMap { maybeForPackageJson =>
 
-        val initialInfo = maybeForPackageJson.as[PackageInfo](NPM.jsonReads)
+        maybeForPackageJson.asOpt[PackageInfo](NPM.jsonReads).fold {
+          Future.failed[PackageInfo](new Exception(s"The source repository for $packageNameOrGitRepo ${maybeVersion.getOrElse("")} could not be determined but is required to published to Maven Central.  This will need to be fixed in the project's package metadata."))
+        } { initialInfo =>
 
-        // deal with GitHub redirects
-        val infoFuture: Future[PackageInfo] = initialInfo.gitHubHome.toOption.fold(Future.successful(initialInfo)) { gitHubHome =>
-          ws.url(gitHubHome).withFollowRedirects(false).get().flatMap { homeTestResponse =>
-            homeTestResponse.status match {
-              case Status.MOVED_PERMANENTLY =>
-                homeTestResponse.header(HeaderNames.LOCATION).fold(Future.successful(initialInfo)) { actualHome =>
-                  val newSource = actualHome.replaceFirst("https://", "git://") + ".git"
-                  Future.successful(initialInfo.copy(sourceUrl = newSource, homepage = actualHome))
-                }
-              case _ =>
-                Future.successful(initialInfo)
+          // deal with GitHub redirects
+          val infoFuture: Future[PackageInfo] = initialInfo.gitHubHome.toOption.fold(Future.successful(initialInfo)) { gitHubHome =>
+            ws.url(gitHubHome).withFollowRedirects(false).get().flatMap { homeTestResponse =>
+              homeTestResponse.status match {
+                case Status.MOVED_PERMANENTLY =>
+                  homeTestResponse.header(HeaderNames.LOCATION).fold(Future.successful(initialInfo)) { actualHome =>
+                    val newSource = actualHome.replaceFirst("https://", "git://") + ".git"
+                    Future.successful(initialInfo.copy(sourceUrl = newSource, homepage = actualHome))
+                  }
+                case _ =>
+                  Future.successful(initialInfo)
+              }
             }
           }
-        }
 
-        infoFuture.flatMap { info =>
-          if (info.licenses.isEmpty) {
-            licenseUtils.gitHubLicenseDetect(initialInfo.gitHubOrgRepo).map { license =>
-              info.copy(licenses = Seq(license))
-            } recoverWith {
-              case e: Exception =>
-                Future.successful(info)
+          infoFuture.flatMap { info =>
+            if (info.licenses.isEmpty) {
+              licenseUtils.gitHubLicenseDetect(initialInfo.gitHubOrgRepo).map { license =>
+                info.copy(licenses = Seq(license))
+              } recoverWith {
+                case e: Exception =>
+                  Future.successful(info)
+              }
+            }
+            else {
+              Future.successful(info)
             }
           }
-          else {
-            Future.successful(info)
-          }
+
         }
 
       }
