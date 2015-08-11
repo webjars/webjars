@@ -15,6 +15,8 @@ class BinTray(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) {
 
   val BASE_URL = "https://bintray.com/api/v1"
 
+  val licenseUtils = LicenseUtils(ec, ws.client)
+
   lazy val username = config.getString("bintray.username").get
   lazy val password = config.getString("bintray.password").get
   lazy val gpgPassphrase = config.getString("bintray.gpg.passphrase").get
@@ -165,15 +167,7 @@ class BinTray(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) {
             ws.url(rawLicenseUrl).get().flatMap { licenseTextResponse =>
               licenseTextResponse.status match {
                 case Status.OK =>
-                  ws.url("https://oss-license-detector.herokuapp.com/").post(licenseTextResponse.body).flatMap { licenseResponse =>
-                    licenseResponse.status match {
-                      case Status.OK =>
-                        Future.successful(licenseResponse.body)
-                      case _ =>
-                        Logger.error("License fetch error: " + license + " " + licenseTextResponse.body + " " + licenseResponse.body)
-                        Future.failed(new Exception(licenseResponse.body))
-                    }
-                  }
+                  licenseUtils.licenseDetect(licenseTextResponse.body)
                 case _ =>
                   Future.failed(new Exception(licenseTextResponse.body))
               }

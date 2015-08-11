@@ -1,5 +1,6 @@
 package utils
 
+import play.api.Logger
 import play.api.http.Status
 import play.api.libs.ws.WSClient
 
@@ -17,6 +18,18 @@ class LicenseUtils(implicit ec: ExecutionContext, ws: WSClient) {
         }
       }
     }.getOrElse(Future.failed(new Exception("Could not get license")))
+  }
+
+  def licenseDetect(contents: String): Future[String] = {
+    ws.url("https://oss-license-detector.herokuapp.com/").post(contents).flatMap { licenseResponse =>
+      licenseResponse.status match {
+        case Status.OK =>
+          Future.successful(licenseResponse.body)
+        case _ =>
+          Logger.error("License fetch error:\n" + contents + "\n" + licenseResponse.body)
+          Future.failed(new Exception(licenseResponse.body))
+      }
+    }
   }
 
 }

@@ -2,7 +2,6 @@ package utils
 
 import java.io.InputStream
 import java.net.URL
-import java.util.zip.ZipInputStream
 
 import play.api.http.{HeaderNames, Status}
 import play.api.libs.json.Reads._
@@ -93,13 +92,37 @@ class Bower(implicit ec: ExecutionContext, ws: WSClient) {
           if (info.licenses.isEmpty) {
             licenseUtils.gitHubLicenseDetect(info.gitHubOrgRepo).map { license =>
               info.copy(licenses = Seq(license))
-            } recoverWith {
-              case e: Exception =>
-                Future.successful(info)
             }
           }
           else {
-            Future.successful(info)
+            val resolvedLicensesFuture = Future.sequence {
+              info.licenses.map { license =>
+                if (license.contains("/")) {
+                  val contentsFuture = if (license.startsWith("http")) {
+                    ws.url(license).get().flatMap { response =>
+                      response.status match {
+                        case Status.OK => Future.successful(response.body)
+                        case _ => Future.failed(new Exception(s"Could not fetch license: $license"))
+                      }
+                    }
+                  }
+                  else {
+                    git.file(info.sourceConnectionUrl, Some(info.version), license)
+                  }
+
+                  contentsFuture.flatMap { contents =>
+                    licenseUtils.licenseDetect(contents)
+                  }
+                }
+                else {
+                  Future.successful(license)
+                }
+              }
+            }
+
+            resolvedLicensesFuture.map { resolvedLicenses =>
+              info.copy(licenses = resolvedLicenses)
+            }
           }
         }
 

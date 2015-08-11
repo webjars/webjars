@@ -54,6 +54,11 @@ class BowerSpec extends PlaySpecification {
       await(bower.info("angular", Some("1.4.0"))).licenses must contain("MIT")
     }
   }
+  "angular-equalizer" should {
+    "have an MIT license" in {
+      await(bower.info("angular-equalizer", Some("2.0.1"))).licenses must contain("MIT")
+    }
+  }
 
   "valid git short url" should {
     "have versions" in {
