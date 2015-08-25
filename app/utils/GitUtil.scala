@@ -1,7 +1,7 @@
 package utils
 
 import java.io.{File, InputStream}
-import java.net.URI
+import java.net.{URL, URI}
 import java.nio.file.Files
 import org.eclipse.jgit.api.Git
 import play.api.http.{HeaderNames, Status}
@@ -22,6 +22,32 @@ class GitUtil(implicit ec: ExecutionContext, ws: WSClient) {
     packageNameOrGitRepo.contains("/")
   }
 
+  def resolveRedir(httpUrl: String): Future[String] = {
+    ws.url(httpUrl).withFollowRedirects(false).head().flatMap { response =>
+      response.status match {
+        case Status.MOVED_PERMANENTLY | Status.FOUND =>
+          // todo: max redirects
+          response.header(HeaderNames.LOCATION).fold(Future.failed[String](new Exception("Could not get redir location"))) { location =>
+            val redirUrl = if (location.startsWith("/")) {
+              // relative url
+              val url = new URL(httpUrl)
+              url.getProtocol + "://" + url.getHost + location
+            }
+            else {
+              location
+            }
+
+            // keep resolving until there is an OK
+            resolveRedir(redirUrl)
+          }
+        case Status.OK =>
+          Future.successful(httpUrl)
+        case _ =>
+          Future.failed(new Exception(s"Could not get HEAD for url: $httpUrl"))
+      }
+    }
+  }
+
   def gitUrl(gitRepo: String): Future[String] = {
     val resolvedUrl = if (gitRepo.contains("://")) {
       gitRepo
@@ -34,16 +60,7 @@ class GitUtil(implicit ec: ExecutionContext, ws: WSClient) {
     val jgitReadyUrl = resolvedUrl.replaceAllLiterally("git+", "")
 
     if (jgitReadyUrl.startsWith("http")) {
-      ws.url(jgitReadyUrl).withFollowRedirects(false).head().flatMap { response =>
-        response.status match {
-          case Status.MOVED_PERMANENTLY =>
-            response.header(HeaderNames.LOCATION).fold(Future.failed[String](new Exception("Could not get redir location")))(Future.successful)
-          case Status.OK =>
-            Future.successful(jgitReadyUrl)
-          case _ =>
-            Future.failed(new Exception(s"Could not get HEAD for url: $jgitReadyUrl"))
-        }
-      }
+      resolveRedir(jgitReadyUrl)
     }
     else {
       Future.successful(jgitReadyUrl)
