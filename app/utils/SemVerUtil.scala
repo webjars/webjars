@@ -72,12 +72,12 @@ object SemVerUtil {
         val rightVersionRange = SemVerVersionRange(rightLimit, rightMajor, rightMinor, rightPatch, rightTag)
         Some(Right(SemVerSetRange(leftVersionRange, rightVersionRange)))
       // ~1
-      case r"^~(\d+)${SomeInt(major)}$$" =>
+      case r"^~\s?(\d+)${SomeInt(major)}$$" =>
         val leftVersionRange = SemVerVersionRange(limit = Limits.GTE, major = major)
         val rightVersionRange = SemVerVersionRange(limit = Limits.LT, major = major.map(_ + 1))
         Some(Right(SemVerTildeRange(leftVersionRange, rightVersionRange)))
       // ~1.2 | ~1.2.3
-      case r"^~(\d+)${SomeInt(major)}\.(\d+)${SomeInt(minor)}\.?(\d*)${SomeInt(patch)}-?([\w.-]*)${SomeString(tag)}$$" =>
+      case r"^~\s?(\d+)${SomeInt(major)}\.(\d+)${SomeInt(minor)}\.?(\d*)${SomeInt(patch)}-?([\w.-]*)${SomeString(tag)}$$" =>
         val leftVersionRange = SemVerVersionRange(limit = Limits.GTE, major = major, minor = minor, patch = patch, tag = tag)
         val rightVersionRange = SemVerVersionRange(limit = Limits.LT, major = major, minor = minor.map(_ + 1))
         Some(Right(SemVerTildeRange(leftVersionRange, rightVersionRange)))
