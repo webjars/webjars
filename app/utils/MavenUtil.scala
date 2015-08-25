@@ -18,7 +18,7 @@ class MavenUtil(implicit ec: ExecutionContext, git: GitUtil) {
 
         git.artifactId(url).flatMap { artifactId =>
           maybeVersion.orElse(latestVersion).fold {
-            Future.failed[(String, String)](new Exception("No version was specified."))
+            Future.failed[(String, String)](new Exception(s"The dependency definition $name -> $versionOrUrl was not valid because it looked like a git repo reference but no version was specified."))
           } { version =>
             Future.successful(artifactId -> version)
           }
