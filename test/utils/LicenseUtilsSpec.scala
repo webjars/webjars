@@ -22,6 +22,9 @@ class LicenseUtilsSpec extends PlaySpecification {
     "detect another license" in {
       await(licenseUtils.gitHubLicenseDetect(Try("angular/angular"))) must beEqualTo("Apache-2.0")
     }
+    "detect another license" in {
+      await(licenseUtils.gitHubLicenseDetect(Try("T00rk/bootstrap-material-datetimepicker"))) must beEqualTo("MIT")
+    }
   }
 
   step(ws.close())

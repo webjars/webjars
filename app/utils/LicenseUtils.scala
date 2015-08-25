@@ -10,13 +10,19 @@ import scala.util.Try
 class LicenseUtils(implicit ec: ExecutionContext, ws: WSClient) {
 
   def gitHubLicenseDetect(maybeGitHubOrgRepo: Try[String]): Future[String] = {
-    maybeGitHubOrgRepo.map { gitHubOrgRepo =>
-      ws.url(s"https://github-license-service.herokuapp.com/$gitHubOrgRepo").get().flatMap { response =>
-        response.status match {
-          case Status.OK => Future.successful(response.body)
-          case _ => Future.failed(new Exception("Could not get license"))
-        }
+    def fetchLicense(url: String): Future[String] = ws.url(url).get().flatMap { response =>
+      response.status match {
+        case Status.OK => Future.successful(response.body)
+        case _ => Future.failed(new Exception("Could not get license"))
       }
+    }
+
+    maybeGitHubOrgRepo.map { gitHubOrgRepo =>
+      // look on master for a license
+      fetchLicense(s"https://github-license-service.herokuapp.com/$gitHubOrgRepo").fallbackTo {
+        // look on gh-pages
+        fetchLicense(s"https://github-license-service.herokuapp.com/$gitHubOrgRepo/gh-pages")
+     }
     }.getOrElse(Future.failed(new Exception("Could not get license")))
   }
 
