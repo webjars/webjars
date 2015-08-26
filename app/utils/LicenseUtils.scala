@@ -19,9 +19,10 @@ class LicenseUtils(implicit ec: ExecutionContext, ws: WSClient) {
 
     maybeGitHubOrgRepo.map { gitHubOrgRepo =>
       // look on master for a license
-      fetchLicense(s"https://github-license-service.herokuapp.com/$gitHubOrgRepo").fallbackTo {
-        // look on gh-pages
-        fetchLicense(s"https://github-license-service.herokuapp.com/$gitHubOrgRepo/gh-pages")
+      fetchLicense(s"https://github-license-service.herokuapp.com/$gitHubOrgRepo").recoverWith {
+        case e: Exception =>
+          // look on gh-pages
+          fetchLicense(s"https://github-license-service.herokuapp.com/$gitHubOrgRepo/gh-pages")
      }
     }.getOrElse(Future.failed(new Exception("Could not get license")))
   }
