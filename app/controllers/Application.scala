@@ -6,7 +6,7 @@ import akka.pattern.ask
 import akka.util.Timeout
 import models.{WebJarCatalog, WebJar}
 import org.joda.time._
-import play.api.Play
+import play.api.{Logger, Play}
 import play.api.Play.current
 import play.api.cache.Cache
 import play.api.libs.concurrent.Akka
@@ -37,6 +37,7 @@ object Application extends Controller {
       maybeCached(request, webJars => Ok(views.html.index(webJars)))
     } recover {
       case e: Exception =>
+        Logger.error(e.getMessage)
         InternalServerError(views.html.index(Seq.empty[WebJar]))
     }
   }
@@ -57,6 +58,7 @@ object Application extends Controller {
       maybeCached(request, webJars => Ok(views.html.classicList(webJars)))
     } recover {
       case e: Exception =>
+        Logger.error(e.getMessage)
         InternalServerError(views.html.classicList(Seq.empty[WebJar]))
     }
   }
@@ -67,6 +69,7 @@ object Application extends Controller {
       maybeCached(request, webJars => Ok(Json.toJson(webJars)))
     } recover {
       case e: Exception =>
+        Logger.error(e.getMessage)
         InternalServerError(Json.toJson(Seq.empty[WebJar]))
     }
   }
@@ -76,6 +79,7 @@ object Application extends Controller {
       maybeCached(request, webJars => Ok(views.html.npmbowerList(webJars, pusher.key, "Bower", "bower")))
     } recover {
       case e: Exception =>
+        Logger.error(e.getMessage)
         InternalServerError(views.html.npmbowerList(Seq.empty[WebJar], pusher.key, "Bower", "bower"))
     }
   }
@@ -85,6 +89,7 @@ object Application extends Controller {
       maybeCached(request, webJars => Ok(views.html.npmbowerList(webJars, pusher.key, "NPM", "npm")))
     } recover {
       case e: Exception =>
+        Logger.error(e.getMessage)
         InternalServerError(views.html.npmbowerList(Seq.empty[WebJar], pusher.key, "NPM", "npm"))
     }
   }

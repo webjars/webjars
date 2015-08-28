@@ -15,14 +15,15 @@ import scala.concurrent.duration.Duration
 object WebJarsFileService {
 
   private def fetchFileList(groupId: String, artifactId: String, version: String): Future[List[String]] = {
-    WS.url(s"http://webjars-file-service.herokuapp.com/listfiles/$groupId/$artifactId/$version").get().flatMap { response =>
+    val url = s"http://webjars-file-service.herokuapp.com/listfiles/$groupId/$artifactId/$version"
+    WS.url(url).get().flatMap { response =>
       response.status match {
         case Status.OK =>
           response.json.asOpt[List[String]].fold(Future.failed[List[String]](new Exception("")))(Future.successful)
         case Status.NOT_FOUND =>
           Future.failed(new FileNotFoundException(response.body))
         case _ =>
-          Future.failed(new Exception(response.body))
+          Future.failed(new Exception(s"Error fetching $url : ${response.body}"))
       }
     }
   }

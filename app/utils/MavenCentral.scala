@@ -89,9 +89,13 @@ object MavenCentral {
             versions.map { version =>
               WebJarsFileService.getFileList(catalog.toString, artifactId, version).map { fileList =>
                 WebJarVersion(version, fileList.length)
+              }.recover {
+                case e: Exception =>
+                  Logger.error(e.getMessage)
+                  WebJarVersion(version, 0)
               }
             }
-          } map { webJarVersions =>
+          }.map { webJarVersions =>
             webJarVersions.sorted.reverse
           }
           artifactId -> webJarVersionsFuture
@@ -127,11 +131,15 @@ object MavenCentral {
           implicit val timeout = Timeout(10.minutes)
           val webJarFetcher = Akka.system.actorOf(Props(classOf[WebJarFetcher], catalog), catalog.toString)
           val fetchWebJarsFuture = (webJarFetcher ? FetchWebJars).mapTo[List[WebJar]]
-          fetchWebJarsFuture.onComplete { maybeWebJars =>
+          fetchWebJarsFuture.onFailure {
+            case e: Exception =>
+              Logger.error(s"WebJar fetch failed for ${catalog.toString}: ${e.getMessage}")
+              e.getStackTrace.foreach { t => Logger.error(t.toString) }
+          }
+          fetchWebJarsFuture.foreach { fetchedWebJars =>
+            Logger.info(s"WebJar fetch complete for ${catalog.toString}")
             Akka.system.stop(webJarFetcher)
-            maybeWebJars.foreach { fetchedWebJars =>
-              Cache.set(catalog.toString, fetchedWebJars, 1.hour)
-            }
+            Cache.set(catalog.toString, fetchedWebJars, 1.hour)
           }
           // fail cause this is will likely take a long time
           Future.failed(new Exception("Making new request for WebJars"))
