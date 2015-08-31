@@ -37,7 +37,6 @@ object Application extends Controller {
       maybeCached(request, webJars => Ok(views.html.index(webJars)))
     } recover {
       case e: Exception =>
-        Logger.error(e.getMessage)
         InternalServerError(views.html.index(Seq.empty[WebJar]))
     }
   }
@@ -58,7 +57,6 @@ object Application extends Controller {
       maybeCached(request, webJars => Ok(views.html.classicList(webJars)))
     } recover {
       case e: Exception =>
-        Logger.error(e.getMessage)
         InternalServerError(views.html.classicList(Seq.empty[WebJar]))
     }
   }
@@ -69,7 +67,6 @@ object Application extends Controller {
       maybeCached(request, webJars => Ok(Json.toJson(webJars)))
     } recover {
       case e: Exception =>
-        Logger.error(e.getMessage)
         InternalServerError(Json.toJson(Seq.empty[WebJar]))
     }
   }
@@ -79,7 +76,6 @@ object Application extends Controller {
       maybeCached(request, webJars => Ok(views.html.npmbowerList(webJars, pusher.key, "Bower", "bower")))
     } recover {
       case e: Exception =>
-        Logger.error(e.getMessage)
         InternalServerError(views.html.npmbowerList(Seq.empty[WebJar], pusher.key, "Bower", "bower"))
     }
   }
@@ -89,14 +85,14 @@ object Application extends Controller {
       maybeCached(request, webJars => Ok(views.html.npmbowerList(webJars, pusher.key, "NPM", "npm")))
     } recover {
       case e: Exception =>
-        Logger.error(e.getMessage)
         InternalServerError(views.html.npmbowerList(Seq.empty[WebJar], pusher.key, "NPM", "npm"))
     }
   }
 
   def bowerPackageExists(packageNameOrGitRepo: String) = Action.async {
-    bower.versions(packageNameOrGitRepo).map(_ => Ok).recover { case e: Exception =>
-      InternalServerError(e.getMessage)
+    bower.versions(packageNameOrGitRepo).map(_ => Ok).recover {
+      case e: Exception =>
+        InternalServerError(e.getMessage)
     }
   }
 
