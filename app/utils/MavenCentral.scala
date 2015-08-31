@@ -91,7 +91,7 @@ object MavenCentral {
                 WebJarVersion(version, fileList.length)
               }.recover {
                 case e: Exception =>
-                  Logger.error("Error fetching file list for ${catalog.toString} $artifactId $version - ${e.getMessage}")
+                  Logger.error(s"Error fetching file list for ${catalog.toString} $artifactId $version - ${e.getMessage}")
                   WebJarVersion(version, 0)
               }
             }
