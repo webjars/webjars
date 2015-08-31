@@ -91,7 +91,7 @@ object MavenCentral {
                 WebJarVersion(version, fileList.length)
               }.recover {
                 case e: Exception =>
-                  Logger.error(e.getMessage)
+                  Logger.error("Error fetching file list for ${catalog.toString} $artifactId $version - ${e.getMessage}")
                   WebJarVersion(version, 0)
               }
             }
@@ -133,6 +133,7 @@ object MavenCentral {
           val fetchWebJarsFuture = (webJarFetcher ? FetchWebJars).mapTo[List[WebJar]]
           fetchWebJarsFuture.onFailure {
             case e: Exception =>
+              Akka.system.stop(webJarFetcher)
               Logger.error(s"WebJar fetch failed for ${catalog.toString}: ${e.getMessage}")
               e.getStackTrace.foreach { t => Logger.error(t.toString) }
           }
