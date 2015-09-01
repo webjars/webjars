@@ -26,6 +26,7 @@
                 <li><a href="#jsf" data-toggle="tab">JSF</a></li>
                 <li><a href="#grails" data-toggle="tab">Grails</a></li>
                 <li><a href="#dropwizard" data-toggle="tab">Dropwizard</a></li>
+                <li><a href="#springboot" data-toggle="tab">Spring Boot</a></li>
                 <li><a href="#springmvc" data-toggle="tab">Spring MVC</a></li>
                 <li><a href="#tapestry" data-toggle="tab">Apache Tapestry</a></li>
                 <li><a href="#wicket" data-toggle="tab">Apache Wicket</a></li>
@@ -313,6 +314,29 @@ public class MainService extends Service<Configuration> {
                 <pre><code>&lt;link rel='stylesheet' href='/webjars/bootstrap/3.1.0/css/bootstrap.min.css'&gt;</code></pre>
             </div>
 
+            <!-- Spring Boot -->
+            <div class="tab-pane" id="springboot">
+                <h3>Instructions for Spring Boot</h3>
+
+                Spring Boot automatically configures Spring to map requests for <span class="label label-info">/webjars</span> to the <span class="label label-info">/META-INF/resources/webjars</span> directory of all the JARs in the CLASSPATH.
+                <br>
+
+                <h4>Maven Example</h4>
+
+                First add a WebJar as a dependency of your application in the <span class="label label-info">pom.xml</span> file, like:
+                <pre><code>&lt;dependencies&gt;
+    &lt;dependency&gt;
+        &lt;groupId&gt;org.webjars&lt;/groupId&gt;
+        &lt;artifactId&gt;bootstrap&lt;/artifactId&gt;
+        &lt;version&gt;3.1.0&lt;/version&gt;
+    &lt;/dependency&gt;
+&lt;/dependencies&gt;</code></pre>
+                <br>
+                Then reference a WebJar asset like:
+                <pre><code>&lt;link rel='stylesheet' href='/webjars/bootstrap/3.1.0/css/bootstrap.min.css'&gt;</code></pre>
+                <br>
+                <div class="alert alert-danger" role="alert">Following the Spring MVC instructions in a Spring Boot project will result in disabling the static content mapping configured by Spring Boot.</div>
+            </div>
 
             <!-- Spring MVC -->
             <div class="tab-pane" id="springmvc">
