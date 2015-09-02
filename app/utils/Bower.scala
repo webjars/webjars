@@ -3,7 +3,7 @@ package utils
 import java.io.InputStream
 import java.net.URL
 
-import play.api.http.{HeaderNames, Status}
+import play.api.http.{ContentTypes, HeaderNames, Status}
 import play.api.libs.json.Reads._
 import play.api.libs.json._
 import play.api.libs.functional.syntax._
@@ -99,10 +99,20 @@ class Bower(implicit ec: ExecutionContext, ws: WSClient) {
               info.licenses.map { license =>
                 if (license.contains("/")) {
                   val contentsFuture = if (license.startsWith("http")) {
-                    ws.url(license).get().flatMap { response =>
+
+                    // Some license references point to an HTML GitHub page.  We need the raw text/plain content.
+                    val hopefullyTextLicense = if (license.contains("github.com") && license.contains("/blob/")) {
+                      license.replaceAllLiterally("/blob/", "/raw/")
+                    }
+                    else {
+                      license
+                    }
+
+                    ws.url(hopefullyTextLicense).get().flatMap { response =>
                       response.status match {
-                        case Status.OK => Future.successful(response.body)
-                        case _ => Future.failed(new Exception(s"Could not fetch license: $license"))
+                        case Status.OK if response.header(HeaderNames.CONTENT_TYPE).contains(ContentTypes.TEXT) => Future.successful(response.body)
+                        case Status.OK => Future.failed(new Exception(s"License at $hopefullyTextLicense was not plain text"))
+                        case _ => Future.failed(new Exception(s"Could not fetch license at $hopefullyTextLicense - response was: ${response.body}"))
                       }
                     }
                   }

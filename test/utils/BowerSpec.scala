@@ -122,6 +122,12 @@ class BowerSpec extends PlaySpecification {
     }
   }
 
+  "zeroclipboard 2.2.0" should {
+    "have an MIT license" in {
+      await(bower.info("zeroclipboard", Some("2.2.0"))).licenses must beEqualTo (Seq("MIT"))
+    }
+  }
+
   step(ws.close())
 
 }
