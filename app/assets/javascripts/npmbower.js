@@ -1,5 +1,21 @@
 $(function() {
 
+  function getPackageOrRepoName() {
+    var packageOrUrl = $("#newWebJarName").val().split("#");
+
+    var data = {};
+
+    if (packageOrUrl.length > 0) {
+      data.packageOrRepo = packageOrUrl[0];
+    }
+
+    if (packageOrUrl.length == 2) {
+      data.branch = packageOrUrl[1];
+    }
+
+    return data;
+  }
+
   function checkPackageName(packageName) {
     $("#newWebJarName").parent().removeClass("has-error has-success");
     $("#newWebJarNameFeedback").removeClass("glyphicon-ok glyphicon-remove hidden").addClass("glyphicon-refresh spin");
@@ -33,9 +49,15 @@ $(function() {
       return item;
     },
     query: function(query) {
-      var name = $("#newWebJarName").val();
+      var packageOrRepoName = getPackageOrRepoName();
 
-      $.getJSON("/_" + webJarType + "/versions?name=" + name, function(data) {
+      var url = "/_" + webJarType + "/versions?name=" + packageOrRepoName.packageOrRepo;
+
+      if (packageOrRepoName.branch !== undefined) {
+        url += "&branch=" + packageOrRepoName.branch;
+      }
+
+      $.getJSON(url, function(data) {
         query.callback({results: data});
       });
     },
@@ -60,7 +82,9 @@ $(function() {
 
     $("#deployButton").attr("disabled", true);
 
-    var artifactId = $("#newWebJarName").val();
+    var packageOrRepoName = getPackageOrRepoName();
+
+    var artifactId = packageOrRepoName.packageOrRepo;
     var version = $("#newWebJarVersion").select2("val");
 
     var pusher = new Pusher(window.pusherKey);

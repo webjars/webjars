@@ -4,6 +4,7 @@ import java.io.{File, InputStream}
 import java.net.{URL, URI}
 import java.nio.file.Files
 import org.eclipse.jgit.api.Git
+import org.eclipse.jgit.api.ListBranchCommand.ListMode
 import play.api.http.{HeaderNames, Status}
 import play.api.libs.ws.WSClient
 
@@ -103,10 +104,23 @@ class GitUtil(implicit ec: ExecutionContext, ws: WSClient) {
     }
   }
 
+  def versionsOnBranch(gitRepo: String, branch: String): Future[Seq[String]] = {
+    gitUrl(gitRepo).flatMap { url =>
+      cloneOrCheckout(gitRepo, Some(branch)).flatMap { baseDir =>
+        Future.fromTry {
+          Try {
+            val commits = Git.open(baseDir).log().call()
+            commits.asScala.map(_.getId.abbreviate(10).name()).toSeq
+          }
+        }
+      }
+    }
+  }
+
   def cloneOrCheckout(gitRepo: String, version: Option[String]): Future[File] = {
     val baseDir = new File(cacheDir.toFile, gitRepo)
 
-    if (!baseDir.exists()) {
+    val baseDirFuture = if (!baseDir.exists()) {
       // clone the repo
       gitUrl(gitRepo).flatMap { url =>
         Future.fromTry {
@@ -114,8 +128,7 @@ class GitUtil(implicit ec: ExecutionContext, ws: WSClient) {
             val clone = Git.cloneRepository()
               .setURI(url)
               .setDirectory(baseDir)
-
-            version.foreach(clone.setBranch)
+              .setCloneAllBranches(true)
 
             clone.call()
 
@@ -125,15 +138,24 @@ class GitUtil(implicit ec: ExecutionContext, ws: WSClient) {
       }
     }
     else {
-      // checkout the version
-      val checkout = Git.open(baseDir).checkout()
-
-      version.fold(checkout.setName("origin/master"))(checkout.setName)
-
-      checkout.call()
-
       Future.successful(baseDir)
     }
+
+    baseDirFuture.flatMap { baseDir =>
+      Future.fromTry {
+        Try {
+          // checkout the version
+          val checkout = Git.open(baseDir).checkout()
+
+          version.fold(checkout.setName("origin/master"))(checkout.setName)
+
+          checkout.call()
+
+          baseDir
+        }
+      }
+    }
+
   }
 
   def file(gitRepo: String, version: Option[String], file: String): Future[String] = {

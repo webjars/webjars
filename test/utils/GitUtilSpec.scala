@@ -99,6 +99,12 @@ class GitUtilSpec extends PlaySpecification {
     }
   }
 
+  "versionsOnBranch" should {
+    "get the commits on a branch" in {
+      await(git.versionsOnBranch("git://github.com/mochajs/mocha.git", "master")) must contain("8a100df959")
+    }
+  }
+
 
   step(ws.close())
 

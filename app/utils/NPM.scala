@@ -35,6 +35,10 @@ class NPM(implicit ec: ExecutionContext, ws: WSClient) {
     }
   }
 
+  def versionsOnBranch(gitRepo: String, branch: String): Future[Seq[String]] = {
+    git.gitUrl(gitRepo).flatMap(git.versionsOnBranch(_, branch))
+  }
+
   def info(packageNameOrGitRepo: String, maybeVersion: Option[String] = None): Future[PackageInfo] = {
 
     def packageInfo(packageJson: JsValue): Future[PackageInfo] = {
@@ -43,7 +47,12 @@ class NPM(implicit ec: ExecutionContext, ws: WSClient) {
         // this is a git repo so its package.json values might be wrong
         git.gitUrl(packageNameOrGitRepo).map { gitUrl =>
           // replace the repository.url with the possible fork's git url
-          packageJson.as[JsObject] ++ Json.obj("repository" -> Json.obj("url" -> gitUrl))
+          val json = packageJson.as[JsObject] ++ Json.obj("repository" -> Json.obj("url" -> gitUrl))
+
+          // todo: resolve differences between json & maybeVersion
+
+          json
+
         }
       }
       else {

@@ -96,13 +96,23 @@ object Application extends Controller {
     }
   }
 
-  def bowerPackageVersions(packageNameOrGitRepo: String) = Action.async { request =>
-    val packageVersionsFuture = Cache.getAs[Seq[String]](s"bower-versions-$packageNameOrGitRepo").fold {
-      bower.versions(packageNameOrGitRepo).map { versions =>
-        Cache.set(s"bower-versions-$packageNameOrGitRepo", versions, 1.hour)
-        versions
-      }
-    } (Future.successful)
+  def bowerPackageVersions(packageNameOrGitRepo: String, maybeBranch: Option[String]) = Action.async { request =>
+
+    val packageVersionsFuture = maybeBranch.fold {
+      Cache.getAs[Seq[String]](s"bower-versions-$packageNameOrGitRepo").fold {
+        bower.versions(packageNameOrGitRepo).map { versions =>
+          Cache.set(s"bower-versions-$packageNameOrGitRepo", versions, 1.hour)
+          versions
+        }
+      } (Future.successful)
+    } { branch =>
+      Cache.getAs[Seq[String]](s"bower-versions-$packageNameOrGitRepo-$branch").fold {
+        bower.versionsOnBranch(packageNameOrGitRepo, branch).map { versions =>
+          Cache.set(s"bower-versions-$packageNameOrGitRepo-$branch", versions, 1.hour)
+          versions
+        }
+      } (Future.successful)
+    }
 
     packageVersionsFuture.map { json =>
       Ok(Json.toJson(json))
@@ -118,13 +128,22 @@ object Application extends Controller {
     }
   }
 
-  def npmPackageVersions(packageNameOrGitRepo: String) = Action.async {
-    val packageVersionsFuture = Cache.getAs[Seq[String]](s"npm-versions-$packageNameOrGitRepo").fold {
-      npm.versions(packageNameOrGitRepo).map { versions =>
-        Cache.set(s"npm-versions-$packageNameOrGitRepo", versions, 1.hour)
-        versions
-      }
-    } (Future.successful)
+  def npmPackageVersions(packageNameOrGitRepo: String, maybeBranch: Option[String]) = Action.async {
+    val packageVersionsFuture = maybeBranch.fold {
+      Cache.getAs[Seq[String]](s"npm-versions-$packageNameOrGitRepo").fold {
+        npm.versions(packageNameOrGitRepo).map { versions =>
+          Cache.set(s"npm-versions-$packageNameOrGitRepo", versions, 1.hour)
+          versions
+        }
+      }(Future.successful)
+    } { branch =>
+      Cache.getAs[Seq[String]](s"npm-versions-$packageNameOrGitRepo-$branch").fold {
+        npm.versionsOnBranch(packageNameOrGitRepo, branch).map { versions =>
+          Cache.set(s"npm-versions-$packageNameOrGitRepo-$branch", versions, 1.hour)
+          versions
+        }
+      } (Future.successful)
+    }
 
     packageVersionsFuture.map { versions =>
       Ok(Json.toJson(versions))

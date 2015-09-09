@@ -16,7 +16,7 @@ class BowerSpec extends PlaySpecification {
 
   val ws = StandaloneWS.apply()
   val bower = Bower(ExecutionContext.global, ws.client)
-  
+
   "jquery info" should {
     "work with a correct version" in {
       await(bower.info("jquery", Some("1.11.1"))).name must equalTo("jquery")
@@ -122,6 +122,12 @@ class BowerSpec extends PlaySpecification {
     }
   }
 
+  "git commits" should {
+    "work as version" in {
+      val info = await(bower.info("git://github.com/dc-js/dc.js", Some("6e95388b9a")))
+      info.version must beEqualTo ("6e95388b9a")
+    }
+  }
   "zeroclipboard 2.2.0" should {
     "have an MIT license" in {
       await(bower.info("zeroclipboard", Some("2.2.0"))).licenses must beEqualTo (Seq("MIT"))

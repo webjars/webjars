@@ -2,7 +2,7 @@ package utils
 
 import java.io.File
 
-import play.api.libs.json.{JsNull, JsValue, Json}
+import play.api.libs.json.{JsNull, JsValue}
 import play.api.{Configuration, Mode}
 
 import scala.concurrent.{ExecutionContext, Future}

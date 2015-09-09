@@ -37,13 +37,27 @@ class Bower(implicit ec: ExecutionContext, ws: WSClient) {
     }
   }
 
+  def versionsOnBranch(gitRepo: String, branch: String): Future[Seq[String]] = {
+    git.gitUrl(gitRepo).flatMap(git.versionsOnBranch(_, branch))
+  }
+
   def rawInfo(packageNameOrGitRepo: String, version: String): Future[PackageInfo] = {
     if (git.isGit(packageNameOrGitRepo)) {
       git.gitUrl(packageNameOrGitRepo).flatMap { gitUrl =>
         git.file(gitUrl, Some(version), "bower.json").map { bowerJson =>
           // add the gitUrl into the json since it is not in the file, just the json served by the Bower index
           val json = Json.parse(bowerJson).as[JsObject] + ("_source" -> JsString(gitUrl))
-          json.as[PackageInfo](Bower.jsonReads)
+
+          val jsonWithCorrectVersion = (json \ "version").asOpt[String].fold {
+            // the version was not in the json so add the specified version
+            json + ("version" -> JsString(version))
+          } { version =>
+            // todo: resolve conflicts?
+            // for now just use the version from the json
+            json
+          }
+
+          jsonWithCorrectVersion.as[PackageInfo](Bower.jsonReads)
         }
       }
     }

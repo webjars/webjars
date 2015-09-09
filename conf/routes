@@ -18,10 +18,10 @@ GET            /request                                                   contro
 POST           /request                                                   controllers.Application.makeWebJarRequest()
 
 GET            /_bower/exists                                             controllers.Application.bowerPackageExists(name)
-GET            /_bower/versions                                           controllers.Application.bowerPackageVersions(name)
+GET            /_bower/versions                                           controllers.Application.bowerPackageVersions(name, branch: Option[String])
 POST           /_bower/deploy                                             controllers.Application.deployBower(name, version, channelId)
 GET            /_npm/exists                                               controllers.Application.npmPackageExists(name)
-GET            /_npm/versions                                             controllers.Application.npmPackageVersions(name)
+GET            /_npm/versions                                             controllers.Application.npmPackageVersions(name, branch: Option[String])
 POST           /_npm/deploy                                               controllers.Application.deployNPM(name, version, channelId)
 
 GET            /mockcentral/searchgroup                                   controllers.MockCentral.searchGroup()
