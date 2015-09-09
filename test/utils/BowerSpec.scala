@@ -16,7 +16,7 @@ class BowerSpec extends PlaySpecification {
 
   val ws = StandaloneWS.apply()
   val bower = Bower(ExecutionContext.global, ws.client)
-
+  
   "jquery info" should {
     "work with a correct version" in {
       await(bower.info("jquery", Some("1.11.1"))).name must equalTo("jquery")
@@ -131,6 +131,12 @@ class BowerSpec extends PlaySpecification {
   "tinymce-dist 4.2.5" should {
     "have an LGPL-2.1 license" in {
       await(bower.info("tinymce-dist", Some("4.2.5")), 120, TimeUnit.SECONDS).licenses must beEqualTo (Seq("LGPL-2.1"))
+    }
+  }
+
+  "homepage" should {
+    "be have a default" in {
+      await(bower.info("git://github.com/millermedeiros/requirejs-plugins")).homepage must beEqualTo ("https://github.com/millermedeiros/requirejs-plugins")
     }
   }
 

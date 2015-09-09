@@ -159,13 +159,15 @@ class Bower(implicit ec: ExecutionContext, ws: WSClient) {
 }
 
 object Bower {
+  val sourceReads = (__ \ "_source").read[String].map(_.replace("git://", "https://").stripSuffix(".git"))
+
   implicit def jsonReads: Reads[PackageInfo] = (
     (__ \ "name").read[String] ~
     (__ \ "version").read[String] ~
-    (__ \ "homepage").read[String] ~
-    (__ \ "_source").read[String].map(_.replace("git://", "https://").stripSuffix(".git")) ~
+    (__ \ "homepage").read[String].orElse(sourceReads) ~
+    sourceReads ~
     (__ \ "_source").read[String] ~
-    (__ \ "_source").read[String].map(_.replace("git://", "https://").stripSuffix(".git") + "/issues") ~
+    sourceReads.map(_ + "/issues") ~
     (__ \ "license").read[Seq[String]].orElse((__ \ "license").read[String].map(Seq(_))).orElse(Reads.pure(Seq.empty[String])) ~
     (__ \ "dependencies").read[Map[String, String]].orElse(Reads.pure(Map.empty[String, String]))
   )(PackageInfo.apply _)
