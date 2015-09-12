@@ -30,14 +30,19 @@ object WebJarsFileService {
 
   def getFileList(groupId: String, artifactId: String, version: String): Future[List[String]] = {
     val cacheKey =  groupId + "-" + artifactId + "-" + version + "-files"
+
+    def fetchAndCache = {
+      val fileListFuture = WebJarsFileService.fetchFileList(groupId, artifactId, version)
+      fileListFuture.foreach { fileList =>
+        Global.memcached.set(cacheKey, fileList, Duration.Inf)
+      }
+      fileListFuture
+    }
+
     Global.memcached.get[List[String]](cacheKey).flatMap { maybeFileList =>
-      maybeFileList.fold {
-        val fileListFuture = WebJarsFileService.fetchFileList(groupId, artifactId, version)
-        fileListFuture.foreach { fileList =>
-          Global.memcached.set(cacheKey, fileList, Duration.Inf)
-        }
-        fileListFuture
-      } (Future.successful)
+      maybeFileList.fold(fetchAndCache)(Future.successful)
+    } recoverWith {
+      case e: Exception => fetchAndCache
     }
   }
 
