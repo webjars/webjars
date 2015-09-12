@@ -124,7 +124,7 @@ class BowerSpec extends PlaySpecification {
 
   "git commits" should {
     "work as version" in {
-      val info = await(bower.info("git://github.com/dc-js/dc.js", Some("6e95388b9a")))
+      val info = await(bower.info("git://github.com/dc-js/dc.js", Some("6e95388b9a")), 60, TimeUnit.SECONDS)
       info.version must beEqualTo ("6e95388b9a")
     }
   }
