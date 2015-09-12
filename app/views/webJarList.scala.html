@@ -63,7 +63,11 @@
                 <td style="vertical-align: middle;">
                     <div class="files @webjar.artifactId">
                         <a href="@routes.Application.listFiles(webjar.groupId, webjar.artifactId, URLEncoder.encode(webjar.versions.head.number, "UTF-8"))" class="file-list-link">
-                            @webjar.versions.head.numFiles Files
+                            @if(webjar.versions.head.numFiles == 0) {
+                                List Files
+                            } else {
+                                @webjar.versions.head.numFiles Files
+                            }
                         </a>
                     </div>
                 </td>
