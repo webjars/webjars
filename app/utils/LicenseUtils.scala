@@ -13,7 +13,7 @@ class LicenseUtils(implicit ec: ExecutionContext, ws: WSClient) {
     def fetchLicense(url: String): Future[String] = ws.url(url).get().flatMap { response =>
       response.status match {
         case Status.OK => Future.successful(response.body)
-        case _ => Future.failed(new Exception("Could not get license"))
+        case _ => Future.failed(new LicenseNotFoundException("Could not get license from GitHub"))
       }
     }
 
@@ -24,7 +24,7 @@ class LicenseUtils(implicit ec: ExecutionContext, ws: WSClient) {
           // look on gh-pages
           fetchLicense(s"https://github-license-service.herokuapp.com/$gitHubOrgRepo/gh-pages")
      }
-    }.getOrElse(Future.failed(new Exception("Could not get license")))
+    }.getOrElse(Future.failed(new LicenseNotFoundException("Could not get license from GitHub")))
   }
 
   def licenseDetect(contents: String): Future[String] = {
@@ -39,6 +39,10 @@ class LicenseUtils(implicit ec: ExecutionContext, ws: WSClient) {
     }
   }
 
+}
+
+case class LicenseNotFoundException(message: String) extends Exception {
+  override def getMessage = message
 }
 
 object LicenseUtils {

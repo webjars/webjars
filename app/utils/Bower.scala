@@ -4,6 +4,7 @@ import java.io.InputStream
 import java.net.URL
 
 import play.api.http.{MimeTypes, HeaderNames, Status}
+import play.api.i18n.Messages
 import play.api.libs.json.Reads._
 import play.api.libs.json._
 import play.api.libs.functional.syntax._
@@ -106,6 +107,8 @@ class Bower(implicit ec: ExecutionContext, ws: WSClient) {
           if (info.licenses.isEmpty) {
             licenseUtils.gitHubLicenseDetect(info.gitHubOrgRepo).map { license =>
               info.copy(licenses = Seq(license))
+            } recoverWith {
+              case e: LicenseNotFoundException => Future.failed(new LicenseNotFoundException(Messages("licensenotfound")))
             }
           }
           else {

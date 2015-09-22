@@ -5,6 +5,7 @@ import java.util.concurrent.TimeUnit
 
 import akka.util.Timeout
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
+import play.api.i18n.Messages
 import play.api.test._
 
 import scala.concurrent.ExecutionContext
@@ -16,7 +17,7 @@ class BowerSpec extends PlaySpecification {
 
   val ws = StandaloneWS.apply()
   val bower = Bower(ExecutionContext.global, ws.client)
-
+  
   "jquery info" should {
     "work with a correct version" in {
       await(bower.info("jquery", Some("1.11.1"))).name must equalTo("jquery")
@@ -143,6 +144,12 @@ class BowerSpec extends PlaySpecification {
   "homepage" should {
     "be have a default" in {
       await(bower.info("git://github.com/millermedeiros/requirejs-plugins")).homepage must beEqualTo ("https://github.com/millermedeiros/requirejs-plugins")
+    }
+  }
+
+  "angular-translate 2.7.2" should {
+    "fail with a useful error" in {
+      await(bower.info("angular-translate", Some("2.7.2"))) must throwA[LicenseNotFoundException](Messages("licensenotfound"))
     }
   }
 
