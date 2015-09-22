@@ -16,6 +16,7 @@ class BinTray(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) {
   val BASE_URL = "https://bintray.com/api/v1"
 
   val licenseUtils = LicenseUtils(ec, ws.client)
+  val git = GitUtil(ec, ws.client)
 
   lazy val username = config.getString("bintray.username").get
   lazy val password = config.getString("bintray.password").get
@@ -147,7 +148,7 @@ class BinTray(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) {
     }
   }
 
-  def convertLicenses(licenses: Seq[String]): Future[Set[String]] = {
+  def convertLicenses(licenses: Seq[String], sourceConnectionUrl: String = ""): Future[Set[String]] = {
     Future.sequence {
       licenses.flatMap { license =>
         if (license.startsWith("http://") || license.startsWith("https://")) {
@@ -174,6 +175,14 @@ class BinTray(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) {
             } recoverWith {
               case e: Exception =>
                 Future.failed(new Exception(s"$license could not be converted to a knowable license"))
+            }
+          }
+        }
+        else if (license.startsWith("SEE LICENSE IN ")) {
+          // SPDX reference expression
+          Seq {
+            git.file(sourceConnectionUrl, None, license.stripPrefix("SEE LICENSE IN ")).flatMap { licenseContents =>
+              licenseUtils.licenseDetect(licenseContents)
             }
           }
         }
