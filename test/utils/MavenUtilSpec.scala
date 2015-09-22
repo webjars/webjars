@@ -24,10 +24,12 @@ class MavenUtilSpec extends PlaySpecification {
     }
     "work with versionless git npm deps" in {
       val deps = Map(
-        "route-recognizer" -> "git://github.com/btford/route-recognizer"
+        "route-recognizer" -> "git://github.com/btford/route-recognizer",
+        "HTML5-Desktop-Notifications" -> "https://github.com/ttsvetko/HTML5-Desktop-Notifications.git"
       )
-      val mavenDeps = await(maven.convertNpmBowerDependenciesToMaven(deps, Some("1.0.0")))
-      mavenDeps.get("github-com-btford-route-recognizer") must beSome ("1.0.0")
+      val mavenDeps = await(maven.convertNpmBowerDependenciesToMaven(deps))
+      mavenDeps.get("github-com-btford-route-recognizer") must beSome ("0.1.1")
+      mavenDeps.get("github-com-ttsvetko-HTML5-Desktop-Notifications") must beSome ("0.0.0-1ad38f3041")
     }
     "work with versioned git npm deps" in {
       val deps = Map(

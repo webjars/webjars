@@ -17,7 +17,7 @@ class BowerSpec extends PlaySpecification {
 
   val ws = StandaloneWS.apply()
   val bower = Bower(ExecutionContext.global, ws.client)
-  
+
   "jquery info" should {
     "work with a correct version" in {
       await(bower.info("jquery", Some("1.11.1"))).name must equalTo("jquery")

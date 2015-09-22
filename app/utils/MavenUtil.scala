@@ -4,7 +4,7 @@ import scala.concurrent.{ExecutionContext, Future}
 
 class MavenUtil(implicit ec: ExecutionContext, git: GitUtil) {
 
-  def convertNpmBowerDependenciesToMaven(dependencies: Map[String, String], latestVersion: Option[String] = None): Future[Map[String, String]] = {
+  def convertNpmBowerDependenciesToMaven(dependencies: Map[String, String]): Future[Map[String, String]] = {
     val maybeMavenDeps = dependencies.map { case (name, versionOrUrl) =>
 
       val ungitNameAndVersionFuture = if (git.isGit(versionOrUrl)) {
@@ -17,8 +17,21 @@ class MavenUtil(implicit ec: ExecutionContext, git: GitUtil) {
         }
 
         git.artifactId(url).flatMap { artifactId =>
-          maybeVersion.orElse(latestVersion).fold {
-            Future.failed[(String, String)](new Exception(s"The dependency definition $name -> $versionOrUrl was not valid because it looked like a git repo reference but no version was specified."))
+          maybeVersion.fold {
+            git.versions(url).flatMap { versions =>
+              versions.headOption.fold {
+                // could not get a tagged version so the latest commit instead
+                git.versionsOnBranch(url, "master").flatMap { commits =>
+                  commits.headOption.fold {
+                    Future.failed[(String, String)](new Exception(s"The dependency definition $name -> $versionOrUrl was not valid because it looked like a git repo reference but no version was specified."))
+                  } { latestCommit =>
+                    Future.successful(artifactId -> s"0.0.0-$latestCommit")
+                  }
+                }
+              } { latestVersion =>
+                Future.successful(artifactId -> latestVersion)
+              }
+            }
           } { version =>
             Future.successful(artifactId -> version)
           }
