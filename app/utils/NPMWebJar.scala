@@ -3,14 +3,14 @@ package utils
 import java.io.File
 
 import play.api.libs.json.{JsNull, JsValue}
-import play.api.{Configuration, Mode}
+import play.api.{Configuration, Application, DefaultApplication, Play, Mode}
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
 object NPMWebJar extends App {
 
-  def release(nameOrUrlish: String, version: String, maybepusherChannelId: Option[String])(implicit executionContext: ExecutionContext, config: Configuration): Future[PackageInfo] = {
+  def release(nameOrUrlish: String, version: String, maybepusherChannelId: Option[String])(implicit executionContext: ExecutionContext, config: Configuration, application: Application): Future[PackageInfo] = {
 
     val binTraySubject = "webjars"
     val binTrayRepo = "maven"
@@ -109,7 +109,11 @@ object NPMWebJar extends App {
 
     val config = Configuration.load(new File("."), Mode.Prod)
 
-    release(name, version, maybepusherChannelId)(ExecutionContext.global, config).onComplete {
+    val application = new DefaultApplication(new File("."), BowerWebJar.getClass.getClassLoader, null, Mode.Prod)
+
+    Play.start(application)
+
+    release(name, version, maybepusherChannelId)(ExecutionContext.global, config, application).onComplete {
       case Success(s) =>
         println("Done!")
         sys.exit()

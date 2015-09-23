@@ -281,7 +281,7 @@ object Application extends Controller {
       }
     }
     else {
-      BowerWebJar.release(artifactId, version, Some(channelId))(ExecutionContext.global, Play.current.configuration).map { result =>
+      BowerWebJar.release(artifactId, version, Some(channelId))(ExecutionContext.global, Play.current.configuration, Play.current).map { result =>
         Ok(Json.toJson(result))
       } recover {
         case e: Exception => InternalServerError(e.getMessage)
@@ -300,7 +300,7 @@ object Application extends Controller {
       }
     }
     else {
-      NPMWebJar.release(nameOrUrlish, version, Some(channelId))(ExecutionContext.global, Play.current.configuration).map { result =>
+      NPMWebJar.release(nameOrUrlish, version, Some(channelId))(ExecutionContext.global, Play.current.configuration, Play.current).map { result =>
         Ok(Json.toJson(result))
       } recover {
         case e: Exception => InternalServerError(e.getMessage)
