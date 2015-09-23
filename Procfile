@@ -1,3 +1,3 @@
 web: target/universal/stage/bin/webjars -Dhttp.port=${PORT}
-pubbower: java -cp "target/universal/stage/lib/*" utils.BowerWebJar
-pubnpm: java -cp "target/universal/stage/lib/*" utils.NPMWebJar
+pubbower: target/universal/stage/bin/webjars -main utils.BowerWebJar
+pubnpm: target/universal/stage/bin/webjars -main utils.NPMWebJar
