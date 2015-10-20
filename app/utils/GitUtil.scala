@@ -2,6 +2,7 @@ package utils
 
 import java.io.{File, InputStream}
 import java.net.{URL, URI}
+import java.nio.charset.CodingErrorAction
 import java.nio.file.Files
 import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.api.ListBranchCommand.ListMode
@@ -9,7 +10,7 @@ import play.api.http.{HeaderNames, Status}
 import play.api.libs.ws.WSClient
 
 import scala.concurrent.{ExecutionContext, Future}
-import scala.io.Source
+import scala.io.{Codec, Source}
 import scala.util.Try
 import scala.collection.JavaConverters._
 
@@ -159,8 +160,13 @@ class GitUtil(implicit ec: ExecutionContext, ws: WSClient) {
   }
 
   def file(gitRepo: String, version: Option[String], file: String): Future[String] = {
-    cloneOrCheckout(gitRepo, version).map { baseDir =>
-      Source.fromFile(new File(baseDir, file)).mkString
+    cloneOrCheckout(gitRepo, version).flatMap { baseDir =>
+      Future.fromTry {
+        Try {
+          val decoder = Codec.UTF8.decoder.onMalformedInput(CodingErrorAction.IGNORE)
+          Source.fromFile(new File(baseDir, file))(decoder).mkString
+        }
+      }
     }
   }
 
