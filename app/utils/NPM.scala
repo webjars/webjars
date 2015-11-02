@@ -27,7 +27,7 @@ class NPM(implicit ec: ExecutionContext, ws: WSClient) {
       ws.url(s"$BASE_URL/$packageNameOrGitRepo").get().flatMap { response =>
         response.status match {
           case Status.OK =>
-            val versions = (response.json \ "versions" \\ "version").map(_.as[String]).sorted(VersionOrdering).reverse
+            val versions = (response.json \ "versions").as[Map[String, JsObject]].keys.toIndexedSeq.sorted(VersionOrdering).reverse
             Future.successful(versions)
           case _ => Future.failed(new Exception(response.body))
         }

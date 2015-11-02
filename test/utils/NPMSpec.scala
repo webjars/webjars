@@ -113,6 +113,11 @@ class NPMSpec extends PlaySpecification {
       await(npm.info("amp-ui", Some("3.2.0"))) must throwA[Exception]("The source repository for amp-ui 3.2.0 could not be determined but is required to published to Maven Central.  This will need to be fixed in the project's package metadata.")
     }
   }
+  "versions on redux" should {
+    "return versions" in {
+      await(npm.versions("redux")) must contain("3.0.4") and contain("0.0.1")
+    }
+  }
 
   step(ws.close())
 
