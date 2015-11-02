@@ -107,7 +107,7 @@ class GitUtil(implicit ec: ExecutionContext, ws: WSClient) {
 
   def versionsOnBranch(gitRepo: String, branch: String): Future[Seq[String]] = {
     gitUrl(gitRepo).flatMap { url =>
-      cloneOrCheckout(gitRepo, Some(branch)).flatMap { baseDir =>
+      cloneOrCheckout(gitRepo, Some(s"origin/$branch")).flatMap { baseDir =>
         Future.fromTry {
           Try {
             val commits = Git.open(baseDir).log().call()

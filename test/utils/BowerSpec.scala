@@ -153,6 +153,12 @@ class BowerSpec extends PlaySpecification {
     }
   }
 
+  "git repo with branch" should {
+    "fetch the versions" in {
+      await(bower.versionsOnBranch("git://github.com/mdedetrich/requirejs-plugins", "jsonSecurityVulnerability")) must contain ("d9c103e7a0")
+    }
+  }
+
   step(ws.close())
 
 }
