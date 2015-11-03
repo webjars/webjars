@@ -13,7 +13,8 @@ class LicenseUtilsSpec extends PlaySpecification {
   override implicit def defaultAwaitTimeout: Timeout = 30.seconds
 
   val ws = StandaloneWS.apply()
-  val licenseUtils = LicenseUtils(ExecutionContext.global, ws.client)
+  val git = GitUtil(ExecutionContext.global, ws.client)
+  val licenseUtils = LicenseUtils(ExecutionContext.global, ws.client, git)
 
   "gitHubLicenseDetect" should {
     "detect the license" in {

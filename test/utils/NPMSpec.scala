@@ -119,6 +119,12 @@ class NPMSpec extends PlaySpecification {
     }
   }
 
+  "licenses" should {
+    "be able to be fetched from git repos" in {
+      await(npm.info("ms", Some("0.7.1"))).licenses must beEqualTo(Seq("MIT"))
+    }
+  }
+
   step(ws.close())
 
 }

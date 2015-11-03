@@ -5,7 +5,6 @@ import java.net.{URL, URI}
 import java.nio.charset.CodingErrorAction
 import java.nio.file.Files
 import org.eclipse.jgit.api.Git
-import org.eclipse.jgit.api.ListBranchCommand.ListMode
 import play.api.http.{HeaderNames, Status}
 import play.api.libs.ws.WSClient
 
@@ -17,8 +16,6 @@ import scala.collection.JavaConverters._
 class GitUtil(implicit ec: ExecutionContext, ws: WSClient) {
 
   val cacheDir = Files.createTempDirectory("git")
-
-  val licenseUtils = LicenseUtils(ec, ws)
 
   def isGit(packageNameOrGitRepo: String): Boolean = {
     packageNameOrGitRepo.contains("/")

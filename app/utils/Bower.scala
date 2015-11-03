@@ -4,7 +4,6 @@ import java.io.InputStream
 import java.net.URL
 
 import play.api.http.{MimeTypes, HeaderNames, Status}
-import play.api.i18n.Messages
 import play.api.libs.json.Reads._
 import play.api.libs.json._
 import play.api.libs.functional.syntax._
@@ -17,8 +16,8 @@ class Bower(implicit ec: ExecutionContext, ws: WSClient) {
 
   val BASE_URL = "https://bower-as-a-service.herokuapp.com"
 
-  val licenseUtils = LicenseUtils(ec, ws)
   val git = GitUtil(ec, ws)
+  val licenseUtils = LicenseUtils(ec, ws, git)
 
   def versions(packageNameOrGitRepo: String): Future[Seq[String]] = {
     if (git.isGit(packageNameOrGitRepo)) {
@@ -74,10 +73,10 @@ class Bower(implicit ec: ExecutionContext, ws: WSClient) {
     }
   }
 
-  def info(packageNameOrGitRepo: String, version: Option[String] = None): Future[PackageInfo] = {
+  def info(packageNameOrGitRepo: String, maybeVersion: Option[String] = None): Future[PackageInfo] = {
 
     // if no version was specified use the latest
-    val versionFuture: Future[String] = version.fold {
+    val versionFuture: Future[String] = maybeVersion.fold {
       versions(packageNameOrGitRepo).flatMap { versions =>
         versions.headOption.fold(Future.failed[String](new Exception("The latest version could not be determined.")))(Future.successful)
       }
@@ -105,11 +104,7 @@ class Bower(implicit ec: ExecutionContext, ws: WSClient) {
         infoFuture.flatMap { info =>
           // detect licenses if they are not specified in the bower.json
           if (info.licenses.isEmpty) {
-            licenseUtils.gitHubLicenseDetect(info.gitHubOrgRepo).map { license =>
-              info.copy(licenses = Seq(license))
-            } recoverWith {
-              case e: LicenseNotFoundException => Future.failed(new LicenseNotFoundException(Messages("licensenotfound")))
-            }
+            licenseUtils.detectLicense(info, maybeVersion)
           }
           else {
             val resolvedLicensesFuture = Future.sequence {

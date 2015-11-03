@@ -1,7 +1,7 @@
 package utils
 
 import java.io.InputStream
-import java.net.{URI, URL}
+import java.net.URL
 import java.util.zip.GZIPInputStream
 
 import play.api.http.{HeaderNames, Status}
@@ -16,8 +16,8 @@ class NPM(implicit ec: ExecutionContext, ws: WSClient) {
 
   val BASE_URL = "http://registry.npmjs.org"
 
-  val licenseUtils = LicenseUtils(ec, ws)
   val git = GitUtil(ec, ws)
+  val licenseUtils = LicenseUtils(ec, ws, git)
 
   def versions(packageNameOrGitRepo: String): Future[Seq[String]] = {
     if (git.isGit(packageNameOrGitRepo)) {
@@ -82,12 +82,8 @@ class NPM(implicit ec: ExecutionContext, ws: WSClient) {
 
           infoFuture.flatMap { info =>
             if (info.licenses.isEmpty) {
-              licenseUtils.gitHubLicenseDetect(initialInfo.gitHubOrgRepo).map { license =>
-                info.copy(licenses = Seq(license))
-              } recoverWith {
-                case e: Exception =>
-                  Future.successful(info)
-              }
+              // first try to get a license from the source
+              licenseUtils.detectLicense(initialInfo, maybeVersion)
             }
             else {
               Future.successful(info)

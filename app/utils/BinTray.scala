@@ -2,7 +2,7 @@ package utils
 
 import java.net.URL
 
-import play.api.{Logger, Configuration}
+import play.api.Configuration
 import play.api.http.Status
 import play.api.libs.json.{JsValue, Json}
 import play.api.libs.ws.{WSResponse, WSAPI, WSAuthScheme, WSRequestHolder}
@@ -15,8 +15,8 @@ class BinTray(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) {
 
   val BASE_URL = "https://bintray.com/api/v1"
 
-  val licenseUtils = LicenseUtils(ec, ws.client)
   val git = GitUtil(ec, ws.client)
+  val licenseUtils = LicenseUtils(ec, ws.client, git)
 
   lazy val username = config.getString("bintray.username").get
   lazy val password = config.getString("bintray.password").get

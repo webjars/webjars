@@ -2,12 +2,13 @@ package utils
 
 import play.api.Logger
 import play.api.http.Status
+import play.api.i18n.Messages
 import play.api.libs.ws.WSClient
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
-class LicenseUtils(implicit ec: ExecutionContext, ws: WSClient) {
+class LicenseUtils(implicit ec: ExecutionContext, ws: WSClient, git: GitUtil) {
 
   def gitHubLicenseDetect(maybeGitHubOrgRepo: Try[String]): Future[String] = {
     def fetchLicense(url: String): Future[String] = ws.url(url).get().flatMap { response =>
@@ -39,6 +40,31 @@ class LicenseUtils(implicit ec: ExecutionContext, ws: WSClient) {
     }
   }
 
+  def detectLicense(packageInfo: PackageInfo, maybeVersion: Option[String]): Future[PackageInfo] = {
+
+    // first try to get a license from the source
+
+    def fetchLicenseFromRepo(file: String): Future[String] = {
+      git.file(packageInfo.sourceConnectionUrl, maybeVersion, file).flatMap(licenseDetect)
+    }
+
+    val maybeLicenseFromSource = fetchLicenseFromRepo("LICENSE").recoverWith {
+      case e: Exception => fetchLicenseFromRepo("LICENSE.txt")
+    }
+
+    // if the license could not be fetched from the source, try the github license detector
+
+    val maybeLicenseFromSourceAndGitHub = maybeLicenseFromSource.recoverWith {
+      case e: Exception => gitHubLicenseDetect(packageInfo.gitHubOrgRepo)
+    }
+
+    maybeLicenseFromSourceAndGitHub.map { license =>
+      packageInfo.copy(licenses = Seq(license))
+    } recoverWith {
+      case e: Exception => Future.failed(new LicenseNotFoundException(Messages("licensenotfound")))
+    }
+  }
+
 }
 
 case class LicenseNotFoundException(message: String) extends Exception {
@@ -46,5 +72,5 @@ case class LicenseNotFoundException(message: String) extends Exception {
 }
 
 object LicenseUtils {
-  def apply(implicit ec: ExecutionContext, ws: WSClient) = new LicenseUtils()
+  def apply(implicit ec: ExecutionContext, ws: WSClient, git: GitUtil) = new LicenseUtils()
 }

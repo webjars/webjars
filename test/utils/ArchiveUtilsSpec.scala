@@ -1,7 +1,7 @@
 package utils
 
 import java.io.{BufferedInputStream, File}
-import java.nio.file.{StandardCopyOption, CopyOption, Files}
+import java.nio.file.Files
 
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
 import org.specs2.mutable.Specification

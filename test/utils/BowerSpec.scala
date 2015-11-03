@@ -13,7 +13,7 @@ import scala.concurrent.duration._
 
 class BowerSpec extends PlaySpecification {
 
-  override implicit def defaultAwaitTimeout: Timeout = 30.seconds
+  override implicit def defaultAwaitTimeout: Timeout = 90.seconds
 
   val ws = StandaloneWS.apply()
   val bower = Bower(ExecutionContext.global, ws.client)
@@ -30,11 +30,12 @@ class BowerSpec extends PlaySpecification {
     }
   }
   "bootstrap" should {
+    val info = await(bower.info("bootstrap", Some("3.3.2")))
     "have a license" in {
-      await(bower.info("bootstrap", Some("3.3.2"))).licenses must contain("MIT")
+      info.licenses must contain("MIT")
     }
     "have a dependency on jquery" in {
-      await(bower.info("bootstrap", Some("3.3.2"))).dependencies must contain("jquery" -> ">= 1.9.1")
+      info.dependencies must contain("jquery" -> ">= 1.9.1")
     }
   }
   "dc.js" should {
@@ -44,7 +45,7 @@ class BowerSpec extends PlaySpecification {
   }
   "sjcl" should {
     "download" in {
-      val is = new BufferedInputStream(await(bower.zip("sjcl", "1.0.2"), 1, TimeUnit.MINUTES))
+      val is = new BufferedInputStream(await(bower.zip("sjcl", "1.0.2")))
       val zis = new ArchiveStreamFactory().createArchiveInputStream(is)
       val files = Stream.continually(zis.getNextEntry).takeWhile(_ != null).map(_.getName).toSeq
       files must contain ("sjcl.js")
@@ -125,7 +126,7 @@ class BowerSpec extends PlaySpecification {
 
   "git commits" should {
     "work as version" in {
-      val info = await(bower.info("git://github.com/dc-js/dc.js", Some("6e95388b9a")), 60, TimeUnit.SECONDS)
+      val info = await(bower.info("git://github.com/dc-js/dc.js", Some("6e95388b9a")))
       info.version must beEqualTo ("6e95388b9a")
     }
   }
@@ -137,7 +138,7 @@ class BowerSpec extends PlaySpecification {
 
   "tinymce-dist 4.2.5" should {
     "have an LGPL-2.1 license" in {
-      await(bower.info("tinymce-dist", Some("4.2.5")), 120, TimeUnit.SECONDS).licenses must beEqualTo (Seq("LGPL-2.1"))
+      await(bower.info("tinymce-dist", Some("4.2.5"))).licenses must beEqualTo (Seq("LGPL-2.1"))
     }
   }
 
@@ -156,6 +157,12 @@ class BowerSpec extends PlaySpecification {
   "git repo with branch" should {
     "fetch the versions" in {
       await(bower.versionsOnBranch("git://github.com/mdedetrich/requirejs-plugins", "jsonSecurityVulnerability")) must contain ("d9c103e7a0")
+    }
+  }
+
+  "licenses" should {
+    "be able to be fetched from git repos" in {
+      await(bower.info("git://github.com/mdedetrich/requirejs-plugins", Some("d9c103e7a0"))).licenses must beEqualTo(Seq("MIT"))
     }
   }
 
