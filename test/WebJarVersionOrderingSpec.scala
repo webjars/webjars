@@ -3,6 +3,8 @@ import models.WebJarVersion.WebJarVersionOrdering
 import org.specs2.mutable._
 import utils.VersionOrdering
 
+import scala.util.Random
+
 class WebJarVersionOrderingSpec extends Specification {
 
   "WebJarVersionOrdering" should {
@@ -132,6 +134,21 @@ class WebJarVersionOrderingSpec extends Specification {
 
       correct2.reverse.sorted must beEqualTo(correct2)
 
+    }
+
+    "deal with + signs" in {
+      val correct = Seq(
+        WebJarVersion("3.2.0"),
+        WebJarVersion("3.2.0+4"),
+        WebJarVersion("3.3.1"),
+        WebJarVersion("3.3.1+1"),
+        WebJarVersion("3.3.1+2"),
+        WebJarVersion("3.3.2"),
+        WebJarVersion("3.3.4+1"),
+        WebJarVersion("3.3.5")
+      )
+
+      Random.shuffle(correct).sorted must beEqualTo (correct)
     }
   }
 }
