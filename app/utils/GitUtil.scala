@@ -51,6 +51,9 @@ class GitUtil(implicit ec: ExecutionContext, ws: WSClient) {
     val resolvedUrl = if (gitRepo.contains("://")) {
       gitRepo
     }
+    else if (gitRepo.contains("github:")) {
+      gitRepo.replaceAllLiterally("github:", "https://github.com/")
+    }
     else {
       // infer github
       s"https://github.com/$gitRepo"

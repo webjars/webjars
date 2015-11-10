@@ -42,10 +42,12 @@ class MavenUtilSpec extends PlaySpecification {
     }
     "work with github npm deps" in {
       val deps = Map(
-        "route-recognizer" -> "btford/route-recognizer#0.1.1"
+        "route-recognizer" -> "btford/route-recognizer#0.1.1",
+        "react-tools" -> "github:facebook/react#b4e74e3"
       )
       val mavenDeps = await(maven.convertNpmBowerDependenciesToMaven(deps))
       mavenDeps.get("github-com-btford-route-recognizer") must beSome ("0.1.1")
+      mavenDeps.get("github-com-facebook-react") must beSome ("b4e74e3")
     }
     "work with semver deps" in {
       val deps = Map(
