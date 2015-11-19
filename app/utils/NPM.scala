@@ -19,12 +19,37 @@ class NPM(implicit ec: ExecutionContext, ws: WSClient) {
   val git = GitUtil(ec, ws)
   val licenseUtils = LicenseUtils(ec, ws, git)
 
+  // a whole lot of WTF
+  private def registryMetadataUrl(packageName: String, maybeVersion: Option[String] = None): String = {
+    maybeVersion.fold {
+      // when a version is not specified an @ must not be encoded
+      val encodedPackageName = packageName.replaceAllLiterally("/", "%2F")
+      s"$BASE_URL/$encodedPackageName"
+    } { version =>
+      // when a version is specified an @ must be encoded
+      val encodedPackageName = packageName.replaceAllLiterally("/", "%2F").replaceAllLiterally("@", "%40")
+      s"$BASE_URL/$encodedPackageName/$version"
+    }
+  }
+
+  private def registryTgzUrl(maybeScopeAndPackageName: String, version: String): String = {
+    if (maybeScopeAndPackageName.contains('/') && maybeScopeAndPackageName.startsWith("@")) {
+      val parts = maybeScopeAndPackageName.split('/')
+      val scope = parts.head
+      val packageName = parts.last
+      s"$BASE_URL/$scope/$packageName/-/$packageName-$version.tgz"
+    }
+    else {
+      s"$BASE_URL/$maybeScopeAndPackageName/-/$maybeScopeAndPackageName-$version.tgz"
+    }
+  }
+
   def versions(packageNameOrGitRepo: String): Future[Seq[String]] = {
     if (git.isGit(packageNameOrGitRepo)) {
       git.versions(packageNameOrGitRepo)
     }
     else {
-      ws.url(s"$BASE_URL/$packageNameOrGitRepo").get().flatMap { response =>
+      ws.url(registryMetadataUrl(packageNameOrGitRepo)).get().flatMap { response =>
         response.status match {
           case Status.OK =>
             val versions = (response.json \ "versions").as[Map[String, JsObject]].keys.toIndexedSeq.sorted(VersionOrdering).reverse
@@ -106,10 +131,7 @@ class NPM(implicit ec: ExecutionContext, ws: WSClient) {
 
     }
     else {
-      val url = maybeVersion.fold(s"$BASE_URL/$packageNameOrGitRepo") { version =>
-        s"$BASE_URL/$packageNameOrGitRepo/$version"
-      }
-      ws.url(url).get().flatMap { response =>
+      ws.url(registryMetadataUrl(packageNameOrGitRepo, maybeVersion)).get().flatMap { response =>
         response.status match {
           case Status.OK =>
             packageInfo(response.json)
@@ -127,7 +149,7 @@ class NPM(implicit ec: ExecutionContext, ws: WSClient) {
     else {
       Future.fromTry {
         Try {
-          val url = new URL(s"$BASE_URL/$packageNameOrGitRepo/-/$packageNameOrGitRepo-$version.tgz")
+          val url = new URL(registryTgzUrl(packageNameOrGitRepo, version))
           val inputStream = url.openConnection().getInputStream
           val gzipInputStream = new GZIPInputStream(inputStream)
           gzipInputStream

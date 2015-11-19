@@ -125,6 +125,21 @@ class NPMSpec extends PlaySpecification {
     }
   }
 
+  "scoped packages" should {
+    "have info" in {
+      await(npm.info("@reactivex/rxjs", Some("5.0.0-alpha.7"))).name must beEqualTo("@reactivex/rxjs")
+    }
+    "have versions" in {
+      await(npm.versions("@reactivex/rxjs")) must contain("5.0.0-alpha.7")
+    }
+    "have a tgz" in {
+      val tgz = await(npm.tgz("@reactivex/rxjs", "5.0.0-alpha.7"))
+      val bufferedInputStream = new BufferedInputStream(tgz)
+      val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(bufferedInputStream)
+      bufferedInputStream.available() must beEqualTo (1687)
+    }
+  }
+
   step(ws.close())
 
 }

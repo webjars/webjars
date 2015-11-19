@@ -18,7 +18,7 @@ class GitUtil(implicit ec: ExecutionContext, ws: WSClient) {
   val cacheDir = Files.createTempDirectory("git")
 
   def isGit(packageNameOrGitRepo: String): Boolean = {
-    packageNameOrGitRepo.contains("/")
+    packageNameOrGitRepo.contains("/") && !packageNameOrGitRepo.startsWith("@")
   }
 
   def resolveRedir(httpUrl: String): Future[String] = {
@@ -71,7 +71,7 @@ class GitUtil(implicit ec: ExecutionContext, ws: WSClient) {
 
   // converts git urls to unique artifactId's
   def artifactId(nameOrUrlish: String): Future[String] = {
-    if (nameOrUrlish.contains("/")) {
+    if (isGit(nameOrUrlish)) {
       gitUrl(nameOrUrlish).flatMap { gitUrl =>
         Future.fromTry {
           Try {
@@ -86,7 +86,8 @@ class GitUtil(implicit ec: ExecutionContext, ws: WSClient) {
       }
     }
     else {
-      Future.successful(nameOrUrlish)
+      val encoded = nameOrUrlish.replaceAllLiterally("@", "").replaceAllLiterally("/", ":")
+      Future.successful(encoded)
     }
   }
 

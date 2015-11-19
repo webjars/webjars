@@ -38,7 +38,7 @@ class MavenUtil(implicit ec: ExecutionContext, git: GitUtil) {
         }
       }
       else {
-        Future.successful(name -> versionOrUrl)
+        git.artifactId(name).map(_ -> versionOrUrl)
       }
 
       ungitNameAndVersionFuture.flatMap { case (artifactId, version) =>

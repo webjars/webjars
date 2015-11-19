@@ -56,6 +56,13 @@ class MavenUtilSpec extends PlaySpecification {
       val mavenDeps = await(maven.convertNpmBowerDependenciesToMaven(deps))
       mavenDeps.get("github-com-PolymerElements-iron-a11y-announcer") must beSome ("[1.0.0,2)")
     }
+    "work with scoped deps" in {
+      val deps = Map(
+        "@reactivex/rxjs" -> "5.0.0-alpha.7"
+      )
+      val mavenDeps = await(maven.convertNpmBowerDependenciesToMaven(deps))
+      mavenDeps.get("reactivex:rxjs") must beSome ("5.0.0-alpha.7")
+    }
   }
 
   step(ws.close())

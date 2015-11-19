@@ -97,6 +97,9 @@ class GitUtilSpec extends PlaySpecification {
     "convert a https:// url to a name" in {
       await(git.artifactId("https://github.com/mochajs/mocha.git")) must beEqualTo ("github-com-mochajs-mocha")
     }
+    "convert a scoped name" in {
+      await(git.artifactId("@reactivex/rxjs")) must beEqualTo ("reactivex:rxjs")
+    }
   }
 
   "versionsOnBranch" should {
