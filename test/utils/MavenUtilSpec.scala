@@ -61,7 +61,7 @@ class MavenUtilSpec extends PlaySpecification {
         "@reactivex/rxjs" -> "5.0.0-alpha.7"
       )
       val mavenDeps = await(maven.convertNpmBowerDependenciesToMaven(deps))
-      mavenDeps.get("reactivex:rxjs") must beSome ("5.0.0-alpha.7")
+      mavenDeps.get("reactivex__rxjs") must beSome ("5.0.0-alpha.7")
     }
   }
 

@@ -86,7 +86,7 @@ class GitUtil(implicit ec: ExecutionContext, ws: WSClient) {
       }
     }
     else {
-      val encoded = nameOrUrlish.replaceAllLiterally("@", "").replaceAllLiterally("/", ":")
+      val encoded = nameOrUrlish.replaceAllLiterally("@", "").replaceAllLiterally("/", "__")
       Future.successful(encoded)
     }
   }
