@@ -70,8 +70,7 @@ object VersionOrdering extends Ordering[String] {
             aV.toLong compare bV.toLong
           }
           catch {
-            // if we can't compare because it's not an int then just set this one to 1
-            case e: NumberFormatException => 1
+            case e: NumberFormatException => aV compare bV
           }
         }
 
