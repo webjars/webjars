@@ -150,5 +150,18 @@ class WebJarVersionOrderingSpec extends Specification {
 
       Random.shuffle(correct).sorted must beEqualTo (correct)
     }
+
+    "deal with dates in the tag" in {
+      val correct = Seq(
+        WebJarVersion("1.7.0-dev.20150925"),
+        WebJarVersion("1.7.5-dev.20150925"),
+        WebJarVersion("1.7.5"),
+        WebJarVersion("1.8.0-dev.20151214"),
+        WebJarVersion("1.8.0-dev.20151215")
+      )
+
+      correct.reverse.sorted must beEqualTo (correct)
+    }
+
   }
 }

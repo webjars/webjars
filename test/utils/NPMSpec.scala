@@ -140,6 +140,12 @@ class NPMSpec extends PlaySpecification {
     }
   }
 
+  "typescript versions" should {
+    "work" in {
+      await(npm.versions("typescript")) must contain("1.7.5")
+    }
+  }
+
   step(ws.close())
 
 }
