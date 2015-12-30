@@ -136,11 +136,16 @@ class BowerSpec extends PlaySpecification {
     }
   }
 
+  /*
+
+  // This is broken due to upstream: https://github.com/webjars/webjars/issues/1265
+
   "tinymce-dist 4.2.5" should {
     "have an LGPL-2.1 license" in {
       await(bower.info("tinymce-dist", Some("4.2.5"))).licenses must beEqualTo (Seq("LGPL-2.1"))
     }
   }
+  */
 
   "homepage" should {
     "be have a default" in {
