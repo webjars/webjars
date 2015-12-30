@@ -32,8 +32,12 @@ class NPM(implicit ec: ExecutionContext, ws: WSClient) {
     }
   }
 
+  private def isScoped(maybeScopeAndPackageName: String): Boolean = {
+    maybeScopeAndPackageName.contains('/') && maybeScopeAndPackageName.startsWith("@")
+  }
+
   private def registryTgzUrl(maybeScopeAndPackageName: String, version: String): String = {
-    if (maybeScopeAndPackageName.contains('/') && maybeScopeAndPackageName.startsWith("@")) {
+    if (isScoped(maybeScopeAndPackageName)) {
       val parts = maybeScopeAndPackageName.split('/')
       val scope = parts.head
       val packageName = parts.last
@@ -131,12 +135,27 @@ class NPM(implicit ec: ExecutionContext, ws: WSClient) {
 
     }
     else {
-      ws.url(registryMetadataUrl(packageNameOrGitRepo, maybeVersion)).get().flatMap { response =>
-        response.status match {
-          case Status.OK =>
-            packageInfo(response.json)
-          case _ =>
-            Future.failed(new Exception(response.body))
+      if (isScoped(packageNameOrGitRepo) && maybeVersion.isDefined) {
+        // can no longer get info on specific versions of scoped packages
+        // so get the info for all the versions and then get the specific version out of the full list
+        ws.url(registryMetadataUrl(packageNameOrGitRepo)).get().flatMap { response =>
+          response.status match {
+            case Status.OK =>
+              val versionInfo = response.json \ "versions" \ maybeVersion.get
+              packageInfo(versionInfo)
+            case _ =>
+              Future.failed(new Exception(response.body))
+          }
+        }
+      }
+      else {
+        ws.url(registryMetadataUrl(packageNameOrGitRepo, maybeVersion)).get().flatMap { response =>
+          response.status match {
+            case Status.OK =>
+              packageInfo(response.json)
+            case _ =>
+              Future.failed(new Exception(response.body))
+          }
         }
       }
     }
