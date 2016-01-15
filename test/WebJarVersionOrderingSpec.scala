@@ -163,5 +163,17 @@ class WebJarVersionOrderingSpec extends Specification {
       correct.reverse.sorted must beEqualTo (correct)
     }
 
+    "deal with jquery stuff" in {
+      val correct = Seq(
+        WebJarVersion("2.2.0"),
+        WebJarVersion("3.0.0-alpha1"),
+        WebJarVersion("3.0.0-alpha2"),
+        WebJarVersion("3.0.0-beta1"),
+        WebJarVersion("3.0.0")
+      )
+
+      correct.reverse.sorted must beEqualTo (correct)
+    }
+
   }
 }

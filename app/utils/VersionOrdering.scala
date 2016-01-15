@@ -6,20 +6,26 @@ import scala.util.Try
 
 object VersionOrdering extends Ordering[String] {
 
-  def unmalform(s: String): String = {
-    val noPlus = s.replaceAllLiterally("+", "-")
-    val fixBeta = noPlus.replaceAllLiterally("beta", ".beta.")
-    val fixRc = fixBeta.replaceAllLiterally("rc", ".rc.")
-    val justDots = fixRc.replaceAllLiterally("-", ".").replaceAllLiterally("..", ".")
-    val betterDate = if (justDots.matches("(\\d\\d)\\.(\\d\\d)\\.(\\d\\d\\d\\d)")) {
-      val parts = justDots.split('.').map(_.toInt)
-      val time = Calendar.getInstance()
-      time.set(parts(2), parts(0), parts(1))
-      time.getTimeInMillis.toString
-    } else {
-      justDots
+  def unmalform(versionString: String): String = {
+    val noPlus = { s: String => s.replaceAllLiterally("+", "-") }
+    val fixAlpha = { s: String => s.replaceAllLiterally("alpha", ".alpha.") }
+    val fixBeta = { s: String => s.replaceAllLiterally("beta", ".beta.") }
+    val fixRc = { s: String => s.replaceAllLiterally("rc", ".rc.") }
+    val justDots = { s: String => s.replaceAllLiterally("-", ".").replaceAllLiterally("..", ".") }
+    val betterDate = { s: String =>
+      if (s.matches("(\\d\\d)\\.(\\d\\d)\\.(\\d\\d\\d\\d)")) {
+        val parts = s.split('.').map(_.toInt)
+        val time = Calendar.getInstance()
+        time.set(parts(2), parts(0), parts(1))
+        time.getTimeInMillis.toString
+      } else {
+        s
+      }
     }
-    betterDate
+
+    val transforms = Seq(noPlus, fixAlpha, fixBeta, fixRc, justDots, betterDate)
+
+    transforms.foldLeft(versionString)((a, f) => f(a))
   }
 
   def compare(a: String, b: String) = {
