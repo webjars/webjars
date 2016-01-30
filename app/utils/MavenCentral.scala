@@ -81,36 +81,58 @@ object MavenCentral {
       }
 
       // group by the artifactId
-      val grouped: Map[String, List[String]] = allVersions.groupBy(_._1).filterKeys(!_.startsWith("webjars-")).mapValues(_.map(_._2))
+      val artifactsAndVersions: Map[String, List[String]] = allVersions.groupBy(_._1).filterKeys(!_.startsWith("webjars-")).mapValues(_.map(_._2))
 
-      val webJarsWithFutureVersions: Map[String, Future[List[WebJarVersion]]] = grouped.map {
-        case (artifactId, versions) =>
-          val webJarVersionsFuture = Future.sequence {
-            versions.map { version =>
-              WebJarsFileService.getFileList(catalog.toString, artifactId, version).map { fileList =>
-                WebJarVersion(version, fileList.length)
-              }.recover {
-                case e: Exception =>
-                  Logger.error(s"Error fetching file list for ${catalog.toString} $artifactId $version - ${e.getMessage}")
-                  WebJarVersion(version, 0)
-              }
+      // partition and batch
+
+      def fetchWebJarVersions(artifactAndVersions: (String, List[String])): (String, Future[List[WebJarVersion]]) = {
+        val (artifactId, versions) = artifactAndVersions
+        val versionsFuture = Future.sequence {
+          versions.map { version =>
+            WebJarsFileService.getFileList(catalog.toString, artifactId, version).map { fileList =>
+              WebJarVersion(version, fileList.length)
+            }.recover {
+              case e: Exception =>
+                Logger.error(s"Error fetching file list for ${catalog.toString} $artifactId $version - ${e.getMessage}")
+                WebJarVersion(version, 0)
             }
-          }.map { webJarVersions =>
-            webJarVersions.sorted.reverse
           }
-          artifactId -> webJarVersionsFuture
+        } map { webJarVersions =>
+          webJarVersions.sorted.reverse
+        }
+
+        artifactId -> versionsFuture
       }
 
-      val webJarsFuture: Future[List[WebJar]] = Future.traverse(webJarsWithFutureVersions) {
-        case (artifactId, webJarVersionsFuture) =>
-          webJarVersionsFuture.flatMap { webJarVersions =>
-            val latestVersion = webJarVersions.map(_.number).head
+      def processBatch(resultsFuture: Future[Map[String, List[WebJarVersion]]], batch: Map[String, List[String]]): Future[Map[String, List[WebJarVersion]]] = {
+        resultsFuture.flatMap { results =>
+          val batchFutures: Map[String, Future[List[WebJarVersion]]] = batch.map(fetchWebJarVersions)
+          val batchFuture: Future[Map[String, List[WebJarVersion]]] = Future.traverse(batchFutures) {
+            case (artifactId, futureVersions) =>
+              futureVersions.map(artifactId -> _)
+          }.map(_.toMap)
 
-            MavenCentral.fetchWebJarNameAndUrl(catalog.toString, artifactId, latestVersion).map {
-              case (name, url) =>
-                WebJar(catalog.toString, artifactId, name, url, webJarVersions)
-            }
+          batchFuture.map { batchResult =>
+            results ++ batchResult
           }
+        }
+      }
+
+      // batch size = 100
+      val artifactsWithWebJarVersionsFuture: Future[Map[String, List[WebJarVersion]]] = artifactsAndVersions.grouped(100).foldLeft(Future.successful(Map.empty[String, List[WebJarVersion]]))(processBatch)
+
+      val webJarsFuture: Future[List[WebJar]] = artifactsWithWebJarVersionsFuture.flatMap { artifactsWithWebJarVersions =>
+        Future.sequence {
+          artifactsWithWebJarVersions.map {
+            case (artifactId, webJarVersions) =>
+              val latestVersion = webJarVersions.map(_.number).head
+
+              MavenCentral.fetchWebJarNameAndUrl(catalog.toString, artifactId, latestVersion).map {
+                case (name, url) =>
+                  WebJar(catalog.toString, artifactId, name, url, webJarVersions)
+              }
+          }
+        }
       } map { webJars =>
         webJars.toList.sortWith(_.name.toLowerCase < _.name.toLowerCase)
       }
