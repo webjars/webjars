@@ -45,16 +45,16 @@
 
             <!-- Play Framework 2 -->
             <div class="tab-pane active" id="play2">
-                <h3>Instructions for Play 2.4 (<a href="http://typesafe.com/activator/template/webjars-sample-play2">Sample Source</a>)</h3>
+                <h3>Instructions for Play 2.5 (<a href="http://typesafe.com/activator/template/webjars-sample-play2">Sample Source</a>)</h3>
                 WebJars can be added as dependencies to an app by simply adding them to the <span class="label label-info">build.sbt</span> file.  There is also a helper library named <span class="label label-info">webjars-play</span> that makes it easy to reference WebJar assets.  Here is an example <span class="label label-info">build.sbt</span> file with <span class="label label-info">webjars-play</span> and the <span class="label label-info">bootstrap</span> WebJar as dependencies:<br>
                 <pre><code>libraryDependencies ++= Seq(
-  "org.webjars" %% "webjars-play" % "2.4.0-1",
+  "org.webjars" %% "webjars-play" % "2.5.0",
   "org.webjars" % "bootstrap" % "3.1.1-2"
 )</code></pre>
                 <br>
-                After changing a Play 2's dependencies you will need to restart Play.<br>
+                After changing the dependencies you will need to restart Play.<br>
                 <br>
-                In Play 2.4 WebJars are automatically available as static assets.  If you have a route like:
+                Since Play 2.3, WebJars are automatically available as static assets.  If you have a route like:
                 <pre><code>GET         /assets/*file           controllers.Assets.at(path="/public", file)</code></pre>
                 <br/>
                 Then a WebJar file like <code>bootstrap.css</code> is available at:
@@ -63,24 +63,52 @@
                 The <span class="label label-info">webjars-play</span> helper library has a wrapper around the Play Static Asset Controller that can locate and serve WebJar assets.  A new route to <span class="label label-info">WebJarAssets</span> needs to be added to the <span class="label label-info">conf/routes</span> file:
                 <pre><code>GET     /webjars/*file                    controllers.WebJarAssets.at(file)</code></pre>
                 <br>
-                To use Play 2's reverse routing to resolve the URL to an asset you can do the following in a template:
-                <pre><code>&lt;link rel='stylesheet' href='@@routes.WebJarAssets.at(WebJarAssets.locate("css/bootstrap.min.css"))'&gt;
-&lt;script type='text/javascript' src='@@routes.WebJarAssets.at(WebJarAssets.locate("jquery.min.js"))'&gt;&lt;/script&gt;</code></pre>
+                The <span class="label label-info">WebJarAssets</span> class has a <span class="label label-info">locate</span> method that can be used to get a WebJar asset's path.  To use it you need to inject an instance of <span class="label label-info">WebJarAssets</span> and then usually pass that reference to your template.  For example:
+                <pre><code>public class Application extends Controller {
+
+    @@Inject WebJarAssets webJarAssets;
+
+    public Result index() {
+        return ok(index.render(webJarAssets));
+    }
+
+}</code></pre>
                 <br/>
-                The WebJars contain versioned paths when accessed through the <code>WebJarAssets</code> controller.  For local non-WebJar assets you should also setup a route for versioned assets via the <code>sbt-digest</code> asset compiler, like:
-                <pre><code>GET         /vassets/*file          controllers.Assets.versioned(path="/public", file: Asset)</code></pre>
+                Then you can use Play's reverse routing and <span class="label label-info">webJarAssets.locate</span> to get the url to a WebJar asset in a template, like:
+                <pre><code>@@(webJarAssets: WebJarAssets)
+&lt;!DOCTYPE html&gt;
+&lt;html&gt;
+    &lt;head&gt;
+        &lt;link rel='stylesheet' href='@@routes.WebJarAssets.at(webJarAssets.locate("css/bootstrap.min.css"))'&gt;
+    &lt;/head&gt;
+    &lt;body&gt;
+    &lt;/body&gt;
+&lt;/html&gt;</code></pre>
                 <br/>
-                WebJars have out-of-the-box support for RequireJS.  To use it first include the RequireJS config in your page:
-                <pre><code>&lt;script&gt;
-    @@Html(org.webjars.RequireJS.getSetupJavaScript(routes.WebJarAssets.at("").url))
-&lt;/script&gt;</code></pre>
+                WebJars have out-of-the-box support for RequireJS.  To use it, first inject <span class="label label-info">org.webjars.play.RequireJS</span> and pass it to your view:
+                <pre><code>public class Application extends Controller {
+
+    @@Inject RequireJS requireJS;
+
+    public Result index() {
+        return ok(index.render(requireJS));
+    }
+
+}</code></pre>
                 <br/>
-                Then load RequireJS with a <code>data-main</code> for your JavaScript app:
-                <pre><code>&lt;script data-main="@@routes.Assets.versioned("javascripts/classic.js")"
-  src="@@routes.WebJarAssets.at(WebJarAssets.locate("require.min.js"))"&gt;&lt;/script&gt;</code></pre>
+                And then use the <span class="label label-info">requireJS.setup</span> method to bootstrap a RequireJS app:
+                <pre><code>@@(requireJS: org.webjars.play.RequireJS)
+&lt;!DOCTYPE html&gt;
+&lt;html&gt;
+    &lt;head&gt;
+        @@Html(requireJS.setup(routes.Assets.versioned("javascripts/index.js")))
+    &lt;/head&gt;
+    &lt;body&gt;
+    &lt;/body&gt;
+&lt;/html&gt;</code></pre>
                 <br/>
                 <!-- todo: CDN -->
-                If you need to override the default RequireJS config you can use a lower-level <code>RequireJS</code> API to setup the config:
+                If you need to override the default RequireJS config you can use a lower-level <code>RequireJS</code> API to setup the config, for example:
                 <pre><code>&lt;script&gt;
   var require = {
     callback: function() {
@@ -100,7 +128,8 @@
       });
     }
   };
-&lt;/script&gt;</code></pre>
+&lt;/script&gt;
+&lt;script data-main="@@routes.Assets.versioned("javascripts/index.js")" src="@@routes.WebJarAssets.at(webJarAssets.locate("require.min.js"))"&gt;&lt;/script&gt;</code></pre>
             </div>
 
 
