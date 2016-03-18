@@ -106,7 +106,9 @@ $(function() {
 
     deployLog.text("Starting Deploy");
 
-    $.ajax("/_" + webJarType + "/deploy?name=" + artifactId + "&version=" + version + "&channelId=" + channelId, {
+    var deployUrl = "/_" + webJarType + "/deploy?name=" + encodeURIComponent(artifactId) + "&version=" + encodeURIComponent(version) + "&channelId=" + channelId;
+
+    $.ajax(deployUrl, {
       method: "post",
       success: function(data) {
         console.log(data);
