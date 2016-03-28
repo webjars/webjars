@@ -1,5 +1,10 @@
 @(groupId: String, artifactId: String, version: String, fileList: List[String])
 
+@* The version in the path is different than the version in the url so fix that. *@
+@pathPrefix(file: String) = @{
+    file.split("/").drop(5).mkString("/")
+}
+
 @for(file <- fileList) {
-    <a href="//cdn.jsdelivr.net/webjars/@groupId/@artifactId/@version/@file.stripPrefix(s"META-INF/resources/webjars/$artifactId/$version/")" target="_blank">@file</a><br/>
+    <a href="//cdn.jsdelivr.net/webjars/@groupId/@artifactId/@version/@pathPrefix(file)" target="_blank">@file</a><br/>
 }
