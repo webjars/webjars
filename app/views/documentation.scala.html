@@ -114,7 +114,9 @@
     callback: function() {
       // default requirejs configs
       @@for(webJarJson <- org.webjars.RequireJS.getSetupJson(routes.WebJarAssets.at("").url).values()) {
-        requirejs.config(@@Html(webJarJson.toString));
+        @@if(webJarJson != null) {
+          requirejs.config(@@Html(webJarJson.toString));
+        }
       }
 
       // example custom requirejs config
