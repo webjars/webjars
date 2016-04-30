@@ -36,18 +36,26 @@
         <nav class="navbar navbar-inverse navbar-fixed-top">
             <div class="container-fluid">
                 <div class="navbar-header">
+                    <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#main-nav-links" aria-expanded="false">
+                        <span class="sr-only">Toggle navigation</span>
+                        <span class="icon-bar"></span>
+                        <span class="icon-bar"></span>
+                        <span class="icon-bar"></span>
+                    </button>
                     <a class="navbar-brand" style="padding-top: 10px" href="@routes.Application.index()">
                         <img alt="WebJars" src="@routes.Assets.at("logo.png")" height="30">
                     </a>
                     <a class="navbar-brand @if(title.indexOf("Web Libraries in Jars") > -1) { active }" href="@routes.Application.index()">WebJars</a>
+                </div>
+                <div class="collapse navbar-collapse" id="main-nav-links">
                     <ul class="nav navbar-nav">
                         <li @if(title.toLowerCase.indexOf("doc") > -1) { class="active" }><a href="@routes.Application.documentation()">Documentation</a></li>
                         <li @if(title.toLowerCase.indexOf("npm") > -1) { class="active" }><a href="@routes.Application.npmList()">NPM WebJars</a></li>
                         <li @if(title.toLowerCase.indexOf("bower") > -1) { class="active" }><a href="@routes.Application.bowerList()">Bower WebJars</a></li>
                         <li @if(title.toLowerCase.indexOf("classic") > -1) { class="active" }><a href="@routes.Application.classicList()">Classic WebJars</a></li>
                     </ul>
+                    <p class="navbar-text navbar-right" style="margin-right: 4px">Sponsored by <a href="http://bintray.com" class="navbar-link">BinTray</a> &amp; <a href="http://heroku.com" class="navbar-link">Heroku</a></p>
                 </div>
-                <p class="navbar-text navbar-right" style="margin-right: 4px">Sponsored by <a href="http://bintray.com" class="navbar-link">BinTray</a> &amp; <a href="http://heroku.com" class="navbar-link">Heroku</a></p>
             </div>
         </nav>
 
