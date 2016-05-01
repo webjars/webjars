@@ -7,7 +7,6 @@ import akka.util.Timeout
 import models.WebJarCatalog.WebJarCatalog
 import models.{WebJarCatalog, WebJar, WebJarVersion}
 import play.api.Play.current
-import play.api.cache.Cache
 import play.api.libs.concurrent.Akka
 import play.api.libs.json.{JsObject, Json}
 import play.api.libs.ws.WS
@@ -21,6 +20,8 @@ import scala.xml.Elem
 object MavenCentral {
 
   implicit val ec: ExecutionContext = Akka.system(Play.current).dispatchers.lookup("mavencentral.dispatcher")
+
+  lazy val cache = Cache(ec, Play.current)
 
   lazy val webJarFetcher: ActorRef = Akka.system.actorOf(Props[WebJarFetcher])
 
@@ -142,7 +143,7 @@ object MavenCentral {
   }
 
   def webJars(catalog: WebJarCatalog): Future[List[WebJar]] = {
-    Cache.getAs[List[WebJar]](catalog.toString).map(Future.successful).getOrElse {
+    cache.get[List[WebJar]](catalog.toString, 1.hour) {
       // todo: for some reason this blocks longer than 1 second if things are busy
       Akka.system.actorSelection("user/" + catalog.toString).resolveOne(1.second).flatMap { actorRef =>
         // in-flight request exists
@@ -162,10 +163,10 @@ object MavenCentral {
           fetchWebJarsFuture.foreach { fetchedWebJars =>
             Logger.info(s"WebJar fetch complete for ${catalog.toString}")
             Akka.system.stop(webJarFetcher)
-            Cache.set(catalog.toString, fetchedWebJars, 1.hour)
           }
           // fail cause this is will likely take a long time
-          Future.failed(new Exception("Making new request for WebJars"))
+          //Future.failed(new Exception("Making new request for WebJars"))
+          fetchWebJarsFuture
       }
     }
   }

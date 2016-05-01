@@ -1,25 +1,19 @@
 package controllers
 
 import java.io.FileNotFoundException
-import akka.actor.{Actor, ActorRef, Props}
-import akka.pattern.ask
-import akka.util.Timeout
-import models.{WebJarCatalog, WebJar}
-import org.joda.time._
-import play.api.{Logger, Play}
-import play.api.Play.current
-import play.api.cache.Cache
-import play.api.libs.concurrent.Akka
-import play.api.libs.json.{JsObject, JsArray, Json}
+
+import models.{WebJar, WebJarCatalog}
+import play.api.Play
 import play.api.data.Forms._
 import play.api.data._
+import play.api.libs.json.Json
 import play.api.libs.ws.WS
 import play.api.mvc._
 import utils._
 
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.hashing.MurmurHash3
 
 object Application extends Controller {
@@ -31,15 +25,7 @@ object Application extends Controller {
   lazy val npm = NPM(ExecutionContext.global, WS.client(Play.current))
   lazy val heroku = Heroku(ExecutionContext.global, WS.client(Play.current), Play.current.configuration)
   lazy val pusher = Pusher(ExecutionContext.global, WS.client(Play.current), Play.current.configuration)
-
-  def index = Action.async { request =>
-    MavenCentral.webJars.map {
-      maybeCached(request, webJars => Ok(views.html.index(webJars)))
-    } recover {
-      case e: Exception =>
-        InternalServerError(views.html.index(Seq.empty[WebJar]))
-    }
-  }
+  lazy val cache = Cache(ExecutionContext.global, Play.current)
 
   private def maybeCached[A](request: RequestHeader, f: Seq[A] => Result)(seq: Seq[A]): Result = {
     val hash = MurmurHash3.seqHash(seq)
@@ -52,8 +38,27 @@ object Application extends Controller {
     }
   }
 
+  val defaultTimeout = 25.seconds
+
+  private def webJarsWithTimeout(): Future[List[WebJar]] = {
+    TimeoutFuture(defaultTimeout)(MavenCentral.webJars)
+  }
+
+  private def webJarsWithTimeout(catalog: WebJarCatalog.WebJarCatalog): Future[List[WebJar]] = {
+    TimeoutFuture(defaultTimeout)(MavenCentral.webJars(catalog))
+  }
+
+  def index = Action.async { request =>
+    webJarsWithTimeout().map {
+      maybeCached(request, webJars => Ok(views.html.index(webJars)))
+    } recover {
+      case e: Exception =>
+        InternalServerError(views.html.index(Seq.empty[WebJar]))
+    }
+  }
+
   def classicList = Action.async { request =>
-    MavenCentral.webJars(WebJarCatalog.CLASSIC).map {
+    webJarsWithTimeout(WebJarCatalog.CLASSIC).map {
       maybeCached(request, webJars => Ok(views.html.classicList(webJars)))
     } recover {
       case e: Exception =>
@@ -63,7 +68,7 @@ object Application extends Controller {
 
   def webJarList(groupId: String) = Action.async { implicit request =>
     val catalog = WebJarCatalog.withName(groupId)
-    MavenCentral.webJars(catalog).map {
+    webJarsWithTimeout(catalog).map {
       maybeCached(request, webJars => Ok(Json.toJson(webJars)))
     } recover {
       case e: Exception =>
@@ -72,7 +77,7 @@ object Application extends Controller {
   }
 
   def bowerList = Action.async { request =>
-    MavenCentral.webJars(WebJarCatalog.BOWER).map {
+    webJarsWithTimeout(WebJarCatalog.BOWER).map {
       maybeCached(request, webJars => Ok(views.html.npmbowerList(webJars, pusher.maybeKey, "Bower", "bower")))
     } recover {
       case e: Exception =>
@@ -81,7 +86,7 @@ object Application extends Controller {
   }
 
   def npmList = Action.async { request =>
-    MavenCentral.webJars(WebJarCatalog.NPM).map {
+    webJarsWithTimeout(WebJarCatalog.NPM).map {
       maybeCached(request, webJars => Ok(views.html.npmbowerList(webJars, pusher.maybeKey, "NPM", "npm")))
     } recover {
       case e: Exception =>
@@ -99,19 +104,13 @@ object Application extends Controller {
   def bowerPackageVersions(packageNameOrGitRepo: String, maybeBranch: Option[String]) = Action.async { request =>
 
     val packageVersionsFuture = maybeBranch.fold {
-      Cache.getAs[Seq[String]](s"bower-versions-$packageNameOrGitRepo").fold {
-        bower.versions(packageNameOrGitRepo).map { versions =>
-          Cache.set(s"bower-versions-$packageNameOrGitRepo", versions, 1.hour)
-          versions
-        }
-      } (Future.successful)
+      cache.get[Seq[String]]("bower-versions-$packageNameOrGitRepo", 1.hour) {
+        bower.versions(packageNameOrGitRepo)
+      }
     } { branch =>
-      Cache.getAs[Seq[String]](s"bower-versions-$packageNameOrGitRepo-$branch").fold {
-        bower.versionsOnBranch(packageNameOrGitRepo, branch).map { versions =>
-          Cache.set(s"bower-versions-$packageNameOrGitRepo-$branch", versions, 1.hour)
-          versions
-        }
-      } (Future.successful)
+      cache.get[Seq[String]](s"bower-versions-$packageNameOrGitRepo-$branch", 1.hour) {
+        bower.versionsOnBranch(packageNameOrGitRepo, branch)
+      }
     }
 
     packageVersionsFuture.map { json =>
@@ -130,19 +129,13 @@ object Application extends Controller {
 
   def npmPackageVersions(packageNameOrGitRepo: String, maybeBranch: Option[String]) = Action.async {
     val packageVersionsFuture = maybeBranch.fold {
-      Cache.getAs[Seq[String]](s"npm-versions-$packageNameOrGitRepo").fold {
-        npm.versions(packageNameOrGitRepo).map { versions =>
-          Cache.set(s"npm-versions-$packageNameOrGitRepo", versions, 1.hour)
-          versions
-        }
-      }(Future.successful)
+      cache.get[Seq[String]](s"npm-versions-$packageNameOrGitRepo", 1.hour) {
+        npm.versions(packageNameOrGitRepo)
+      }
     } { branch =>
-      Cache.getAs[Seq[String]](s"npm-versions-$packageNameOrGitRepo-$branch").fold {
-        npm.versionsOnBranch(packageNameOrGitRepo, branch).map { versions =>
-          Cache.set(s"npm-versions-$packageNameOrGitRepo-$branch", versions, 1.hour)
-          versions
-        }
-      } (Future.successful)
+      cache.get[Seq[String]](s"npm-versions-$packageNameOrGitRepo-$branch", 1.hour) {
+        npm.versionsOnBranch(packageNameOrGitRepo, branch)
+      }
     }
 
     packageVersionsFuture.map { versions =>
@@ -155,7 +148,7 @@ object Application extends Controller {
 
   def allWebJars = CorsAction {
     Action.async { implicit request =>
-      MavenCentral.webJars.map {
+      webJarsWithTimeout().map {
         maybeCached(request, webJars => Ok(Json.toJson(webJars)))
       } recover {
         case e: Exception =>
@@ -332,6 +325,24 @@ object Application extends Controller {
       ACCESS_CONTROL_ALLOW_ORIGIN -> "*",
       ACCESS_CONTROL_ALLOW_METHODS -> "GET"
     )
+  }
+
+  object TimeoutFuture {
+    import play.api.libs.concurrent.{Promise => PlayPromise}
+    import scala.concurrent.{Future, Promise}
+    import java.util.concurrent.TimeoutException
+
+    def apply[A](timeout: FiniteDuration)(future: Future[A]): Future[A] = {
+      val promise = Promise[A]()
+
+      PlayPromise.timeout(Unit, timeout).foreach { _ =>
+        promise.tryFailure(new TimeoutException)
+      }
+
+      promise.completeWith(future)
+
+      promise.future
+    }
   }
 
 }
