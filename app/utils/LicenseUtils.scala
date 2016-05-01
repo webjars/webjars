@@ -42,23 +42,17 @@ class LicenseUtils(implicit ec: ExecutionContext, ws: WSClient, git: GitUtil) {
 
   def detectLicense(packageInfo: PackageInfo, maybeVersion: Option[String]): Future[PackageInfo] = {
 
-    // first try to get a license from the source
-
     def fetchLicenseFromRepo(file: String): Future[String] = {
       git.file(packageInfo.sourceConnectionUrl, maybeVersion, file).flatMap(licenseDetect)
     }
 
-    val maybeLicenseFromSource = fetchLicenseFromRepo("LICENSE").recoverWith {
-      case e: Exception => fetchLicenseFromRepo("LICENSE.txt")
-    }
-
-    // if the license could not be fetched from the source, try the github license detector
-
-    val maybeLicenseFromSourceAndGitHub = maybeLicenseFromSource.recoverWith {
-      case e: Exception => gitHubLicenseDetect(packageInfo.gitHubOrgRepo)
-    }
-
-    maybeLicenseFromSourceAndGitHub.map { license =>
+    gitHubLicenseDetect(packageInfo.gitHubOrgRepo).recoverWith {
+      case e: Exception =>
+        fetchLicenseFromRepo("LICENSE").recoverWith {
+          case e: Exception =>
+            fetchLicenseFromRepo("LICENSE.txt")
+        }
+    } map { license =>
       packageInfo.copy(licenses = Seq(license))
     } recoverWith {
       case e: Exception => Future.failed(new LicenseNotFoundException(Messages("licensenotfound")))
