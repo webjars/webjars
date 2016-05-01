@@ -1,0 +1,11 @@
+{
+  "name": "webjars",
+  "addons": [
+    "memcachier"
+  ],
+  "buildpacks": [
+    {
+      "url": "https://github.com/heroku/heroku-buildpack-scala"
+    }
+  ]
+}

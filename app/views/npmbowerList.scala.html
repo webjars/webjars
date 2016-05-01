@@ -1,12 +1,14 @@
-@(webjars: Iterable[WebJar], pusherKey: String, title: String, webJarType: String)
+@(webjars: Iterable[WebJar], maybePusherKey: Option[String], title: String, webJarType: String)
 
 @import java.net.URLEncoder
 
 @main(s"WebJars - $title WebJars") {
 
-    <script>
-        var pusherKey = "@pusherKey";
-    </script>
+    @maybePusherKey.map { pusherKey =>
+        <script>
+                var pusherKey = "@pusherKey";
+        </script>
+    }
 
     <script src="//js.pusher.com/2.2/pusher.min.js"></script>
 
