@@ -224,6 +224,7 @@ class BinTray(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) {
     "Artistic-2.0" -> "Artistic-License-2.0",
     "Apache 2" -> "Apache-2.0",
     "Apache License, v2.0" -> "Apache-2.0",
+    "Apache License, Version 2.0" -> "Apache-2.0",
     "BSD-3" -> "BSD 3-Clause",
     "GPLv2" -> "GPL-2.0",
     "GPLv3" -> "GPL-3.0",
