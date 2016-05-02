@@ -1,9 +1,9 @@
 package utils
 
 import java.io.InputStream
-import java.net.URL
+import java.net.{URL, URLEncoder}
 
-import play.api.http.{MimeTypes, HeaderNames, Status}
+import play.api.http.{HeaderNames, MimeTypes, Status}
 import play.api.libs.json.Reads._
 import play.api.libs.json._
 import play.api.libs.functional.syntax._
@@ -24,14 +24,22 @@ class Bower(implicit ec: ExecutionContext, ws: WSClient) {
       git.gitUrl(packageNameOrGitRepo).flatMap(git.versions)
     }
     else {
-      ws.url(s"$BASE_URL/info/$packageNameOrGitRepo").get().flatMap { response =>
-        response.status match {
-          case Status.OK =>
-            val versions = (response.json \ "versions").as[Seq[String]]
-            val cleanVersions = versions.filterNot(_.contains("sha"))
-            Future.successful(cleanVersions)
-          case _ =>
-            Future.failed(new Exception(response.body))
+      val maybeName = Try {
+        URLEncoder.encode(packageNameOrGitRepo, "UTF-8")
+      }
+
+      maybeName.toOption.fold[Future[Seq[String]]] {
+        Future.failed(new Exception("Could not encode the URL for the specified package"))
+      } { name =>
+        ws.url(s"$BASE_URL/info/$name").get().flatMap { response =>
+          response.status match {
+            case Status.OK =>
+              val versions = (response.json \ "versions").as[Seq[String]]
+              val cleanVersions = versions.filterNot(_.contains("sha"))
+              Future.successful(cleanVersions)
+            case _ =>
+              Future.failed(new Exception(response.body))
+          }
         }
       }
     }
