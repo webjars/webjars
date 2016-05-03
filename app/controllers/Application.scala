@@ -104,7 +104,7 @@ object Application extends Controller {
   def bowerPackageVersions(packageNameOrGitRepo: String, maybeBranch: Option[String]) = Action.async { request =>
 
     val packageVersionsFuture = maybeBranch.fold {
-      cache.get[Seq[String]]("bower-versions-$packageNameOrGitRepo", 1.hour) {
+      cache.get[Seq[String]](s"bower-versions-$packageNameOrGitRepo", 1.hour) {
         bower.versions(packageNameOrGitRepo)
       }
     } { branch =>
