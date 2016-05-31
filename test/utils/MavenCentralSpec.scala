@@ -8,10 +8,10 @@ import utils.MavenCentral.UnavailableException
 class MavenCentralSpec extends PlaySpecification {
 
   "fetchWebJars" should {
-    "fail when the searchGroupUrl does not return JSON" in new WithServer(port = testServerPort, app = FakeApplication(additionalConfiguration = Map("webjars.searchGroupUrl" -> s"http://localhost:$testServerPort/asdf"), withGlobal = Some(new Global))) {
+    "fail when the searchGroupUrl does not return JSON" in new WithServer(port = testServerPort, app = FakeApplication(additionalConfiguration = Map("webjars.searchGroupUrl" -> s"http://localhost:$testServerPort/asdf"), withGlobal = Some(new GlobalSettings))) {
       await(MavenCentral.fetchWebJars(WebJarCatalog.CLASSIC)) should throwA[UnavailableException]
     }
-    "work normally" in new WithApplication(FakeApplication(withGlobal = Some(new Global))) {
+    "work normally" in new WithApplication(FakeApplication(withGlobal = Some(new GlobalSettings))) {
       await(MavenCentral.fetchWebJars(WebJarCatalog.CLASSIC)).size should beEqualTo (40)
     }
   }

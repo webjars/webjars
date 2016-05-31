@@ -1,7 +1,6 @@
 package utils
 
 import java.util.UUID
-import java.util.concurrent.TimeUnit
 
 import play.api.test._
 
@@ -10,11 +9,10 @@ import scala.concurrent.duration._
 
 class CacheSpec extends PlaySpecification {
 
-  val app = FakeApplication()
-  val cache = Cache(ExecutionContext.global, app)
-
   "cache.get" should {
-    "fetch a value when the cache is empty" in {
+    "fetch a value when the cache is empty" in new WithApplication() {
+      val cache = Cache(ExecutionContext.global, app)
+
       val key = UUID.randomUUID().toString
       val value = UUID.randomUUID().toString
       val futureValue = cache.get[String](key, 1.second) {
@@ -23,7 +21,9 @@ class CacheSpec extends PlaySpecification {
 
       await(futureValue) mustEqual value
     }
-    "not miss when the cache has a value" in {
+    "not miss when the cache has a value" in new WithApplication() {
+      val cache = Cache(ExecutionContext.global, app)
+
       val key = UUID.randomUUID().toString
       val value = UUID.randomUUID().toString
       val iterator = Iterator(value, "SHOULD NOT REACH")
@@ -34,7 +34,9 @@ class CacheSpec extends PlaySpecification {
 
       await(futureSecondGet) mustEqual value
     }
-    "miss after expiration" in {
+    "miss after expiration" in new WithApplication() {
+      val cache = Cache(ExecutionContext.global, app)
+
       val key = UUID.randomUUID().toString
       val value = UUID.randomUUID().toString
       val iterator = Iterator("first value", value)
@@ -46,7 +48,9 @@ class CacheSpec extends PlaySpecification {
 
       await(futureSecondGet) mustEqual value
     }
-    "stick with the original cache value if there is a failure on expiration renewal" in {
+    "stick with the original cache value if there is a failure on expiration renewal" in new WithApplication() {
+      val cache = Cache(ExecutionContext.global, app)
+
       val key = UUID.randomUUID().toString
       val value = UUID.randomUUID().toString
       val iterator = Iterator(Future.successful(value), Future.failed(new Exception("can not get a new value")))

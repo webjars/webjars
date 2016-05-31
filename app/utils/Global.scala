@@ -9,7 +9,7 @@ import shade.memcached.{AuthConfiguration, Configuration, Memcached}
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
-class Global extends WithFilters(new GzipFilter(1000 * 1024)) {
+class GlobalSettings extends WithFilters(new GzipFilter(1000 * 1024)) {
 
   lazy val memcached = {
 
@@ -38,4 +38,4 @@ class Global extends WithFilters(new GzipFilter(1000 * 1024)) {
 
 }
 
-object Global extends Global
+object Global extends GlobalSettings
