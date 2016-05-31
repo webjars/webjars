@@ -2,9 +2,7 @@ name := "webjars"
 
 version := "1.0-SNAPSHOT"
 
-scalaVersion := "2.11.6"
-
-resolvers += "Spy Repository" at "http://files.couchbase.com/maven2"
+scalaVersion := "2.11.8"
 
 libraryDependencies ++= Seq(
   ws,
@@ -19,7 +17,7 @@ libraryDependencies ++= Seq(
   "org.webjars" % "select2" % "3.5.2",
   "org.webjars" % "highlightjs" % "8.0-3",
   "org.webjars.bower" % "jquery-typewatch" % "2.2.1" exclude("org.webjars.bower", "jquery"),
-  "com.bionicspirit" %% "shade" % "1.6.0"
+  "com.bionicspirit" %% "shade" % "1.7.3"
 )
 
 javacOptions ++= Seq("-source", "1.8", "-target", "1.8")

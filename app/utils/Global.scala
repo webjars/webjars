@@ -6,43 +6,36 @@ import play.api.{Application, Logger, Play}
 import play.filters.gzip.GzipFilter
 import shade.memcached.{AuthConfiguration, Configuration, Memcached}
 
-import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
-object Global extends WithFilters(new GzipFilter(1000 * 1024)) {
+class Global extends WithFilters(new GzipFilter(1000 * 1024)) {
 
   lazy val memcached = {
 
-    Play.current.configuration
-
-    val maybeUsernamePassword = for {
+    val maybeAuthConfig = for {
       username <- Play.current.configuration.getString("memcached.username")
       password <- Play.current.configuration.getString("memcached.password")
-    } yield (username, password)
+    } yield AuthConfiguration(username, password)
 
-    val baseConfig = Configuration(Play.current.configuration.getString("memcached.servers").get)
+    implicit val memcachedDispatcher = Akka.system(Play.current).dispatchers.lookup("memcached.dispatcher")
 
-    val authConfig = maybeUsernamePassword.map {
-      case (username, password) =>
-        AuthConfiguration(username, password)
-    }
-
-    val memcachedDispatcher = Akka.system(Play.current).dispatchers.lookup("memcached.dispatcher")
-
-    Memcached(Configuration(Play.current.configuration.getString("memcached.servers").get, authConfig), memcachedDispatcher)
+    Memcached(Configuration(Play.current.configuration.getString("memcached.servers").get, maybeAuthConfig))
   }
-
 
   override def onStart(app: Application): Unit = {
     super.onStart(app)
 
-    Akka.system(app).scheduler.schedule(Duration.Zero, 1.minute, new Runnable {
-      override def run(): Unit = Logger.info("Free Mem: " + Runtime.getRuntime.freeMemory() + " Max Mem: " + Runtime.getRuntime.maxMemory() + " Total Mem: " + Runtime.getRuntime.totalMemory())
-    })
+    Akka.system(app).scheduler.schedule(Duration.Zero, 1.minute) {
+      Logger.info("Free Mem: " + Runtime.getRuntime.freeMemory() + " Max Mem: " + Runtime.getRuntime.maxMemory() + " Total Mem: " + Runtime.getRuntime.totalMemory())
+    } (ExecutionContext.global)
   }
 
   override def onStop(app: Application): Unit = {
     memcached.close()
     super.onStop(app)
   }
+
 }
+
+object Global extends Global
