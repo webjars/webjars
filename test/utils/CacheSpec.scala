@@ -10,7 +10,7 @@ import scala.concurrent.duration._
 class CacheSpec extends PlaySpecification {
 
   "cache.get" should {
-    "fetch a value when the cache is empty" in new WithApplication() {
+    "fetch a value when the cache is empty" in new WithApplication(FakeApplication(withGlobal = Some(new GlobalSettings))) {
       val cache = Cache(ExecutionContext.global, app)
 
       val key = UUID.randomUUID().toString
@@ -21,7 +21,7 @@ class CacheSpec extends PlaySpecification {
 
       await(futureValue) mustEqual value
     }
-    "not miss when the cache has a value" in new WithApplication() {
+    "not miss when the cache has a value" in new WithApplication(FakeApplication(withGlobal = Some(new GlobalSettings))) {
       val cache = Cache(ExecutionContext.global, app)
 
       val key = UUID.randomUUID().toString
@@ -34,7 +34,7 @@ class CacheSpec extends PlaySpecification {
 
       await(futureSecondGet) mustEqual value
     }
-    "miss after expiration" in new WithApplication() {
+    "miss after expiration" in new WithApplication(FakeApplication(withGlobal = Some(new GlobalSettings))) {
       val cache = Cache(ExecutionContext.global, app)
 
       val key = UUID.randomUUID().toString
@@ -48,7 +48,7 @@ class CacheSpec extends PlaySpecification {
 
       await(futureSecondGet) mustEqual value
     }
-    "stick with the original cache value if there is a failure on expiration renewal" in new WithApplication() {
+    "stick with the original cache value if there is a failure on expiration renewal" in new WithApplication(FakeApplication(withGlobal = Some(new GlobalSettings))) {
       val cache = Cache(ExecutionContext.global, app)
 
       val key = UUID.randomUUID().toString
