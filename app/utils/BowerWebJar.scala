@@ -3,7 +3,7 @@ package utils
 import java.io.File
 
 import play.api.libs.json.{JsNull, JsValue}
-import play.api.{Configuration, Application, Mode, DefaultApplication, Play}
+import play.api.{Application, DefaultApplication, Configuration, Logger, Play, Mode}
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
@@ -26,7 +26,10 @@ object BowerWebJar extends App {
       val maven = MavenUtil(executionContext, git)
 
       def push(event: String, message: String): Future[JsValue] = {
-        maybepusherChannelId.fold(Future.successful[JsValue](JsNull)) { pusherChannelId =>
+        maybepusherChannelId.fold {
+          Logger.info(message)
+          Future.successful[JsValue](JsNull)
+        } { pusherChannelId =>
           pusher.push(pusherChannelId, event, message)
         }
       }
