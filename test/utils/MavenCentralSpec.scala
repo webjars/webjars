@@ -12,7 +12,8 @@ class MavenCentralSpec extends PlaySpecification {
       await(MavenCentral.fetchWebJars(WebJarCatalog.CLASSIC)) should throwA[UnavailableException]
     }
     "work normally" in new WithApplication(FakeApplication(withGlobal = Some(new GlobalSettings))) {
-      await(MavenCentral.fetchWebJars(WebJarCatalog.CLASSIC)).size should beEqualTo (40)
+      val webJars = await(MavenCentral.fetchWebJars(WebJarCatalog.NPM))
+      webJars.foldLeft(0)(_ + _.versions.size) should beEqualTo (50)
     }
   }
 
