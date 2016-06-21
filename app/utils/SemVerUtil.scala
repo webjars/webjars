@@ -162,7 +162,7 @@ object SemVerUtil {
       // 1 - 2 | 1 - 2.3 | 1 - 2.3.1 | 1 - 2.3.1-alpha
       case r"^(\d+)${SomeInt(leftMajor)}\.?(\d*)${SomeInt(leftMinor)}\.?(\d*)${SomeInt(leftPatch)}-?([\w.-]*)${SomeString(leftTag)} - (\d+)${SomeInt(rightMajor)}\.?(\d*)${SomeInt(rightMinor)}\.?(\d*)${SomeInt(rightPatch)}-?([\w.-]*)${SomeString(rightTag)}$$" =>
         val leftVersionRange = Comparator(Operator.GTE, SemVerVersion(leftMajor, leftMinor, leftPatch, leftTag))
-        val rightVersionRange = Comparator(Operator.LTE, SemVerVersion(rightMajor, rightMinor, rightPatch, rightTag))
+        val rightVersionRange = Comparator(rightMinor.flatMap(_ => rightPatch).fold(Operator.LT)(_ => Operator.LTE) , SemVerVersion(rightMajor.map(a => if (rightMinor.isEmpty) a + 1 else a), rightMinor.map(a => if (rightPatch.isEmpty) a + 1 else a), rightPatch, rightTag))
         Some(Right(VersionRange(leftVersionRange, rightVersionRange)))
       // 1.1.* | 1.2
       case r"^(\d+)${SomeInt(major)}\.(\d+)${SomeInt(minor)}\.?\*?-?([\w.-]*)${SomeString(tag)}$$" =>
