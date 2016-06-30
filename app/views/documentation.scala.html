@@ -1,5 +1,20 @@
 @main("WebJars - Documentation") {
 
+    <script>
+        $(function() {
+            var frameworkTabs = $('#framework-tabs');
+
+            frameworkTabs.find('a').click(function (e) {
+                e.preventDefault();
+                $(this).tab('show');
+                var id = $(e.target).attr("href").substr(1);
+                window.history.pushState(null, null, '#' + id);
+            });
+
+            frameworkTabs.find('a[href="' + window.location.hash + '"]').tab('show');
+        });
+    </script>
+
     <div class="jumbotron" style="margin-bottom: 20px;">
         <div class="container">
             <h4><strong>WebJars work with most JVM-based containers and web frameworks. Using a WebJar requires:</strong></h4>
@@ -23,7 +38,7 @@
     <div class="row">
 
         <div class="col-sm-3 col-md-2">
-            <ul class="nav nav-pills nav-stacked">
+            <ul id="framework-tabs" class="nav nav-pills nav-stacked">
                 <li class="active"><a href="#play2" data-toggle="tab">Play Framework 2</a></li>
                 <li><a href="#xitrum" data-toggle="tab">Xitrum</a></li>
                 <li><a href="#servlet3" data-toggle="tab">Servlet 3</a></li>
@@ -370,9 +385,9 @@ public class MainService extends Service<Configuration> {
                 <br>
                 Then reference a WebJar asset like:
                 <pre><code>&lt;link rel='stylesheet' href='/webjars/bootstrap/3.1.0/css/bootstrap.min.css'&gt;</code></pre>
-                
+
                 <h4>Making dependencies version agnostic</h4>
-                
+
                 When using Spring Boot version 1.3 or higher, it will automatically detect the <code>webjars-locator</code> library on the classpath and use it to automatically resolve the version of any WebJar assets for you.
                 In order to enable this feature, you will need to add the webjars-locator library as a dependency of your application in the <span class="label label-info">pom.xml</span> file, like:
                 <pre><code>&lt;dependencies&gt;
@@ -396,9 +411,9 @@ public class MainService extends Service<Configuration> {
                 about AMD is that it is JavaScript's equivalent of package and import statements (or namespace and
                 include statements depending on your preferences!). These instructions assume basic knowledge of
                 RequireJS.
-                
+
                 <br><br>
-                
+
                 The <span class="label label-info">webjars-locator</span> library has built-in support for RequireJS.  To setup RequireJS use the <code>webjars-locator</code> library like this:
                 <pre><code>@@ResponseBody
 @@RequestMapping(value = "/webjarsjs", produces = "application/javascript")
@@ -416,7 +431,7 @@ public String webjarjs() {
                 This loads the WebJars RequireJS configuration from <span class="label label-info">webjars-locator</span> and the RequireJS with a main JavaScript of <span class="label label-info">js/app</span>.
                 <br><br>
                 Underneath the covers each WebJar can have a RequireJS configuration file that sets up the modules, shims, exports, etc.  These files is named <span class="label label-info">webjars-requirejs.js</span> and are automatically added to the page via the <code>RequireJS.setup</code> helper.
-                
+
                 Some of the WebJars may not be updated to the new WebJars RequireJS syntax so if you experience problems please file issues on the WebJars you are using.
             </div>
 
@@ -459,11 +474,11 @@ public class WebConfig extends WebMvcConfigurerAdapter {
                 <span class="label label-success">Note</span> In a Servlet 3 container the <span class="label label-info">registry.addResourceHandler</span> line can be simplified to:
                 <pre><code>registry.addResourceHandler("/webjars/**").addResourceLocations("/webjars/");</code></pre>
                 <br>
-                Then reference a WebJar asset like: 
+                Then reference a WebJar asset like:
                 <pre><code>&lt;link rel='stylesheet' href='/webjars/bootstrap/3.1.0/css/bootstrap.min.css'&gt;</code></pre>
-                
+
                 <h4>Making dependencies version agnostic</h4>
-                
+
                 When using Spring Framework version 4.2 or higher, it will automatically detect the <code>webjars-locator</code> library on the classpath and use it to automatically resolve the version of any WebJar assets for you.
                 In order to enable this feature, you will need to add the webjars-locator library as a dependency of your application in the <span class="label label-info">pom.xml</span> file, like:
                 <pre><code>&lt;dependencies&gt;
@@ -485,9 +500,9 @@ public class WebConfig extends WebMvcConfigurerAdapter {
                 about AMD is that it is JavaScript's equivalent of package and import statements (or namespace and
                 include statements depending on your preferences!). These instructions assume basic knowledge of
                 RequireJS.
-                
+
                 <br><br>
-                
+
                 The <span class="label label-info">webjars-locator</span> library has built-in support for RequireJS.  To setup RequireJS use the <code>webjars-locator</code> library like this:
                 <pre><code>@@ResponseBody
 @@RequestMapping(value = "/webjarsjs", produces = "application/javascript")
@@ -505,7 +520,7 @@ public String webjarjs() {
                 This loads the WebJars RequireJS configuration from <span class="label label-info">webjars-locator</span> and the RequireJS with a main JavaScript of <span class="label label-info">js/app</span>.
                 <br><br>
                 Underneath the covers each WebJar can have a RequireJS configuration file that sets up the modules, shims, exports, etc.  These files is named <span class="label label-info">webjars-requirejs.js</span> and are automatically added to the page via the <code>RequireJS.setup</code> helper.
-                
+
                 Some of the WebJars may not be updated to the new WebJars RequireJS syntax so if you experience problems please file issues on the WebJars you are using.
             </div>
 
@@ -637,15 +652,15 @@ public void renderHead(IHeaderResponse response) {
 public class AjaxApplication extends Application {
 
     @@Override
-    protected void onInit() {            
+    protected void onInit() {
         addWebjarsResourceRoute();
         //business code here
     }
 }</code></pre>
                 <br>
-                Then simply reference the resource like 
+                Then simply reference the resource like
                 <pre><code>&lt;link href="${webjarsAt('bootstrap/3.3.1/css/bootstrap.min.css')}" rel="stylesheet"&gt;</code></pre>
-		for css or 
+		for css or
 		<pre><code>&lt;script src="${webjarsAt('intercooler-js/0.4.10/src/intercooler.js')}"&gt;&lt;/script&gt;</code></pre>
 		for js.
                 <br>
@@ -730,12 +745,12 @@ public class AjaxApplication extends Application {
                 <br><br>
                 Dandelion will finally generate the following client-side HTML markup:
                 <pre><code>&lt;script src="/[contextPath]/webjars/jquery/1.11.3/jquery.js"&gt;&lt;/script&gt;</code></pre>
-                
+
                 <br>
                 A sample application is available <a href="https://github.com/dandelion/dandelion-core-samples/tree/master/core-thymeleaf-webjars">here</a>.
             </div>
         </div>
     </div>
     </div>
-    
+
 }
