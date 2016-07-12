@@ -154,8 +154,8 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
         // no request so make one
         case e: ActorNotFound =>
           implicit val timeout = Timeout(10.minutes)
-          val webJarFetcher = actorSystem.actorOf(Props(classOf[WebJarFetcher], catalog), catalog.toString)
-          val fetchWebJarsFuture = (webJarFetcher ? FetchWebJars).mapTo[List[WebJar]]
+          val webJarFetcher = actorSystem.actorOf(Props(classOf[WebJarFetcher], this, ec), catalog.toString)
+          val fetchWebJarsFuture = (webJarFetcher ? FetchWebJars(catalog)).mapTo[List[WebJar]]
           fetchWebJarsFuture.onFailure {
             case e: Exception =>
               actorSystem.stop(webJarFetcher)

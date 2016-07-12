@@ -10,12 +10,12 @@ import utils.MavenCentral
 
 import scala.concurrent.ExecutionContext
 
-class WebJarFetcher @Inject() (catalog: WebJarCatalog, mavenCentral: MavenCentral) (implicit executionContext: ExecutionContext) extends Actor {
+class WebJarFetcher @Inject() (mavenCentral: MavenCentral) (implicit executionContext: ExecutionContext) extends Actor {
 
   override def receive = {
-    case FetchWebJars => mavenCentral.fetchWebJars(catalog).pipeTo(sender())
+    case FetchWebJars(catalog) => mavenCentral.fetchWebJars(catalog).pipeTo(sender())
   }
 
 }
 
-case object FetchWebJars
+case class FetchWebJars(catalog: WebJarCatalog)

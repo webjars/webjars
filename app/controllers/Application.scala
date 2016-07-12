@@ -5,7 +5,7 @@ import javax.inject.Inject
 
 import akka.actor.ActorSystem
 import models.{WebJar, WebJarCatalog}
-import play.api.Configuration
+import play.api.{Configuration, Logger}
 import play.api.data.Forms._
 import play.api.data._
 import play.api.libs.json.Json
@@ -33,12 +33,13 @@ class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Hero
 
   private val defaultTimeout = 25.seconds
 
-  private def webJarsWithTimeout(): Future[List[WebJar]] = {
-    TimeoutFuture(defaultTimeout)(mavenCentral.webJars)
-  }
-
-  private def webJarsWithTimeout(catalog: WebJarCatalog.WebJarCatalog): Future[List[WebJar]] = {
-    TimeoutFuture(defaultTimeout)(mavenCentral.webJars(catalog))
+  private def webJarsWithTimeout(maybeCatalog: Option[WebJarCatalog.WebJarCatalog] = None): Future[List[WebJar]] = {
+    val fetcher = maybeCatalog.fold(mavenCentral.webJars)(mavenCentral.webJars)
+    val future = TimeoutFuture(defaultTimeout)(fetcher)
+    future.onFailure {
+      case e: Exception => Logger.error("Error loading WebJars", e)
+    }
+    future
   }
 
   def index = Action.async { request =>
@@ -51,7 +52,7 @@ class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Hero
   }
 
   def classicList = Action.async { request =>
-    webJarsWithTimeout(WebJarCatalog.CLASSIC).map {
+    webJarsWithTimeout(Some(WebJarCatalog.CLASSIC)).map {
       maybeCached(request, webJars => Ok(views.html.classicList(webJars)))
     } recover {
       case e: Exception =>
@@ -61,7 +62,7 @@ class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Hero
 
   def webJarList(groupId: String) = Action.async { implicit request =>
     val catalog = WebJarCatalog.withName(groupId)
-    webJarsWithTimeout(catalog).map {
+    webJarsWithTimeout(Some(catalog)).map {
       maybeCached(request, webJars => Ok(Json.toJson(webJars)))
     } recover {
       case e: Exception =>
@@ -70,7 +71,7 @@ class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Hero
   }
 
   def bowerList = Action.async { request =>
-    webJarsWithTimeout(WebJarCatalog.BOWER).map {
+    webJarsWithTimeout(Some(WebJarCatalog.BOWER)).map {
       maybeCached(request, webJars => Ok(views.html.npmbowerList(webJars, pusher.maybeKey, "Bower", "bower")))
     } recover {
       case e: Exception =>
@@ -79,7 +80,7 @@ class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Hero
   }
 
   def npmList = Action.async { request =>
-    webJarsWithTimeout(WebJarCatalog.NPM).map {
+    webJarsWithTimeout(Some(WebJarCatalog.NPM)).map {
       maybeCached(request, webJars => Ok(views.html.npmbowerList(webJars, pusher.maybeKey, "NPM", "npm")))
     } recover {
       case e: Exception =>

@@ -26,11 +26,9 @@ class CacheSpec extends PlaySpecification {
       val cache = app.injector.instanceOf[Cache]
 
       val key = UUID.randomUUID().toString
-      val value = UUID.randomUUID().toString
-      val iterator = Iterator(value, "SHOULD NOT REACH")
-      def onMiss() = Future.successful(iterator.next())
-      val futureSecondGet = cache.get[String](key, 1.second)(onMiss()).flatMap { firstGet =>
-        cache.get[String](key, 1.second)(onMiss())
+      val value = UUID.randomUUID()
+      val futureSecondGet = cache.get[UUID](key, 1.second)(Future.successful(value)).flatMap { firstGet =>
+        cache.get[UUID](key, 1.second)(Future.failed(new Exception("SHOULD NOT REACH")))
       }
 
       await(futureSecondGet) mustEqual value
@@ -39,12 +37,10 @@ class CacheSpec extends PlaySpecification {
       val cache = app.injector.instanceOf[Cache]
 
       val key = UUID.randomUUID().toString
-      val value = UUID.randomUUID().toString
-      val iterator = Iterator("first value", value)
-      def onMiss() = Future.successful(iterator.next())
-      val futureSecondGet = cache.get[String](key, 1.second)(onMiss()).flatMap { firstGet =>
+      val value = UUID.randomUUID()
+      val futureSecondGet = cache.get[UUID](key, 1.second)(Future.successful(UUID.randomUUID())).flatMap { firstGet =>
         Thread.sleep(2000)
-        cache.get[String](key, 1.second)(onMiss())
+        cache.get[UUID](key, 1.second)(Future.successful(value))
       }
 
       await(futureSecondGet) mustEqual value
@@ -53,12 +49,10 @@ class CacheSpec extends PlaySpecification {
       val cache = app.injector.instanceOf[Cache]
 
       val key = UUID.randomUUID().toString
-      val value = UUID.randomUUID().toString
-      val iterator = Iterator(Future.successful(value), Future.failed(new Exception("can not get a new value")))
-      def onMiss() = iterator.next()
-      val futureSecondGet = cache.get[String](key, 1.second)(onMiss()).flatMap { firstGet =>
+      val value = UUID.randomUUID()
+      val futureSecondGet = cache.get[UUID](key, 1.second)(Future.successful(value)).flatMap { firstGet =>
         Thread.sleep(1500)
-        cache.get[String](key, 1.second)(onMiss())
+        cache.get[UUID](key, 1.second)(Future.failed(new Exception("can not get a new value")))
       }
 
       await(futureSecondGet) mustEqual value
