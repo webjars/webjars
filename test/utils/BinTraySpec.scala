@@ -5,22 +5,19 @@ import java.util.Date
 import akka.util.Timeout
 import org.apache.commons.io.IOUtils
 import play.api.Environment
-import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.test._
 
 import scala.concurrent.duration._
 
-class BinTraySpec extends PlaySpecification {
+class BinTraySpec extends PlaySpecification with GlobalApplication {
 
   override implicit def defaultAwaitTimeout: Timeout = 60.seconds
-
-  lazy val application = new GuiceApplicationBuilder().build
 
   lazy val binTray = application.injector.instanceOf[BinTray]
   lazy val environment = application.injector.instanceOf[Environment]
 
   "BinTray with auth" should {
-    if (FakeApplication().configuration.getString("bintray.username").isEmpty)
+    if (application.configuration.getString("bintray.username").isEmpty)
       "BinTray Auth" in skipped("skipped due to missing config")
     else {
       "create a package" in {

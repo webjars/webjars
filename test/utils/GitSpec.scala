@@ -5,16 +5,13 @@ import java.io.BufferedInputStream
 
 import akka.util.Timeout
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
-import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.test._
 
 import scala.concurrent.duration._
 
-class GitSpec extends PlaySpecification {
+class GitSpec extends PlaySpecification with GlobalApplication {
 
   override implicit def defaultAwaitTimeout: Timeout = 30.seconds
-
-  lazy val application = new GuiceApplicationBuilder().build
 
   lazy val git = application.injector.instanceOf[Git]
 

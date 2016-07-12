@@ -5,16 +5,13 @@ import java.io.BufferedInputStream
 import akka.util.Timeout
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
 import play.api.i18n.MessagesApi
-import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.test._
 
 import scala.concurrent.duration._
 
-class BowerSpec extends PlaySpecification {
+class BowerSpec extends PlaySpecification with GlobalApplication {
 
   override implicit def defaultAwaitTimeout: Timeout = 90.seconds
-
-  lazy val application = new GuiceApplicationBuilder().build
 
   lazy val messages = application.injector.instanceOf[MessagesApi]
   lazy val bower = application.injector.instanceOf[Bower]

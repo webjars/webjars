@@ -1,16 +1,13 @@
 package utils
 
 import akka.util.Timeout
-import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.test._
 
 import scala.concurrent.duration._
 
-class MavenSpec extends PlaySpecification {
+class MavenSpec extends PlaySpecification with GlobalApplication {
 
   override implicit def defaultAwaitTimeout: Timeout = 30.seconds
-
-  lazy val application = new GuiceApplicationBuilder().build
 
   lazy val git = application.injector.instanceOf[Git]
   lazy val maven = application.injector.instanceOf[Maven]

@@ -9,11 +9,9 @@ import play.api.test._
 
 import scala.concurrent.duration._
 
-class NPMSpec extends PlaySpecification {
+class NPMSpec extends PlaySpecification with GlobalApplication {
 
   override implicit def defaultAwaitTimeout: Timeout = 30.seconds
-
-  lazy val application = new GuiceApplicationBuilder().build
 
   lazy val npm = application.injector.instanceOf[NPM]
 
