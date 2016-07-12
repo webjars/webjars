@@ -1,30 +1,26 @@
 package utils
 
+import javax.inject.Inject
+
 import actors.{FetchWebJars, WebJarFetcher}
 import akka.actor._
 import akka.pattern.ask
 import akka.util.Timeout
 import models.WebJarCatalog.WebJarCatalog
 import models.{WebJar, WebJarCatalog, WebJarVersion}
-import play.api.Play.current
-import play.api.libs.concurrent.Akka
 import play.api.libs.json._
-import play.api.libs.ws.WS
-import play.api.{Logger, Play}
-import Memcache._
+import play.api.libs.ws.WSClient
+import play.api.{Configuration, Logger}
+import shade.memcached.MemcachedCodecs._
 
-import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 import scala.xml.Elem
 
-object MavenCentral {
+class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClient, actorSystem: ActorSystem, configuration: Configuration, webJarsFileService: WebJarsFileService) (implicit ec: ExecutionContext) {
 
-  implicit val ec: ExecutionContext = Akka.system(Play.current).dispatchers.lookup("mavencentral.dispatcher")
-
-  lazy val cache = Cache(ec, Play.current)
-
-  lazy val webJarFetcher: ActorRef = Akka.system.actorOf(Props[WebJarFetcher])
+  lazy val webJarFetcher: ActorRef = actorSystem.actorOf(Props[WebJarFetcher])
 
   implicit val webJarVersionReads = Json.reads[WebJarVersion]
   implicit val webJarVersionWrites = Json.writes[WebJarVersion]
@@ -85,7 +81,7 @@ object MavenCentral {
       val (artifactId, versions) = artifactAndVersions
       val versionsFuture = Future.sequence {
         versions.map { version =>
-          WebJarsFileService.getFileList(catalog.toString, artifactId, version).map { fileList =>
+          webJarsFileService.getFileList(catalog.toString, artifactId, version).map { fileList =>
             WebJarVersion(version, fileList.length)
           }.recover {
             case e: Exception =>
@@ -123,7 +119,7 @@ object MavenCentral {
           case (artifactId, webJarVersions) =>
             val latestVersion = webJarVersions.map(_.number).head
 
-            MavenCentral.fetchWebJarNameAndUrl(catalog.toString, artifactId, latestVersion).map {
+            fetchWebJarNameAndUrl(catalog.toString, artifactId, latestVersion).map {
               case (name, url) =>
                 WebJar(catalog.toString, artifactId, name, url, webJarVersions)
             }
@@ -140,10 +136,10 @@ object MavenCentral {
 
     Logger.info("Getting the WebJars for " + catalog.toString)
 
-    val searchUrl = Play.configuration.getString("webjars.searchGroupUrl").get.format(catalog.toString)
+    val searchUrl = configuration.getString("webjars.searchGroupUrl").get.format(catalog.toString)
 
-    WS.url(searchUrl).get().flatMap { response =>
-      Try(response.json).map(webJarsFromJson(catalog)).getOrElse(Future.failed(new UnavailableException(response.body)))
+    wsClient.url(searchUrl).get().flatMap { response =>
+      Try(response.json).map(webJarsFromJson(catalog)).getOrElse(Future.failed(new MavenCentral.UnavailableException(response.body)))
     }
 
   }
@@ -151,24 +147,24 @@ object MavenCentral {
   def webJars(catalog: WebJarCatalog): Future[List[WebJar]] = {
     cache.get[List[WebJar]](catalog.toString, 1.hour) {
       // todo: for some reason this blocks longer than 1 second if things are busy
-      Akka.system.actorSelection("user/" + catalog.toString).resolveOne(1.second).flatMap { actorRef =>
+      actorSystem.actorSelection("user/" + catalog.toString).resolveOne(1.second).flatMap { actorRef =>
         // in-flight request exists
         Future.failed(new Exception("Existing request for WebJars"))
       } recoverWith {
         // no request so make one
         case e: ActorNotFound =>
           implicit val timeout = Timeout(10.minutes)
-          val webJarFetcher = Akka.system.actorOf(Props(classOf[WebJarFetcher], catalog), catalog.toString)
-          val fetchWebJarsFuture = (webJarFetcher ? FetchWebJars).mapTo[List[WebJar]]
+          val webJarFetcher = actorSystem.actorOf(Props(classOf[WebJarFetcher], this, ec), catalog.toString)
+          val fetchWebJarsFuture = (webJarFetcher ? FetchWebJars(catalog)).mapTo[List[WebJar]]
           fetchWebJarsFuture.onFailure {
             case e: Exception =>
-              Akka.system.stop(webJarFetcher)
+              actorSystem.stop(webJarFetcher)
               Logger.error(s"WebJar fetch failed for ${catalog.toString}: ${e.getMessage}")
               e.getStackTrace.foreach { t => Logger.error(t.toString) }
           }
           fetchWebJarsFuture.foreach { fetchedWebJars =>
             Logger.info(s"WebJar fetch complete for ${catalog.toString}")
-            Akka.system.stop(webJarFetcher)
+            actorSystem.stop(webJarFetcher)
           }
           // fail cause this is will likely take a long time
           //Future.failed(new Exception("Making new request for WebJars"))
@@ -178,9 +174,9 @@ object MavenCentral {
   }
 
   def webJars: Future[List[WebJar]] = {
-    val classicFuture = MavenCentral.webJars(WebJarCatalog.CLASSIC)
-    val bowerFuture = MavenCentral.webJars(WebJarCatalog.BOWER)
-    val npmFuture = MavenCentral.webJars(WebJarCatalog.NPM)
+    val classicFuture = webJars(WebJarCatalog.CLASSIC)
+    val bowerFuture = webJars(WebJarCatalog.BOWER)
+    val npmFuture = webJars(WebJarCatalog.NPM)
 
     for {
       classicWebJars <- classicFuture
@@ -192,21 +188,24 @@ object MavenCentral {
   private def fetchPom(groupId: String, artifactId: String, version: String): Future[Elem] = {
     val groupIdPath = groupId.replace(".", "/")
     val url = s"http://repo1.maven.org/maven2/$groupIdPath/$artifactId/$version/$artifactId-$version.pom"
-    WS.url(url).get().map(_.xml)
+    wsClient.url(url).get().map(_.xml)
   }
 
   def getPom(groupId: String, artifactId: String, version: String): Future[Elem] = {
     val cacheKey = s"pom-$groupId-$artifactId"
-    Global.memcached.get[Elem](cacheKey).flatMap { maybeElem =>
+    memcache.instance.get[Elem](cacheKey).flatMap { maybeElem =>
       maybeElem.map(Future.successful).getOrElse {
         val pomFuture = fetchPom(groupId, artifactId, version)
         pomFuture.flatMap { pom =>
-          Global.memcached.set(cacheKey, pom, Duration.Inf).map(_ => pom)
+          memcache.instance.set(cacheKey, pom, Duration.Inf).map(_ => pom)
         }
       }
     }
   }
 
-  class UnavailableException(msg: String) extends RuntimeException(msg)
+}
 
+
+object MavenCentral {
+  class UnavailableException(msg: String) extends RuntimeException(msg)
 }

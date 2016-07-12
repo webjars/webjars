@@ -7,7 +7,7 @@ import org.apache.commons.compress.archivers.ArchiveStreamFactory
 import org.specs2.mutable.Specification
 
 
-class ArchiveUtilsSpec extends Specification {
+class ArchiveCreatorSpec extends Specification {
 
   val tmpDir = Files.createTempDirectory("archive-utils-spec").toFile
 
@@ -25,7 +25,7 @@ class ArchiveUtilsSpec extends Specification {
       val c = new File(b, "c.txt")
       Files.write(c.toPath, "test".getBytes)
 
-      val tarTry = ArchiveUtils.tarDir(testDir)
+      val tarTry = ArchiveCreator.tarDir(testDir)
       tarTry must beASuccessfulTry
 
       val bufferedInputStream = new BufferedInputStream(tarTry.get)
@@ -45,7 +45,7 @@ class ArchiveUtilsSpec extends Specification {
       val b = new File(testDir, "b.txt")
       Files.write(b.toPath, "test".getBytes)
 
-      val tarTry = ArchiveUtils.tarDir(testDir, Set(new File(testDir, "a.txt")))
+      val tarTry = ArchiveCreator.tarDir(testDir, Set(new File(testDir, "a.txt")))
       tarTry must beASuccessfulTry
 
       val bufferedInputStream = new BufferedInputStream(tarTry.get)
@@ -67,7 +67,7 @@ class ArchiveUtilsSpec extends Specification {
       val c = new File(b, "c.txt")
       Files.write(c.toPath, "test".getBytes)
 
-      val tarTry = ArchiveUtils.tarDir(testDir, Set(new File(testDir, "b")))
+      val tarTry = ArchiveCreator.tarDir(testDir, Set(new File(testDir, "b")))
       tarTry must beASuccessfulTry
 
       val bufferedInputStream = new BufferedInputStream(tarTry.get)

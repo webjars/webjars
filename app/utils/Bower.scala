@@ -2,22 +2,20 @@ package utils
 
 import java.io.InputStream
 import java.net.{URL, URLEncoder}
+import javax.inject.Inject
 
 import play.api.http.{HeaderNames, MimeTypes, Status}
+import play.api.libs.functional.syntax._
 import play.api.libs.json.Reads._
 import play.api.libs.json._
-import play.api.libs.functional.syntax._
 import play.api.libs.ws._
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
-class Bower(implicit ec: ExecutionContext, ws: WSClient) {
+class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector) (implicit ec: ExecutionContext) {
 
   val BASE_URL = "https://bower-as-a-service.herokuapp.com"
-
-  val git = GitUtil(ec, ws)
-  val licenseUtils = LicenseUtils(ec, ws, git)
 
   def versions(packageNameOrGitRepo: String): Future[Seq[String]] = {
     if (git.isGit(packageNameOrGitRepo)) {
@@ -112,7 +110,7 @@ class Bower(implicit ec: ExecutionContext, ws: WSClient) {
         infoFuture.flatMap { info =>
           // detect licenses if they are not specified in the bower.json
           if (info.licenses.isEmpty) {
-            licenseUtils.detectLicense(info, maybeVersion)
+            licenseDetector.detectLicense(info, maybeVersion)
           }
           else {
             val resolvedLicensesFuture = Future.sequence {
@@ -141,7 +139,7 @@ class Bower(implicit ec: ExecutionContext, ws: WSClient) {
                   }
 
                   contentsFuture.flatMap { contents =>
-                    licenseUtils.licenseDetect(contents)
+                    licenseDetector.licenseDetect(contents)
                   }
                 }
                 else {
@@ -191,7 +189,5 @@ object Bower {
     (__ \ "license").read[Seq[String]].orElse((__ \ "license").read[String].map(Seq(_))).orElse(Reads.pure(Seq.empty[String])) ~
     (__ \ "dependencies").read[Map[String, String]].orElse(Reads.pure(Map.empty[String, String]))
   )(PackageInfo.apply _)
-
-  def apply(implicit ec: ExecutionContext, ws: WSClient) = new Bower()
 }
 

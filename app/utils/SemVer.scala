@@ -4,7 +4,7 @@ import scala.language.implicitConversions
 import scala.util.Try
 
 
-object SemVerUtil {
+object SemVer {
 
   object Operator extends Enumeration {
     type Operator = Value

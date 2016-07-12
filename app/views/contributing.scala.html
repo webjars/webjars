@@ -1,6 +1,8 @@
+@()(implicit staticWebJarAssets: StaticWebJarAssets)
+
 @main("WebJars - Contributing") {
 
-    <script type="text/javascript" src='@routes.Assets.at("github-files-min.js")'></script>
+    <script type="text/javascript" src='@routes.Assets.versioned("github-files-min.js")'></script>
     <script type='text/javascript'>
         $(function() {
             $.getGithubFileByFilePath("webjars", "webjars-template-zip", "pom.xml", function(contents) {

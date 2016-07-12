@@ -8,16 +8,16 @@ libraryDependencies ++= Seq(
   ws,
   cache,
   filters,
-  "com.typesafe.akka" %% "akka-actor" % "2.3.9",
   "commons-codec" % "commons-codec" % "1.10",
   "org.apache.commons" % "commons-compress" % "1.9",
-  "org.eclipse.jgit" % "org.eclipse.jgit" % "4.0.0.201506090130-r",
-  "org.webjars" %% "webjars-play" % "2.3.0",
+  "org.eclipse.jgit" % "org.eclipse.jgit" % "4.4.0.201606070830-r",
+  "org.webjars" %% "webjars-play" % "2.5.0-2",
   "org.webjars" % "bootstrap" % "3.3.4",
   "org.webjars" % "select2" % "3.5.2",
   "org.webjars" % "highlightjs" % "8.0-3",
   "org.webjars.bower" % "jquery-typewatch" % "2.2.1" exclude("org.webjars.bower", "jquery"),
-  "com.bionicspirit" %% "shade" % "1.7.3"
+  "com.bionicspirit" %% "shade" % "1.7.4",
+  specs2 % Test
 )
 
 javacOptions ++= Seq("-source", "1.8", "-target", "1.8")
@@ -33,3 +33,5 @@ onLoad in Global := (onLoad in Global).value.andThen { state =>
 }
 
 lazy val root = (project in file(".")).enablePlugins(PlayScala)
+
+pipelineStages := Seq(gzip, digest)

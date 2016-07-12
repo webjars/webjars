@@ -4,17 +4,16 @@ import java.io.BufferedInputStream
 
 import akka.util.Timeout
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
+import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.test._
 
-import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
-class NPMSpec extends PlaySpecification {
+class NPMSpec extends PlaySpecification with GlobalApplication {
 
   override implicit def defaultAwaitTimeout: Timeout = 30.seconds
 
-  val ws = StandaloneWS.apply()
-  val npm = NPM(ExecutionContext.global, ws.client)
+  lazy val npm = application.injector.instanceOf[NPM]
 
   "chokidar 1.0.1" should {
     "have a license" in {
@@ -115,7 +114,7 @@ class NPMSpec extends PlaySpecification {
   }
   "versions on redux" should {
     "return versions" in {
-      await(npm.versions("redux")) must contain("3.0.4") and contain("0.0.1")
+      await(npm.versions("redux")) must containAllOf(Seq("3.0.4", "0.0.1"))
     }
   }
 
@@ -145,7 +144,5 @@ class NPMSpec extends PlaySpecification {
       await(npm.versions("typescript")) must contain("1.7.5")
     }
   }
-
-  step(ws.close())
 
 }

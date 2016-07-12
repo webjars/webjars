@@ -1,8 +1,10 @@
 package utils
 
+import javax.inject.Inject
+
 import scala.concurrent.{ExecutionContext, Future}
 
-class MavenUtil(implicit ec: ExecutionContext, git: GitUtil) {
+class Maven @Inject() (git: Git) (implicit ec: ExecutionContext) {
 
   def convertNpmBowerDependenciesToMaven(dependencies: Map[String, String]): Future[Map[String, String]] = {
     val maybeMavenDeps = dependencies.map { case (name, versionOrUrl) =>
@@ -42,7 +44,7 @@ class MavenUtil(implicit ec: ExecutionContext, git: GitUtil) {
       }
 
       ungitNameAndVersionFuture.flatMap { case (artifactId, version) =>
-        val maybeMavenVersion = SemVerUtil.convertSemVerToMaven(version)
+        val maybeMavenVersion = SemVer.convertSemVerToMaven(version)
         maybeMavenVersion.fold {
           Future.failed[(String, String)](new Exception(s"Could not convert NPM / Bower version to Maven for: $name $versionOrUrl"))
         } { mavenVersion =>
@@ -54,8 +56,4 @@ class MavenUtil(implicit ec: ExecutionContext, git: GitUtil) {
     Future.sequence(maybeMavenDeps).map(_.toMap)
   }
 
-}
-
-object MavenUtil {
-  def apply(implicit ec: ExecutionContext, git: GitUtil) = new MavenUtil()
 }

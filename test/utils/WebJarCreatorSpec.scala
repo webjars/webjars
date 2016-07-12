@@ -5,7 +5,7 @@ import java.util.zip.GZIPInputStream
 
 import play.api.test._
 
-class WebJarUtilsSpec extends PlaySpecification {
+class WebJarCreatorSpec extends PlaySpecification {
 
   "WebJarUtils" should {
     "create a WebJar from a tgz" in {
@@ -14,7 +14,7 @@ class WebJarUtilsSpec extends PlaySpecification {
       val inputStream = url.openConnection().getInputStream
       val gzipInputStream = new GZIPInputStream(inputStream)
 
-      val webJar = WebJarUtils.createWebJar(gzipInputStream, "package/", Set("node_modules"), "test", "test", "test", "2.10.0")
+      val webJar = WebJarCreator.createWebJar(gzipInputStream, "package/", Set("node_modules"), "test", "test", "test", "2.10.0")
 
       webJar.length must beGreaterThan (0)
       // todo: more tests

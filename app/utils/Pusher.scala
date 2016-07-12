@@ -1,6 +1,7 @@
 package utils
 
 import java.util.Date
+import javax.inject.Inject
 
 import org.apache.commons.codec.digest.{DigestUtils, HmacUtils}
 import play.api.Configuration
@@ -8,9 +9,9 @@ import play.api.http.Status
 import play.api.libs.json.{JsValue, Json}
 import play.api.libs.ws.WSClient
 
-import scala.concurrent.{Future, ExecutionContext}
+import scala.concurrent.{ExecutionContext, Future}
 
-class Pusher(implicit ec: ExecutionContext, ws: WSClient, config: Configuration) {
+class Pusher @Inject() (ws: WSClient, config: Configuration) (implicit ec: ExecutionContext) {
 
   val maybeKey = config.getString("pusher.key")
 
@@ -64,8 +65,4 @@ class Pusher(implicit ec: ExecutionContext, ws: WSClient, config: Configuration)
     }
   }
 
-}
-
-object Pusher {
-  def apply(implicit ec: ExecutionContext, ws: WSClient, config: Configuration) = new Pusher()
 }

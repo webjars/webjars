@@ -1,31 +1,24 @@
 package controllers
 
 import java.io.FileNotFoundException
+import javax.inject.Inject
 
+import akka.actor.ActorSystem
 import models.{WebJar, WebJarCatalog}
-import play.api.Play
+import play.api.{Configuration, Logger}
 import play.api.data.Forms._
 import play.api.data._
 import play.api.libs.json.Json
-import play.api.libs.ws.WS
 import play.api.mvc._
 import utils._
 
-import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.hashing.MurmurHash3
 
-object Application extends Controller {
+class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Heroku, pusher: Pusher, cache: Cache, mavenCentral: MavenCentral, npmWebJar: NPMWebJar, bowerWebJar: BowerWebJar, webJarsFileService: WebJarsFileService, actorSystem: ActorSystem, configuration: Configuration) (implicit ec: ExecutionContext, staticWebJarAssets: StaticWebJarAssets) extends Controller {
 
-  val X_GITHUB_ACCESS_TOKEN = "X-GITHUB-ACCESS-TOKEN"
-
-  lazy val github = GithubUtil(Play.current)
-  lazy val bower = Bower(ExecutionContext.global, WS.client(Play.current))
-  lazy val npm = NPM(ExecutionContext.global, WS.client(Play.current))
-  lazy val heroku = Heroku(ExecutionContext.global, WS.client(Play.current), Play.current.configuration)
-  lazy val pusher = Pusher(ExecutionContext.global, WS.client(Play.current), Play.current.configuration)
-  lazy val cache = Cache(ExecutionContext.global, Play.current)
+  private val X_GITHUB_ACCESS_TOKEN = "X-GITHUB-ACCESS-TOKEN"
 
   private def maybeCached[A](request: RequestHeader, f: Seq[A] => Result)(seq: Seq[A]): Result = {
     val hash = MurmurHash3.seqHash(seq)
@@ -38,14 +31,15 @@ object Application extends Controller {
     }
   }
 
-  val defaultTimeout = 25.seconds
+  private val defaultTimeout = 25.seconds
 
-  private def webJarsWithTimeout(): Future[List[WebJar]] = {
-    TimeoutFuture(defaultTimeout)(MavenCentral.webJars)
-  }
-
-  private def webJarsWithTimeout(catalog: WebJarCatalog.WebJarCatalog): Future[List[WebJar]] = {
-    TimeoutFuture(defaultTimeout)(MavenCentral.webJars(catalog))
+  private def webJarsWithTimeout(maybeCatalog: Option[WebJarCatalog.WebJarCatalog] = None): Future[List[WebJar]] = {
+    val fetcher = maybeCatalog.fold(mavenCentral.webJars)(mavenCentral.webJars)
+    val future = TimeoutFuture(defaultTimeout)(fetcher)
+    future.onFailure {
+      case e: Exception => Logger.error("Error loading WebJars", e)
+    }
+    future
   }
 
   def index = Action.async { request =>
@@ -58,7 +52,7 @@ object Application extends Controller {
   }
 
   def classicList = Action.async { request =>
-    webJarsWithTimeout(WebJarCatalog.CLASSIC).map {
+    webJarsWithTimeout(Some(WebJarCatalog.CLASSIC)).map {
       maybeCached(request, webJars => Ok(views.html.classicList(webJars)))
     } recover {
       case e: Exception =>
@@ -68,7 +62,7 @@ object Application extends Controller {
 
   def webJarList(groupId: String) = Action.async { implicit request =>
     val catalog = WebJarCatalog.withName(groupId)
-    webJarsWithTimeout(catalog).map {
+    webJarsWithTimeout(Some(catalog)).map {
       maybeCached(request, webJars => Ok(Json.toJson(webJars)))
     } recover {
       case e: Exception =>
@@ -77,7 +71,7 @@ object Application extends Controller {
   }
 
   def bowerList = Action.async { request =>
-    webJarsWithTimeout(WebJarCatalog.BOWER).map {
+    webJarsWithTimeout(Some(WebJarCatalog.BOWER)).map {
       maybeCached(request, webJars => Ok(views.html.npmbowerList(webJars, pusher.maybeKey, "Bower", "bower")))
     } recover {
       case e: Exception =>
@@ -86,7 +80,7 @@ object Application extends Controller {
   }
 
   def npmList = Action.async { request =>
-    webJarsWithTimeout(WebJarCatalog.NPM).map {
+    webJarsWithTimeout(Some(WebJarCatalog.NPM)).map {
       maybeCached(request, webJars => Ok(views.html.npmbowerList(webJars, pusher.maybeKey, "NPM", "npm")))
     } recover {
       case e: Exception =>
@@ -159,7 +153,7 @@ object Application extends Controller {
 
   def listFiles(groupId: String, artifactId: String, version: String) = CorsAction {
     Action.async { implicit request =>
-      WebJarsFileService.getFileList(groupId, artifactId, version).map { fileList =>
+      webJarsFileService.getFileList(groupId, artifactId, version).map { fileList =>
         render {
           case Accepts.Html() => Ok(views.html.filelist(groupId, artifactId, version, fileList))
           case Accepts.Json() => Ok(Json.toJson(fileList))
@@ -191,47 +185,32 @@ object Application extends Controller {
     Ok(views.html.contributing())
   }
 
-  case class WebJarRequest(gitHubToken: String, id: String, name: String, version: String, repoUrl: String, mainJs: Option[String], licenseId: String, licenseUrl: String)
-
-  lazy val webJarRequestForm = Form(
-    mapping(
-      "gitHubToken" -> nonEmptyText,
-      "webJarId" -> nonEmptyText,
-      "webJarName" -> nonEmptyText,
-      "webJarVersion" -> nonEmptyText,
-      "repoUrl" -> nonEmptyText,
-      "mainJs" -> optional(text),
-      "licenseId" -> nonEmptyText,
-      "licenseUrl" -> nonEmptyText
-    )(WebJarRequest.apply)(WebJarRequest.unapply)
-  )
-
   def webJarRequest = Action.async { request =>
     request.flash.get(X_GITHUB_ACCESS_TOKEN).map { accessToken =>
-      github.user(accessToken).map { user =>
+      gitHub.user(accessToken).map { user =>
         val login = (user \ "login").as[String]
-        Ok(views.html.webJarRequest(webJarRequestForm, Some(accessToken), Some(login)))
+        Ok(views.html.webJarRequest(Application.webJarRequestForm, Some(accessToken), Some(login)))
       }
     } getOrElse {
-      Future.successful(Ok(views.html.webJarRequest(webJarRequestForm)))
+      Future.successful(Ok(views.html.webJarRequest(Application.webJarRequestForm)))
     }
   }
 
   def makeWebJarRequest = Action.async(parse.urlFormEncoded) { implicit request =>
 
-    webJarRequestForm.bindFromRequest().fold(
+    Application.webJarRequestForm.bindFromRequest().fold(
       formWithErrors => {
         val gitHubToken = request.body.get("gitHubToken").flatMap(_.headOption)
         val gitHubUsername = request.body.get("gitHubUsername").flatMap(_.headOption)
         Future.successful(BadRequest(views.html.webJarRequest(formWithErrors, gitHubToken, gitHubUsername)))
       },
       webJarRequest => {
-        github.user(webJarRequest.gitHubToken).flatMap { user =>
+        gitHub.user(webJarRequest.gitHubToken).flatMap { user =>
           val login = (user \ "login").asOpt[String].getOrElse("")
           val email = (user \ "email").asOpt[String].getOrElse("")
           val name = (user \ "name").asOpt[String].getOrElse("")
 
-          github.contents(webJarRequest.gitHubToken, "webjars", "webjars-template-zip", "pom.xml").flatMap { templatePom =>
+          gitHub.contents(webJarRequest.gitHubToken, "webjars", "webjars-template-zip", "pom.xml").flatMap { templatePom =>
             val pom = templatePom
               .replace("WEBJAR_ID", webJarRequest.id)
               .replace("UPSTREAM_VERSION", webJarRequest.version)
@@ -253,7 +232,7 @@ object Application extends Controller {
                  |```
                """.stripMargin
 
-            github.createIssue(webJarRequest.gitHubToken, "webjars", "webjars", issueTitle, issueBody).map { issueResponse =>
+            gitHub.createIssue(webJarRequest.gitHubToken, "webjars", "webjars", issueTitle, issueBody).map { issueResponse =>
               val url = (issueResponse \ "html_url").as[String]
               Redirect(url)
             }
@@ -264,8 +243,8 @@ object Application extends Controller {
   }
 
   def deployBower(artifactId: String, version: String, channelId: String) = Action.async {
-    val app = Play.current.configuration.getString("bower.herokuapp").get
-    val fork = Play.current.configuration.getBoolean("bower.fork").get
+    val app = configuration.getString("bower.herokuapp").get
+    val fork = configuration.getBoolean("bower.fork").get
 
     if (fork) {
       val cmd = s"pubbower $artifactId $version $channelId"
@@ -274,7 +253,7 @@ object Application extends Controller {
       }
     }
     else {
-      BowerWebJar.release(artifactId, version, Some(channelId))(ExecutionContext.global, Play.current.configuration, Play.current).map { result =>
+      bowerWebJar.release(artifactId, version, Some(channelId)).map { result =>
         Ok(Json.toJson(result))
       } recover {
         case e: Exception => InternalServerError(e.getMessage)
@@ -283,8 +262,8 @@ object Application extends Controller {
   }
 
   def deployNPM(nameOrUrlish: String, version: String, channelId: String) = Action.async {
-    val app = Play.current.configuration.getString("bower.herokuapp").get
-    val fork = Play.current.configuration.getBoolean("bower.fork").get
+    val app = configuration.getString("bower.herokuapp").get
+    val fork = configuration.getBoolean("bower.fork").get
 
     if (fork) {
       val cmd = s"pubnpm $nameOrUrlish $version $channelId"
@@ -293,7 +272,7 @@ object Application extends Controller {
       }
     }
     else {
-      NPMWebJar.release(nameOrUrlish, version, Some(channelId))(ExecutionContext.global, Play.current.configuration, Play.current).map { result =>
+      npmWebJar.release(nameOrUrlish, version, Some(channelId)).map { result =>
         Ok(Json.toJson(result))
       } recover {
         case e: Exception => InternalServerError(e.getMessage)
@@ -301,12 +280,12 @@ object Application extends Controller {
     }
   }
 
-  def githubAuthorize  = Action { implicit request =>
-    Redirect(github.authUrl)
+  def gitHubAuthorize = Action { implicit request =>
+    Redirect(gitHub.authUrl)
   }
 
-  def githubOauthCallback(code: String) = Action.async { implicit request =>
-    github.accessToken(code).map { accessToken =>
+  def gitHubOauthCallback(code: String) = Action.async { implicit request =>
+    gitHub.accessToken(code).map { accessToken =>
       Redirect(routes.Application.webJarRequest()).flashing(X_GITHUB_ACCESS_TOKEN -> accessToken)
     }
   }
@@ -328,14 +307,14 @@ object Application extends Controller {
   }
 
   object TimeoutFuture {
-    import play.api.libs.concurrent.{Promise => PlayPromise}
-    import scala.concurrent.{Future, Promise}
     import java.util.concurrent.TimeoutException
+
+    import scala.concurrent.Promise
 
     def apply[A](timeout: FiniteDuration)(future: Future[A]): Future[A] = {
       val promise = Promise[A]()
 
-      PlayPromise.timeout(Unit, timeout).foreach { _ =>
+      actorSystem.scheduler.scheduleOnce(timeout) {
         promise.tryFailure(new TimeoutException)
       }
 
@@ -344,5 +323,24 @@ object Application extends Controller {
       promise.future
     }
   }
+
+}
+
+object Application {
+
+  case class WebJarRequest(gitHubToken: String, id: String, name: String, version: String, repoUrl: String, mainJs: Option[String], licenseId: String, licenseUrl: String)
+
+  lazy val webJarRequestForm = Form(
+    mapping(
+      "gitHubToken" -> nonEmptyText,
+      "webJarId" -> nonEmptyText,
+      "webJarName" -> nonEmptyText,
+      "webJarVersion" -> nonEmptyText,
+      "repoUrl" -> nonEmptyText,
+      "mainJs" -> optional(text),
+      "licenseId" -> nonEmptyText,
+      "licenseUrl" -> nonEmptyText
+    )(WebJarRequest.apply)(WebJarRequest.unapply)
+  )
 
 }

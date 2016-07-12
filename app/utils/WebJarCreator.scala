@@ -1,7 +1,6 @@
 package utils
 
 import java.io._
-import java.nio.file.{Path, Files}
 
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry
 import org.apache.commons.compress.archivers.{ArchiveEntry, ArchiveInputStream, ArchiveOutputStream, ArchiveStreamFactory}
@@ -9,7 +8,7 @@ import org.apache.commons.compress.utils.IOUtils
 
 import scala.annotation.tailrec
 
-object WebJarUtils {
+object WebJarCreator {
 
   private def createDir(dir: String, jar: ArchiveOutputStream): Unit = {
     val ze = new ZipArchiveEntry(dir)

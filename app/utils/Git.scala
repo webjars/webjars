@@ -1,19 +1,21 @@
 package utils
 
 import java.io.{File, InputStream}
-import java.net.{URL, URI}
+import java.net.{URI, URL}
 import java.nio.charset.CodingErrorAction
 import java.nio.file.Files
-import org.eclipse.jgit.api.Git
+import javax.inject.Inject
+
+import org.eclipse.jgit.api.{Git => GitApi}
 import play.api.http.{HeaderNames, Status}
 import play.api.libs.ws.WSClient
 
+import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.io.{Codec, Source}
 import scala.util.Try
-import scala.collection.JavaConverters._
 
-class GitUtil(implicit ec: ExecutionContext, ws: WSClient) {
+class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
 
   val cacheDir = Files.createTempDirectory("git")
 
@@ -95,7 +97,7 @@ class GitUtil(implicit ec: ExecutionContext, ws: WSClient) {
     gitUrl(gitRepo).flatMap { url =>
       Future.fromTry {
         Try {
-          val tags = Git.lsRemoteRepository()
+          val tags = GitApi.lsRemoteRepository()
             .setRemote(url)
             .setTags(true)
             .call()
@@ -111,7 +113,7 @@ class GitUtil(implicit ec: ExecutionContext, ws: WSClient) {
       cloneOrCheckout(gitRepo, Some(s"origin/$branch")).flatMap { baseDir =>
         Future.fromTry {
           Try {
-            val commits = Git.open(baseDir).log().call()
+            val commits = GitApi.open(baseDir).log().call()
             commits.asScala.map(_.getId.abbreviate(10).name()).toSeq
           }
         }
@@ -127,7 +129,7 @@ class GitUtil(implicit ec: ExecutionContext, ws: WSClient) {
       gitUrl(gitRepo).flatMap { url =>
         Future.fromTry {
           Try {
-            val clone = Git.cloneRepository()
+            val clone = GitApi.cloneRepository()
               .setURI(url)
               .setDirectory(baseDir)
               .setCloneAllBranches(true)
@@ -147,7 +149,7 @@ class GitUtil(implicit ec: ExecutionContext, ws: WSClient) {
       Future.fromTry {
         Try {
           // checkout the version
-          val checkout = Git.open(baseDir).checkout()
+          val checkout = GitApi.open(baseDir).checkout()
 
           version.fold(checkout.setName("origin/master"))(checkout.setName)
 
@@ -180,13 +182,9 @@ class GitUtil(implicit ec: ExecutionContext, ws: WSClient) {
       val allExcludes = Set(new File(baseDir, ".git")) ++ resolvedExcludes
 
       Future.fromTry {
-        ArchiveUtils.tarDir(baseDir, allExcludes)
+        ArchiveCreator.tarDir(baseDir, allExcludes)
       }
     }
   }
 
-}
-
-object GitUtil {
-  def apply(implicit ec: ExecutionContext, ws: WSClient) = new GitUtil()
 }

@@ -1,22 +1,20 @@
 package utils
 
 import java.net.URL
+import javax.inject.Inject
 
 import play.api.Configuration
 import play.api.http.Status
 import play.api.libs.json.{JsValue, Json}
-import play.api.libs.ws.{WSResponse, WSAPI, WSAuthScheme, WSRequestHolder}
+import play.api.libs.ws.{WSAPI, WSAuthScheme, WSRequest, WSResponse}
 import play.api.mvc.Results.EmptyContent
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
-class BinTray(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) {
+class BinTray @Inject() (ws: WSAPI, config: Configuration, git: Git, licenseDetector: LicenseDetector) (implicit ec: ExecutionContext) {
 
   val BASE_URL = "https://bintray.com/api/v1"
-
-  val git = GitUtil(ec, ws.client)
-  val licenseUtils = LicenseUtils(ec, ws.client, git)
 
   lazy val username = config.getString("bintray.username").get
   lazy val password = config.getString("bintray.password").get
@@ -26,7 +24,7 @@ class BinTray(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) {
   lazy val ossPassword = config.getString("oss.password").get
 
 
-  def ws(path: String): WSRequestHolder = {
+  def ws(path: String): WSRequest = {
     ws
       .url(BASE_URL + path)
       .withAuth(username, password, WSAuthScheme.BASIC)
@@ -168,7 +166,7 @@ class BinTray(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) {
             ws.url(rawLicenseUrl).get().flatMap { licenseTextResponse =>
               licenseTextResponse.status match {
                 case Status.OK =>
-                  licenseUtils.licenseDetect(licenseTextResponse.body)
+                  licenseDetector.licenseDetect(licenseTextResponse.body)
                 case _ =>
                   Future.failed(new Exception(licenseTextResponse.body))
               }
@@ -182,7 +180,7 @@ class BinTray(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) {
           // SPDX reference expression
           Seq {
             git.file(sourceConnectionUrl, None, license.stripPrefix("SEE LICENSE IN ")).flatMap { licenseContents =>
-              licenseUtils.licenseDetect(licenseContents)
+              licenseDetector.licenseDetect(licenseContents)
             }
           }
         }
@@ -242,8 +240,6 @@ class BinTray(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) {
 }
 
 object BinTray {
-  def apply(implicit ec: ExecutionContext, ws: WSAPI, config: Configuration) = new BinTray()
-
   case class VersionExists(message: String) extends Exception {
     override def getMessage = message
   }

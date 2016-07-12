@@ -1,18 +1,20 @@
 package utils
 
+import javax.inject.Inject
+
 import play.api.Configuration
-import play.api.http.{Status, HeaderNames}
-import play.api.libs.json.{Json, JsValue}
-import play.api.libs.ws.{WSRequestHolder, WSClient}
+import play.api.http.{HeaderNames, Status}
+import play.api.libs.json.{JsValue, Json}
+import play.api.libs.ws.{WSClient, WSRequest}
 
-import scala.concurrent.{Future, ExecutionContext}
+import scala.concurrent.{ExecutionContext, Future}
 
-class Heroku(implicit ec: ExecutionContext, ws: WSClient, config: Configuration) {
+class Heroku @Inject() (ws: WSClient, config: Configuration) (implicit ec: ExecutionContext) {
 
   val apikey = config.getString("heroku.apikey").get
 
 
-  private def ws(path: String): WSRequestHolder = {
+  private def ws(path: String): WSRequest = {
     ws
       .url("https://api.heroku.com" + path)
       .withHeaders(
@@ -38,8 +40,4 @@ class Heroku(implicit ec: ExecutionContext, ws: WSClient, config: Configuration)
     }
   }
 
-}
-
-object Heroku {
-  def apply(implicit ec: ExecutionContext, ws: WSClient, config: Configuration) = new Heroku()
 }

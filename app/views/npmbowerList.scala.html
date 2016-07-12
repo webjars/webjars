@@ -1,6 +1,4 @@
-@(webjars: Iterable[WebJar], maybePusherKey: Option[String], title: String, webJarType: String)
-
-@import java.net.URLEncoder
+@(webjars: Iterable[WebJar], maybePusherKey: Option[String], title: String, webJarType: String)(implicit staticWebJarAssets: StaticWebJarAssets)
 
 @main(s"WebJars - $title WebJars") {
 
@@ -12,13 +10,13 @@
 
     <script src="//js.pusher.com/2.2/pusher.min.js"></script>
 
-    <script src="@StaticWebJarAssets.getUrlBower("jquery.typewatch.js")"></script>
+    <script src="@staticWebJarAssets.getUrlBower("jquery.typewatch.js")"></script>
 
     <script>
         var webJarType = "@webJarType";
     </script>
 
-    <script type="text/javascript" src="@routes.Assets.at("javascripts/npmbower.js")"></script>
+    <script type="text/javascript" src="@routes.Assets.versioned("javascripts/npmbower.js")"></script>
 
     <div class="modal fade" id="newWebJarModal" tabindex="-1" role="dialog" aria-labelledby="newWebJarModalLabel" aria-hidden="true">
         <div class="modal-dialog">

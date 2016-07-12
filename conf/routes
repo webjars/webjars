@@ -32,12 +32,12 @@ GET            /files/org.webjars.npm/:artifactId/:version/*file          contro
 GET            /files/:artifactId/:version/*file                          controllers.Application.file(groupId = "org.webjars", artifactId, version, file)
 OPTIONS        /files/*file                                               controllers.Application.fileOptions(file)
 
-GET            /_github_authorize                                         controllers.Application.githubAuthorize()
-GET            /_github_oauth_callback                                    controllers.Application.githubOauthCallback(code: String)
+GET            /_github_authorize                                         controllers.Application.gitHubAuthorize()
+GET            /_github_oauth_callback                                    controllers.Application.gitHubOauthCallback(code: String)
 
 GET            /webjars/org.webjars/*file                                 controllers.StaticWebJarAssets.at(file)
 GET            /webjars/org.webjars.bower/*file                           controllers.StaticWebJarAssets.atBower(file)
 
-GET            /assets/*file                                              controllers.Assets.at(path="/public", file)
+GET            /assets/*file                                              controllers.Assets.versioned(path="/public", file)
 
 OPTIONS        /*path                                                     controllers.Application.corsPreflight(path: String)

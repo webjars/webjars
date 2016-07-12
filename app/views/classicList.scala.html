@@ -1,10 +1,8 @@
-@(webjars: Iterable[WebJar])
-
-@import java.net.URLEncoder
+@(webjars: Iterable[WebJar])(implicit staticWebJarAssets: StaticWebJarAssets)
 
 @main("WebJars - Classic WebJars") {
 
-    <script type="text/javascript" src="@routes.Assets.at("javascripts/classic.js")"></script>
+    <script type="text/javascript" src="@routes.Assets.versioned("javascripts/classic.js")"></script>
 
     <div class="container-fluid" style="padding-top: 25px;">
 
