@@ -4,18 +4,18 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 import java.util.zip.{DeflaterOutputStream, InflaterInputStream}
 import javax.inject.{Inject, Singleton}
 
-import akka.actor.ActorSystem
 import play.api.Configuration
 import play.api.inject.ApplicationLifecycle
 import play.api.libs.json.Json
 import shade.memcached.{AuthConfiguration, Codec, Memcached}
 
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
 import scala.io.Source
+import scala.util.Try
 import scala.xml.{Elem, XML}
 
 @Singleton
-class Memcache @Inject() (configuration: Configuration, actorSystem: ActorSystem, lifecycle: ApplicationLifecycle) {
+class Memcache @Inject() (configuration: Configuration, lifecycle: ApplicationLifecycle) (implicit ec: ExecutionContext) {
 
   lazy val instance = {
     val maybeAuthConfig = for {
@@ -23,12 +23,10 @@ class Memcache @Inject() (configuration: Configuration, actorSystem: ActorSystem
       password <- configuration.getString("memcached.password")
     } yield AuthConfiguration(username, password)
 
-    implicit val memcachedDispatcher = actorSystem.dispatchers.lookup("memcached.dispatcher")
-
     Memcached(shade.memcached.Configuration(configuration.getString("memcached.servers").get, maybeAuthConfig))
   }
 
-  lifecycle.addStopHook(() => Future.successful(instance.close()))
+  lifecycle.addStopHook(() => Future.fromTry(Try(instance.close())))
 
 }
 

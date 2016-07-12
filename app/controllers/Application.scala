@@ -16,9 +16,9 @@ import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.hashing.MurmurHash3
 
-class Application @Inject() (gitHub: GitHub, bower: Bower, npm: NPM, heroku: Heroku, pusher: Pusher, cache: Cache, mavenCentral: MavenCentral, npmWebJar: NPMWebJar, bowerWebJar: BowerWebJar, webJarsFileService: WebJarsFileService, actorSystem: ActorSystem, configuration: Configuration) (implicit ec: ExecutionContext, staticWebJarAssets: StaticWebJarAssets) extends Controller {
+class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Heroku, pusher: Pusher, cache: Cache, mavenCentral: MavenCentral, npmWebJar: NPMWebJar, bowerWebJar: BowerWebJar, webJarsFileService: WebJarsFileService, actorSystem: ActorSystem, configuration: Configuration) (implicit ec: ExecutionContext, staticWebJarAssets: StaticWebJarAssets) extends Controller {
 
-  val X_GITHUB_ACCESS_TOKEN = "X-GITHUB-ACCESS-TOKEN"
+  private val X_GITHUB_ACCESS_TOKEN = "X-GITHUB-ACCESS-TOKEN"
 
   private def maybeCached[A](request: RequestHeader, f: Seq[A] => Result)(seq: Seq[A]): Result = {
     val hash = MurmurHash3.seqHash(seq)
@@ -31,7 +31,7 @@ class Application @Inject() (gitHub: GitHub, bower: Bower, npm: NPM, heroku: Her
     }
   }
 
-  val defaultTimeout = 25.seconds
+  private val defaultTimeout = 25.seconds
 
   private def webJarsWithTimeout(): Future[List[WebJar]] = {
     TimeoutFuture(defaultTimeout)(mavenCentral.webJars)
@@ -308,9 +308,7 @@ class Application @Inject() (gitHub: GitHub, bower: Bower, npm: NPM, heroku: Her
   object TimeoutFuture {
     import java.util.concurrent.TimeoutException
 
-    import play.api.libs.concurrent.{Promise => PlayPromise}
-
-    import scala.concurrent.{Future, Promise}
+    import scala.concurrent.Promise
 
     def apply[A](timeout: FiniteDuration)(future: Future[A]): Future[A] = {
       val promise = Promise[A]()
@@ -343,4 +341,5 @@ object Application {
       "licenseUrl" -> nonEmptyText
     )(WebJarRequest.apply)(WebJarRequest.unapply)
   )
+
 }
