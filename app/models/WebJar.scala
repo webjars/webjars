@@ -1,7 +1,5 @@
 package models
 
-import java.util.Calendar
-
 import play.api.libs.json.Json
 import utils.VersionOrdering
 

@@ -1,10 +1,12 @@
 package utils
 
+import javax.inject.Inject
+
 import org.apache.commons.codec.binary.Base64
-import play.api.Application
+import play.api.Configuration
 import play.api.http.{HeaderNames, MimeTypes, Status}
 import play.api.libs.json.{JsValue, Json}
-import play.api.libs.ws.{WS, WSRequestHolder}
+import play.api.libs.ws.{WSClient, WSRequest}
 import play.api.mvc.RequestHeader
 import play.api.mvc.Results.EmptyContent
 
@@ -12,10 +14,10 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.language.implicitConversions
 
-class GithubUtil(implicit app: Application) {
+class GitHub @Inject() (configuration: Configuration, wsClient: WSClient) {
 
-  val clientId = app.configuration.getString("github.oauth.client-id").get
-  val clientSecret = app.configuration.getString("github.oauth.client-secret").get
+  val clientId = configuration.getString("github.oauth.client-id").get
+  val clientSecret = configuration.getString("github.oauth.client-secret").get
 
   def authUrl()(implicit request: RequestHeader): String = {
     val scope = "public_repo"
@@ -23,13 +25,13 @@ class GithubUtil(implicit app: Application) {
   }
 
   def redirectUri(implicit request: RequestHeader): String = {
-    app.configuration.getString("github.oauth.redirect_uri").getOrElse {
-      controllers.routes.Application.githubOauthCallback("").absoluteURL(request.secure).stripSuffix("?code=")
+    configuration.getString("github.oauth.redirect_uri").getOrElse {
+      controllers.routes.Application.gitHubOauthCallback("").absoluteURL(request.secure).stripSuffix("?code=")
     }
   }
 
-  def ws(path: String, accessToken: String): WSRequestHolder = {
-    WS
+  def ws(path: String, accessToken: String): WSRequest = {
+    wsClient
       .url(s"https://api.github.com/$path")
       .withHeaders(
         HeaderNames.AUTHORIZATION -> s"token $accessToken",
@@ -38,7 +40,7 @@ class GithubUtil(implicit app: Application) {
   }
 
   def accessToken(code: String)(implicit request: RequestHeader): Future[String] = {
-    val wsFuture = WS.url("https://github.com/login/oauth/access_token").withQueryString(
+    val wsFuture = wsClient.url("https://github.com/login/oauth/access_token").withQueryString(
       "client_id" -> clientId,
       "client_secret" -> clientSecret,
       "code" -> code
@@ -86,10 +88,6 @@ class GithubUtil(implicit app: Application) {
     }
   }
 
-}
-
-object GithubUtil {
-  def apply(implicit app: Application) = new GithubUtil()
 }
 
 case class UnauthorizedError(message: String) extends Exception {

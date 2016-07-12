@@ -1,22 +1,23 @@
 package utils
 
 import java.io.BufferedInputStream
-import java.util.concurrent.TimeUnit
 
 import akka.util.Timeout
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
-import play.api.i18n.Messages
+import play.api.i18n.MessagesApi
+import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.test._
 
-import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
 class BowerSpec extends PlaySpecification {
 
   override implicit def defaultAwaitTimeout: Timeout = 90.seconds
 
-  val ws = StandaloneWS.apply()
-  val bower = Bower(ExecutionContext.global, ws.client)
+  lazy val application = new GuiceApplicationBuilder().build
+
+  lazy val messages = application.injector.instanceOf[MessagesApi]
+  lazy val bower = application.injector.instanceOf[Bower]
 
   "jquery info" should {
     "work with a correct version" in {
@@ -155,7 +156,7 @@ class BowerSpec extends PlaySpecification {
 
   "angular-translate 2.7.2" should {
     "fail with a useful error" in {
-      await(bower.info("angular-translate", Some("2.7.2"))) must throwA[LicenseNotFoundException](Messages("licensenotfound"))
+      await(bower.info("angular-translate", Some("2.7.2"))) must throwA[LicenseNotFoundException](messages("licensenotfound"))
     }
   }
 
@@ -170,7 +171,5 @@ class BowerSpec extends PlaySpecification {
       await(bower.info("git://github.com/mdedetrich/requirejs-plugins", Some("d9c103e7a0"))).licenses must beEqualTo(Seq("MIT"))
     }
   }
-
-  step(ws.close())
 
 }

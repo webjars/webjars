@@ -5,17 +5,18 @@ import java.io.BufferedInputStream
 
 import akka.util.Timeout
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
+import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.test._
 
-import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
-class GitUtilSpec extends PlaySpecification {
+class GitSpec extends PlaySpecification {
 
   override implicit def defaultAwaitTimeout: Timeout = 30.seconds
 
-  val ws = StandaloneWS.apply()
-  val git = GitUtil(ExecutionContext.global, ws.client)
+  lazy val application = new GuiceApplicationBuilder().build
+
+  lazy val git = application.injector.instanceOf[Git]
 
   "git versions" should {
     "not work with an invalid git url" in {
@@ -107,8 +108,5 @@ class GitUtilSpec extends PlaySpecification {
       await(git.versionsOnBranch("git://github.com/mochajs/mocha.git", "master")) must contain("8a100df959")
     }
   }
-
-
-  step(ws.close())
 
 }

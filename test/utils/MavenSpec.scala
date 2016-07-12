@@ -1,18 +1,19 @@
 package utils
 
 import akka.util.Timeout
+import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.test._
 
-import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
-class MavenUtilSpec extends PlaySpecification {
+class MavenSpec extends PlaySpecification {
 
   override implicit def defaultAwaitTimeout: Timeout = 30.seconds
 
-  val ws = StandaloneWS.apply()
-  val git = GitUtil(ExecutionContext.global, ws.client)
-  val maven = MavenUtil(ExecutionContext.global, git)
+  lazy val application = new GuiceApplicationBuilder().build
+
+  lazy val git = application.injector.instanceOf[Git]
+  lazy val maven = application.injector.instanceOf[Maven]
 
   "converting npm deps to maven" should {
     "work with standard npm deps" in {
@@ -64,7 +65,5 @@ class MavenUtilSpec extends PlaySpecification {
       mavenDeps.get("reactivex__rxjs") must beSome ("5.0.0-alpha.7")
     }
   }
-
-  step(ws.close())
 
 }

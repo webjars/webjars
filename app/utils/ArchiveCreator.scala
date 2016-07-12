@@ -1,16 +1,14 @@
 package utils
 
 import java.io._
-import java.nio.file.{Path, Files}
+import java.nio.file.Files
+
+import org.apache.commons.compress.archivers.tar.{TarArchiveEntry, TarArchiveOutputStream}
 
 import scala.collection.JavaConverters._
-
-import org.apache.commons.compress.archivers.tar.{TarArchiveEntry, TarArchiveOutputStream, TarArchiveInputStream}
-
 import scala.util.Try
 
-object ArchiveUtils {
-
+object ArchiveCreator {
 
   def tarDir(dir: File, excludes: Set[File] = Set.empty[File]): Try[InputStream] = {
     Try {

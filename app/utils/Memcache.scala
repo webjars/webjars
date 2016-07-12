@@ -1,13 +1,37 @@
 package utils
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
-import java.util.zip.{InflaterInputStream, DeflaterOutputStream}
+import java.util.zip.{DeflaterOutputStream, InflaterInputStream}
+import javax.inject.{Inject, Singleton}
 
+import akka.actor.ActorSystem
+import play.api.Configuration
+import play.api.inject.ApplicationLifecycle
 import play.api.libs.json.Json
-import shade.memcached.Codec
+import shade.memcached.{AuthConfiguration, Codec, Memcached}
 
+import scala.concurrent.Future
 import scala.io.Source
-import scala.xml.{XML, Elem}
+import scala.xml.{Elem, XML}
+
+@Singleton
+class Memcache @Inject() (configuration: Configuration, actorSystem: ActorSystem, lifecycle: ApplicationLifecycle) {
+
+  lazy val instance = {
+    val maybeAuthConfig = for {
+      username <- configuration.getString("memcached.username")
+      password <- configuration.getString("memcached.password")
+    } yield AuthConfiguration(username, password)
+
+    implicit val memcachedDispatcher = actorSystem.dispatchers.lookup("memcached.dispatcher")
+
+    Memcached(shade.memcached.Configuration(configuration.getString("memcached.servers").get, maybeAuthConfig))
+  }
+
+  lifecycle.addStopHook(() => Future.successful(instance.close()))
+
+}
+
 
 object Memcache {
 

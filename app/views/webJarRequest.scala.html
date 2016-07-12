@@ -1,4 +1,4 @@
-@(form: Form[Application.WebJarRequest], maybeGitHubToken: Option[String] = None, maybeGitHubUsername: Option[String] = None)
+@(form: Form[Application.WebJarRequest], maybeGitHubToken: Option[String] = None, maybeGitHubUsername: Option[String] = None)(implicit staticWebJarAssets: StaticWebJarAssets)
 
 @main("WebJars - Request New WebJar") {
 
@@ -23,7 +23,7 @@
                             <label for="gitHubId" class="col-sm-2 control-label">Your GitHub ID</label>
                             @maybeGitHubUsername.fold {
                                 <div class="col-sm-2">
-                                    <a href="@routes.Application.githubAuthorize()" class="btn btn-default">OAuth with GitHub</a>
+                                    <a href="@routes.Application.gitHubAuthorize()" class="btn btn-default">OAuth with GitHub</a>
                                 </div>
                             } { gitHubUsername =>
                                 <div class="col-sm-2">

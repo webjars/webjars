@@ -3,21 +3,19 @@ package utils
 import java.io.InputStream
 import java.net.URL
 import java.util.zip.GZIPInputStream
+import javax.inject.Inject
 
 import play.api.http.{HeaderNames, Status}
-import play.api.libs.json._
 import play.api.libs.functional.syntax._
+import play.api.libs.json._
 import play.api.libs.ws.WSClient
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
-class NPM(implicit ec: ExecutionContext, ws: WSClient) {
+class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector) (implicit ec: ExecutionContext) {
 
   val BASE_URL = "http://registry.npmjs.org"
-
-  val git = GitUtil(ec, ws)
-  val licenseUtils = LicenseUtils(ec, ws, git)
 
   // a whole lot of WTF
   private def registryMetadataUrl(packageName: String, maybeVersion: Option[String] = None): String = {
@@ -112,7 +110,7 @@ class NPM(implicit ec: ExecutionContext, ws: WSClient) {
           infoFuture.flatMap { info =>
             if (info.licenses.isEmpty) {
               // first try to get a license from the source
-              licenseUtils.detectLicense(initialInfo, maybeVersion)
+              licenseDetector.detectLicense(initialInfo, maybeVersion)
             }
             else {
               Future.successful(info)
@@ -141,8 +139,8 @@ class NPM(implicit ec: ExecutionContext, ws: WSClient) {
         ws.url(registryMetadataUrl(packageNameOrGitRepo)).get().flatMap { response =>
           response.status match {
             case Status.OK =>
-              val versionInfo = response.json \ "versions" \ maybeVersion.get
-              packageInfo(versionInfo)
+              val versionInfoLookup = response.json \ "versions" \ maybeVersion.get
+              versionInfoLookup.toOption.fold(Future.failed[PackageInfo](new Exception(s"Could not parse: ${response.body}")))(packageInfo)
             case _ =>
               Future.failed(new Exception(response.body))
           }
@@ -209,5 +207,4 @@ object NPM {
     )(PackageInfo.apply _)
   }
 
-  def apply(implicit ec: ExecutionContext, ws: WSClient) = new NPM()
 }

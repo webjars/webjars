@@ -1,22 +1,20 @@
 package utils
 
 import java.io.FileNotFoundException
+import javax.inject.Inject
 
 import play.api.http.Status
-import play.api.libs.ws.WS
-import play.api.Play.current
+import play.api.libs.ws.WSClient
+import shade.memcached.MemcachedCodecs._
 
-import Memcache._
-
-import scala.concurrent.Future
-import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
+import scala.concurrent.{ExecutionContext, Future}
 
-object WebJarsFileService {
+class WebJarsFileService @Inject() (memcache: Memcache, ws: WSClient) (implicit ec: ExecutionContext) {
 
   private def fetchFileList(groupId: String, artifactId: String, version: String): Future[List[String]] = {
     val url = s"http://webjars-file-service.herokuapp.com/listfiles/$groupId/$artifactId/$version"
-    WS.url(url).get().flatMap { response =>
+    ws.url(url).get().flatMap { response =>
       response.status match {
         case Status.OK =>
           response.json.asOpt[List[String]].fold(Future.failed[List[String]](new Exception("")))(Future.successful)
@@ -32,14 +30,14 @@ object WebJarsFileService {
     val cacheKey =  groupId + "-" + artifactId + "-" + version + "-files"
 
     def fetchAndCache = {
-      val fileListFuture = WebJarsFileService.fetchFileList(groupId, artifactId, version)
+      val fileListFuture = fetchFileList(groupId, artifactId, version)
       fileListFuture.foreach { fileList =>
-        Global.memcached.set(cacheKey, fileList, Duration.Inf)
+        memcache.instance.set(cacheKey, fileList, Duration.Inf)
       }
       fileListFuture
     }
 
-    Global.memcached.get[List[String]](cacheKey).flatMap { maybeFileList =>
+    memcache.instance.get[List[String]](cacheKey).flatMap { maybeFileList =>
       maybeFileList.fold(fetchAndCache)(Future.successful)
     } recoverWith {
       case e: Exception => fetchAndCache

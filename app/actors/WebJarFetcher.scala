@@ -1,17 +1,19 @@
 package actors
 
 
+import javax.inject.Inject
+
 import akka.actor.Actor
 import akka.pattern.pipe
 import models.WebJarCatalog.WebJarCatalog
 import utils.MavenCentral
 
-import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.ExecutionContext
 
-class WebJarFetcher(catalog: WebJarCatalog) extends Actor {
+class WebJarFetcher @Inject() (catalog: WebJarCatalog, mavenCentral: MavenCentral) (implicit executionContext: ExecutionContext) extends Actor {
 
   override def receive = {
-    case FetchWebJars => MavenCentral.fetchWebJars(catalog).pipeTo(sender())
+    case FetchWebJars => mavenCentral.fetchWebJars(catalog).pipeTo(sender())
   }
 
 }

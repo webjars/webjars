@@ -2,8 +2,8 @@ package controllers
 
 import play.api.mvc.{Action, Controller}
 
-object MockCentral extends Controller {
-  
+class MockCentral extends Controller {
+
   def searchGroup = Action {
     Ok(
       """

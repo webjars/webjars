@@ -4,18 +4,20 @@ import java.util.Date
 
 import akka.util.Timeout
 import org.apache.commons.io.IOUtils
-import play.api.Play
+import play.api.Environment
+import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.test._
 
-import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
 class BinTraySpec extends PlaySpecification {
 
   override implicit def defaultAwaitTimeout: Timeout = 60.seconds
 
-  val ws = StandaloneWS()
-  val binTray = BinTray(ExecutionContext.global, ws, FakeApplication().configuration)
+  lazy val application = new GuiceApplicationBuilder().build
+
+  lazy val binTray = application.injector.instanceOf[BinTray]
+  lazy val environment = application.injector.instanceOf[Environment]
 
   "BinTray with auth" should {
     if (FakeApplication().configuration.getString("bintray.username").isEmpty)
@@ -30,7 +32,7 @@ class BinTraySpec extends PlaySpecification {
         (result \ "created").asOpt[Date] must beSome
       }
       "upload a maven artifact" in {
-        val bytes = Play.resourceAsStream("foo.jar")(FakeApplication()).map { inputStream =>
+        val bytes = environment.resourceAsStream("foo.jar").map { inputStream =>
           val fileBytes = IOUtils.toByteArray(inputStream)
           inputStream.close()
           fileBytes
@@ -93,7 +95,5 @@ class BinTraySpec extends PlaySpecification {
       licenses must be equalTo Set("Unlicense")
     }
   }
-
-  step(ws.close())
 
 }

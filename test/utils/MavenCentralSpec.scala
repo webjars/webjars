@@ -4,15 +4,16 @@ import models.WebJarCatalog
 import play.api.test._
 import utils.MavenCentral.UnavailableException
 
-// note that each test has its own instance of Global because memcache can't be shared across tests
 class MavenCentralSpec extends PlaySpecification {
 
   "fetchWebJars" should {
-    "fail when the searchGroupUrl does not return JSON" in new WithServer(port = testServerPort, app = FakeApplication(additionalConfiguration = Map("webjars.searchGroupUrl" -> s"http://localhost:$testServerPort/asdf"), withGlobal = Some(new GlobalSettings))) {
-      await(MavenCentral.fetchWebJars(WebJarCatalog.CLASSIC)) should throwA[UnavailableException]
+    "fail when the searchGroupUrl does not return JSON" in new WithServer(port = testServerPort, app = FakeApplication(additionalConfiguration = Map("webjars.searchGroupUrl" -> s"http://localhost:$testServerPort/asdf"))) {
+      val mavenCentral = app.injector.instanceOf[MavenCentral]
+      await(mavenCentral.fetchWebJars(WebJarCatalog.CLASSIC)) should throwA[UnavailableException]
     }
-    "work normally" in new WithApplication(FakeApplication(withGlobal = Some(new GlobalSettings))) {
-      val webJars = await(MavenCentral.fetchWebJars(WebJarCatalog.NPM))
+    "work normally" in new WithApplication() {
+      val mavenCentral = app.injector.instanceOf[MavenCentral]
+      val webJars = await(mavenCentral.fetchWebJars(WebJarCatalog.NPM))
       webJars.foldLeft(0)(_ + _.versions.size) should beEqualTo (50)
     }
   }
