@@ -9,6 +9,7 @@ import shade.memcached.MemcachedCodecs._
 
 import scala.concurrent.duration.Duration
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.Try
 
 class WebJarsFileService @Inject() (memcache: Memcache, ws: WSClient) (implicit ec: ExecutionContext) {
 
@@ -41,6 +42,20 @@ class WebJarsFileService @Inject() (memcache: Memcache, ws: WSClient) (implicit 
       maybeFileList.fold(fetchAndCache)(Future.successful)
     } recoverWith {
       case e: Exception => fetchAndCache
+    }
+  }
+
+  def getNumFiles(groupId: String, artifactId: String, version: String): Future[Int] = {
+    val url = s"http://webjars-file-service.herokuapp.com/numfiles/$groupId/$artifactId/$version"
+    ws.url(url).get().flatMap { response =>
+      response.status match {
+        case Status.OK =>
+          Future.fromTry(Try(response.body.toInt))
+        case Status.NOT_FOUND =>
+          Future.failed(new FileNotFoundException(s"Could not get $url - ${response.body}"))
+        case _ =>
+          Future.failed(new Exception(s"Error fetching $url : ${response.body}"))
+      }
     }
   }
 
