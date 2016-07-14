@@ -16,7 +16,7 @@ class LicenseDetector @Inject() (ws: WSClient, git: Git, messages: MessagesApi) 
     def fetchLicense(url: String): Future[String] = ws.url(url).get().flatMap { response =>
       response.status match {
         case Status.OK => Future.successful(response.body)
-        case _ => Future.failed(new LicenseNotFoundException("Could not get license from GitHub"))
+        case _ => Future.failed(LicenseNotFoundException("Could not get license from GitHub", new Exception(response.body)))
       }
     }
 
@@ -27,7 +27,7 @@ class LicenseDetector @Inject() (ws: WSClient, git: Git, messages: MessagesApi) 
           // look on gh-pages
           fetchLicense(s"https://github-license-service.herokuapp.com/$gitHubOrgRepo/gh-pages")
      }
-    }.getOrElse(Future.failed(new LicenseNotFoundException("Could not get license from GitHub")))
+    } getOrElse Future.failed(LicenseNotFoundException("Could not get license from GitHub"))
   }
 
   def licenseDetect(contents: String): Future[String] = {
@@ -57,12 +57,15 @@ class LicenseDetector @Inject() (ws: WSClient, git: Git, messages: MessagesApi) 
     } map { license =>
       packageInfo.copy(licenses = Seq(license))
     } recoverWith {
-      case e: Exception => Future.failed(new LicenseNotFoundException(messages("licensenotfound")))
+      case e: Exception =>
+        val errorMessage = packageInfo.webJarType match {
+          case WebJarType.Bower => messages("licensenotfound.bower")
+          case WebJarType.NPM => messages("licensenotfound.npm")
+        }
+        Future.failed(LicenseNotFoundException(errorMessage, e))
     }
   }
 
 }
 
-case class LicenseNotFoundException(message: String) extends Exception {
-  override def getMessage = message
-}
+case class LicenseNotFoundException(message: String, cause: Exception = null) extends Exception(message, cause)

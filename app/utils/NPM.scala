@@ -203,7 +203,8 @@ object NPM {
       sourceConnectionUrlReader ~
       bugsReader ~
       licenseReader ~
-      (__ \ "dependencies").read[Map[String, String]].orElse(Reads.pure(Map.empty[String, String]))
+      (__ \ "dependencies").read[Map[String, String]].orElse(Reads.pure(Map.empty[String, String])) ~
+      Reads.pure(WebJarType.NPM)
     )(PackageInfo.apply _)
   }
 

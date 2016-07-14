@@ -6,7 +6,7 @@ import play.api.libs.json._
 
 import scala.util.Try
 
-case class PackageInfo(name: String, version: String, homepage: String, sourceUrl: String, sourceConnectionUrl: String, issuesUrl: String, licenses: Seq[String], dependencies: Map[String, String]) {
+case class PackageInfo(name: String, version: String, homepage: String, sourceUrl: String, sourceConnectionUrl: String, issuesUrl: String, licenses: Seq[String], dependencies: Map[String, String], webJarType: WebJarType.Value) {
 
   lazy val sourceUri: Try[URI] = Try(new URI(sourceUrl))
 
@@ -22,6 +22,10 @@ case class PackageInfo(name: String, version: String, homepage: String, sourceUr
   }
   lazy val gitHubHome: Try[String] = gitHubOrgRepo.map(orgRepo => s"https://github.com/$orgRepo")
 
+}
+
+object WebJarType extends Enumeration {
+  val NPM, Bower = Value
 }
 
 object PackageInfo {

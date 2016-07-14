@@ -187,7 +187,8 @@ object Bower {
     (__ \ "_source").read[String] ~
     sourceReads.map(_ + "/issues") ~
     (__ \ "license").read[Seq[String]].orElse((__ \ "license").read[String].map(Seq(_))).orElse(Reads.pure(Seq.empty[String])) ~
-    (__ \ "dependencies").read[Map[String, String]].orElse(Reads.pure(Map.empty[String, String]))
+    (__ \ "dependencies").read[Map[String, String]].orElse(Reads.pure(Map.empty[String, String])) ~
+    Reads.pure(WebJarType.Bower)
   )(PackageInfo.apply _)
 }
 

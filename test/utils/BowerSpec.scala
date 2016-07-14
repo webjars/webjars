@@ -153,7 +153,7 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
 
   "angular-translate 2.7.2" should {
     "fail with a useful error" in {
-      await(bower.info("angular-translate", Some("2.7.2"))) must throwA[LicenseNotFoundException](messages("licensenotfound"))
+      await(bower.info("angular-translate", Some("2.7.2"))) must throwA[LicenseNotFoundException](messages("licensenotfound.bower"))
     }
   }
 
