@@ -27,7 +27,7 @@ class MavenSpec extends PlaySpecification with GlobalApplication {
       )
       val mavenDeps = await(maven.convertNpmBowerDependenciesToMaven(deps))
       mavenDeps.get("github-com-btford-route-recognizer") must beSome ("0.1.1")
-      mavenDeps.get("github-com-ttsvetko-HTML5-Desktop-Notifications") must beSome ("0.0.0-1c3fc78c75")
+      mavenDeps.get("github-com-ttsvetko-html5-desktop-notifications") must beSome ("0.0.0-1c3fc78c75")
     }
     "work with versioned git npm deps" in {
       val deps = Map(
@@ -52,7 +52,7 @@ class MavenSpec extends PlaySpecification with GlobalApplication {
         "iron-a11y-announcer" -> "PolymerElements/iron-a11y-announcer#^1.0.0"
       )
       val mavenDeps = await(maven.convertNpmBowerDependenciesToMaven(deps))
-      mavenDeps.get("github-com-PolymerElements-iron-a11y-announcer") must beSome ("[1.0.0,2)")
+      mavenDeps.get("github-com-polymerelements-iron-a11y-announcer") must beSome ("[1.0.0,2)")
     }
     "work with scoped deps" in {
       val deps = Map(
