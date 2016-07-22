@@ -7,6 +7,7 @@ import java.nio.file.Files
 import javax.inject.Inject
 
 import org.eclipse.jgit.api.{Git => GitApi}
+import org.springframework.util.FileSystemUtils
 import play.api.http.{HeaderNames, Status}
 import play.api.libs.ws.WSClient
 
@@ -82,7 +83,7 @@ class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
             val host = uri.getHost.replaceAll("[^\\w\\d]", "-")
             val path = uri.getPath.replaceAll("[^\\w\\d]", "-")
 
-            host + path
+            host.toLowerCase() + path.toLowerCase()
           }
         }
       }
@@ -127,7 +128,7 @@ class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
     val baseDirFuture = if (!baseDir.exists()) {
       // clone the repo
       gitUrl(gitRepo).flatMap { url =>
-        Future.fromTry {
+        val cloneFuture = Future.fromTry {
           Try {
             val clone = GitApi.cloneRepository()
               .setURI(url)
@@ -139,6 +140,12 @@ class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
             baseDir
           }
         }
+
+        cloneFuture.onFailure {
+          case _ => FileSystemUtils.deleteRecursively(baseDir)
+        }
+
+        cloneFuture
       }
     }
     else {
