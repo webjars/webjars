@@ -11,7 +11,7 @@ import scala.concurrent.duration._
 
 class BowerSpec extends PlaySpecification with GlobalApplication {
 
-  override implicit def defaultAwaitTimeout: Timeout = 90.seconds
+  override implicit def defaultAwaitTimeout: Timeout = 300.seconds
 
   lazy val messages = application.injector.instanceOf[MessagesApi]
   lazy val bower = application.injector.instanceOf[Bower]
@@ -166,6 +166,15 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
   "licenses" should {
     "be able to be fetched from git repos" in {
       await(bower.info("git://github.com/mdedetrich/requirejs-plugins", Some("d9c103e7a0"))).licenses must beEqualTo(Seq("MIT"))
+    }
+  }
+
+  "long file names" should {
+    "work" in {
+      val is = new BufferedInputStream(await(bower.zip("highcharts/highcharts", "v4.2.5")))
+      val zis = new ArchiveStreamFactory().createArchiveInputStream(is)
+      val files = Stream.continually(zis.getNextEntry).takeWhile(_ != null).map(_.getName)
+      files must contain ("tools/ant-contrib-0.6-bin/docs/api/net/sf/antcontrib/perf/AntPerformanceListener.StopWatchComparator.html")
     }
   }
 

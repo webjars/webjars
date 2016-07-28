@@ -76,6 +76,28 @@ class ArchiveCreatorSpec extends Specification {
       archiveStream.getNextEntry.getName must beEqualTo ("a.txt")
       archiveStream.getNextEntry must beNull
     }
+    "tar long dir names" in {
+      val testDir = new File(tmpDir, "4")
+      testDir.mkdirs()
+
+      val dirName = "this/is/a/really/long/dir/name/which/is/longer/than/zip/normally/supports/so-we-will-need-to-make-sure-it-works"
+      dirName.getBytes.length must beGreaterThan (100)
+
+      val aDir = new File(testDir, dirName)
+      aDir.mkdirs()
+
+      val a = new File(aDir, "a.txt")
+      Files.write(a.toPath, "test".getBytes)
+
+      val tarTry = ArchiveCreator.tarDir(testDir)
+      tarTry must beASuccessfulTry
+
+      val bufferedInputStream = new BufferedInputStream(tarTry.get)
+
+      val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(bufferedInputStream)
+      archiveStream.getNextEntry.getName must beEqualTo (dirName + "/a.txt")
+      archiveStream.getNextEntry must beNull
+    }
   }
 
   step(tmpDir.delete())

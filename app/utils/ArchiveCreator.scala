@@ -21,6 +21,7 @@ object ArchiveCreator {
       val baos = new ByteArrayOutputStream()
       val bos = new BufferedOutputStream(baos)
       val tos = new TarArchiveOutputStream(bos)
+      tos.setLongFileMode(TarArchiveOutputStream.LONGFILE_POSIX)
 
       files.foreach { file =>
         val entry = new TarArchiveEntry(file.getPath.stripPrefix(dir.getPath))
