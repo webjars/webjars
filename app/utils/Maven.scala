@@ -18,7 +18,7 @@ class Maven @Inject() (git: Git) (implicit ec: ExecutionContext) {
           (versionOrUrl, None)
         }
 
-        git.artifactId(url).flatMap { artifactId =>
+        git.artifactId(url).map(_.toLowerCase).flatMap { artifactId =>
           maybeVersion.fold {
             git.versions(url).flatMap { versions =>
               versions.headOption.fold {

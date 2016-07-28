@@ -98,8 +98,8 @@ class GitSpec extends PlaySpecification with GlobalApplication {
     "convert a scoped name" in {
       await(git.artifactId("@reactivex/rxjs")) must beEqualTo ("reactivex__rxjs")
     }
-    "go case insensitive for github repos" in {
-      await(git.artifactId("MochaJS/Mocha")) must beEqualTo ("github-com-mochajs-mocha")
+    "not go case insensitive for github repos" in {
+      await(git.artifactId("MochaJS/Mocha")) must beEqualTo ("github-com-MochaJS-Mocha")
     }
     "not go case insensitive for non-github repos" in {
       await(git.artifactId("Foo")) must beEqualTo ("Foo")

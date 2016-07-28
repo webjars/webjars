@@ -83,7 +83,7 @@ class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
             val host = uri.getHost.replaceAll("[^\\w\\d]", "-")
             val path = uri.getPath.replaceAll("[^\\w\\d]", "-")
 
-            host.toLowerCase() + path.toLowerCase()
+            host + path
           }
         }
       }
