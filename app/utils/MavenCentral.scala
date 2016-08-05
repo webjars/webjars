@@ -81,8 +81,15 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
       val (artifactId, versions) = artifactAndVersions
       val versionsFuture = Future.sequence {
         versions.map { version =>
-          webJarsFileService.getNumFiles(catalog.toString, artifactId, version).map { numFiles =>
-            WebJarVersion(version, numFiles)
+          val cacheKey = s"numfiles-${catalog.toString}-$artifactId"
+          memcache.instance.get[Int](cacheKey).flatMap { maybeNumFiles =>
+            maybeNumFiles.fold {
+              val numFilesFuture = webJarsFileService.getNumFiles(catalog.toString, artifactId, version)
+              numFilesFuture.foreach(numFiles => memcache.instance.set(cacheKey, numFiles, Duration.Inf))
+              numFilesFuture
+            } (Future.successful) map { numFiles =>
+              WebJarVersion(version, numFiles)
+            }
           } recover {
             case e: Exception =>
               Logger.error(s"Error fetching file list for ${catalog.toString} $artifactId $version - ${e.getMessage}")
@@ -159,8 +166,7 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
           fetchWebJarsFuture.onFailure {
             case e: Exception =>
               actorSystem.stop(webJarFetcher)
-              Logger.error(s"WebJar fetch failed for ${catalog.toString}: ${e.getMessage}")
-              e.getStackTrace.foreach { t => Logger.error(t.toString) }
+              Logger.error(s"WebJar fetch failed for ${catalog.toString}: ${e.getMessage}", e)
           }
           fetchWebJarsFuture.foreach { fetchedWebJars =>
             Logger.info(s"WebJar fetch complete for ${catalog.toString}")
