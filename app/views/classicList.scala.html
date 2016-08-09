@@ -4,16 +4,11 @@
 
 @main("WebJars - Classic WebJars") {
 
-    <script type="text/javascript" src="@routes.Assets.versioned("javascripts/classic.js")"></script>
+    <script type="text/javascript" src="@routes.Assets.versioned("javascripts/webJarList.js")"></script>
 
     <div class="container-fluid" style="padding-top: 25px;">
 
         <h2 style="float: left">List of Classic WebJars</h2>
-
-        <div class="pull-left btn-group" style="margin: 20px 40px 0px 40px">
-            <input type="text" class="form-control" id="search" placeholder="Filter">
-            <span class="glyphicon glyphicon-remove" id="clearSearch"></span>
-        </div>
 
         <div class="pull-right" style="float: right; margin-top: 20px;">
             <a href="@routes.Application.contributing()" class="btn btn-info" role="button">Contribute a Classic WebJar</a>

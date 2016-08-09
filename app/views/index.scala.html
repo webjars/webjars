@@ -4,6 +4,8 @@
 
 @main("WebJars - Web Libraries in Jars") {
 
+    <script type="text/javascript" src="@routes.Assets.versioned("javascripts/webJarList.js")"></script>
+
     <div class="jumbotron" style="margin-bottom: 0; background-color: #cccccc;">
         <div class="container">
             <h4><strong>WebJars are client-side web libraries (e.g. jQuery & Bootstrap) packaged into JAR (Java Archive) files.</strong></h4>
@@ -69,15 +71,20 @@
             </div>
         </div>
 
-        <h2 style="float: left">All Deployed WebJars</h2>
+        <h2 id="listTitle" style="float: left">Popular WebJars</h2>
 
-        <div class="pull-left btn-group" style="margin: 20px 40px 0px 40px">
-            <input type="text" class="form-control" id="search" placeholder="Filter">
+        <div class="pull-right btn-group" style="margin: 20px 0px 0px 40px">
+            <input type="text" class="form-control" id="search" placeholder="Search">
             <span class="glyphicon glyphicon-remove" id="clearSearch"></span>
         </div>
 
-        @webJarList(webjars, false)
+        <div id="webJarList">
+            @webJarList(webjars, false)
+        </div>
 
+        <div style="width: 100%; text-align: center;">
+            <a href="@routes.Application.allWebJars()">All WebJars</a>
+        </div>
     </div>
 
 }

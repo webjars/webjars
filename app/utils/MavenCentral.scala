@@ -8,8 +8,10 @@ import akka.pattern.ask
 import akka.util.Timeout
 import models.WebJarCatalog.WebJarCatalog
 import models.{WebJar, WebJarCatalog, WebJarVersion}
+import org.joda.time.DateTime
+import play.api.http.{HeaderNames, MimeTypes, Status}
 import play.api.libs.json._
-import play.api.libs.ws.WSClient
+import play.api.libs.ws.{WSAuthScheme, WSClient}
 import play.api.{Configuration, Logger}
 import shade.memcached.MemcachedCodecs._
 
@@ -27,6 +29,10 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
 
   implicit val webJarReads = Json.reads[WebJar]
   implicit val webJarWrites = Json.writes[WebJar]
+
+  lazy val ossUsername = configuration.getString("oss.username").get
+  lazy val ossPassword = configuration.getString("oss.password").get
+  lazy val ossProject = configuration.getString("oss.project").get
 
   def fetchWebJarNameAndUrl(groupId: String, artifactId: String, version: String): Future[(String, String)] = {
     getPom(groupId, artifactId, version).flatMap { xml =>
@@ -207,6 +213,68 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
         }
       }
     }
+  }
+
+  def getStats(webJarCatalog: WebJarCatalog, dateTime: DateTime): Future[Seq[(WebJarCatalog, String, Int)]] = {
+    val queryString = Seq(
+      "p" -> ossProject,
+      "g" -> webJarCatalog.toString,
+      "t" -> "raw",
+      "from" -> dateTime.toString("yyyyMM"),
+      "nom" -> "1"
+    )
+
+    val statsFuture = wsClient.url("https://oss.sonatype.org/service/local/stats/slices")
+      .withAuth(ossUsername, ossPassword, WSAuthScheme.BASIC)
+      .withHeaders(HeaderNames.ACCEPT -> MimeTypes.JSON)
+      .withQueryString(queryString:_*)
+      .get()
+
+    statsFuture.flatMap { response =>
+      response.status match {
+        case Status.OK =>
+          val slices = (response.json \ "data" \ "slices").as[Seq[JsObject]]
+          val webJarCounts = slices.map { jsObject =>
+            val name = (jsObject \ "name").as[String]
+            val count = (jsObject \ "count").as[Int]
+            (webJarCatalog, name, count)
+          }
+
+          val sorted = webJarCounts.sortBy(_._3)(Ordering[Int].reverse)
+
+          Future.successful(sorted)
+        case _ =>
+          Future.failed(new Exception(response.body))
+      }
+    }
+  }
+
+  def getStats(dateTime: DateTime): Future[Seq[(WebJarCatalog, String, Int)]] = {
+    val classicStatsFuture = getStats(WebJarCatalog.CLASSIC, dateTime)
+    val bowerStatsFuture = getStats(WebJarCatalog.BOWER, dateTime)
+    val npmStatsFuture = getStats(WebJarCatalog.NPM, dateTime)
+
+    for {
+      classicStats <- classicStatsFuture
+      bowerStats <- bowerStatsFuture
+      npmStats <- npmStatsFuture
+    } yield classicStats ++ bowerStats ++ npmStats
+  }
+
+  def mostDownloaded(webJarCatalog: WebJarCatalog, dateTime: DateTime, num: Int): Future[Seq[(WebJarCatalog, String, Int)]] = {
+    getStats(webJarCatalog, dateTime).map(_.take(num))
+  }
+
+  def mostDownloaded(dateTime: DateTime, num: Int): Future[Seq[(WebJarCatalog, String, Int)]] = {
+    val mostDownloadedClassicFuture = mostDownloaded(WebJarCatalog.CLASSIC, dateTime, num)
+    val mostDownloadedBowerFuture = mostDownloaded(WebJarCatalog.BOWER, dateTime, num)
+    val mostDownloadedNpmFuture = mostDownloaded(WebJarCatalog.NPM, dateTime, num)
+
+    for {
+      mostDownloadedClassic <- mostDownloadedClassicFuture
+      mostDownloadedBower <- mostDownloadedBowerFuture
+      mostDownloadedNpm <- mostDownloadedNpmFuture
+    } yield mostDownloadedClassic ++ mostDownloadedBower ++ mostDownloadedNpm
   }
 
 }

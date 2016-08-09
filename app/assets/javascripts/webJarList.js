@@ -1,17 +1,6 @@
-var webjars = [];
-var buildTool = "sbt" ;
-
 $(function() {
 
-  // list files modal
-  $(".file-list-link").click(onFileList);
-
-  // build tool change handler
-  $("#buildtoolselect").find("label").click(function(e) {
-    // update for each webjar
-    buildTool = $(this).attr("data-value");
-    updateAllDetails();
-  });
+  setupWebJarList();
 
   $("#search").keyup(function() {
     var searchText = $(this).val();
@@ -23,25 +12,45 @@ $(function() {
       $("#clearSearch").show();
     }
 
-    if (searchText.length == 1) {
-      return;
+    if (searchText.length > 2) {
+      searchWebJars(searchText);
     }
-    filterWebJars(searchText);
   });
 
   $("#clearSearch").click(function(){
     $("#search").val("");
     $(this).hide();
-    filterWebJars("");
+
+    $.get("/popular", function(data) {
+      $("#listTitle").html("Popular WebJars");
+
+      $("#webJarList").html(data);
+
+      setupWebJarList();
+    });
   });
 
 });
 
-function filterWebJars(search) {
-  $("tr[data-artifact]").each(function() {
-    var row = $(this);
-    var shouldHide = row.data("artifact").toLowerCase().indexOf(search.toLowerCase()) === -1;
-    row.toggleClass('hide', shouldHide);
+function setupWebJarList() {
+  // list files modal
+  $(".file-list-link").click(onFileList);
+
+  // build tool change handler
+  $("#buildtoolselect").find("label").click(function(e) {
+    // update for each webjar
+    buildTool = $(this).attr("data-value");
+    updateAllDetails(buildTool);
+  });
+}
+
+function searchWebJars(query) {
+  $.get("/search?query=" + query, function(data) {
+    $("#listTitle").html("Search Results");
+
+    $("#webJarList").html(data);
+
+    setupWebJarList();
   });
 }
 
@@ -57,18 +66,11 @@ function onFileList(event) {
   }
 }
 
-/*
-function webJarRow(groupId, artifactId) {
-//  console.log($("tr[data-group='" + groupId + "'][data-artifact='" + artifactId + "']"));
-  return $("tr[data-group='" + groupId + "'][data-artifact='" + artifactId + "']");
-}
-*/
-
 function changeVersion(event) {
   updateDetails($(event.target).parents("tr"));
 }
 
-function updateDetails(row) {
+function updateDetails(buildTool, row) {
   var groupId = row.data("group");
   var artifactId = row.data("artifact");
 
@@ -115,8 +117,8 @@ function updateDetails(row) {
   row.find(".files").empty().append(filesLink);
 }
 
-function updateAllDetails() {
+function updateAllDetails(buildTool) {
   $("tr[data-artifact]").each(function() {
-    updateDetails($(this));
+    updateDetails(buildTool, $(this));
   });
 }

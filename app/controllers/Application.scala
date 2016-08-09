@@ -1,33 +1,43 @@
 package controllers
 
 import java.io.FileNotFoundException
+import java.util.concurrent.TimeoutException
 import javax.inject.Inject
 
 import akka.actor.ActorSystem
+import models.WebJarCatalog.WebJarCatalog
 import models.{WebJar, WebJarCatalog}
+import org.joda.time.DateTime
 import play.api.data.Forms._
 import play.api.data._
 import play.api.libs.json.Json
 import play.api.mvc._
-import play.api.{Configuration, Logger}
+import play.api.{Configuration, Environment, Logger, Mode}
 import utils._
 
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.hashing.MurmurHash3
 
-class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Heroku, pusher: Pusher, cache: Cache, mavenCentral: MavenCentral, npmWebJar: NPMWebJar, bowerWebJar: BowerWebJar, webJarsFileService: WebJarsFileService, actorSystem: ActorSystem, configuration: Configuration)(mainView: views.html.main, indexView: views.html.index, classicListView: views.html.classicList, npmbowerListView: views.html.npmbowerList, webJarRequestView: views.html.webJarRequest, contributingView: views.html.contributing, documentationView: views.html.documentation)(implicit ec: ExecutionContext) extends Controller {
+class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Heroku, pusher: Pusher, cache: Cache, mavenCentral: MavenCentral, npmWebJar: NPMWebJar, bowerWebJar: BowerWebJar, webJarsFileService: WebJarsFileService, actorSystem: ActorSystem, configuration: Configuration, environment: Environment)(mainView: views.html.main, allView: views.html.all, indexView: views.html.index, classicListView: views.html.classicList, npmbowerListView: views.html.npmbowerList, webJarRequestView: views.html.webJarRequest, contributingView: views.html.contributing, documentationView: views.html.documentation)(implicit ec: ExecutionContext) extends Controller {
 
   private val X_GITHUB_ACCESS_TOKEN = "X-GITHUB-ACCESS-TOKEN"
 
+  private val MAX_POPULAR_WEBJARS = 20
+
   private def maybeCached[A](request: RequestHeader, f: Seq[A] => Result)(seq: Seq[A]): Result = {
-    val hash = MurmurHash3.seqHash(seq)
-    val etag = "\"" + hash + "\""
-    if (request.headers.get(IF_NONE_MATCH).contains(etag)) {
-      NotModified
-    }
-    else {
-      f(seq).withHeaders(ETAG -> etag)
+    environment.mode match {
+      case Mode.Dev =>
+        f(seq)
+      case _ =>
+        val hash = MurmurHash3.seqHash(seq)
+        val etag = "\"" + hash + "\""
+        if (request.headers.get(IF_NONE_MATCH).contains(etag)) {
+          NotModified
+        }
+        else {
+          f(seq).withHeaders(ETAG -> etag)
+        }
     }
   }
 
@@ -37,17 +47,77 @@ class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Hero
     val fetcher = maybeCatalog.fold(mavenCentral.webJars)(mavenCentral.webJars)
     val future = TimeoutFuture(defaultTimeout)(fetcher)
     future.onFailure {
+      case te: TimeoutException => Logger.debug("Timeout fetching WebJars", te)
       case e: Exception => Logger.error("Error loading WebJars", e)
     }
     future
   }
 
+  private def sortedWebJars(counts: Seq[(WebJarCatalog, String, Int)], webJars: Seq[WebJar]): Seq[WebJar] = {
+    counts.flatMap {
+      case (webJarCatalog, artifactId, _) =>
+        val maybeWebJar = webJars.find { webJar => (webJar.groupId == webJarCatalog.toString) && (webJar.artifactId == artifactId) }
+        maybeWebJar.toSeq
+    }
+  }
+
+  private def sortedMostPopularWebJars: Future[Seq[WebJar]] = {
+    webJarsWithTimeout().flatMap { allWebJars =>
+      val mostDownloadedFuture = cache.get[Seq[(WebJarCatalog, String, Int)]]("mostDownloaded", 1.day) {
+        val lastMonth = DateTime.now().minusMonths(1)
+        mavenCentral.mostDownloaded(lastMonth, MAX_POPULAR_WEBJARS).recoverWith {
+          case e: Exception => mavenCentral.mostDownloaded(lastMonth.minusMonths(1), MAX_POPULAR_WEBJARS)
+        }
+      }
+
+      mostDownloadedFuture.map { mostDownloaded =>
+        sortedWebJars(mostDownloaded, allWebJars)
+      }
+    }
+  }
+
   def index = Action.async { request =>
-    webJarsWithTimeout().map {
-      maybeCached(request, webJars => Ok(indexView(webJars)))
-    } recover {
+    sortedMostPopularWebJars.map(maybeCached(request, webJars => Ok(indexView(webJars)))).recover {
       case e: Exception =>
         InternalServerError(indexView(Seq.empty[WebJar]))
+    }
+  }
+
+  def popularWebJars = Action.async { request =>
+    sortedMostPopularWebJars.map(maybeCached(request, webJars => Ok(views.html.webJarList(webJars)))).recover {
+      case e: Exception =>
+        InternalServerError(views.html.webJarList(Seq.empty[WebJar], false))
+    }
+  }
+
+  def searchWebJars(query: String) = Action.async { implicit request =>
+    webJarsWithTimeout().flatMap { allWebJars =>
+
+      val webJarStatsFuture = cache.get[Seq[(WebJarCatalog, String, Int)]]("stats", 1.day) {
+        val lastMonth = DateTime.now().minusMonths(1)
+        mavenCentral.getStats(lastMonth).recoverWith {
+          case e: Exception => mavenCentral.getStats(lastMonth.minusMonths(1))
+        }
+      }
+
+      webJarStatsFuture.map { webJarStats =>
+        val matchingWebJars = allWebJars.filter { webJar =>
+          webJar.name.toLowerCase.contains(query.toLowerCase) || webJar.artifactId.toLowerCase.contains(query.toLowerCase)
+        }
+
+        val sortedMatchingWebJars = sortedWebJars(webJarStats, matchingWebJars)
+
+        render {
+          case Accepts.Html() => Ok(views.html.webJarList(sortedMatchingWebJars))
+          case Accepts.Json() => Ok(Json.toJson(sortedMatchingWebJars))
+        }
+      }
+    } recover {
+      case e: Exception =>
+        render {
+          case Accepts.Html() => InternalServerError(views.html.webJarList(Seq.empty[WebJar]))
+          case Accepts.Json() => InternalServerError(Json.toJson(Seq.empty[WebJar]))
+        }
     }
   }
 
@@ -143,10 +213,18 @@ class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Hero
   def allWebJars = CorsAction {
     Action.async { implicit request =>
       webJarsWithTimeout().map {
-        maybeCached(request, webJars => Ok(Json.toJson(webJars)))
+        maybeCached(request, { webJars =>
+          render {
+            case Accepts.Html() => Ok(allView(webJars))
+            case Accepts.Json() => Ok(Json.toJson(webJars))
+          }
+        })
       } recover {
         case e: Exception =>
-          InternalServerError(Json.arr())
+          render {
+            case Accepts.Html() => InternalServerError(allView(Seq.empty[WebJar]))
+            case Accepts.Json() => InternalServerError(Json.arr())
+          }
       }
     }
   }

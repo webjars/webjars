@@ -6,6 +6,8 @@ GET            /robots.txt                                                contro
 GET            /files/robots.txt                                          controllers.Assets.at(path="/public", file="robots.txt")
 
 GET            /all                                                       controllers.Application.allWebJars()
+GET            /search                                                    controllers.Application.searchWebJars(query)
+GET            /popular                                                   controllers.Application.popularWebJars()
 GET            /classic                                                   controllers.Application.classicList()
 GET            /bower                                                     controllers.Application.bowerList()
 GET            /npm                                                       controllers.Application.npmList()

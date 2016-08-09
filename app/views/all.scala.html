@@ -1,0 +1,15 @@
+@this(staticWebJarAssets: StaticWebJarAssets, main: main)
+
+@(webjars: Iterable[WebJar])
+
+@main("WebJars - Web Libraries in Jars") {
+
+    <script type="text/javascript" src="@routes.Assets.versioned("javascripts/webJarList.js")"></script>
+
+    <div style="padding-left: 15px; padding-right: 15px;">
+        <h2 style="float: left">All Deployed WebJars</h2>
+
+        @webJarList(webjars, false)
+
+    </div>
+}
