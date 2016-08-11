@@ -4,6 +4,10 @@ version := "1.0-SNAPSHOT"
 
 scalaVersion := "2.11.8"
 
+incOptions := incOptions.value.withNameHashing(true)
+
+updateOptions := updateOptions.value.withCachedResolution(true)
+
 libraryDependencies ++= Seq(
   ws,
   cache,
