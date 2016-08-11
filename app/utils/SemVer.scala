@@ -46,7 +46,7 @@ object SemVer {
   }
 
   object SomeString {
-    def unapply(s: String): Option[Option[String]] = Some(if (s.isEmpty) { None } else { Some(s) })
+    def unapply(s: String): Option[Option[String]] = Some(Option(s).filter(_.nonEmpty).map(_.stripPrefix("-")))
   }
 
   object SomeOperator {
@@ -114,6 +114,10 @@ object SemVer {
 
     val normalizedOrOrVersion = normalizedComparatorVersion.replaceAllLiterally(" || ", "||")
 
+    val normalizedStarRangeVersion = normalizedOrOrVersion.replaceAllLiterally(".*", "")
+
+    val normalizedVersion = normalizedStarRangeVersion
+
     object OrOr {
       def unapply(s: String): Option[Seq[String]] = {
         if (s.contains("||")) {
@@ -125,7 +129,7 @@ object SemVer {
       }
     }
 
-    normalizedOrOrVersion match {
+    normalizedVersion match {
       case OrOr(versionStrings) =>
         val versions = versionStrings.flatMap(parseSemVer)
         if (versions.isEmpty) {
@@ -146,7 +150,7 @@ object SemVer {
           semVer <- versionRangeToMaven(VersionRange(leftComparator, rightComparator))
         } yield semVer
       case _ =>
-        parseSemVer(normalizedOrOrVersion).flatMap(_.fold(_.maven, versionRangeToMaven))
+        parseSemVer(normalizedVersion).flatMap(_.fold(_.maven, versionRangeToMaven))
     }
   }
 
@@ -156,23 +160,23 @@ object SemVer {
       // No version or *
       case "" | "*" =>
         Some(Right(VersionRange(Comparator(Operator.GTE, SemVerVersion(Some(0))))))
+      // 1 | 1-alpha
+      case r"^=?(\d+)${SomeInt(major)}(-\w+)?${SomeString(tag)}$$" =>
+        val leftVersionRange = Comparator(Operator.GTE, SemVerVersion(major, None, None, tag))
+        val rightVersionRange = Comparator(Operator.LT, SemVerVersion(major.map(_ + 1), None, None, None))
+        Some(Right(VersionRange(leftVersionRange, rightVersionRange)))
+      // 1.1 | 1.1-alpha
+      case r"^=?(\d+)${SomeInt(major)}\.(\d+)${SomeInt(minor)}(-\w+)?${SomeString(tag)}$$" =>
+        val leftVersionRange = Comparator(Operator.GTE, SemVerVersion(major, minor, None, tag))
+        val rightVersionRange = Comparator(Operator.LT, SemVerVersion(major, minor.map(_ + 1), None, None))
+        Some(Right(VersionRange(leftVersionRange, rightVersionRange)))
       // 1.2.3 | 1.2.3-alpha | =1.2.3 | =1.2.3-alpha
-      case r"^=?(\d+)${SomeInt(major)}\.(\d+)${SomeInt(minor)}\.(\d+)${SomeInt(patch)}-?([\w.-]*)${SomeString(tag)}$$" =>
+      case r"^=?(\d+)${SomeInt(major)}\.(\d+)${SomeInt(minor)}\.(\d+)${SomeInt(patch)}(-\w+)?${SomeString(tag)}$$" =>
         Some(Left(SemVerVersion(major, minor, patch, tag)))
       // 1 - 2 | 1 - 2.3 | 1 - 2.3.1 | 1 - 2.3.1-alpha
       case r"^(\d+)${SomeInt(leftMajor)}\.?(\d*)${SomeInt(leftMinor)}\.?(\d*)${SomeInt(leftPatch)}-?([\w.-]*)${SomeString(leftTag)} - (\d+)${SomeInt(rightMajor)}\.?(\d*)${SomeInt(rightMinor)}\.?(\d*)${SomeInt(rightPatch)}-?([\w.-]*)${SomeString(rightTag)}$$" =>
         val leftVersionRange = Comparator(Operator.GTE, SemVerVersion(leftMajor, leftMinor, leftPatch, leftTag))
         val rightVersionRange = Comparator(rightMinor.flatMap(_ => rightPatch).fold(Operator.LT)(_ => Operator.LTE) , SemVerVersion(rightMajor.map(a => if (rightMinor.isEmpty) a + 1 else a), rightMinor.map(a => if (rightPatch.isEmpty) a + 1 else a), rightPatch, rightTag))
-        Some(Right(VersionRange(leftVersionRange, rightVersionRange)))
-      // 1.1.* | 1.2
-      case r"^(\d+)${SomeInt(major)}\.(\d+)${SomeInt(minor)}\.?\*?-?([\w.-]*)${SomeString(tag)}$$" =>
-        val leftVersionRange = Comparator(Operator.GTE, SemVerVersion(major, minor, None, tag))
-        val rightVersionRange = Comparator(Operator.LT, SemVerVersion(major, minor.map(_ + 1), None, tag))
-        Some(Right(VersionRange(leftVersionRange, rightVersionRange)))
-      // 1.* | 1.*.* | 1
-      case r"^(\d+)${SomeInt(major)}(?:\.\*){0,3}?-?([\w.-]*)${SomeString(tag)}$$" =>
-        val leftVersionRange = Comparator(Operator.GTE, SemVerVersion(major, None, None, tag))
-        val rightVersionRange = Comparator(Operator.LT, SemVerVersion(major.map(_ + 1), None, None, tag))
         Some(Right(VersionRange(leftVersionRange, rightVersionRange)))
       // >=1.2.3 | <=1.2.3 | >1.2.3 | <1.2.3 | >=1.0.x
       case r"^(>=|<=|>|<)${SomeOperator(operator)} ?(\d+)${SomeInt(major)}\.?(\d*|\*)${SomeInt(minor)}\.?(\d*|\*)${SomeInt(patch)}-?([\w.-]*)${SomeString(tag)}$$" =>

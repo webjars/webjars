@@ -88,11 +88,13 @@ class SemVerSpec extends Specification {
       SemVer.convertSemVerToMaven("1.X.X") must be equalTo Some("[1,2)")
       SemVer.convertSemVerToMaven("1.*")   must be equalTo Some("[1,2)")
       SemVer.convertSemVerToMaven("1.*.*") must be equalTo Some("[1,2)")
+      SemVer.convertSemVerToMaven("1-alpha") must be equalTo Some("[1-alpha,2)")
 
-      SemVer.convertSemVerToMaven("1.2")   must be equalTo Some("[1.2,1.3)")
-      SemVer.convertSemVerToMaven("1.2.x") must be equalTo Some("[1.2,1.3)")
-      SemVer.convertSemVerToMaven("1.2.X") must be equalTo Some("[1.2,1.3)")
-      SemVer.convertSemVerToMaven("1.2.*") must be equalTo Some("[1.2,1.3)")
+      SemVer.convertSemVerToMaven("1.2")       must be equalTo Some("[1.2,1.3)")
+      SemVer.convertSemVerToMaven("1.2.x")     must be equalTo Some("[1.2,1.3)")
+      SemVer.convertSemVerToMaven("1.2.X")     must be equalTo Some("[1.2,1.3)")
+      SemVer.convertSemVerToMaven("1.2.*")     must be equalTo Some("[1.2,1.3)")
+      SemVer.convertSemVerToMaven("1.2-alpha") must be equalTo Some("[1.2-alpha,1.3)")
     }
     "work with tilde ranges" in {
       SemVer.convertSemVerToMaven("~1")           must be equalTo Some("[1,2)")
@@ -100,7 +102,7 @@ class SemVerSpec extends Specification {
       SemVer.convertSemVerToMaven("~1.2.3")       must be equalTo Some("[1.2.3,1.3)")
       SemVer.convertSemVerToMaven("~1.2.3-alpha") must be equalTo Some("[1.2.3-alpha,1.3)")
       SemVer.convertSemVerToMaven("~1.2.3-dev-r") must be equalTo Some("[1.2.3-dev-r,1.3)")
-      SemVer.convertSemVerToMaven("~1.x")         must be equalTo Some("[1.0.0,2)")
+      SemVer.convertSemVerToMaven("~1.x")         must be equalTo Some("[1,2)")
       SemVer.convertSemVerToMaven("~ 0.1.11")     must be equalTo Some("[0.1.11,0.2)")
     }
     "work with caret ranges" in {
@@ -121,6 +123,7 @@ class SemVerSpec extends Specification {
     "work with crazy stuff" in {
       SemVer.convertSemVerToMaven("latest") must be equalTo Some("[0,)")
       SemVer.convertSemVerToMaven("b4e74e38e43ac53af8acd62c78c9213be0194245") must be equalTo Some("b4e74e38e43ac53af8acd62c78c9213be0194245")
+      SemVer.convertSemVerToMaven("2432d39a1693ccd728cbe7eb55810063737d3403") must be equalTo Some("2432d39a1693ccd728cbe7eb55810063737d3403")
     }
     "work with || syntax" in {
       SemVer.convertSemVerToMaven("^1.3.0 || >1.4.0-beta.0")  must be equalTo Some("[1.3.0,2),(1.4.0-beta.0,)")
