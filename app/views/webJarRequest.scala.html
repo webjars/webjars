@@ -1,4 +1,6 @@
-@(form: Form[Application.WebJarRequest], maybeGitHubToken: Option[String] = None, maybeGitHubUsername: Option[String] = None)(implicit staticWebJarAssets: StaticWebJarAssets)
+@this(main: main)
+
+@(form: Form[Application.WebJarRequest], maybeGitHubToken: Option[String] = None, maybeGitHubUsername: Option[String] = None)
 
 @main("WebJars - Request New WebJar") {
 

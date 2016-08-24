@@ -1,4 +1,6 @@
-@(webjars: Iterable[WebJar], maybePusherKey: Option[String], title: String, webJarType: String)(implicit staticWebJarAssets: StaticWebJarAssets)
+@this(staticWebJarAssets: StaticWebJarAssets, main: main)
+
+@(webjars: Iterable[WebJar], maybePusherKey: Option[String], title: String, webJarType: String)
 
 @main(s"WebJars - $title WebJars") {
 

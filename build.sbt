@@ -8,6 +8,8 @@ incOptions := incOptions.value.withNameHashing(true)
 
 updateOptions := updateOptions.value.withCachedResolution(true)
 
+TwirlKeys.constructorAnnotations += "@javax.inject.Inject()"
+
 libraryDependencies ++= Seq(
   ws,
   cache,

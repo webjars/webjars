@@ -16,7 +16,7 @@ import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.hashing.MurmurHash3
 
-class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Heroku, pusher: Pusher, cache: Cache, mavenCentral: MavenCentral, npmWebJar: NPMWebJar, bowerWebJar: BowerWebJar, webJarsFileService: WebJarsFileService, actorSystem: ActorSystem, configuration: Configuration) (implicit ec: ExecutionContext, staticWebJarAssets: StaticWebJarAssets) extends Controller {
+class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Heroku, pusher: Pusher, cache: Cache, mavenCentral: MavenCentral, npmWebJar: NPMWebJar, bowerWebJar: BowerWebJar, webJarsFileService: WebJarsFileService, actorSystem: ActorSystem, configuration: Configuration)(mainView: views.html.main, indexView: views.html.index, classicListView: views.html.classicList, npmbowerListView: views.html.npmbowerList, webJarRequestView: views.html.webJarRequest, contributingView: views.html.contributing, documentationView: views.html.documentation)(implicit ec: ExecutionContext) extends Controller {
 
   private val X_GITHUB_ACCESS_TOKEN = "X-GITHUB-ACCESS-TOKEN"
 
@@ -44,19 +44,19 @@ class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Hero
 
   def index = Action.async { request =>
     webJarsWithTimeout().map {
-      maybeCached(request, webJars => Ok(views.html.index(webJars)))
+      maybeCached(request, webJars => Ok(indexView(webJars)))
     } recover {
       case e: Exception =>
-        InternalServerError(views.html.index(Seq.empty[WebJar]))
+        InternalServerError(indexView(Seq.empty[WebJar]))
     }
   }
 
   def classicList = Action.async { request =>
     webJarsWithTimeout(Some(WebJarCatalog.CLASSIC)).map {
-      maybeCached(request, webJars => Ok(views.html.classicList(webJars)))
+      maybeCached(request, webJars => Ok(classicListView(webJars)))
     } recover {
       case e: Exception =>
-        InternalServerError(views.html.classicList(Seq.empty[WebJar]))
+        InternalServerError(classicListView(Seq.empty[WebJar]))
     }
   }
 
@@ -72,19 +72,19 @@ class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Hero
 
   def bowerList = Action.async { request =>
     webJarsWithTimeout(Some(WebJarCatalog.BOWER)).map {
-      maybeCached(request, webJars => Ok(views.html.npmbowerList(webJars, pusher.maybeKey, "Bower", "bower")))
+      maybeCached(request, webJars => Ok(npmbowerListView(webJars, pusher.maybeKey, "Bower", "bower")))
     } recover {
       case e: Exception =>
-        InternalServerError(views.html.npmbowerList(Seq.empty[WebJar], pusher.maybeKey, "Bower", "bower"))
+        InternalServerError(npmbowerListView(Seq.empty[WebJar], pusher.maybeKey, "Bower", "bower"))
     }
   }
 
   def npmList = Action.async { request =>
     webJarsWithTimeout(Some(WebJarCatalog.NPM)).map {
-      maybeCached(request, webJars => Ok(views.html.npmbowerList(webJars, pusher.maybeKey, "NPM", "npm")))
+      maybeCached(request, webJars => Ok(npmbowerListView(webJars, pusher.maybeKey, "NPM", "npm")))
     } recover {
       case e: Exception =>
-        InternalServerError(views.html.npmbowerList(Seq.empty[WebJar], pusher.maybeKey, "NPM", "npm"))
+        InternalServerError(npmbowerListView(Seq.empty[WebJar], pusher.maybeKey, "NPM", "npm"))
     }
   }
 
@@ -178,21 +178,21 @@ class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Hero
   }
 
   def documentation = Action {
-    Ok(views.html.documentation())
+    Ok(documentationView())
   }
 
   def contributing = Action {
-    Ok(views.html.contributing())
+    Ok(contributingView())
   }
 
   def webJarRequest = Action.async { request =>
     request.flash.get(X_GITHUB_ACCESS_TOKEN).map { accessToken =>
       gitHub.user(accessToken).map { user =>
         val login = (user \ "login").as[String]
-        Ok(views.html.webJarRequest(Application.webJarRequestForm, Some(accessToken), Some(login)))
+        Ok(webJarRequestView(Application.webJarRequestForm, Some(accessToken), Some(login)))
       }
     } getOrElse {
-      Future.successful(Ok(views.html.webJarRequest(Application.webJarRequestForm)))
+      Future.successful(Ok(webJarRequestView(Application.webJarRequestForm)))
     }
   }
 
@@ -202,7 +202,7 @@ class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Hero
       formWithErrors => {
         val gitHubToken = request.body.get("gitHubToken").flatMap(_.headOption)
         val gitHubUsername = request.body.get("gitHubUsername").flatMap(_.headOption)
-        Future.successful(BadRequest(views.html.webJarRequest(formWithErrors, gitHubToken, gitHubUsername)))
+        Future.successful(BadRequest(webJarRequestView(formWithErrors, gitHubToken, gitHubUsername)))
       },
       webJarRequest => {
         gitHub.user(webJarRequest.gitHubToken).flatMap { user =>
