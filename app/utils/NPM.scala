@@ -87,13 +87,11 @@ class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector) (
       }
 
       maybeForkPackageJsonFuture.flatMap { maybeForPackageJson =>
-
         maybeForPackageJson.asOpt[PackageInfo](NPM.jsonReads).fold {
           Future.failed[PackageInfo](new Exception(s"The source repository for $packageNameOrGitRepo ${maybeVersion.getOrElse("")} could not be determined but is required to published to Maven Central.  This will need to be fixed in the project's package metadata."))
         } { initialInfo =>
-
           // deal with GitHub redirects
-          val infoFuture: Future[PackageInfo] = initialInfo.gitHubHome.toOption.fold(Future.successful(initialInfo)) { gitHubHome =>
+          initialInfo.gitHubHome.toOption.fold(Future.successful(initialInfo)) { gitHubHome =>
             ws.url(gitHubHome).withFollowRedirects(false).get().flatMap { homeTestResponse =>
               homeTestResponse.status match {
                 case Status.MOVED_PERMANENTLY =>
@@ -106,19 +104,7 @@ class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector) (
               }
             }
           }
-
-          infoFuture.flatMap { info =>
-            if (info.licenses.isEmpty) {
-              // first try to get a license from the source
-              licenseDetector.detectLicense(initialInfo, maybeVersion)
-            }
-            else {
-              Future.successful(info)
-            }
-          }
-
         }
-
       }
     }
 

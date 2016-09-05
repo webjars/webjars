@@ -4,7 +4,6 @@ import java.io.BufferedInputStream
 
 import akka.util.Timeout
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
-import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.test._
 
 import scala.concurrent.duration._
@@ -15,16 +14,6 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
 
   lazy val npm = application.injector.instanceOf[NPM]
 
-  "chokidar 1.0.1" should {
-    "have a license" in {
-      await(npm.info("chokidar", Some("1.0.1"))).licenses must contain ("MIT")
-    }
-  }
-  "is-dotfile" should {
-    "have a license" in {
-      await(npm.info("is-dotfile", Some("1.0.0"))).licenses must contain ("MIT")
-    }
-  }
   "inflight 1.0.4" should {
     "have the correct github url" in {
       await(npm.info("inflight", Some("1.0.4"))).gitHubHome must beASuccessfulTry("https://github.com/npm/inflight")
@@ -115,12 +104,6 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
   "versions on redux" should {
     "return versions" in {
       await(npm.versions("redux")) must containAllOf(Seq("3.0.4", "0.0.1"))
-    }
-  }
-
-  "licenses" should {
-    "be able to be fetched from git repos" in {
-      await(npm.info("ms", Some("0.7.1"))).licenses must beEqualTo(Seq("MIT"))
     }
   }
 

@@ -5,12 +5,11 @@ import javax.inject.Inject
 import play.api.Logger
 import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.libs.json.{JsNull, JsValue}
-import play.api.libs.ws.WSClient
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
-class BowerWebJar @Inject() (bower: Bower, git: Git, binTray: BinTray, pusher: Pusher, maven: Maven, ws: WSClient) (implicit ec: ExecutionContext) {
+class BowerWebJar @Inject() (bower: Bower, git: Git, binTray: BinTray, pusher: Pusher, maven: Maven, licenseDetector: LicenseDetector) (implicit ec: ExecutionContext) {
 
   def release(nameOrUrlish: String, version: String, maybepusherChannelId: Option[String]): Future[PackageInfo] = {
 
@@ -33,23 +32,23 @@ class BowerWebJar @Inject() (bower: Bower, git: Git, binTray: BinTray, pusher: P
       _ <- push("update", s"Determined Artifact Name: $artifactId")
       packageInfo <- bower.info(nameOrUrlish, Some(version))
       _ <- push("update", "Got Bower info")
+      licenses <- licenseDetector.resolveLicenses(packageInfo, Some(version))
+      _ <- push("update", "Resolved Licenses")
       mavenDependencies <- maven.convertNpmBowerDependenciesToMaven(packageInfo.dependencies)
       _ <- push("update", "Converted dependencies to Maven")
-      pom = templates.xml.pom(groupId, artifactId, packageInfo, mavenDependencies).toString()
+      pom = templates.xml.pom(groupId, artifactId, packageInfo, mavenDependencies, licenses).toString()
       _ <- push("update", "Generated POM")
       zip <- bower.zip(nameOrUrlish, version)
       _ <- push("update", "Fetched Bower zip")
       jar = WebJarCreator.createWebJar(zip, "", Set(".bower.json"), pom, groupId, artifactId, packageInfo.version)
       _ <- push("update", "Created Bower WebJar")
-    } yield (artifactId, packageInfo, pom, jar)
+    } yield (artifactId, packageInfo, licenses, pom, jar)
 
-    webJarFuture.flatMap { case (artifactId, packageInfo, pom, jar) =>
+    webJarFuture.flatMap { case (artifactId, packageInfo, licenses, pom, jar) =>
       val packageName = s"$groupId:$artifactId"
 
       for {
-        licensesForBinTray <- binTray.convertLicenses(packageInfo.licenses, packageInfo.sourceConnectionUrl)
-        _ <- push("update", "Converted project licenses")
-        createPackage <- binTray.getOrCreatePackage(binTraySubject, binTrayRepo, packageName, s"WebJar for $artifactId", Seq("webjar", artifactId), licensesForBinTray, packageInfo.sourceUrl, Some(packageInfo.homepage), Some(packageInfo.issuesUrl), packageInfo.gitHubOrgRepo.toOption)
+        createPackage <- binTray.getOrCreatePackage(binTraySubject, binTrayRepo, packageName, s"WebJar for $artifactId", Seq("webjar", artifactId), licenses, packageInfo.sourceUrl, Some(packageInfo.homepage), Some(packageInfo.issuesUrl), packageInfo.gitHubOrgRepo.toOption)
         _ <- push("update", "Created BinTray Package")
 
         binTrayPublishFuture = for {

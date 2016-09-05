@@ -4,7 +4,6 @@ import java.io.BufferedInputStream
 
 import akka.util.Timeout
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
-import play.api.i18n.MessagesApi
 import play.api.test._
 
 import scala.concurrent.duration._
@@ -13,7 +12,6 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
 
   override implicit def defaultAwaitTimeout: Timeout = 300.seconds
 
-  lazy val messages = application.injector.instanceOf[MessagesApi]
   lazy val bower = application.injector.instanceOf[Bower]
 
   "jquery info" should {
@@ -23,15 +21,9 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
     "fail with an invalid version" in {
       await(bower.info("jquery", Some("0.0.0"))) must throwA[Exception]
     }
-    "have a license" in {
-      await(bower.info("jquery", Some("1.11.1"))).licenses must contain("MIT")
-    }
   }
   "bootstrap" should {
     val info = await(bower.info("bootstrap", Some("3.3.2")))
-    "have a license" in {
-      info.licenses must contain("MIT")
-    }
     "have a dependency on jquery" in {
       info.dependencies must contain("jquery" -> ">= 1.9.1")
     }
@@ -45,18 +37,8 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
     "download" in {
       val is = new BufferedInputStream(await(bower.zip("sjcl", "1.0.2")))
       val zis = new ArchiveStreamFactory().createArchiveInputStream(is)
-      val files = Stream.continually(zis.getNextEntry).takeWhile(_ != null).map(_.getName).toSeq
+      val files = Stream.continually(zis.getNextEntry).takeWhile(_ != null).map(_.getName)
       files must contain ("sjcl.js")
-    }
-  }
-  "angular" should {
-    "have an MIT license" in {
-      await(bower.info("angular", Some("1.4.0"))).licenses must contain("MIT")
-    }
-  }
-  "angular-equalizer" should {
-    "have an MIT license" in {
-      await(bower.info("angular-equalizer", Some("2.0.1"))).licenses must contain("MIT")
     }
   }
 
@@ -128,32 +110,10 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
       info.version must beEqualTo ("6e95388b9a")
     }
   }
-  "zeroclipboard 2.2.0" should {
-    "have an MIT license" in {
-      await(bower.info("zeroclipboard", Some("2.2.0"))).licenses must beEqualTo (Seq("MIT"))
-    }
-  }
-
-  /*
-
-  // This is broken due to upstream: https://github.com/webjars/webjars/issues/1265
-
-  "tinymce-dist 4.2.5" should {
-    "have an LGPL-2.1 license" in {
-      await(bower.info("tinymce-dist", Some("4.2.5"))).licenses must beEqualTo (Seq("LGPL-2.1"))
-    }
-  }
-  */
 
   "homepage" should {
     "be have a default" in {
       await(bower.info("git://github.com/millermedeiros/requirejs-plugins")).homepage must beEqualTo ("https://github.com/millermedeiros/requirejs-plugins")
-    }
-  }
-
-  "angular-translate 2.7.2" should {
-    "fail with a useful error" in {
-      await(bower.info("angular-translate", Some("2.7.2"))) must throwA[LicenseNotFoundException](messages("licensenotfound.bower"))
     }
   }
 
@@ -163,18 +123,19 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
     }
   }
 
-  "licenses" should {
-    "be able to be fetched from git repos" in {
-      await(bower.info("git://github.com/mdedetrich/requirejs-plugins", Some("d9c103e7a0"))).licenses must beEqualTo(Seq("MIT"))
-    }
-  }
-
   "long file names" should {
     "work" in {
       val is = new BufferedInputStream(await(bower.zip("highcharts/highcharts", "v4.2.5")))
       val zis = new ArchiveStreamFactory().createArchiveInputStream(is)
       val files = Stream.continually(zis.getNextEntry).takeWhile(_ != null).map(_.getName)
       files must contain ("tools/ant-contrib-0.6-bin/docs/api/net/sf/antcontrib/perf/AntPerformanceListener.StopWatchComparator.html")
+    }
+  }
+
+  "bootstrap" should {
+    "have a dependency on jquery" in {
+      val packageInfo = await(bower.info("bootstrap", Some("3.3.2")))
+      packageInfo.dependencies must contain("jquery" -> ">= 1.9.1")
     }
   }
 

@@ -52,45 +52,4 @@ class BinTraySpec extends PlaySpecification with GlobalApplication {
     }
   }
 
-  "BinTray without auth" should {
-    "convert licenses to accepted ones" in {
-      val licenses = Seq("BSD 2-Clause", "BSD-2-Clause", "bsd2clause", "GPLv2", "GPLv3", "MIT/X11")
-      val result = await(binTray.convertLicenses(licenses))
-      result must be equalTo Set("GPL-2.0", "BSD 2-Clause", "GPL-3.0", "MIT")
-    }
-    "convert SPDX to BinTray" in {
-      val licenses = Seq("OFL-1.1")
-      val result = await(binTray.convertLicenses(licenses))
-      result must be equalTo Set("Openfont-1.1")
-    }
-    "convert raw license URL to license" in {
-      val licenses = Seq("http://polymer.github.io/LICENSE.txt")
-      val result = await(binTray.convertLicenses(licenses))
-      result must be equalTo Set("BSD 3-Clause")
-    }
-    "convert github license URL to license" in {
-      val licenses = Seq("https://github.com/facebook/flux/blob/master/LICENSE")
-      val result = await(binTray.convertLicenses(licenses))
-      result must be equalTo Set("BSD 3-Clause")
-    }
-    "fail to convert incompatible licenses" in {
-      await(binTray.convertLicenses(Seq("foo"))) must throwA[Exception]
-    }
-    "fail on license conversion if no valid licenses are found" in {
-      await(binTray.convertLicenses(Seq())) must throwA[Exception]
-    }
-    "succeed with at least one valid license" in {
-      val licenses = await(binTray.convertLicenses(Seq("foo", "MIT")))
-      licenses must be equalTo Set("MIT")
-    }
-    "work with SPDX OR expressions" in {
-      val licenses = await(binTray.convertLicenses(Seq("(Apache-2.0 OR MIT)")))
-      licenses must be equalTo Set("Apache-2.0", "MIT")
-    }
-    "work with SPDX 'SEE LICENSE IN LICENSE' expressions" in {
-      val licenses = await(binTray.convertLicenses(Seq("SEE LICENSE IN LICENSE"), "git://github.com/stacktracejs/error-stack-parser.git"))
-      licenses must be equalTo Set("Unlicense")
-    }
-  }
-
 }

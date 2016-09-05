@@ -10,7 +10,7 @@ import play.api.libs.ws.WSClient
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
-class NPMWebJar @Inject() (git: Git, binTray: BinTray, pusher: Pusher, maven: Maven, ws: WSClient, npm: NPM) (implicit ec: ExecutionContext) {
+class NPMWebJar @Inject() (git: Git, binTray: BinTray, pusher: Pusher, maven: Maven, ws: WSClient, npm: NPM, licenseDetector: LicenseDetector) (implicit ec: ExecutionContext) {
 
   def release(nameOrUrlish: String, version: String, maybepusherChannelId: Option[String]): Future[PackageInfo] = {
 
@@ -33,23 +33,23 @@ class NPMWebJar @Inject() (git: Git, binTray: BinTray, pusher: Pusher, maven: Ma
       _ <- push("update", s"Determined Artifact Name: $artifactId")
       packageInfo <- npm.info(nameOrUrlish, Some(version))
       _ <- push("update", "Got NPM info")
+      licenses <- licenseDetector.resolveLicenses(packageInfo, Some(version))
+      _ <- push("update", "Resolved Licenses")
       mavenDependencies <- maven.convertNpmBowerDependenciesToMaven(packageInfo.dependencies)
       _ <- push("update", "Converted dependencies to Maven")
-      pom = templates.xml.pom(groupId, artifactId, packageInfo, mavenDependencies).toString()
+      pom = templates.xml.pom(groupId, artifactId, packageInfo, mavenDependencies, licenses).toString()
       _ <- push("update", "Generated POM")
       tgz <- npm.tgz(nameOrUrlish, version)
       _ <- push("update", "Fetched NPM tgz")
       jar = WebJarCreator.createWebJar(tgz, "package/", Set("node_modules"), pom, groupId, artifactId, packageInfo.version)
       _ <- push("update", "Created NPM WebJar")
-    } yield (artifactId, packageInfo, pom, jar)
+    } yield (artifactId, packageInfo, licenses, pom, jar)
 
-    webJarFuture.flatMap { case (artifactId, packageInfo, pom, jar) =>
+    webJarFuture.flatMap { case (artifactId, packageInfo, licenses, pom, jar) =>
       val packageName = s"$groupId:$artifactId"
 
       for {
-        licensesForBinTray <- binTray.convertLicenses(packageInfo.licenses, packageInfo.sourceConnectionUrl)
-        _ <- push("update", "Converted project licenses")
-        createPackage <- binTray.getOrCreatePackage(binTraySubject, binTrayRepo, packageName, s"WebJar for $artifactId", Seq("webjar", artifactId), licensesForBinTray, packageInfo.sourceUrl, Some(packageInfo.homepage), Some(packageInfo.issuesUrl), packageInfo.gitHubOrgRepo.toOption)
+        createPackage <- binTray.getOrCreatePackage(binTraySubject, binTrayRepo, packageName, s"WebJar for $artifactId", Seq("webjar", artifactId), licenses, packageInfo.sourceUrl, Some(packageInfo.homepage), Some(packageInfo.issuesUrl), packageInfo.gitHubOrgRepo.toOption)
         _ <- push("update", "Created BinTray Package")
 
         binTrayPublishFuture = for {

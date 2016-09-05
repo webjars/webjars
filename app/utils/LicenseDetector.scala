@@ -1,9 +1,10 @@
 package utils
 
+import java.net.URL
 import javax.inject.Inject
 
 import play.api.Logger
-import play.api.http.Status
+import play.api.http.{HeaderNames, MimeTypes, Status}
 import play.api.i18n.MessagesApi
 import play.api.libs.ws.WSClient
 
@@ -16,7 +17,7 @@ class LicenseDetector @Inject() (ws: WSClient, git: Git, messages: MessagesApi) 
     def fetchLicense(url: String): Future[String] = ws.url(url).get().flatMap { response =>
       response.status match {
         case Status.OK => Future.successful(response.body)
-        case _ => Future.failed(LicenseNotFoundException("Could not get license from GitHub", new Exception(response.body)))
+        case _ => Future.failed(NoValidLicenses())
       }
     }
 
@@ -27,7 +28,7 @@ class LicenseDetector @Inject() (ws: WSClient, git: Git, messages: MessagesApi) 
           // look on gh-pages
           fetchLicense(s"https://github-license-service.herokuapp.com/$gitHubOrgRepo/gh-pages")
      }
-    } getOrElse Future.failed(LicenseNotFoundException("Could not get license from GitHub"))
+    } getOrElse Future.failed(NoValidLicenses())
   }
 
   def licenseDetect(contents: String): Future[String] = {
@@ -42,30 +43,129 @@ class LicenseDetector @Inject() (ws: WSClient, git: Git, messages: MessagesApi) 
     }
   }
 
-  def detectLicense(packageInfo: PackageInfo, maybeVersion: Option[String]): Future[PackageInfo] = {
+  def fetchLicenseFromRepo(packageInfo: PackageInfo, maybeVersion: Option[String], file: String): Future[String] = {
+    git.file(packageInfo.sourceConnectionUrl, maybeVersion, file).flatMap(licenseDetect)
+  }
 
-    def fetchLicenseFromRepo(file: String): Future[String] = {
-      git.file(packageInfo.sourceConnectionUrl, maybeVersion, file).flatMap(licenseDetect)
-    }
-
-    gitHubLicenseDetect(packageInfo.gitHubOrgRepo).recoverWith {
+  def tryToGetLicenseFromVariousFiles(packageInfo: PackageInfo, maybeVersion: Option[String]): Future[String] = {
+    fetchLicenseFromRepo(packageInfo, maybeVersion, "LICENSE").recoverWith {
       case e: Exception =>
-        fetchLicenseFromRepo("LICENSE").recoverWith {
-          case e: Exception =>
-            fetchLicenseFromRepo("LICENSE.txt")
+        fetchLicenseFromRepo(packageInfo, maybeVersion, "LICENSE.txt")
+    }
+  }
+
+  def normalize(s: String): String = s.replace(" ", "").replace("-", "").toLowerCase
+
+  val licenseSynonyms = Map(
+    "OFL-1.1" -> "Openfont-1.1",
+    "Artistic-2.0" -> "Artistic-License-2.0",
+    "Apache 2" -> "Apache-2.0",
+    "Apache License, v2.0" -> "Apache-2.0",
+    "Apache License, Version 2.0" -> "Apache-2.0",
+    "Apache License 2.0" -> "Apache-2.0",
+    "BSD-3" -> "BSD 3-Clause",
+    "GPLv2" -> "GPL-2.0",
+    "GPLv3" -> "GPL-3.0",
+    "MIT/X11" -> "MIT"
+  ) map {
+    case (key, value) => normalize(key) -> value
+  }
+
+  //val normalizedCommonToSpdxLicenses = licenseSynonyms.map { case (from, to) => normalize(from) -> to }
+
+  // from: https://bintray.com/docs/api/
+  val availableLicenses = Set("AFL-3.0", "AGPL-V3", "Apache-1.0", "Apache-1.1", "Apache-2.0", "APL-1.0", "APSL-2.0", "Artistic-License-2.0", "Attribution", "Bouncy-Castle", "BSD", "BSD 2-Clause", "BSD 3-Clause", "BSL-1.0", "CA-TOSL-1.1", "CC0-1.0", "CDDL-1.0", "Codehaus", "CPAL-1.0", "CPL-1.0", "CPOL-1.02", "CUAOFFICE-1.0", "Day", "Day-Addendum", "ECL2", "Eiffel-2.0", "Entessa-1.0", "EPL-1.0", "EUDATAGRID", "EUPL-1.1", "Fair", "Frameworx-1.0", "Go", "GPL-2.0", "GPL-2.0+CE", "GPL-3.0", "Historical", "HSQLDB", "IBMPL-1.0", "IPAFont-1.0", "ISC", "IU-Extreme-1.1.1", "JA-SIG", "JSON", "JTidy", "LGPL-2.1", "LGPL-3.0", "Lucent-1.02", "MirOS", "MIT", "Motosoto-0.9.1", "Mozilla-1.1", "MPL-2.0", "MS-PL", "MS-RL", "Multics", "NASA-1.3", "NAUMEN", "Nethack", "Nokia-1.0a", "NOSL-3.0", "NTP", "NUnit-2.6.3", "NUnit-Test-Adapter-2.6.3", "OCLC-2.0", "Openfont-1.1", "Opengroup", "OpenSSL", "OSL-3.0", "PHP-3.0", "PostgreSQL", "Public Domain", "Public Domain - SUN", "PythonPL", "PythonSoftFoundation", "QTPL-1.0", "Real-1.0", "RicohPL", "RPL-1.5", "Scala", "SimPL-2.0", "Sleepycat", "SUNPublic-1.0", "Sybase-1.0", "TMate", "Unlicense", "UoI-NCSA", "VovidaPL-1.0", "W3C", "WTFPL", "wxWindows", "Xnet", "ZLIB", "ZPL-2.0")
+
+  //val normalizedAvailableLicenses = availableLicenses.map(license => normalize(license) -> license).toMap
+
+  def validLicenses(licenses: Seq[String]): Seq[String] = {
+    licenses.map { license =>
+      // deal with synonyms and normalization
+      licenseSynonyms.getOrElse(normalize(license), license)
+    } intersect availableLicenses.toSeq
+  }
+
+  def licenseReference(packageInfo: PackageInfo)(maybeRef: String): Seq[Future[String]] = {
+    if (maybeRef.contains("/") || maybeRef.startsWith("SEE LICENSE IN ")) {
+      // we need to fetch the file and try to detect the license from the contents
+
+      val contentsFuture = if (maybeRef.startsWith("http")) {
+        // sometimes this url points to the license on GitHub which can't be heuristically converted to an actual license so change the url to the raw content
+        val licenseUrl = new URL(maybeRef)
+
+        val rawLicenseUrl = if (licenseUrl.getHost.endsWith("github.com")) {
+          val path = licenseUrl.getPath.replaceAll("/blob", "")
+          s"https://raw.githubusercontent.com$path"
         }
-    } map { license =>
-      packageInfo.copy(licenses = Seq(license))
+        else {
+          licenseUrl.toString
+        }
+
+        ws.url(rawLicenseUrl).get().flatMap { response =>
+          response.status match {
+            case Status.OK if response.header(HeaderNames.CONTENT_TYPE).exists(_.startsWith(MimeTypes.TEXT)) => Future.successful(response.body)
+            case Status.OK => Future.failed(new Exception(s"License at $rawLicenseUrl was not plain text"))
+            case _ => Future.failed(new Exception(s"Could not fetch license at $rawLicenseUrl - response was: ${response.body}"))
+          }
+        }
+      }
+      else if (maybeRef.startsWith("SEE LICENSE IN ")) {
+        git.file(packageInfo.sourceConnectionUrl, None, maybeRef.stripPrefix("SEE LICENSE IN "))
+      }
+      else {
+        git.file(packageInfo.sourceConnectionUrl, Some(packageInfo.version), maybeRef)
+      }
+
+      Seq(contentsFuture.flatMap(licenseDetect))
+    }
+    else if (maybeRef.startsWith("(") && maybeRef.endsWith(")") && !maybeRef.contains("AND")) {
+      // SPDX license expression
+      maybeRef.stripPrefix("(").stripSuffix(")").split(" OR ").toSeq.map(Future.successful)
+    }
+    else {
+      Seq(Future.successful(maybeRef))
+    }
+  }
+
+  def failIfEmpty(seq: Seq[String]): Future[Seq[String]] = {
+    if (seq.nonEmpty) {
+      Future.successful(seq)
+    }
+    else {
+      Future.failed(NoValidLicenses())
+    }
+  }
+
+  def failIfEmpty(seq: Future[Seq[String]]): Future[Seq[String]] = {
+    seq.flatMap(failIfEmpty)
+  }
+
+  def resolveLicenses(packageInfo: PackageInfo, maybeVersion: Option[String] = None): Future[Set[String]] = {
+    // first check just the specified licenses including synonyms
+    failIfEmpty(validLicenses(packageInfo.metadataLicenses)).recoverWith {
+      case e: NoValidLicenses =>
+        // if that doesn't work, see if the specified licenses include references (e.g. urls)
+        val licensesFuture = packageInfo.metadataLicenses.flatMap(licenseReference(packageInfo))
+        Future.sequence(licensesFuture).map(validLicenses).flatMap(failIfEmpty).recoverWith {
+          case e: NoValidLicenses =>
+            // finally if no licenses could be found, troll through the repo to find one
+            gitHubLicenseDetect(packageInfo.gitHubOrgRepo).recoverWith {
+              case e: NoValidLicenses =>
+                tryToGetLicenseFromVariousFiles(packageInfo, maybeVersion)
+            } map (Set(_))
+        }
     } recoverWith {
       case e: Exception =>
         val errorMessage = packageInfo.webJarType match {
-          case WebJarType.Bower => messages("licensenotfound.bower")
-          case WebJarType.NPM => messages("licensenotfound.npm")
+          case WebJarType.Bower => messages("licensenotfound", "bower.json", packageInfo.sourceUrl, packageInfo.metadataLicenses.mkString)
+          case WebJarType.NPM => messages("licensenotfound", "package.json", packageInfo.sourceUrl, packageInfo.metadataLicenses.mkString)
         }
+
         Future.failed(LicenseNotFoundException(errorMessage, e))
-    }
+    } map(_.toSet)
   }
 
 }
 
 case class LicenseNotFoundException(message: String, cause: Exception = null) extends Exception(message, cause)
+case class NoValidLicenses() extends Exception()

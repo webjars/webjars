@@ -89,11 +89,9 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector)
     } (Future.successful)
 
     versionFuture.flatMap { version =>
-
       rawInfo(packageNameOrGitRepo, version).flatMap { initialInfo =>
         // deal with GitHub redirects
-
-        val infoFuture: Future[PackageInfo] = initialInfo.gitHubHome.toOption.fold(Future.successful(initialInfo)) { gitHubHome =>
+        initialInfo.gitHubHome.toOption.fold(Future.successful(initialInfo)) { gitHubHome =>
           ws.url(gitHubHome).withFollowRedirects(false).get().flatMap { homeTestResponse =>
             homeTestResponse.status match {
               case Status.MOVED_PERMANENTLY =>
@@ -106,54 +104,6 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector)
             }
           }
         }
-
-        infoFuture.flatMap { info =>
-          // detect licenses if they are not specified in the bower.json
-          if (info.licenses.isEmpty) {
-            licenseDetector.detectLicense(info, maybeVersion)
-          }
-          else {
-            val resolvedLicensesFuture = Future.sequence {
-              info.licenses.map { license =>
-                if (license.contains("/")) {
-                  val contentsFuture = if (license.startsWith("http")) {
-
-                    // Some license references point to an HTML GitHub page.  We need the raw text/plain content.
-                    val hopefullyTextLicense = if (license.contains("github.com") && license.contains("/blob/")) {
-                      license.replaceAllLiterally("/blob/", "/raw/")
-                    }
-                    else {
-                      license
-                    }
-
-                    ws.url(hopefullyTextLicense).get().flatMap { response =>
-                      response.status match {
-                        case Status.OK if response.header(HeaderNames.CONTENT_TYPE).exists(_.startsWith(MimeTypes.TEXT)) => Future.successful(response.body)
-                        case Status.OK => Future.failed(new Exception(s"License at $hopefullyTextLicense was not plain text"))
-                        case _ => Future.failed(new Exception(s"Could not fetch license at $hopefullyTextLicense - response was: ${response.body}"))
-                      }
-                    }
-                  }
-                  else {
-                    git.file(info.sourceConnectionUrl, Some(info.version), license)
-                  }
-
-                  contentsFuture.flatMap { contents =>
-                    licenseDetector.licenseDetect(contents)
-                  }
-                }
-                else {
-                  Future.successful(license)
-                }
-              }
-            }
-
-            resolvedLicensesFuture.map { resolvedLicenses =>
-              info.copy(licenses = resolvedLicenses)
-            }
-          }
-        }
-
       }
     }
   }

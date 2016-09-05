@@ -6,7 +6,7 @@ import play.api.libs.json._
 
 import scala.util.Try
 
-case class PackageInfo(name: String, version: String, homepage: String, sourceUrl: String, sourceConnectionUrl: String, issuesUrl: String, licenses: Seq[String], dependencies: Map[String, String], webJarType: WebJarType.Value) {
+case class PackageInfo(name: String, version: String, homepage: String, sourceUrl: String, sourceConnectionUrl: String, issuesUrl: String, metadataLicenses: Seq[String], dependencies: Map[String, String], webJarType: WebJarType.Value) {
 
   lazy val sourceUri: Try[URI] = Try(new URI(sourceUrl))
 
