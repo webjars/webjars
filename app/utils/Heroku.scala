@@ -11,7 +11,7 @@ import scala.concurrent.{ExecutionContext, Future}
 
 class Heroku @Inject() (ws: WSClient, config: Configuration) (implicit ec: ExecutionContext) {
 
-  val apikey = config.getString("heroku.apikey").get
+  lazy val apikey = config.getString("heroku.apikey").get
 
 
   private def ws(path: String): WSRequest = {

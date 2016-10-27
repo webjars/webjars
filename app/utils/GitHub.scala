@@ -16,8 +16,8 @@ import scala.language.implicitConversions
 
 class GitHub @Inject() (configuration: Configuration, wsClient: WSClient) {
 
-  val clientId = configuration.getString("github.oauth.client-id").get
-  val clientSecret = configuration.getString("github.oauth.client-secret").get
+  lazy val clientId = configuration.getString("github.oauth.client-id").get
+  lazy val clientSecret = configuration.getString("github.oauth.client-secret").get
 
   def authUrl()(implicit request: RequestHeader): String = {
     val scope = "public_repo"
