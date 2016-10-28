@@ -61,6 +61,13 @@ class MavenSpec extends PlaySpecification with GlobalApplication {
       val mavenDeps = await(maven.convertNpmBowerDependenciesToMaven(deps))
       mavenDeps.get("reactivex__rxjs") must beSome ("5.0.0-alpha.7")
     }
+    "not work with invalid value" in {
+      // from: https://github.com/QueraTeam/jquery-duration-picker/blob/master/bower.json#L26
+      val deps = Map(
+        "semantic" -> "semantic-ui#~2.1.4"
+      )
+      await(maven.convertNpmBowerDependenciesToMaven(deps)) must throwA[Exception]
+    }
   }
 
 }

@@ -44,11 +44,16 @@ class Maven @Inject() (git: Git) (implicit ec: ExecutionContext) {
       }
 
       ungitNameAndVersionFuture.flatMap { case (artifactId, version) =>
-        val maybeMavenVersion = SemVer.convertSemVerToMaven(version)
-        maybeMavenVersion.fold {
-          Future.failed[(String, String)](new Exception(s"Could not convert NPM / Bower version to Maven for: $name $versionOrUrl"))
-        } { mavenVersion =>
-          Future.successful(artifactId -> mavenVersion)
+        if (version.contains("#")) {
+          Future.failed(new Exception(s"Invalid version specified in dependency: $name $versionOrUrl"))
+        }
+        else {
+          val maybeMavenVersion = SemVer.convertSemVerToMaven(version)
+          maybeMavenVersion.fold {
+            Future.failed[(String, String)](new Exception(s"Could not convert NPM / Bower version to Maven for: $name $versionOrUrl"))
+          } { mavenVersion =>
+            Future.successful(artifactId -> mavenVersion)
+          }
         }
       }
     }
