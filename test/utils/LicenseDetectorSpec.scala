@@ -142,6 +142,14 @@ class LicenseDetectorSpec extends PlaySpecification with GlobalApplication {
     }
   }
 
+  "New BSD License" should {
+    "resolve to BSD 3-Clause" in {
+      val licenses = Seq("New BSD License")
+      val result = await(licenseDetector.resolveLicenses(emptyPackageInfo(licenses)))
+      result must be equalTo Set("BSD 3-Clause")
+    }
+  }
+
   /*
   // This is broken due to upstream: https://github.com/webjars/webjars/issues/1265
 
