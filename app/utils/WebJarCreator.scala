@@ -24,7 +24,7 @@ object WebJarCreator {
   }
 
 
-  def createWebJar(in: InputStream, baseDir: String, exclude: Set[String], pom: String, groupId: String, name: String, version: String): Array[Byte] = {
+  def createWebJar(in: InputStream, contentsInSubdir: Boolean, exclude: Set[String], pom: String, groupId: String, name: String, version: String): Array[Byte] = {
 
     val byteArrayOutputStream = new ByteArrayOutputStream()
 
@@ -60,12 +60,15 @@ object WebJarCreator {
     createDir(webJarPrefix, jar)
 
     // copy zip to jar
-    val zipEntryTraverable = new ArchiveEntryTraversableClass(archive)
+    Stream.continually(archive.getNextEntry).takeWhile(_ != null).foreach { ze =>
+      val name = if (contentsInSubdir) {
+        ze.getName.split("/").tail.mkString("/")
+      } else {
+        ze.getName
+      }
 
-    zipEntryTraverable.foreach { ze =>
-      val nameSansPrefix = ze.getName.stripPrefix(baseDir)
-      if (!exclude.exists(nameSansPrefix.startsWith)) {
-        val path = webJarPrefix + nameSansPrefix
+      if (!exclude.exists(name.startsWith)) {
+        val path = webJarPrefix + name
         val nze = new ZipArchiveEntry(path)
         jar.putArchiveEntry(nze)
         IOUtils.copy(archive, jar)
@@ -91,20 +94,6 @@ object WebJarCreator {
     jar.close()
 
     byteArrayOutputStream.toByteArray
-  }
-
-}
-
-
-class ArchiveEntryTraversableClass(zis: ArchiveInputStream) extends Traversable[ArchiveEntry] {
-
-  def foreach[U](f: ArchiveEntry => U): Unit = {
-    @tailrec
-    def loop(x: ArchiveEntry): Unit = if (x != null) {
-      f(x)
-      loop(zis.getNextEntry)
-    }
-    loop(zis.getNextEntry)
   }
 
 }

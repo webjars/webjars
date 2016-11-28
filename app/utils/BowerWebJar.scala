@@ -40,7 +40,7 @@ class BowerWebJar @Inject() (bower: Bower, git: Git, binTray: BinTray, pusher: P
       _ <- push("update", "Generated POM")
       zip <- bower.zip(nameOrUrlish, version)
       _ <- push("update", "Fetched Bower zip")
-      jar = WebJarCreator.createWebJar(zip, "", Set(".bower.json"), pom, groupId, artifactId, packageInfo.version)
+      jar = WebJarCreator.createWebJar(zip, false, Set(".bower.json"), pom, groupId, artifactId, packageInfo.version)
       _ <- push("update", "Created Bower WebJar")
     } yield (artifactId, packageInfo, licenses, pom, jar)
 

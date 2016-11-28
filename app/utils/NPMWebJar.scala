@@ -41,7 +41,7 @@ class NPMWebJar @Inject() (git: Git, binTray: BinTray, pusher: Pusher, maven: Ma
       _ <- push("update", "Generated POM")
       tgz <- npm.tgz(nameOrUrlish, version)
       _ <- push("update", "Fetched NPM tgz")
-      jar = WebJarCreator.createWebJar(tgz, "package/", Set("node_modules"), pom, groupId, artifactId, packageInfo.version)
+      jar = WebJarCreator.createWebJar(tgz, true, Set("node_modules"), pom, groupId, artifactId, packageInfo.version)
       _ <- push("update", "Created NPM WebJar")
     } yield (artifactId, packageInfo, licenses, pom, jar)
 
