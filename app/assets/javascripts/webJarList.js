@@ -32,25 +32,17 @@ $(function() {
   $("#clearSearch").click(function(){
     $("#search").val("");
     $(this).hide();
-    filterWebJars();
+    filterWebJars("");
   });
 
 });
 
 function filterWebJars(search) {
-  if (!search) {
-    $("tr[data-artifact]").show();
-  }
-  else {
-    $("tr[data-artifact]").each(function() {
-      if ($(this).data("artifact").toLowerCase().indexOf(search.toLowerCase()) == -1) {
-        $(this).hide();
-      }
-      else {
-        $(this).show()
-      }
-    });
-  }
+  $("tr[data-artifact]").each(function() {
+    var row = $(this);
+    var shouldHide = row.data("artifact").toLowerCase().indexOf(search.toLowerCase()) === -1;
+    row.toggleClass('hide', shouldHide);
+  });
 }
 
 function onFileList(event) {
