@@ -42,6 +42,18 @@ class WebJarCreatorSpec extends PlaySpecification {
       val allNames = Stream.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName)
       allNames must contain ("META-INF/resources/webjars/react-redux/4.4.32/react-redux/package.json")
     }
+    "handle packages where the contents are in the base dir" in {
+      val url = new URL(s"http://registry.npmjs.org/@types/react-router/-/react-router-2.0.41.tgz")
+      val inputStream = url.openConnection().getInputStream
+      val gzipInputStream = new GZIPInputStream(inputStream)
+
+      val webJar = WebJarCreator.createWebJar(gzipInputStream, true, Set("node_modules"), "", "org.webjars.npm", "react-router", "2.0.41")
+
+      val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(new ByteArrayInputStream(webJar))
+
+      val maybeLib = Stream.continually(archiveStream.getNextEntry).find(_.getName == "META-INF/resources/webjars/react-router/2.0.41/lib/")
+      maybeLib.exists(_.isDirectory) must beTrue
+    }
   }
 
 }

@@ -3,10 +3,9 @@ package utils
 import java.io._
 
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry
-import org.apache.commons.compress.archivers.{ArchiveEntry, ArchiveInputStream, ArchiveOutputStream, ArchiveStreamFactory}
+import org.apache.commons.compress.archivers.{ArchiveOutputStream, ArchiveStreamFactory}
 import org.apache.commons.compress.utils.IOUtils
 
-import scala.annotation.tailrec
 
 object WebJarCreator {
 
@@ -62,16 +61,25 @@ object WebJarCreator {
     // copy zip to jar
     Stream.continually(archive.getNextEntry).takeWhile(_ != null).foreach { ze =>
       val name = if (contentsInSubdir) {
-        ze.getName.split("/").tail.mkString("/")
+        val baseName = ze.getName.split("/").tail.mkString("/")
+        if (ze.isDirectory) {
+          baseName + "/"
+        }
+        else {
+          baseName
+        }
       } else {
         ze.getName
       }
 
       if (!exclude.exists(name.startsWith)) {
         val path = webJarPrefix + name
+        println(path, ze.isDirectory)
         val nze = new ZipArchiveEntry(path)
         jar.putArchiveEntry(nze)
-        IOUtils.copy(archive, jar)
+        if (!ze.isDirectory) {
+          IOUtils.copy(archive, jar)
+        }
         jar.closeArchiveEntry()
       }
     }
