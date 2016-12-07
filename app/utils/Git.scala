@@ -6,8 +6,8 @@ import java.nio.charset.CodingErrorAction
 import java.nio.file.Files
 import javax.inject.Inject
 
+import org.apache.commons.io.FileUtils
 import org.eclipse.jgit.api.{Git => GitApi}
-import org.springframework.util.FileSystemUtils
 import play.api.http.{HeaderNames, Status}
 import play.api.libs.ws.WSClient
 
@@ -142,7 +142,7 @@ class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
         }
 
         cloneFuture.onFailure {
-          case _ => FileSystemUtils.deleteRecursively(baseDir)
+          case _ => FileUtils.deleteDirectory(baseDir)
         }
 
         cloneFuture
