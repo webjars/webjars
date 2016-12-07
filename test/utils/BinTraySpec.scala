@@ -20,8 +20,15 @@ class BinTraySpec extends PlaySpecification with GlobalApplication {
     if (application.configuration.getString("bintray.username").isEmpty)
       "BinTray Auth" in skipped("skipped due to missing config")
     else {
+      "create a package with an invalid gitHubRepo should fail" in {
+        await(binTray.createPackage("webjars", "test", "foo", "foo description", Seq("test"), Set("MIT"), "http://github.com/webjars/webjars.git", None, None, Some("asdfqwer1236sdfgasdf/zxcvasdfqwer123"))) must throwA[Exception]("No repository found under this GitHub path")
+      }
       "create a package" in {
         val result = await(binTray.createPackage("webjars", "test", "foo", "foo description", Seq("test"), Set("MIT"), "http://github.com/webjars/webjars", Some("http://webjars.org"), Some("http://github.com/webjars/webjars/issues"), Some("webjars/webjars")))
+        (result \ "created").asOpt[Date] must beSome
+      }
+      "get or create package should work" in {
+        val result = await(binTray.getOrCreatePackage("webjars", "test", "foo", "foo description", Seq("test"), Set("MIT"), "http://github.com/webjars/webjars", Some("http://webjars.org"), Some("http://github.com/webjars/webjars/issues"), Some("webjars/webjars")))
         (result \ "created").asOpt[Date] must beSome
       }
       "create a version" in {

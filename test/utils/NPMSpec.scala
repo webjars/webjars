@@ -128,4 +128,12 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
     }
   }
 
+  "npm info for react-flex" should {
+    "have replaced urls due to the github repo being deleted" in {
+      val info = await(npm.info("react-flex", Some("2.2.7")))
+      info.homepage must beEqualTo("https://www.npmjs.com/package/react-flex")
+      info.gitHubOrgRepo must beAFailedTry
+    }
+  }
+
 }

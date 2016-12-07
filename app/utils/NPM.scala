@@ -99,6 +99,9 @@ class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector) (
                     val newSource = actualHome.replaceFirst("https://", "git://") + ".git"
                     Future.successful(initialInfo.copy(sourceUrl = newSource, homepage = actualHome))
                   }
+                case Status.NOT_FOUND =>
+                  val npmUrl = s"https://www.npmjs.com/package/${initialInfo.name}"
+                  Future.successful(initialInfo.copy(homepage = npmUrl, sourceUrl = npmUrl, sourceConnectionUrl = npmUrl, issuesUrl = npmUrl))
                 case _ =>
                   Future.successful(initialInfo)
               }
