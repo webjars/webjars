@@ -81,7 +81,7 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
       val (artifactId, versions) = artifactAndVersions
       val versionsFuture = Future.sequence {
         versions.map { version =>
-          val cacheKey = s"numfiles-${catalog.toString}-$artifactId"
+          val cacheKey = s"numfiles-${catalog.toString}-$artifactId-$version"
           memcache.instance.get[Int](cacheKey).flatMap { maybeNumFiles =>
             maybeNumFiles.fold {
               val numFilesFuture = webJarsFileService.getNumFiles(catalog.toString, artifactId, version)
@@ -92,7 +92,7 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
             }
           } recover {
             case e: Exception =>
-              Logger.error(s"Error fetching file list for ${catalog.toString} $artifactId $version - ${e.getMessage}")
+              Logger.error(s"Error fetching file list for ${catalog.toString} $artifactId $version", e)
               WebJarVersion(version, 0)
           }
         }
