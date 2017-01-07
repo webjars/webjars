@@ -5,7 +5,7 @@ import javax.inject.Inject
 
 import play.api.Configuration
 import play.api.http.Status
-import play.api.libs.json.{JsValue, Json}
+import play.api.libs.json.{JsArray, JsValue, Json}
 import play.api.libs.ws.{WSAPI, WSAuthScheme, WSRequest, WSResponse}
 import play.api.mvc.Results.EmptyContent
 
@@ -16,36 +16,32 @@ class BinTray @Inject() (ws: WSAPI, config: Configuration, git: Git, licenseDete
 
   val BASE_URL = "https://bintray.com/api/v1"
 
-  lazy val username = config.getString("bintray.username").get
-  lazy val password = config.getString("bintray.password").get
-  lazy val gpgPassphrase = config.getString("bintray.gpg.passphrase").get
+  lazy val username: String = config.getString("bintray.username").get
+  lazy val password: String = config.getString("bintray.password").get
+  lazy val gpgPassphrase: String = config.getString("bintray.gpg.passphrase").get
 
-  lazy val ossUsername = config.getString("oss.username").get
-  lazy val ossPassword = config.getString("oss.password").get
+  lazy val ossUsername: String = config.getString("oss.username").get
+  lazy val ossPassword: String = config.getString("oss.password").get
 
 
   def ws(path: String): WSRequest = {
-    ws
-      .url(BASE_URL + path)
-      .withAuth(username, password, WSAuthScheme.BASIC)
+    ws.url(BASE_URL + path).withAuth(username, password, WSAuthScheme.BASIC)
   }
 
   def error(response: WSResponse): String = {
-    Try {
-      (response.json \ "message").as[String]
-    } getOrElse response.body
+    Try((response.json \ "message").as[String]).getOrElse(response.body)
   }
 
-  def createPackage(subject: String, repo: String, name: String, desc: String, labels: Seq[String], licenses: Set[String], vcsUrl: String, websiteUrl: Option[String], issueTrackerUrl: Option[String], githubRepo: Option[String]): Future[JsValue] = {
+  def createPackage(subject: String, repo: String, name: String, desc: String, labels: Seq[String], licenses: Set[String], vcsUrl: URL, websiteUrl: Option[URL], issueTrackerUrl: Option[URL], githubRepo: Option[String]): Future[JsValue] = {
 
     val json = Json.obj(
       "name" -> name,
       "desc" -> desc,
       "labels" -> labels,
       "licenses" -> licenses,
-      "vcs_url" -> vcsUrl,
-      "website_url" -> websiteUrl,
-      "issue_tracker_url" -> issueTrackerUrl,
+      "vcs_url" -> vcsUrl.toString,
+      "website_url" -> websiteUrl.map(_.toString),
+      "issue_tracker_url" -> issueTrackerUrl.map(_.toString),
       "github_repo" -> githubRepo
     )
 
@@ -59,6 +55,15 @@ class BinTray @Inject() (ws: WSAPI, config: Configuration, git: Git, licenseDete
     }
   }
 
+  def getPackages(subject: String, repo: String): Future[JsArray] = {
+    ws(s"/repos/$subject/$repo/packages").get().flatMap { response =>
+      response.status match {
+        case Status.OK => Future.successful(response.json.as[JsArray])
+        case _ => Future.failed(new Exception(error(response)))
+      }
+    }
+  }
+
   def getPackage(subject: String, repo: String, name: String): Future[JsValue] = {
     ws(s"/packages/$subject/$repo/$name").get().flatMap { response =>
       response.status match {
@@ -68,9 +73,9 @@ class BinTray @Inject() (ws: WSAPI, config: Configuration, git: Git, licenseDete
     }
   }
 
-  def getOrCreatePackage(subject: String, repo: String, name: String, desc: String, labels: Seq[String], licenses: Set[String], vcsUrl: String, websiteUrl: Option[String], issueTrackerUrl: Option[String], githubRepo: Option[String]): Future[JsValue] = {
+  def getOrCreatePackage(subject: String, repo: String, name: String, desc: String, labels: Seq[String], licenses: Set[String], vcsUrl: URL, websiteUrl: Option[URL], issueTrackerUrl: Option[URL], githubRepo: Option[String]): Future[JsValue] = {
     getPackage(subject, repo, name).recoverWith {
-      case e: Exception =>
+      case _: Exception =>
         createPackage(subject, repo, name, desc, labels, licenses, vcsUrl, websiteUrl, issueTrackerUrl, githubRepo)
     }
   }
@@ -150,6 +155,6 @@ class BinTray @Inject() (ws: WSAPI, config: Configuration, git: Git, licenseDete
 
 object BinTray {
   case class VersionExists(message: String) extends Exception {
-    override def getMessage = message
+    override def getMessage: String = message
   }
 }

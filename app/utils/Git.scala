@@ -169,12 +169,14 @@ class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
 
   }
 
-  def file(gitRepo: String, version: Option[String], file: String): Future[String] = {
+  def file(uri: URI, version: Option[String], fileName: String): Future[String] = file(uri.toString, version, fileName)
+
+  def file(gitRepo: String, version: Option[String], fileName: String): Future[String] = {
     cloneOrCheckout(gitRepo, version).flatMap { baseDir =>
       Future.fromTry {
         Try {
           val decoder = Codec.UTF8.decoder.onMalformedInput(CodingErrorAction.IGNORE)
-          Source.fromFile(new File(baseDir, file))(decoder).mkString
+          Source.fromFile(new File(baseDir, fileName))(decoder).mkString
         }
       }
     }

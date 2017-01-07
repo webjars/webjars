@@ -1,6 +1,7 @@
 package utils
 
 import java.io.BufferedInputStream
+import java.net.{URI, URL}
 
 import akka.util.Timeout
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
@@ -12,7 +13,7 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
 
   override implicit def defaultAwaitTimeout: Timeout = 300.seconds
 
-  lazy val bower = application.injector.instanceOf[Bower]
+  lazy val bower: Bower = application.injector.instanceOf[Bower]
 
   "jquery info" should {
     "work with a correct version" in {
@@ -30,7 +31,7 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
   }
   "dc.js" should {
     "have the corrected source url" in {
-      await(bower.info("dc.js", Some("1.7.3"))).sourceUrl must beEqualTo("git://github.com/dc-js/dc.js.git")
+      await(bower.info("dc.js", Some("1.7.3"))).sourceUrl must beEqualTo(new URL("https://github.com/dc-js/dc.js"))
     }
   }
   "sjcl" should {
@@ -59,8 +60,8 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
       val info = await(bower.info("PolymerElements/iron-elements"))
       info.name must beEqualTo ("iron-elements")
       info.version mustNotEqual ""
-      info.sourceConnectionUrl must beEqualTo ("https://github.com/PolymerElements/iron-elements")
-      info.sourceUrl must beEqualTo ("https://github.com/PolymerElements/iron-elements")
+      info.sourceConnectionUri must beEqualTo (new URI("https://github.com/PolymerElements/iron-elements.git"))
+      info.sourceUrl must beEqualTo (new URL("https://github.com/PolymerElements/iron-elements"))
     }
   }
   "git repo tagged version info" should {
@@ -84,11 +85,11 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
       val info = await(bower.info("PolymerElements/iron-elements"))
       info.name must beEqualTo ("iron-elements")
       info.version mustNotEqual ""
-      info.homepage must beEqualTo ("https://github.com/PolymerElements/iron-elements")
-      info.sourceConnectionUrl must beEqualTo ("https://github.com/PolymerElements/iron-elements")
-      info.sourceUrl must beEqualTo ("https://github.com/PolymerElements/iron-elements")
-      info.issuesUrl must beEqualTo ("https://github.com/PolymerElements/iron-elements/issues")
-      info.gitHubHome must beASuccessfulTry("https://github.com/PolymerElements/iron-elements")
+      info.homepageUrl must beEqualTo (new URL("https://github.com/PolymerElements/iron-elements"))
+      info.sourceConnectionUri must beEqualTo (new URI("https://github.com/PolymerElements/iron-elements.git"))
+      info.sourceUrl must beEqualTo (new URL("https://github.com/PolymerElements/iron-elements"))
+      info.issuesUrl must beEqualTo (new URL("https://github.com/PolymerElements/iron-elements/issues"))
+      info.gitHubUrl must beSome (new URL("https://github.com/PolymerElements/iron-elements"))
     }
   }
   "git fork - git url" should {
@@ -96,11 +97,11 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
       val info = await(bower.info("git://github.com/PolymerElements/iron-elements"))
       info.name must beEqualTo ("iron-elements")
       info.version mustNotEqual ""
-      info.homepage must beEqualTo ("https://github.com/PolymerElements/iron-elements")
-      info.sourceConnectionUrl must beEqualTo ("git://github.com/PolymerElements/iron-elements")
-      info.sourceUrl must beEqualTo ("https://github.com/PolymerElements/iron-elements")
-      info.issuesUrl must beEqualTo ("https://github.com/PolymerElements/iron-elements/issues")
-      info.gitHubHome must beASuccessfulTry("https://github.com/PolymerElements/iron-elements")
+      info.homepageUrl must beEqualTo (new URL("https://github.com/PolymerElements/iron-elements"))
+      info.sourceConnectionUri must beEqualTo (new URI("https://github.com/PolymerElements/iron-elements.git"))
+      info.sourceUrl must beEqualTo (new URL("https://github.com/PolymerElements/iron-elements"))
+      info.issuesUrl must beEqualTo (new URL("https://github.com/PolymerElements/iron-elements/issues"))
+      info.gitHubUrl must beSome (new URL("https://github.com/PolymerElements/iron-elements"))
     }
   }
 
@@ -113,7 +114,7 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
 
   "homepage" should {
     "be have a default" in {
-      await(bower.info("git://github.com/millermedeiros/requirejs-plugins")).homepage must beEqualTo ("https://github.com/millermedeiros/requirejs-plugins")
+      await(bower.info("git://github.com/millermedeiros/requirejs-plugins")).homepageUrl must beEqualTo (new URL("https://github.com/millermedeiros/requirejs-plugins"))
     }
   }
 

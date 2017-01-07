@@ -5,11 +5,11 @@ import javax.inject.Inject
 
 import akka.actor.ActorSystem
 import models.{WebJar, WebJarCatalog}
-import play.api.{Configuration, Logger}
 import play.api.data.Forms._
 import play.api.data._
 import play.api.libs.json.Json
 import play.api.mvc._
+import play.api.{Configuration, Logger}
 import utils._
 
 import scala.concurrent.duration._

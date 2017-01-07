@@ -4,9 +4,9 @@ import java.util.UUID
 
 import play.api.test._
 
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.concurrent.duration._
-import scala.concurrent.ExecutionContext.Implicits.global
 
 class CacheSpec extends PlaySpecification {
 

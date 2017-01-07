@@ -74,7 +74,6 @@ object WebJarCreator {
 
       if (!exclude.exists(name.startsWith)) {
         val path = webJarPrefix + name
-        println(path, ze.isDirectory)
         val nze = new ZipArchiveEntry(path)
         jar.putArchiveEntry(nze)
         if (!ze.isDirectory) {

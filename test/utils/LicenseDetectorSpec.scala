@@ -1,33 +1,34 @@
 package utils
 
 
+import java.net.{URI, URL}
+
 import akka.util.Timeout
 import play.api.i18n.MessagesApi
 import play.api.test._
 
 import scala.concurrent.duration._
-import scala.util.Try
 
 class LicenseDetectorSpec extends PlaySpecification with GlobalApplication {
 
   override implicit def defaultAwaitTimeout: Timeout = 30.seconds
 
-  lazy val licenseDetector = application.injector.instanceOf[LicenseDetector]
-  lazy val npm = application.injector.instanceOf[NPM]
-  lazy val bower = application.injector.instanceOf[Bower]
-  lazy val messages = application.injector.instanceOf[MessagesApi]
+  lazy val licenseDetector: LicenseDetector = application.injector.instanceOf[LicenseDetector]
+  lazy val npm: NPM = application.injector.instanceOf[NPM]
+  lazy val bower: Bower = application.injector.instanceOf[Bower]
+  lazy val messages: MessagesApi = application.injector.instanceOf[MessagesApi]
 
-  def emptyPackageInfo(licenses: Seq[String]) = PackageInfo("", "", "", "", "", "", licenses, Map.empty[String, String], WebJarType.Bower)
+  def emptyPackageInfo(licenses: Seq[String]) = PackageInfo("", "", new URL("http://webjars.org"), new URL("http://webjars.org"), new URI("http://webjars.org"), new URL("http://webjars.org"), licenses, Map.empty[String, String], WebJarType.Bower)
 
   "gitHubLicenseDetect" should {
     "detect the license" in {
-      await(licenseDetector.gitHubLicenseDetect(Try("twbs/bootstrap"))) must beEqualTo("MIT")
+      await(licenseDetector.gitHubLicenseDetect(Some("twbs/bootstrap"))) must beEqualTo("MIT")
     }
     "detect another license" in {
-      await(licenseDetector.gitHubLicenseDetect(Try("angular/angular"))) must beEqualTo("MIT")
+      await(licenseDetector.gitHubLicenseDetect(Some("angular/angular"))) must beEqualTo("MIT")
     }
     "detect another license" in {
-      await(licenseDetector.gitHubLicenseDetect(Try("T00rk/bootstrap-material-datetimepicker"))) must beEqualTo("MIT")
+      await(licenseDetector.gitHubLicenseDetect(Some("T00rk/bootstrap-material-datetimepicker"))) must beEqualTo("MIT")
     }
   }
 
@@ -67,7 +68,7 @@ class LicenseDetectorSpec extends PlaySpecification with GlobalApplication {
       licenses must be equalTo Set("Apache-2.0", "MIT")
     }
     "work with SPDX 'SEE LICENSE IN LICENSE' expressions" in {
-      val testPackageInfo = emptyPackageInfo(Seq("SEE LICENSE IN LICENSE")).copy(sourceConnectionUrl = "git://github.com/stacktracejs/error-stack-parser.git")
+      val testPackageInfo = emptyPackageInfo(Seq("SEE LICENSE IN LICENSE")).copy(sourceConnectionUri = new URI("git://github.com/stacktracejs/error-stack-parser.git"))
       val licenses = await(licenseDetector.resolveLicenses(testPackageInfo))
       licenses must be equalTo Set("Unlicense")
     }
@@ -131,7 +132,8 @@ class LicenseDetectorSpec extends PlaySpecification with GlobalApplication {
   "angular-translate 2.7.2" should {
     "fail with a useful error" in {
       val packageInfo = await(bower.info("angular-translate", Some("2.7.2")))
-      await(licenseDetector.resolveLicenses(packageInfo)) must throwA[LicenseNotFoundException](messages("licensenotfound", "bower.json", "git://github.com/angular-translate/bower-angular-translate.git", ""))
+      await(licenseDetector.resolveLicenses(packageInfo)) must throwA[LicenseNotFoundException]
+      // todo: (messages("licensenotfound", "bower.json", "git://github.com/angular-translate/bower-angular-translate.git", ""))
     }
   }
 
@@ -147,6 +149,13 @@ class LicenseDetectorSpec extends PlaySpecification with GlobalApplication {
       val licenses = Seq("New BSD License")
       val result = await(licenseDetector.resolveLicenses(emptyPackageInfo(licenses)))
       result must be equalTo Set("BSD 3-Clause")
+    }
+  }
+
+  "async-validator" should {
+    "have an MIT license" in {
+      val packageInfo = await(npm.info("async-validator", Some("1.0.0")))
+      await(licenseDetector.resolveLicenses(packageInfo))must contain("MIT")
     }
   }
 

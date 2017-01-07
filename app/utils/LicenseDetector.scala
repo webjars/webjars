@@ -9,11 +9,10 @@ import play.api.i18n.MessagesApi
 import play.api.libs.ws.WSClient
 
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.Try
 
 class LicenseDetector @Inject() (ws: WSClient, git: Git, messages: MessagesApi) (implicit ec: ExecutionContext) {
 
-  def gitHubLicenseDetect(maybeGitHubOrgRepo: Try[String]): Future[String] = {
+  def gitHubLicenseDetect(maybeGitHubOrgRepo: Option[String]): Future[String] = {
     def fetchLicense(url: String): Future[String] = ws.url(url).get().flatMap { response =>
       response.status match {
         case Status.OK => Future.successful(response.body)
@@ -24,7 +23,7 @@ class LicenseDetector @Inject() (ws: WSClient, git: Git, messages: MessagesApi) 
     maybeGitHubOrgRepo.map { gitHubOrgRepo =>
       // look on master for a license
       fetchLicense(s"https://github-license-service.herokuapp.com/$gitHubOrgRepo").recoverWith {
-        case e: Exception =>
+        case _: Exception =>
           // look on gh-pages
           fetchLicense(s"https://github-license-service.herokuapp.com/$gitHubOrgRepo/gh-pages")
      }
@@ -43,13 +42,13 @@ class LicenseDetector @Inject() (ws: WSClient, git: Git, messages: MessagesApi) 
     }
   }
 
-  def fetchLicenseFromRepo(packageInfo: PackageInfo, maybeVersion: Option[String], file: String): Future[String] = {
-    git.file(packageInfo.sourceConnectionUrl, maybeVersion, file).flatMap(licenseDetect)
+  def fetchLicenseFromRepo[A](packageInfo: PackageInfo[A], maybeVersion: Option[String], file: String): Future[String] = {
+    git.file(packageInfo.sourceConnectionUri, maybeVersion, file).flatMap(licenseDetect)
   }
 
-  def tryToGetLicenseFromVariousFiles(packageInfo: PackageInfo, maybeVersion: Option[String]): Future[String] = {
+  def tryToGetLicenseFromVariousFiles[A](packageInfo: PackageInfo[A], maybeVersion: Option[String]): Future[String] = {
     fetchLicenseFromRepo(packageInfo, maybeVersion, "LICENSE").recoverWith {
-      case e: Exception =>
+      case _: Exception =>
         fetchLicenseFromRepo(packageInfo, maybeVersion, "LICENSE.txt")
     }
   }
@@ -86,7 +85,7 @@ class LicenseDetector @Inject() (ws: WSClient, git: Git, messages: MessagesApi) 
     } intersect availableLicenses.toSeq
   }
 
-  def licenseReference(packageInfo: PackageInfo)(maybeRef: String): Seq[Future[String]] = {
+  def licenseReference[A](packageInfo: PackageInfo[A])(maybeRef: String): Seq[Future[String]] = {
     if (maybeRef.contains("/") || maybeRef.startsWith("SEE LICENSE IN ")) {
       // we need to fetch the file and try to detect the license from the contents
 
@@ -111,10 +110,10 @@ class LicenseDetector @Inject() (ws: WSClient, git: Git, messages: MessagesApi) 
         }
       }
       else if (maybeRef.startsWith("SEE LICENSE IN ")) {
-        git.file(packageInfo.sourceConnectionUrl, None, maybeRef.stripPrefix("SEE LICENSE IN "))
+        git.file(packageInfo.sourceConnectionUri, None, maybeRef.stripPrefix("SEE LICENSE IN "))
       }
       else {
-        git.file(packageInfo.sourceConnectionUrl, Some(packageInfo.version), maybeRef)
+        git.file(packageInfo.sourceConnectionUri, Some(packageInfo.version), maybeRef)
       }
 
       Seq(contentsFuture.flatMap(licenseDetect))
@@ -141,17 +140,17 @@ class LicenseDetector @Inject() (ws: WSClient, git: Git, messages: MessagesApi) 
     seq.flatMap(failIfEmpty)
   }
 
-  def resolveLicenses(packageInfo: PackageInfo, maybeVersion: Option[String] = None): Future[Set[String]] = {
+  def resolveLicenses[A](packageInfo: PackageInfo[A], maybeVersion: Option[String] = None): Future[Set[String]] = {
     // first check just the specified licenses including synonyms
     failIfEmpty(validLicenses(packageInfo.metadataLicenses)).recoverWith {
-      case e: NoValidLicenses =>
+      case _: NoValidLicenses =>
         // if that doesn't work, see if the specified licenses include references (e.g. urls)
         val licensesFuture = packageInfo.metadataLicenses.flatMap(licenseReference(packageInfo))
         Future.sequence(licensesFuture).map(validLicenses).flatMap(failIfEmpty).recoverWith {
-          case e: NoValidLicenses =>
+          case _: NoValidLicenses =>
             // finally if no licenses could be found, troll through the repo to find one
             gitHubLicenseDetect(packageInfo.gitHubOrgRepo).recoverWith {
-              case e: NoValidLicenses =>
+              case _: NoValidLicenses =>
                 tryToGetLicenseFromVariousFiles(packageInfo, maybeVersion)
             } map (Set(_))
         }
