@@ -71,7 +71,6 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
       val bufferedInputStream = new BufferedInputStream(tgz)
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(bufferedInputStream)
       bufferedInputStream.available() must beEqualTo (645120)
-      archiveStream.getNextEntry.getName must beEqualTo (".editorconfig")
     }
   }
   "git fork - github short url" should {
