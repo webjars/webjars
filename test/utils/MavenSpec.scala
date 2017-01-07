@@ -68,6 +68,15 @@ class MavenSpec extends PlaySpecification with GlobalApplication {
       )
       await(maven.convertNpmBowerDependenciesToMaven(deps)) must throwA[Exception]
     }
+
+    "work with a tgz" in {
+      val deps = Map(
+        "wrench" -> "https://github.com/derekslife/wrench-js/tarball/156eaceed68ed31ffe2a3ecfbcb2be6ed1417fb2"
+      )
+
+      val mavenDeps = await(maven.convertNpmBowerDependenciesToMaven(deps))
+      mavenDeps.get("github-com-derekslife-wrench-js") must beSome ("156eaceed68ed31ffe2a3ecfbcb2be6ed1417fb2")
+    }
   }
 
 }
