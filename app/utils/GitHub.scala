@@ -1,5 +1,6 @@
 package utils
 
+import java.net.{URI, URL}
 import javax.inject.Inject
 
 import org.apache.commons.codec.binary.Base64
@@ -13,6 +14,7 @@ import play.api.mvc.Results.EmptyContent
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.language.implicitConversions
+import scala.util.Try
 
 class GitHub @Inject() (configuration: Configuration, wsClient: WSClient) {
 
@@ -87,6 +89,53 @@ class GitHub @Inject() (configuration: Configuration, wsClient: WSClient) {
       }
     }
   }
+
+  def currentUrls(url: URL): Future[(URL, URI, URL)] = {
+    def urls(location: String) = {
+      val newUrlsTry = for {
+        gitHubUrl <- GitHub.gitHubUrl(location)
+        sourceConnectionUri <- GitHub.gitHubGitUri(gitHubUrl)
+        issuesUrl <- GitHub.gitHubIssuesUrl(gitHubUrl)
+      } yield (gitHubUrl, sourceConnectionUri, issuesUrl)
+
+      Future.fromTry(newUrlsTry)
+    }
+
+    wsClient.url(url.toString).withFollowRedirects(false).get().flatMap { response =>
+      response.status match {
+        case Status.MOVED_PERMANENTLY =>
+          response.header(HeaderNames.LOCATION).fold {
+            Future.failed[(URL, URI, URL)](ServerError(s"GitHub said that $url was moved but did not provide a new location"))
+          } (urls)
+        case Status.OK =>
+          urls(url.toString)
+        case _ =>
+          Future.failed(ServerError(s"Could not get the current URL for $url because status was ${response.statusText}"))
+      }
+    }
+  }
+
+}
+
+object GitHub {
+
+  def gitHubUrl(url: URL): Try[URL] = Try(new URL(url.getProtocol, url.getHost, url.getPath.stripSuffix(".git"))).filter(_.getHost == "github.com")
+
+  def gitHubUrl(uri: URI): Try[URL] = Try(new URL("https", uri.getHost, uri.getPath)).flatMap(gitHubUrl)
+
+  def gitHubUrl(s: String): Try[URL] = Try(new URI(s)).flatMap(gitHubUrl)
+
+  def gitHubGitUri(url: URL): Try[URI] = gitHubUrl(url).flatMap { gitHubUrl =>
+    Try(new URI(gitHubUrl.getProtocol, gitHubUrl.getHost, gitHubUrl.getPath + ".git", null))
+  }
+
+  def gitHubIssuesUrl(url: URL): Try[URL] = gitHubUrl(url).flatMap { gitHubUrl =>
+    Try(new URL(gitHubUrl.getProtocol, gitHubUrl.getHost, gitHubUrl.getPath + "/issues"))
+  }
+
+  def gitHubGitUri(uri: URI): Try[URI] = gitHubUrl(uri).flatMap(gitHubGitUri)
+
+  def gitHubIssuesUrl(uri: URI): Try[URL] = gitHubUrl(uri).flatMap(gitHubIssuesUrl)
 
 }
 

@@ -1,19 +1,20 @@
 package utils
 
 import java.io.InputStream
-import java.net.URL
+import java.net.{URI, URL}
 import java.util.zip.GZIPInputStream
 import javax.inject.Inject
 
-import play.api.http.{HeaderNames, Status}
+import play.api.http.Status
 import play.api.libs.functional.syntax._
-import play.api.libs.json._
+import play.api.libs.json.{JsError, _}
 import play.api.libs.ws.WSClient
+import utils.PackageInfo._
 
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.Try
+import scala.util.{Failure, Success, Try}
 
-class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector) (implicit ec: ExecutionContext) {
+class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, gitHub: GitHub) (implicit ec: ExecutionContext) {
 
   val BASE_URL = "http://registry.npmjs.org"
 
@@ -66,9 +67,9 @@ class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector) (
     git.gitUrl(gitRepo).flatMap(git.versionsOnBranch(_, branch))
   }
 
-  def info(packageNameOrGitRepo: String, maybeVersion: Option[String] = None): Future[PackageInfo] = {
+  def info(packageNameOrGitRepo: String, maybeVersion: Option[String] = None): Future[PackageInfo[NPM]] = {
 
-    def packageInfo(packageJson: JsValue): Future[PackageInfo] = {
+    def packageInfo(packageJson: JsValue): Future[PackageInfo[NPM]] = {
 
       val maybeForkPackageJsonFuture = if (git.isGit(packageNameOrGitRepo)) {
         // this is a git repo so its package.json values might be wrong
@@ -86,27 +87,28 @@ class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector) (
         Future.successful(packageJson)
       }
 
-      maybeForkPackageJsonFuture.flatMap { maybeForPackageJson =>
-        maybeForPackageJson.asOpt[PackageInfo](NPM.jsonReads).fold {
-          Future.failed[PackageInfo](new Exception(s"The source repository for $packageNameOrGitRepo ${maybeVersion.getOrElse("")} could not be determined but is required to published to Maven Central.  This will need to be fixed in the project's package metadata."))
-        } { initialInfo =>
-          // deal with GitHub redirects
-          initialInfo.gitHubHome.toOption.fold(Future.successful(initialInfo)) { gitHubHome =>
-            ws.url(gitHubHome).withFollowRedirects(false).get().flatMap { homeTestResponse =>
-              homeTestResponse.status match {
-                case Status.MOVED_PERMANENTLY =>
-                  homeTestResponse.header(HeaderNames.LOCATION).fold(Future.successful(initialInfo)) { actualHome =>
-                    val newSource = actualHome.replaceFirst("https://", "git://") + ".git"
-                    Future.successful(initialInfo.copy(sourceUrl = newSource, homepage = actualHome))
-                  }
-                case Status.NOT_FOUND =>
-                  val npmUrl = s"https://www.npmjs.com/package/${initialInfo.name}"
-                  Future.successful(initialInfo.copy(homepage = npmUrl, sourceUrl = npmUrl, sourceConnectionUrl = npmUrl, issuesUrl = npmUrl))
-                case _ =>
-                  Future.successful(initialInfo)
-              }
+      maybeForkPackageJsonFuture.flatMap { maybeForkPackageJson =>
+        maybeForkPackageJson.validate[PackageInfo[NPM]] match {
+
+          case JsSuccess(initialInfo, _) =>
+            initialInfo.gitHubUrl.fold(Future.successful(initialInfo)) { gitHubUrl =>
+                gitHub.currentUrls(gitHubUrl).map {
+                  case (homepage, sourceConnectionUri, issuesUrl) =>
+                    initialInfo.copy[NPM](
+                      homepageUrl = homepage,
+                      sourceUrl = homepage,
+                      sourceConnectionUri = sourceConnectionUri,
+                      issuesUrl = issuesUrl
+                    )
+                } recover {
+                  case e: Exception =>
+                    val newUrl = new URL("https://www.npmjs.com/package/" + initialInfo.name)
+                    initialInfo.copy(homepageUrl = newUrl, sourceUrl = newUrl, sourceConnectionUri = newUrl.toURI, issuesUrl = newUrl)
+                }
             }
-          }
+
+          case JsError(errors) =>
+            Future.failed[PackageInfo[NPM]](JsResultException(errors))
         }
       }
     }
@@ -129,7 +131,7 @@ class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector) (
           response.status match {
             case Status.OK =>
               val versionInfoLookup = response.json \ "versions" \ maybeVersion.get
-              versionInfoLookup.toOption.fold(Future.failed[PackageInfo](new Exception(s"Could not parse: ${response.body}")))(packageInfo)
+              versionInfoLookup.toOption.fold(Future.failed[PackageInfo[NPM]](new Exception(s"Could not parse: ${response.body}")))(packageInfo)
             case _ =>
               Future.failed(new Exception(response.body))
           }
@@ -168,12 +170,53 @@ class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector) (
 
 object NPM {
 
-  implicit def jsonReads: Reads[PackageInfo] = {
-    val sourceConnectionUrlReader = (__ \ "repository" \ "url").read[String]
-
-    val sourceUrlReader = sourceConnectionUrlReader.map { sourceConnectionUrl =>
-      sourceConnectionUrl.replace("git://", "https://").stripSuffix(".git")
+  def uriIsh(repository: String): String = {
+    if (repository.contains("://")) {
+      // ssh://host.xz/another/repo.git
+      // git://host.xz/another/repo.git
+      // https://host.xz/another/repo.git
+      repository
     }
+    else if (repository.startsWith("gist:")) {
+      // gist:11081aaa281
+      repository.replaceAllLiterally("gist:", "https://gist.github.com/") + ".git"
+    }
+    else if (repository.startsWith("bitbucket:")) {
+      // bitbucket:example/repo
+      repository.replaceAllLiterally("bitbucket:", "https://bitbucket.org/") + ".git"
+    }
+    else if (repository.startsWith("gitlab:")) {
+      // gitlab:another/repo
+      repository.replaceAllLiterally("gitlab:", "https://gitlab.com/") + ".git"
+    }
+    else if (repository.contains(":/")) {
+      // host.xz:/another/repo.git
+      // user@host.xz:/another/repo.git
+      "ssh://" + repository
+    }
+    else if (repository.contains(":")) {
+      // host.xz:another/repo.git
+      "ssh://" + repository.replaceAllLiterally(":", "/")
+    }
+    else if (repository.contains("/")) {
+      // another/repo
+      "https://github.com/" + repository + ".git"
+    }
+    else {
+      repository
+    }
+  }
+
+  def repositoryUrlToJsString(repositoryUrl: String): JsString = JsString(uriIsh(repositoryUrl))
+
+  def repositoryToUri(uriIsh: String): Option[URI] = PackageInfo.readsUri.reads(repositoryUrlToJsString(uriIsh)).asOpt
+
+  implicit val jsonReads: Reads[PackageInfo[NPM]] = {
+    val repositoryUrlReader: Reads[String] = (__ \ "repository").read[String].orElse((__ \ "repository" \ "url").read[String])
+
+    val sourceConnectionUriReader: Reads[URI] = repositoryUrlReader.map(repositoryUrlToJsString).andThen(PackageInfo.readsUri)
+
+    val sourceUrlReader: Reads[URL] = repositoryUrlReader.map(repositoryUrlToJsString).andThen(PackageInfo.readsUrl)
 
     val licenseReader = (__ \ "license").read[Seq[String]]
       .orElse((__ \ "license").read[String].map(Seq(_)))
@@ -181,20 +224,30 @@ object NPM {
       .orElse((__ \ "licenses").read[Seq[JsObject]].map(_.map(_.\("type").as[String])))
       .orElse(Reads.pure(Seq.empty[String]))
 
-    val bugsReader = (__ \ "bugs" \ "url").read[String]
-      .orElse(sourceUrlReader.map(_ + "/issues"))
+    val nameReader = (__ \ "name").read[String]
+
+    val homepageReader = (__ \ "homepage").read[URL]
+      .orElse(nameReader.map(name => JsString("https://www.npmjs.com/package/" + name))
+      .andThen(PackageInfo.readsUrl))
+
+    val bugsReader = (__ \ "bugs" \ "url").read[URL]
+      .orElse(homepageReader.flatMap(gitHubIssuesUrl))
+      .orElse(sourceUrlReader.flatMap(gitHubIssuesUrl))
+      .orElse(sourceConnectionUriReader.flatMap(gitHubIssuesUrl))
 
     (
-      (__ \ "name").read[String] ~
+      nameReader ~
       (__ \ "version").read[String] ~
-      (__ \ "homepage").read[String].orElse(sourceUrlReader) ~
-      sourceUrlReader ~
-      sourceConnectionUrlReader ~
+      homepageReader ~
+      sourceUrlReader.orElse(homepageReader) ~
+      sourceConnectionUriReader ~
       bugsReader ~
       licenseReader ~
       (__ \ "dependencies").read[Map[String, String]].orElse(Reads.pure(Map.empty[String, String])) ~
       Reads.pure(WebJarType.NPM)
-    )(PackageInfo.apply _)
+    )(PackageInfo.apply[NPM] _)
   }
+
+  implicit val npmWrites: Writes[NPM] = Writes[NPM](_ => JsNull)
 
 }

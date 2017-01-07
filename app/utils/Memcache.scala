@@ -6,8 +6,8 @@ import play.api.Configuration
 import play.api.inject.ApplicationLifecycle
 import shade.memcached.{AuthConfiguration, Memcached}
 
-import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
 @Singleton

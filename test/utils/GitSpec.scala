@@ -2,6 +2,7 @@ package utils
 
 
 import java.io.BufferedInputStream
+import java.net.URI
 
 import akka.util.Timeout
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
@@ -13,7 +14,7 @@ class GitSpec extends PlaySpecification with GlobalApplication {
 
   override implicit def defaultAwaitTimeout: Timeout = 120.seconds
 
-  lazy val git = application.injector.instanceOf[Git]
+  lazy val git: Git = application.injector.instanceOf[Git]
 
   "git versions" should {
     "not work with an invalid git url" in {
@@ -64,6 +65,11 @@ class GitSpec extends PlaySpecification with GlobalApplication {
       file.length must beEqualTo (1663)
       file.contains(""""version": "2.2.4"""") must beTrue
     }
+    "fetch a file with a git url syntax" in {
+      val file = await(git.file(new URI("https://github.com/yiminghe/async-validator.git"), None, "LICENSE.md"))
+      file.length must beEqualTo (1083)
+      file must contain ("The MIT License (MIT)")
+    }
   }
 
   "git tar" should {
@@ -75,7 +81,7 @@ class GitSpec extends PlaySpecification with GlobalApplication {
 
       bufferedInputStream.available() must beEqualTo (645120)
 
-      val files = Stream.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName).toSeq
+      val files = Stream.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName)
       files.size must beEqualTo (178)
       files.exists(_.contains("node_modules")) must beFalse
       files.exists(_.contains(".git")) must beFalse

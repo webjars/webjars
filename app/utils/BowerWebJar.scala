@@ -11,7 +11,7 @@ import scala.util.{Failure, Success}
 
 class BowerWebJar @Inject() (bower: Bower, git: Git, binTray: BinTray, pusher: Pusher, maven: Maven, licenseDetector: LicenseDetector) (implicit ec: ExecutionContext) {
 
-  def release(nameOrUrlish: String, version: String, maybepusherChannelId: Option[String]): Future[PackageInfo] = {
+  def release(nameOrUrlish: String, version: String, maybepusherChannelId: Option[String]): Future[PackageInfo[Bower]] = {
 
     val binTraySubject = "webjars"
     val binTrayRepo = "maven"
@@ -48,7 +48,7 @@ class BowerWebJar @Inject() (bower: Bower, git: Git, binTray: BinTray, pusher: P
       val packageName = s"$groupId:$artifactId"
 
       for {
-        createPackage <- binTray.getOrCreatePackage(binTraySubject, binTrayRepo, packageName, s"WebJar for $artifactId", Seq("webjar", artifactId), licenses, packageInfo.sourceUrl, Some(packageInfo.homepage), Some(packageInfo.issuesUrl), packageInfo.gitHubOrgRepo.toOption)
+        createPackage <- binTray.getOrCreatePackage(binTraySubject, binTrayRepo, packageName, s"WebJar for $artifactId", Seq("webjar", artifactId), licenses, packageInfo.sourceUrl, Some(packageInfo.homepageUrl), Some(packageInfo.issuesUrl), packageInfo.gitHubOrgRepo)
         _ <- push("update", "Created BinTray Package")
 
         binTrayPublishFuture = for {
