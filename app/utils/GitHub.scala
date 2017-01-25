@@ -119,7 +119,7 @@ class GitHub @Inject() (configuration: Configuration, wsClient: WSClient) {
 
 object GitHub {
 
-  def gitHubUrl(url: URL): Try[URL] = Try(new URL(url.getProtocol, url.getHost, url.getPath.stripSuffix(".git"))).filter(_.getHost == "github.com")
+  def gitHubUrl(url: URL): Try[URL] = Try(new URL(url.getProtocol, url.getHost, url.getPath.stripSuffix(".git"))).filter(_.getHost.stripPrefix("www.") == "github.com")
 
   def gitHubUrl(uri: URI): Try[URL] = Try(new URL("https", uri.getHost, uri.getPath)).flatMap(gitHubUrl)
 

@@ -215,4 +215,16 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
     }
   }
 
+  "npm info for @types/react" should {
+    "work for the latest version" in {
+      val info = await(npm.info("@types/react"))
+      info.name must beEqualTo("@types/react")
+    }
+    "work for 15.0.3" in {
+      val info = await(npm.info("@types/react", Some("15.0.3")))
+      info.name must beEqualTo("@types/react")
+      info.version must beEqualTo("15.0.3")
+    }
+  }
+
 }

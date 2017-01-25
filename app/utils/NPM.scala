@@ -124,14 +124,17 @@ class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, g
 
     }
     else {
-      if (isScoped(packageNameOrGitRepo) && maybeVersion.isDefined) {
+      if (isScoped(packageNameOrGitRepo)) {
         // can no longer get info on specific versions of scoped packages
         // so get the info for all the versions and then get the specific version out of the full list
         ws.url(registryMetadataUrl(packageNameOrGitRepo)).get().flatMap { response =>
           response.status match {
             case Status.OK =>
-              val versionInfoLookup = response.json \ "versions" \ maybeVersion.get
-              versionInfoLookup.toOption.fold(Future.failed[PackageInfo[NPM]](new Exception(s"Could not parse: ${response.body}")))(packageInfo)
+              val maybeVersionOrLatest = maybeVersion.orElse((response.json \ "dist-tags" \ "latest").asOpt[String])
+              maybeVersionOrLatest.fold(Future.failed[PackageInfo[NPM]](new Exception("Could not determine the version to get"))) { versionOrLatest =>
+                val versionInfoLookup = response.json \ "versions" \ versionOrLatest
+                versionInfoLookup.toOption.fold(Future.failed[PackageInfo[NPM]](new Exception(s"Could not parse: ${response.body}")))(packageInfo)
+              }
             case _ =>
               Future.failed(new Exception(response.body))
           }
