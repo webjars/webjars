@@ -159,6 +159,13 @@ class LicenseDetectorSpec extends PlaySpecification with GlobalApplication {
     }
   }
 
+  "esprima 3.1.3" should {
+    "have a BSD 2-Clause license" in {
+      val packageInfo = await(npm.info("esprima", Some("3.1.3")))
+      await(licenseDetector.resolveLicenses(packageInfo)) must contain("BSD 2-Clause")
+    }
+  }
+
   /*
   // This is broken due to upstream: https://github.com/webjars/webjars/issues/1265
 

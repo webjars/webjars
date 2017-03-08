@@ -62,6 +62,7 @@ class LicenseDetector @Inject() (ws: WSClient, git: Git, messages: MessagesApi) 
     "Apache License, v2.0" -> "Apache-2.0",
     "Apache License, Version 2.0" -> "Apache-2.0",
     "Apache License 2.0" -> "Apache-2.0",
+    "BSD-2-Clause" -> "BSD 2-Clause",
     "BSD-3" -> "BSD 3-Clause",
     "New BSD License" -> "BSD 3-Clause",
     "GPLv2" -> "GPL-2.0",
