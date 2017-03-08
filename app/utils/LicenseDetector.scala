@@ -49,7 +49,10 @@ class LicenseDetector @Inject() (ws: WSClient, git: Git, messages: MessagesApi) 
   def tryToGetLicenseFromVariousFiles[A](packageInfo: PackageInfo[A], maybeVersion: Option[String]): Future[String] = {
     fetchLicenseFromRepo(packageInfo, maybeVersion, "LICENSE").recoverWith {
       case _: Exception =>
-        fetchLicenseFromRepo(packageInfo, maybeVersion, "LICENSE.txt")
+        fetchLicenseFromRepo(packageInfo, maybeVersion, "LICENSE.txt").recoverWith {
+          case _: Exception =>
+            fetchLicenseFromRepo(packageInfo, maybeVersion, "license.md")
+        }
     }
   }
 
