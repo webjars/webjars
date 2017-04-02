@@ -91,6 +91,7 @@ class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, g
         maybeForkPackageJson.validate[PackageInfo[NPM]] match {
 
           case JsSuccess(initialInfo, _) =>
+
             initialInfo.gitHubUrl.fold(Future.successful(initialInfo)) { gitHubUrl =>
                 gitHub.currentUrls(gitHubUrl).map {
                   case (homepage, sourceConnectionUri, issuesUrl) =>
@@ -237,6 +238,7 @@ object NPM {
       .orElse(homepageReader.flatMap(gitHubIssuesUrl))
       .orElse(sourceUrlReader.flatMap(gitHubIssuesUrl))
       .orElse(sourceConnectionUriReader.flatMap(gitHubIssuesUrl))
+      .orElse(homepageReader.flatMap(bitbucketIssuesUrl))
 
     (
       nameReader ~

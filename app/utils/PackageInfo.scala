@@ -88,4 +88,11 @@ object PackageInfo {
     }
   }
 
+  def bitbucketIssuesUrl(url: URL): Reads[URL] = Reads[URL] { _ =>
+    Bitbucket.bitbucketIssuesUrl(url) match {
+      case Success(bitbucketIssuesUrl) => JsSuccess(bitbucketIssuesUrl)
+      case Failure(e) => JsError(e.getMessage)
+    }
+  }
+
 }

@@ -227,4 +227,11 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
     }
   }
 
+  "quadkeytools" should {
+    "work for 0.0.2" in {
+      val info = await(npm.info("quadkeytools", Some("0.0.2")))
+      info.issuesUrl must beEqualTo(new URL("https://bitbucket.org/steele/quadkeytools/issues"))
+    }
+  }
+
 }
