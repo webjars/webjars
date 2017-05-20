@@ -70,7 +70,7 @@ class LicenseDetectorSpec extends PlaySpecification with GlobalApplication {
     "work with SPDX 'SEE LICENSE IN LICENSE' expressions" in {
       val testPackageInfo = emptyPackageInfo(Seq("SEE LICENSE IN LICENSE")).copy(sourceConnectionUri = new URI("git://github.com/stacktracejs/error-stack-parser.git"))
       val licenses = await(licenseDetector.resolveLicenses(testPackageInfo))
-      licenses must be equalTo Set("Unlicense")
+      licenses must be equalTo Set("MIT")
     }
     "be able to be fetched from git repos" in {
       val packageInfo = await(npm.info("ms", Some("0.7.1")))
