@@ -1,4 +1,4 @@
-@(webjars: Iterable[WebJar], showAdd: Boolean = true, maybeError: Option[String] = None)
+@(webjarsOrError: Either[Iterable[WebJar], String])
 
 @import java.net.URLEncoder
 
@@ -9,87 +9,77 @@
             <th class="table-versions">Versions</th>
             <th>Build Tool:
                 <div id="buildtoolselect" class="btn-group btn-group-xs" data-toggle="buttons">
-                    <label class="btn btn-default active" data-value="sbt" role="button"><input type="radio" name="buildtool" id="sbt">SBT / Play 2</label>
-                    <label class="btn btn-default" data-value="maven" role="button"><input type="radio" name="buildtool" id="maven">Maven</label>
-                    <label class="btn btn-default" data-value="ivy" role="button"><input type="radio" name="buildtool" id="ivy">Ivy</label>
-                    <label class="btn btn-default" data-value="grape" role="button"><input type="radio" name="buildtool" id="grape">Grape</label>
-                    <label class="btn btn-default" data-value="gradle" role="button"><input type="radio" name="buildtool" id="gradle">Gradle</label>
-                    <label class="btn btn-default" data-value="buildr" role="button"><input type="radio" name="buildtool" id="buildr">Buildr</label>
-                    <label class="btn btn-default" data-value="leiningen" role="button"><input type="radio" name="buildtool" id="leiningen">Leiningen</label>
+                    <label class="btn btn-default active" data-value="sbt" role="button"><input type="radio" name="buildtool" id="sbt" value="sbt">SBT / Play 2</label>
+                    <label class="btn btn-default" data-value="maven" role="button"><input type="radio" name="buildtool" id="maven" value="maven">Maven</label>
+                    <label class="btn btn-default" data-value="ivy" role="button"><input type="radio" name="buildtool" id="ivy" value="ivy">Ivy</label>
+                    <label class="btn btn-default" data-value="grape" role="button"><input type="radio" name="buildtool" id="grape" value="grape">Grape</label>
+                    <label class="btn btn-default" data-value="gradle" role="button"><input type="radio" name="buildtool" id="gradle" value="gradle">Gradle</label>
+                    <label class="btn btn-default" data-value="buildr" role="button"><input type="radio" name="buildtool" id="buildr" value="buildr">Buildr</label>
+                    <label class="btn btn-default" data-value="leiningen" role="button"><input type="radio" name="buildtool" id="leiningen" value="leiningen">Leiningen</label>
                 </div>
             </th>
             <th class="table-files">Files</th>
         </tr>
-    <thead>
+    </thead>
     <tbody>
-        @for(error <- maybeError) {
-            <tr>
-                <td colspan="4">
+        @webjarsOrError match {
+            case Right(error) => {
+                <tr>
+                    <td colspan="4">
                     @error
-                </td>
-            </tr>
-        }
-        @if(webjars.isEmpty && maybeError.isEmpty) {
-            <tr>
-                <td colspan="4">
-                    No WebJars were found.
-                </td>
-            </tr>
-        }
-        @for(webjar <- webjars) {
-            <tr data-group="@webjar.groupId" data-artifact="@webjar.artifactId">
-                <td style="vertical-align: middle;">
-                    <a href="@webjar.sourceUrl"><strong>@webjar.name</strong></a>
-                </td>
-                <td style="vertical-align: middle;">
-                    <form class="form-inline table-versions" role="form">
-                        <select class="form-control versions" type="text" style="width: @if(showAdd) {200px} else {240px};" onchange="changeVersion(event)">
-                        @for(version <- webjar.versions) {
-                            <option data-numfiles="@version.numFiles">@version.number</option>
-                        }
-                        </select>
-                        @if(showAdd) {
-                            @webjar.groupId match {
-                                case "org.webjars" => {
-                                    <a href="@webjar.sourceUrl/issues/new" class="btn btn-primary btn-sm" title="Request a new version" role="button"><span class="glyphicon glyphicon-plus"></span></a>
+                    </td>
+                </tr>
+            }
+            case Left(webjars) => {
+                @if(webjars.isEmpty) {
+                    <tr>
+                        <td colspan="4">
+                            No WebJars were found.
+                        </td>
+                    </tr>
+                }
+
+                @for(webjar <- webjars) {
+                    <tr data-group="@webjar.groupId" data-artifact="@webjar.artifactId">
+                        <td style="vertical-align: middle;">
+                            <a href="@webjar.sourceUrl"><strong>@webjar.name</strong></a>
+                        </td>
+                        <td style="vertical-align: middle;">
+                            <form class="form-inline table-versions" role="form">
+                                <select class="form-control versions" type="text" style="width: 200px" onchange="changeVersion(event)">
+                                @for(version <- webjar.versions) {
+                                    <option data-numfiles="@version.numFiles">@version.number</option>
                                 }
-                                case _ => {
-                                    <button title="Create a new version" type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#newWebJarModal" data-artifact-id="@webjar.artifactId"><span class="glyphicon glyphicon-plus"></span></button>
+                                </select>
+                                @webjar.groupId match {
+                                    case "org.webjars" => {
+                                        <a href="@webjar.sourceUrl/issues/new?title=Please%20Release%20Version:%20XXX" class="btn btn-primary btn-sm" title="Request a new version" role="button"><span class="glyphicon glyphicon-plus"></span></a>
+                                    }
+                                    case _ => {
+                                        <button title="Create a new version" type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#newWebJarModal" data-group-id="@webjar.groupId" data-artifact-id="@webjar.artifactId"><span class="glyphicon glyphicon-plus"></span></button>
+                                    }
                                 }
-                            }
-                        }
-                    </form>
-                </td>
-                <td style="vertical-align: middle;">
-                    <div class="build-instructions">
-                        <pre>"@webjar.groupId" % "@webjar.artifactId" % "@webjar.versions.head.number"</pre>
-                    </div>
-                </td>
-                <td style="vertical-align: middle;">
-                    <div class="files @webjar.artifactId">
-                        <a href="@routes.Application.listFiles(webjar.groupId, webjar.artifactId, URLEncoder.encode(webjar.versions.head.number, "UTF-8"))" class="file-list-link">
-                            @if(webjar.versions.head.numFiles == 0) {
-                                List Files
-                            } else {
-                                @webjar.versions.head.numFiles Files
-                            }
-                        </a>
-                    </div>
-                </td>
-            </tr>
+                            </form>
+                        </td>
+                        <td style="vertical-align: middle;">
+                            <div class="build-instructions">
+                                <pre>"@webjar.groupId" % "@webjar.artifactId" % "@webjar.versions.head.number"</pre>
+                            </div>
+                        </td>
+                        <td style="vertical-align: middle;">
+                            <div class="files @webjar.artifactId">
+                                <a href="@routes.Application.listFiles(webjar.groupId, webjar.artifactId, URLEncoder.encode(webjar.versions.head.number, "UTF-8"))" class="file-list-link">
+                                @if(webjar.versions.head.numFiles == 0) {
+                                    List Files
+                                } else {
+                                    @webjar.versions.head.numFiles Files
+                                }
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            }
         }
     </tbody>
 </table>
-
-<div id="fileListModal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="fileListModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
-                <h4 id="fileListModalLabel" class="modal-title"></h4>
-            </div>
-            <div class="modal-body file-list">
-            </div>
-        </div>
-    </div>
-</div>

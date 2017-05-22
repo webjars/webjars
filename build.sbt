@@ -19,6 +19,7 @@ libraryDependencies ++= Seq(
   "org.apache.commons" % "commons-io" % "1.3.2",
   "org.eclipse.jgit" % "org.eclipse.jgit" % "4.4.0.201606070830-r",
   "org.webjars" %% "webjars-play" % "2.5.0-4",
+  "org.webjars" % "jquery" % "3.2.0",
   "org.webjars" % "bootstrap" % "3.3.4",
   "org.webjars" % "select2" % "3.5.2",
   "org.webjars" % "highlightjs" % "8.0-3",

@@ -186,15 +186,15 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
   }
 
   def webJars: Future[List[WebJar]] = {
-    val classicFuture = webJars(WebJarCatalog.CLASSIC)
-    val bowerFuture = webJars(WebJarCatalog.BOWER)
     val npmFuture = webJars(WebJarCatalog.NPM)
+    val bowerFuture = webJars(WebJarCatalog.BOWER)
+    val classicFuture = webJars(WebJarCatalog.CLASSIC)
 
     for {
-      classicWebJars <- classicFuture
-      bowerWebJars <- bowerFuture
       npmWebJars <- npmFuture
-    } yield classicWebJars ++ bowerWebJars ++ npmWebJars
+      bowerWebJars <- bowerFuture
+      classicWebJars <- classicFuture
+    } yield npmWebJars ++ bowerWebJars ++ classicWebJars
   }
 
   private def fetchPom(groupId: String, artifactId: String, version: String): Future[Elem] = {
@@ -258,7 +258,7 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
       classicStats <- classicStatsFuture
       bowerStats <- bowerStatsFuture
       npmStats <- npmStatsFuture
-    } yield classicStats ++ bowerStats ++ npmStats
+    } yield npmStats ++ bowerStats ++ classicStats
   }
 
   def mostDownloaded(webJarCatalog: WebJarCatalog, dateTime: DateTime, num: Int): Future[Seq[(WebJarCatalog, String, Int)]] = {

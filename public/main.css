@@ -84,3 +84,11 @@ pre {
         transform: rotate(359deg);
     }
 }
+
+.npm-bower-deploy {
+    display: none;
+}
+
+.classic-deploy {
+    display: none;
+}

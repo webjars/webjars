@@ -1,10 +1,22 @@
-@this(main: main)
+@this(staticWebJarAssets: StaticWebJarAssets, main: main, pusher: utils.Pusher)
 
-@(webjars: Iterable[WebJar])
+@(webjarsOrError: Either[Iterable[WebJar], String])
+
+@import java.net.URLEncoder
 
 @main("WebJars - Web Libraries in Jars") {
 
-    <script type="text/javascript" src="@routes.Assets.versioned("javascripts/webJarList.js")"></script>
+    <script type="text/javascript" src="@routes.Assets.versioned("javascripts/index.js")"></script>
+
+    @for(pusherKey <- pusher.maybeKey) {
+        <script>
+                var pusherKey = "@pusherKey";
+        </script>
+    }
+
+    <script src="//js.pusher.com/2.2/pusher.min.js"></script>
+
+    <script src="@staticWebJarAssets.getUrlBower("jquery.typewatch.js")"></script>
 
     <div class="jumbotron" style="margin-bottom: 0; background-color: #cccccc;">
         <div class="container">
@@ -71,7 +83,7 @@
         <h2 id="listTitle" style="float: left">Popular WebJars</h2>
 
         <div class="pull-right" style="margin: 0px 0px 10px 40px">
-            <button class="btn btn-primary" style="margin-right: 20px; vertical-align: bottom;">Add a WebJar</button>
+            <button class="btn btn-primary" style="margin-right: 20px; vertical-align: bottom;" data-toggle="modal" data-target="#newWebJarModal">Add a WebJar</button>
 
             <div class="btn-group">
                 <div style="margin-left: 2px;">
@@ -93,11 +105,77 @@
         </div>
 
         <div id="webJarList">
-            @webJarList(webjars, true)
+            @webJarList(webjarsOrError)
         </div>
 
         <div style="width: 100%; text-align: center;">
             <a href="@routes.Application.allWebJars()">All WebJars</a>
+        </div>
+    </div>
+
+    <div id="fileListModal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="fileListModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+                    <h4 id="fileListModalLabel" class="modal-title"></h4>
+                </div>
+                <div class="modal-body file-list">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="newWebJarModal" tabindex="-1" role="dialog" aria-labelledby="newWebJarModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                    <h4 class="modal-title" id="newWebJarModalLabel">Add a New WebJar</h4>
+                </div>
+                <div class="modal-body">
+                    <form class="form-inline" style="margin-bottom: 10px;">
+                        <div class="form-group">
+                            <label for="new_webjar_catalog" style="margin-top: 3px; margin-right: 5px; margin-bottom: 0px">WebJar Type:</label>
+                        </div>
+                        <div class="form-group">
+                            <label class="radio-inline">
+                                <input type="radio" name="new_webjar_catalog" value="org.webjars.npm"> NPM
+                            </label>
+                            <label class="radio-inline">
+                                <input type="radio" name="new_webjar_catalog" value="org.webjars.bower"> Bower
+                            </label>
+                            <label class="radio-inline">
+                                <input type="radio" name="new_webjar_catalog" value="org.webjars"> Classic
+                            </label>
+                        </div>
+                    </form>
+
+                    <div class="npm-bower-deploy">
+                        <form id="deploy" class="form-inline">
+                            <div class="form-group has-feedback">
+                                <input type="text" class="form-control input-sm" id="newWebJarName" aria-describedby="newWebJarNameStatus" style="width: 280px" placeholder="Package Name or Git Repo URL">
+                                <span id="newWebJarNameFeedback" class="glyphicon form-control-feedback hidden" aria-hidden="true"></span>
+                                <span id="newWebJarNameStatus" class="sr-only">(success)</span>
+                            </div>
+                            <div class="form-group">
+                                <label for="newWebJarVersion" class="control-label sr-only">Package Version</label>
+                                <input id="newWebJarVersion" type="text" style="width: 284px" disabled data-placeholder="Version"/>
+                            </div>
+                        </form>
+                        <h5>Deploy Log</h5>
+                        <pre id="deployLog" style="height: 200px; white-space: pre-line; word-break: normal;" disabled></pre>
+                    </div>
+                    <div class="classic-deploy">
+                        <p>If you need a new version of an existing Classic WebJar, <a href="https://github.com/webjars">find the repo and submit a Pull Request or create an issue</a>.</p>
+
+                        <p>If you need a new Classic WebJar, either <a href="@routes.Application.contributing()">build and contribute it</a>, or <a href="@routes.Application.webJarRequest()">request that a maintainer create it</a>.</p>
+                    </div>
+                </div>
+                <div class="modal-footer npm-bower-deploy">
+                    <button id="deployButton" type="button" class="btn btn-default pull-left" disabled>Deploy!</button>
+                </div>
+            </div>
         </div>
     </div>
 

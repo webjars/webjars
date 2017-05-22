@@ -19,11 +19,13 @@ import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.hashing.MurmurHash3
 
-class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Heroku, pusher: Pusher, cache: Cache, mavenCentral: MavenCentral, npmWebJar: NPMWebJar, bowerWebJar: BowerWebJar, webJarsFileService: WebJarsFileService, actorSystem: ActorSystem, configuration: Configuration, environment: Environment)(mainView: views.html.main, allView: views.html.all, indexView: views.html.index, classicListView: views.html.classicList, npmbowerListView: views.html.npmbowerList, webJarRequestView: views.html.webJarRequest, contributingView: views.html.contributing, documentationView: views.html.documentation)(implicit ec: ExecutionContext) extends Controller {
+class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Heroku, pusher: Pusher, cache: Cache, mavenCentral: MavenCentral, npmWebJar: NPMWebJar, bowerWebJar: BowerWebJar, webJarsFileService: WebJarsFileService, actorSystem: ActorSystem, configuration: Configuration, environment: Environment)(mainView: views.html.main, allView: views.html.all, indexView: views.html.index, webJarRequestView: views.html.webJarRequest, contributingView: views.html.contributing, documentationView: views.html.documentation)(implicit ec: ExecutionContext) extends Controller {
 
   private val X_GITHUB_ACCESS_TOKEN = "X-GITHUB-ACCESS-TOKEN"
 
   private val MAX_POPULAR_WEBJARS = 20
+
+  private val WEBJAR_FETCH_ERROR = "Looks like there was an error fetching the WebJars.  If this problem persists please <a href=\"https://github.com/webjars/webjars/issues/new\">file an issue</a>."
 
   private def maybeCached[A](request: RequestHeader, f: Seq[A] => Result)(seq: Seq[A]): Result = {
     environment.mode match {
@@ -77,16 +79,17 @@ class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Hero
   }
 
   def index = Action.async { request =>
-    sortedMostPopularWebJars.map(maybeCached(request, webJars => Ok(indexView(webJars)))).recover {
+    sortedMostPopularWebJars.map(maybeCached(request, webJars => Ok(indexView(Left(webJars))))).recover {
       case e: Exception =>
-        InternalServerError(indexView(Seq.empty[WebJar]))
+        Logger.error("index WebJar fetch failed", e)
+        InternalServerError(indexView(Right(WEBJAR_FETCH_ERROR)))
     }
   }
 
   def popularWebJars = Action.async { request =>
-    sortedMostPopularWebJars.map(maybeCached(request, webJars => Ok(views.html.webJarList(webJars)))).recover {
+    sortedMostPopularWebJars.map(maybeCached(request, webJars => Ok(views.html.webJarList(Left(webJars))))).recover {
       case e: Exception =>
-        InternalServerError(views.html.webJarList(Seq.empty[WebJar], false))
+        InternalServerError(views.html.webJarList(Right(WEBJAR_FETCH_ERROR)))
     }
   }
 
@@ -109,7 +112,7 @@ class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Hero
         val sortedMatchingWebJars = sortedWebJars(webJarStats, matchingWebJars)
 
         render {
-          case Accepts.Html() => Ok(views.html.webJarList(sortedMatchingWebJars))
+          case Accepts.Html() => Ok(views.html.webJarList(Left(sortedMatchingWebJars)))
           case Accepts.Json() => Ok(Json.toJson(sortedMatchingWebJars))
         }
       }
@@ -117,7 +120,7 @@ class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Hero
       case e: Exception =>
         Logger.error("searchWebJars failed", e)
         render {
-          case Accepts.Html() => InternalServerError(views.html.webJarList(Seq.empty[WebJar], true, Some("Looks like there was an error fetching the WebJars.  If this problem persists please <a href=\"https://github.com/webjars/webjars/issues/new\">file an issue</a>.")))
+          case Accepts.Html() => InternalServerError(views.html.webJarList(Right(WEBJAR_FETCH_ERROR)))
           case Accepts.Json() => InternalServerError(Json.toJson(Seq.empty[WebJar]))
         }
     }
@@ -202,14 +205,15 @@ class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Hero
       webJarsWithTimeout().map {
         maybeCached(request, { webJars =>
           render {
-            case Accepts.Html() => Ok(allView(webJars))
+            case Accepts.Html() => Ok(allView(Left(webJars)))
             case Accepts.Json() => Ok(Json.toJson(webJars))
           }
         })
       } recover {
         case e: Exception =>
+          Logger.error("allWebJars fetch error", e)
           render {
-            case Accepts.Html() => InternalServerError(allView(Seq.empty[WebJar]))
+            case Accepts.Html() => InternalServerError(allView(Right(WEBJAR_FETCH_ERROR)))
             case Accepts.Json() => InternalServerError(Json.arr())
           }
       }

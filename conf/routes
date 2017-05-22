@@ -19,12 +19,12 @@ GET            /contributing                                              contro
 GET            /request                                                   controllers.Application.webJarRequest()
 POST           /request                                                   controllers.Application.makeWebJarRequest()
 
-GET            /_bower/exists                                             controllers.Application.bowerPackageExists(name)
-GET            /_bower/versions                                           controllers.Application.bowerPackageVersions(name, branch: Option[String])
-POST           /_bower/deploy                                             controllers.Application.deployBower(name, version, channelId)
-GET            /_npm/exists                                               controllers.Application.npmPackageExists(name)
-GET            /_npm/versions                                             controllers.Application.npmPackageVersions(name, branch: Option[String])
-POST           /_npm/deploy                                               controllers.Application.deployNPM(name, version, channelId)
+GET            /_org.webjars.bower/exists                                 controllers.Application.bowerPackageExists(name)
+GET            /_org.webjars.bower/versions                               controllers.Application.bowerPackageVersions(name, branch: Option[String])
+POST           /_org.webjars.bower/deploy                                 controllers.Application.deployBower(name, version, channelId)
+GET            /_org.webjars.npm/exists                                   controllers.Application.npmPackageExists(name)
+GET            /_org.webjars.npm/versions                                 controllers.Application.npmPackageVersions(name, branch: Option[String])
+POST           /_org.webjars.npm/deploy                                   controllers.Application.deployNPM(name, version, channelId)
 
 GET            /mockcentral/searchgroup                                   controllers.MockCentral.searchGroup()
 
