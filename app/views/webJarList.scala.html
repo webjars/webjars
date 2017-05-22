@@ -1,4 +1,4 @@
-@(webjars: Iterable[WebJar], showAdd: Boolean = true)
+@(webjars: Iterable[WebJar], showAdd: Boolean = true, maybeError: Option[String] = None)
 
 @import java.net.URLEncoder
 
@@ -22,10 +22,17 @@
         </tr>
     <thead>
     <tbody>
-        @if(webjars.isEmpty) {
+        @for(error <- maybeError) {
             <tr>
                 <td colspan="4">
-                    Looks like there was an error fetching the WebJars.  If this problem persists please <a href="https://github.com/webjars/webjars/issues/new">file an issue</a>.
+                    @error
+                </td>
+            </tr>
+        }
+        @if(webjars.isEmpty && maybeError.isEmpty) {
+            <tr>
+                <td colspan="4">
+                    No WebJars were found.
                 </td>
             </tr>
         }

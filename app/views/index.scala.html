@@ -35,7 +35,6 @@
                             <li>On-demand releases by anyone</li>
                             <li>Artifact contents mirror NPM package</li>
                         </ul>
-                        <a href="@routes.Application.npmList()" class="btn btn-primary center-block">Browse & Add NPM WebJars</a>
                     </div>
                 </div>
             </div>
@@ -50,7 +49,6 @@
                             <li>On-demand releases by anyone</li>
                             <li>Artifact contents mirror Bower package</li>
                         </ul>
-                        <a href="@routes.Application.bowerList()" class="btn btn-primary center-block">Browse & Add Bower WebJars</a>
                     </div>
                 </div>
             </div>
@@ -65,7 +63,6 @@
                             <li>On-demand by the WebJars team</li>
                             <li>Human-created RequireJS config</li>
                         </ul>
-                        <a href="@routes.Application.classicList()" class="btn btn-primary center-block">Browse & Request Classic WebJars</a>
                     </div>
                 </div>
             </div>
@@ -73,13 +70,30 @@
 
         <h2 id="listTitle" style="float: left">Popular WebJars</h2>
 
-        <div class="pull-right btn-group" style="margin: 20px 0px 0px 40px">
-            <input type="text" class="form-control" id="search" placeholder="Search">
-            <span class="glyphicon glyphicon-remove" id="clearSearch"></span>
+        <div class="pull-right" style="margin: 0px 0px 10px 40px">
+            <button class="btn btn-primary" style="margin-right: 20px; vertical-align: bottom;">Add a WebJar</button>
+
+            <div class="btn-group">
+                <div style="margin-left: 2px;">
+                    <label class="checkbox-inline">
+                        <input type="checkbox" name="search_catalog[]" value="org.webjars.npm" checked> NPM
+                    </label>
+                    <label class="checkbox-inline">
+                        <input type="checkbox" name="search_catalog[]" value="org.webjars.bower" checked> Bower
+                    </label>
+                    <label class="checkbox-inline">
+                        <input type="checkbox" name="search_catalog[]" value="org.webjars" checked> Classic
+                    </label>
+                </div>
+                <div class="btn-group">
+                    <input type="text" class="form-control" id="search" placeholder="Search" style="width: 210px;">
+                    <span class="glyphicon glyphicon-remove" id="clearSearch"></span>
+                </div>
+            </div>
         </div>
 
         <div id="webJarList">
-            @webJarList(webjars, false)
+            @webJarList(webjars, true)
         </div>
 
         <div style="width: 100%; text-align: center;">

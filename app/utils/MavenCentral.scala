@@ -266,15 +266,15 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
   }
 
   def mostDownloaded(dateTime: DateTime, num: Int): Future[Seq[(WebJarCatalog, String, Int)]] = {
-    val mostDownloadedClassicFuture = mostDownloaded(WebJarCatalog.CLASSIC, dateTime, num)
-    val mostDownloadedBowerFuture = mostDownloaded(WebJarCatalog.BOWER, dateTime, num)
     val mostDownloadedNpmFuture = mostDownloaded(WebJarCatalog.NPM, dateTime, num)
+    val mostDownloadedBowerFuture = mostDownloaded(WebJarCatalog.BOWER, dateTime, num)
+    val mostDownloadedClassicFuture = mostDownloaded(WebJarCatalog.CLASSIC, dateTime, num)
 
     for {
       mostDownloadedClassic <- mostDownloadedClassicFuture
       mostDownloadedBower <- mostDownloadedBowerFuture
       mostDownloadedNpm <- mostDownloadedNpmFuture
-    } yield mostDownloadedClassic ++ mostDownloadedBower ++ mostDownloadedNpm
+    } yield mostDownloadedNpm ++ mostDownloadedBower ++ mostDownloadedClassic
   }
 
 }

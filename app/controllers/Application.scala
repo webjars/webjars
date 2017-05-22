@@ -90,7 +90,7 @@ class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Hero
     }
   }
 
-  def searchWebJars(query: String) = Action.async { implicit request =>
+  def searchWebJars(query: String, groupId: List[String]) = Action.async { implicit request =>
     webJarsWithTimeout().flatMap { allWebJars =>
 
       val webJarStatsFuture = cache.get[Seq[(WebJarCatalog, String, Int)]]("stats", 1.day) {
@@ -102,7 +102,8 @@ class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Hero
 
       webJarStatsFuture.map { webJarStats =>
         val matchingWebJars = allWebJars.filter { webJar =>
-          webJar.name.toLowerCase.contains(query.toLowerCase) || webJar.artifactId.toLowerCase.contains(query.toLowerCase)
+          groupId.contains(webJar.groupId) &&
+            (webJar.name.toLowerCase.contains(query.toLowerCase) || webJar.artifactId.toLowerCase.contains(query.toLowerCase))
         }
 
         val sortedMatchingWebJars = sortedWebJars(webJarStats, matchingWebJars)
@@ -114,19 +115,11 @@ class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Hero
       }
     } recover {
       case e: Exception =>
+        Logger.error("searchWebJars failed", e)
         render {
-          case Accepts.Html() => InternalServerError(views.html.webJarList(Seq.empty[WebJar]))
+          case Accepts.Html() => InternalServerError(views.html.webJarList(Seq.empty[WebJar], true, Some("Looks like there was an error fetching the WebJars.  If this problem persists please <a href=\"https://github.com/webjars/webjars/issues/new\">file an issue</a>.")))
           case Accepts.Json() => InternalServerError(Json.toJson(Seq.empty[WebJar]))
         }
-    }
-  }
-
-  def classicList = Action.async { request =>
-    webJarsWithTimeout(Some(WebJarCatalog.CLASSIC)).map {
-      maybeCached(request, webJars => Ok(classicListView(webJars)))
-    } recover {
-      case e: Exception =>
-        InternalServerError(classicListView(Seq.empty[WebJar]))
     }
   }
 
@@ -140,22 +133,16 @@ class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Hero
     }
   }
 
-  def bowerList = Action.async { request =>
-    webJarsWithTimeout(Some(WebJarCatalog.BOWER)).map {
-      maybeCached(request, webJars => Ok(npmbowerListView(webJars, pusher.maybeKey, "Bower", "bower")))
-    } recover {
-      case e: Exception =>
-        InternalServerError(npmbowerListView(Seq.empty[WebJar], pusher.maybeKey, "Bower", "bower"))
-    }
+  def classicList = Action { request =>
+    Redirect(routes.Application.index())
   }
 
-  def npmList = Action.async { request =>
-    webJarsWithTimeout(Some(WebJarCatalog.NPM)).map {
-      maybeCached(request, webJars => Ok(npmbowerListView(webJars, pusher.maybeKey, "NPM", "npm")))
-    } recover {
-      case e: Exception =>
-        InternalServerError(npmbowerListView(Seq.empty[WebJar], pusher.maybeKey, "NPM", "npm"))
-    }
+  def bowerList = Action { request =>
+    Redirect(routes.Application.index())
+  }
+
+  def npmList = Action { request =>
+    Redirect(routes.Application.index())
   }
 
   def bowerPackageExists(packageNameOrGitRepo: String) = Action.async {

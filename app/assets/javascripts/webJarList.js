@@ -4,8 +4,11 @@ $(function() {
 
   $("#search").keyup(function() {
     var searchText = $(this).val();
+    var groupIds = $("input[name='search_catalog[]']:checked").map(function() {
+      return $(this).val();
+    }).get();
 
-    if (searchText == "") {
+    if (searchText === "") {
       $("#clearSearch").hide();
     }
     else {
@@ -13,7 +16,7 @@ $(function() {
     }
 
     if (searchText.length > 2) {
-      searchWebJars(searchText);
+      searchWebJars(searchText, groupIds);
     }
   });
 
@@ -44,8 +47,12 @@ function setupWebJarList() {
   });
 }
 
-function searchWebJars(query) {
-  $.get("/search?query=" + query, function(data) {
+function searchWebJars(query, groupIds) {
+  var groupIdsQueryString = groupIds.reduce(function(acc, val) {
+    acc += "&groupId=" + val;
+    return acc;
+  }, "");
+  $.get("/search?query=" + query + groupIdsQueryString, function(data) {
     $("#listTitle").html("Search Results");
 
     $("#webJarList").html(data);
