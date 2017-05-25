@@ -32,7 +32,7 @@ class MavenCentralSpec extends PlaySpecification {
       val mavenCentral = app.injector.instanceOf[MavenCentral]
       val mostDownloaded = await(mavenCentral.mostDownloaded(new DateTime(2016, 1, 1, 1, 1), 20))
       mostDownloaded.size should beEqualTo (60)
-      mostDownloaded.head should beEqualTo (WebJarCatalog.CLASSIC, "jquery", 45947)
+      mostDownloaded.head should beEqualTo (WebJarCatalog.NPM, "validate.js", 2901)
     }
   }
 
