@@ -1,33 +1,45 @@
 package controllers
 
 import java.io.FileNotFoundException
+import java.util.concurrent.TimeoutException
 import javax.inject.Inject
 
 import akka.actor.ActorSystem
+import models.WebJarCatalog.WebJarCatalog
 import models.{WebJar, WebJarCatalog}
+import org.joda.time.DateTime
 import play.api.data.Forms._
 import play.api.data._
 import play.api.libs.json.Json
 import play.api.mvc._
-import play.api.{Configuration, Logger}
+import play.api.{Configuration, Environment, Logger, Mode}
 import utils._
 
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.hashing.MurmurHash3
 
-class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Heroku, pusher: Pusher, cache: Cache, mavenCentral: MavenCentral, npmWebJar: NPMWebJar, bowerWebJar: BowerWebJar, webJarsFileService: WebJarsFileService, actorSystem: ActorSystem, configuration: Configuration)(mainView: views.html.main, indexView: views.html.index, classicListView: views.html.classicList, npmbowerListView: views.html.npmbowerList, webJarRequestView: views.html.webJarRequest, contributingView: views.html.contributing, documentationView: views.html.documentation)(implicit ec: ExecutionContext) extends Controller {
+class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Heroku, pusher: Pusher, cache: Cache, mavenCentral: MavenCentral, npmWebJar: NPMWebJar, bowerWebJar: BowerWebJar, webJarsFileService: WebJarsFileService, actorSystem: ActorSystem, configuration: Configuration, environment: Environment)(mainView: views.html.main, allView: views.html.all, indexView: views.html.index, webJarRequestView: views.html.webJarRequest, contributingView: views.html.contributing, documentationView: views.html.documentation)(implicit ec: ExecutionContext) extends Controller {
 
   private val X_GITHUB_ACCESS_TOKEN = "X-GITHUB-ACCESS-TOKEN"
 
+  private val MAX_POPULAR_WEBJARS = 20
+
+  private val WEBJAR_FETCH_ERROR = "Looks like there was an error fetching the WebJars.  If this problem persists please <a href=\"https://github.com/webjars/webjars/issues/new\">file an issue</a>."
+
   private def maybeCached[A](request: RequestHeader, f: Seq[A] => Result)(seq: Seq[A]): Result = {
-    val hash = MurmurHash3.seqHash(seq)
-    val etag = "\"" + hash + "\""
-    if (request.headers.get(IF_NONE_MATCH).contains(etag)) {
-      NotModified
-    }
-    else {
-      f(seq).withHeaders(ETAG -> etag)
+    environment.mode match {
+      case Mode.Dev =>
+        f(seq)
+      case _ =>
+        val hash = MurmurHash3.seqHash(seq)
+        val etag = "\"" + hash + "\""
+        if (request.headers.get(IF_NONE_MATCH).contains(etag)) {
+          NotModified
+        }
+        else {
+          f(seq).withHeaders(ETAG -> etag)
+        }
     }
   }
 
@@ -37,26 +49,80 @@ class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Hero
     val fetcher = maybeCatalog.fold(mavenCentral.webJars)(mavenCentral.webJars)
     val future = TimeoutFuture(defaultTimeout)(fetcher)
     future.onFailure {
+      case te: TimeoutException => Logger.debug("Timeout fetching WebJars", te)
       case e: Exception => Logger.error("Error loading WebJars", e)
     }
     future
   }
 
-  def index = Action.async { request =>
-    webJarsWithTimeout().map {
-      maybeCached(request, webJars => Ok(indexView(webJars)))
-    } recover {
-      case e: Exception =>
-        InternalServerError(indexView(Seq.empty[WebJar]))
+  private def sortedWebJars(counts: Seq[(WebJarCatalog, String, Int)], webJars: Seq[WebJar]): Seq[WebJar] = {
+    counts.flatMap {
+      case (webJarCatalog, artifactId, _) =>
+        val maybeWebJar = webJars.find { webJar => (webJar.groupId == webJarCatalog.toString) && (webJar.artifactId == artifactId) }
+        maybeWebJar.toSeq
     }
   }
 
-  def classicList = Action.async { request =>
-    webJarsWithTimeout(Some(WebJarCatalog.CLASSIC)).map {
-      maybeCached(request, webJars => Ok(classicListView(webJars)))
+  private def sortedMostPopularWebJars: Future[Seq[WebJar]] = {
+    webJarsWithTimeout().flatMap { allWebJars =>
+      val mostDownloadedFuture = cache.get[Seq[(WebJarCatalog, String, Int)]]("mostDownloaded", 1.day) {
+        val lastMonth = DateTime.now().minusMonths(1)
+        mavenCentral.mostDownloaded(lastMonth, MAX_POPULAR_WEBJARS).recoverWith {
+          case e: Exception => mavenCentral.mostDownloaded(lastMonth.minusMonths(1), MAX_POPULAR_WEBJARS)
+        }
+      }
+
+      mostDownloadedFuture.map { mostDownloaded =>
+        sortedWebJars(mostDownloaded, allWebJars)
+      }
+    }
+  }
+
+  def index = Action.async { request =>
+    sortedMostPopularWebJars.map(maybeCached(request, webJars => Ok(indexView(Left(webJars))))).recover {
+      case e: Exception =>
+        Logger.error("index WebJar fetch failed", e)
+        InternalServerError(indexView(Right(WEBJAR_FETCH_ERROR)))
+    }
+  }
+
+  def popularWebJars = Action.async { request =>
+    sortedMostPopularWebJars.map(maybeCached(request, webJars => Ok(views.html.webJarList(Left(webJars))))).recover {
+      case e: Exception =>
+        InternalServerError(views.html.webJarList(Right(WEBJAR_FETCH_ERROR)))
+    }
+  }
+
+  def searchWebJars(query: String, groupId: List[String]) = Action.async { implicit request =>
+    webJarsWithTimeout().flatMap { allWebJars =>
+
+      val webJarStatsFuture = cache.get[Seq[(WebJarCatalog, String, Int)]]("stats", 1.day) {
+        val lastMonth = DateTime.now().minusMonths(1)
+        mavenCentral.getStats(lastMonth).recoverWith {
+          case e: Exception => mavenCentral.getStats(lastMonth.minusMonths(1))
+        }
+      }
+
+      webJarStatsFuture.map { webJarStats =>
+        val matchingWebJars = allWebJars.filter { webJar =>
+          groupId.contains(webJar.groupId) &&
+            (webJar.name.toLowerCase.contains(query.toLowerCase) || webJar.artifactId.toLowerCase.contains(query.toLowerCase))
+        }
+
+        val sortedMatchingWebJars = sortedWebJars(webJarStats, matchingWebJars)
+
+        render {
+          case Accepts.Html() => Ok(views.html.webJarList(Left(sortedMatchingWebJars)))
+          case Accepts.Json() => Ok(Json.toJson(sortedMatchingWebJars))
+        }
+      }
     } recover {
       case e: Exception =>
-        InternalServerError(classicListView(Seq.empty[WebJar]))
+        Logger.error("searchWebJars failed", e)
+        render {
+          case Accepts.Html() => InternalServerError(views.html.webJarList(Right(WEBJAR_FETCH_ERROR)))
+          case Accepts.Json() => InternalServerError(Json.toJson(Seq.empty[WebJar]))
+        }
     }
   }
 
@@ -70,22 +136,16 @@ class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Hero
     }
   }
 
-  def bowerList = Action.async { request =>
-    webJarsWithTimeout(Some(WebJarCatalog.BOWER)).map {
-      maybeCached(request, webJars => Ok(npmbowerListView(webJars, pusher.maybeKey, "Bower", "bower")))
-    } recover {
-      case e: Exception =>
-        InternalServerError(npmbowerListView(Seq.empty[WebJar], pusher.maybeKey, "Bower", "bower"))
-    }
+  def classicList = Action { request =>
+    Redirect(routes.Application.index())
   }
 
-  def npmList = Action.async { request =>
-    webJarsWithTimeout(Some(WebJarCatalog.NPM)).map {
-      maybeCached(request, webJars => Ok(npmbowerListView(webJars, pusher.maybeKey, "NPM", "npm")))
-    } recover {
-      case e: Exception =>
-        InternalServerError(npmbowerListView(Seq.empty[WebJar], pusher.maybeKey, "NPM", "npm"))
-    }
+  def bowerList = Action { request =>
+    Redirect(routes.Application.index())
+  }
+
+  def npmList = Action { request =>
+    Redirect(routes.Application.index())
   }
 
   def bowerPackageExists(packageNameOrGitRepo: String) = Action.async {
@@ -143,10 +203,19 @@ class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Hero
   def allWebJars = CorsAction {
     Action.async { implicit request =>
       webJarsWithTimeout().map {
-        maybeCached(request, webJars => Ok(Json.toJson(webJars)))
+        maybeCached(request, { webJars =>
+          render {
+            case Accepts.Html() => Ok(allView(Left(webJars)))
+            case Accepts.Json() => Ok(Json.toJson(webJars))
+          }
+        })
       } recover {
         case e: Exception =>
-          InternalServerError(Json.arr())
+          Logger.error("allWebJars fetch error", e)
+          render {
+            case Accepts.Html() => InternalServerError(allView(Right(WEBJAR_FETCH_ERROR)))
+            case Accepts.Json() => InternalServerError(Json.arr())
+          }
       }
     }
   }
