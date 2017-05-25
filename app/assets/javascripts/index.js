@@ -106,26 +106,74 @@ function guid() {
     s4() + "-" + s4() + s4() + s4();
 }
 
+function webJarType() {
+  return $("input[type=radio][name=new_webjar_catalog]").val();
+}
+
+function getPackageOrRepoName() {
+  var packageOrUrl = $("#newWebJarName").val().split("#");
+
+  var data = {};
+
+  if (packageOrUrl.length > 0) {
+    data.packageOrRepo = packageOrUrl[0];
+  }
+
+  if (packageOrUrl.length === 2) {
+    data.branch = packageOrUrl[1];
+  }
+
+  return data;
+}
+
+function checkPackageName(packageName) {
+  $("#newWebJarName").parent().removeClass("has-error has-success");
+  $("#newWebJarNameFeedback").removeClass("glyphicon-ok glyphicon-remove hidden").addClass("glyphicon-refresh spin");
+  $("#newWebJarVersion").select2("val", "");
+  $("#newWebJarVersion").select2("enable", false);
+
+  $.ajax({
+    url: "/_" + webJarType() + "/exists?name=" + packageName,
+    success: function(data, status) {
+      $("#newWebJarName").parent().addClass("has-success");
+      $("#newWebJarNameFeedback").addClass("glyphicon-ok").removeClass("glyphicon-refresh spin");
+      $("#newWebJarVersion").select2("enable", true);
+    },
+    error: function(data, status) {
+      $("#newWebJarName").parent().addClass("has-error");
+      $("#newWebJarNameFeedback").addClass("glyphicon-remove").removeClass("glyphicon-refresh spin");
+      $("#newWebJarVersion").select2("enable", false);
+    }
+  });
+}
+
+function handleSearch() {
+  var searchText = $("#search").val();
+  var groupIds = $("input[name='search_catalog[]']:checked").map(function() {
+    return $(this).val();
+  }).get();
+
+  if (searchText === "") {
+    $("#clearSearch").hide();
+  }
+  else {
+    $("#clearSearch").show();
+    searchWebJars(searchText, groupIds);
+  }
+}
+
 $(function() {
 
   setupWebJarList();
 
-  $("#search").keyup(function() {
-    var searchText = $(this).val();
-    var groupIds = $("input[name='search_catalog[]']:checked").map(function() {
-      return $(this).val();
-    }).get();
+  $("#search").keyup(function(event) {
+    if ((event.keyCode === 13) || (this.value.length > 2)) {
+      handleSearch();
+    }
+  });
 
-    if (searchText === "") {
-      $("#clearSearch").hide();
-    }
-    else {
-      $("#clearSearch").show();
-    }
-
-    if (searchText.length > 2) {
-      searchWebJars(searchText, groupIds);
-    }
+  $("input[name='search_catalog[]").change(function() {
+    handleSearch();
   });
 
   $("#clearSearch").click(function(){
@@ -151,48 +199,6 @@ $(function() {
       $(".classic-deploy").hide();
     }
   });
-
-
-  function webJarType() {
-    return $("input[type=radio][name=new_webjar_catalog]").val();
-  }
-
-  function getPackageOrRepoName() {
-    var packageOrUrl = $("#newWebJarName").val().split("#");
-
-    var data = {};
-
-    if (packageOrUrl.length > 0) {
-      data.packageOrRepo = packageOrUrl[0];
-    }
-
-    if (packageOrUrl.length === 2) {
-      data.branch = packageOrUrl[1];
-    }
-
-    return data;
-  }
-
-  function checkPackageName(packageName) {
-    $("#newWebJarName").parent().removeClass("has-error has-success");
-    $("#newWebJarNameFeedback").removeClass("glyphicon-ok glyphicon-remove hidden").addClass("glyphicon-refresh spin");
-    $("#newWebJarVersion").select2("val", "");
-    $("#newWebJarVersion").select2("enable", false);
-
-    $.ajax({
-      url: "/_" + webJarType() + "/exists?name=" + packageName,
-      success: function(data, status) {
-        $("#newWebJarName").parent().addClass("has-success");
-        $("#newWebJarNameFeedback").addClass("glyphicon-ok").removeClass("glyphicon-refresh spin");
-        $("#newWebJarVersion").select2("enable", true);
-      },
-      error: function(data, status) {
-        $("#newWebJarName").parent().addClass("has-error");
-        $("#newWebJarNameFeedback").addClass("glyphicon-remove").removeClass("glyphicon-refresh spin");
-        $("#newWebJarVersion").select2("enable", false);
-      }
-    });
-  }
 
   $("#newWebJarName").typeWatch({
     callback: checkPackageName,
