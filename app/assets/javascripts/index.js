@@ -107,7 +107,7 @@ function guid() {
 }
 
 function webJarType() {
-  return $("input[type=radio][name=new_webjar_catalog]").val();
+  return $("input[type=radio][name=new_webjar_catalog]:checked").val();
 }
 
 function getPackageOrRepoName() {
