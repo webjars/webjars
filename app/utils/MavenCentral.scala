@@ -233,16 +233,24 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
     statsFuture.flatMap { response =>
       response.status match {
         case Status.OK =>
-          val slices = (response.json \ "data" \ "slices").as[Seq[JsObject]]
-          val webJarCounts = slices.map { jsObject =>
-            val name = (jsObject \ "name").as[String]
-            val count = (jsObject \ "count").as[Int]
-            (webJarCatalog, name, count)
+          val total = (response.json \ "data" \ "total").as[Int]
+
+          if (total > 0) {
+
+            val slices = (response.json \ "data" \ "slices").as[Seq[JsObject]]
+            val webJarCounts = slices.map { jsObject =>
+              val name = (jsObject \ "name").as[String]
+              val count = (jsObject \ "count").as[Int]
+              (webJarCatalog, name, count)
+            }
+
+            val sorted = webJarCounts.sortBy(_._3)(Ordering[Int].reverse)
+
+            Future.successful(sorted)
           }
-
-          val sorted = webJarCounts.sortBy(_._3)(Ordering[Int].reverse)
-
-          Future.successful(sorted)
+          else {
+            Future.failed(new Exception("Stats were empty"))
+          }
         case _ =>
           Future.failed(new Exception(response.body))
       }
