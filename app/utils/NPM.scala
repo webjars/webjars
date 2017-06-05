@@ -7,12 +7,12 @@ import javax.inject.Inject
 
 import play.api.http.Status
 import play.api.libs.functional.syntax._
-import play.api.libs.json.{JsError, _}
+import play.api.libs.json._
 import play.api.libs.ws.WSClient
 import utils.PackageInfo._
 
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.{Failure, Success, Try}
+import scala.util.Try
 
 class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, gitHub: GitHub) (implicit ec: ExecutionContext) {
 
@@ -154,7 +154,7 @@ class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, g
     }
   }
 
-  def tgz(packageNameOrGitRepo: String, version: String): Future[InputStream] = {
+  def archive(packageNameOrGitRepo: String, version: String): Future[InputStream] = {
     if (git.isGit(packageNameOrGitRepo)) {
       git.tar(packageNameOrGitRepo, Some(version), Set("node_modules"))
     }
@@ -248,11 +248,24 @@ object NPM {
       sourceConnectionUriReader ~
       bugsReader ~
       licenseReader ~
-      (__ \ "dependencies").read[Map[String, String]].orElse(Reads.pure(Map.empty[String, String])) ~
-      Reads.pure(WebJarType.NPM)
+      (__ \ "dependencies").read[Map[String, String]].orElse(Reads.pure(Map.empty[String, String]))
     )(PackageInfo.apply[NPM] _)
   }
 
-  implicit val npmWrites: Writes[NPM] = Writes[NPM](_ => JsNull)
+  val groupId: String = "org.webjars.npm"
+
+  def deployable(npm: NPM): Deployable[NPM] = new Deployable[NPM] {
+    override val name: String = "NPM"
+
+    override val groupId: String = NPM.groupId
+
+    override val excludes: Set[String] = Set("node_modules")
+
+    override val metadataFile: String = "package.json"
+
+    override def archive(nameOrUrlish: String, version: String): Future[InputStream] = npm.archive(nameOrUrlish, version)
+
+    override def info(nameOrUrlish: String, maybeVersion: Option[String]): Future[PackageInfo[NPM]] = npm.info(nameOrUrlish, maybeVersion)
+  }
 
 }
