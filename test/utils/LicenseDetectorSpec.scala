@@ -18,7 +18,10 @@ class LicenseDetectorSpec extends PlaySpecification with GlobalApplication {
   lazy val bower: Bower = application.injector.instanceOf[Bower]
   lazy val messages: MessagesApi = application.injector.instanceOf[MessagesApi]
 
-  def emptyPackageInfo(licenses: Seq[String]) = PackageInfo("", "", new URL("http://webjars.org"), new URL("http://webjars.org"), new URI("http://webjars.org"), new URL("http://webjars.org"), licenses, Map.empty[String, String], WebJarType.Bower)
+  implicit lazy val deployableNpm = NPM.deployable(npm)
+  implicit lazy val deployableBower = Bower.deployable(bower)
+
+  def emptyPackageInfo(licenses: Seq[String]) = PackageInfo[Bower]("", "", new URL("http://webjars.org"), new URL("http://webjars.org"), new URI("http://webjars.org"), new URL("http://webjars.org"), licenses, Map.empty[String, String])
 
   "gitHubLicenseDetect" should {
     "detect the license" in {
@@ -68,7 +71,7 @@ class LicenseDetectorSpec extends PlaySpecification with GlobalApplication {
       licenses must be equalTo Set("Apache-2.0", "MIT")
     }
     "work with SPDX 'SEE LICENSE IN LICENSE' expressions" in {
-      val testPackageInfo = emptyPackageInfo(Seq("SEE LICENSE IN LICENSE")).copy(sourceConnectionUri = new URI("git://github.com/stacktracejs/error-stack-parser.git"))
+      val testPackageInfo = emptyPackageInfo(Seq("SEE LICENSE IN LICENSE")).copy[Bower](sourceConnectionUri = new URI("git://github.com/stacktracejs/error-stack-parser.git"))
       val licenses = await(licenseDetector.resolveLicenses(testPackageInfo))
       licenses must be equalTo Set("MIT")
     }
