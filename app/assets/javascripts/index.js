@@ -250,31 +250,52 @@ $(function() {
     var artifactId = packageOrRepoName.packageOrRepo;
     var version = $("#newWebJarVersion").select2("val");
 
-    var pusher = new Pusher(window.pusherKey);
-    var channelId = guid();
-    var channel = pusher.subscribe(channelId);
-    channel.bind("update", function(data) {
-      log(data);
-    });
-    channel.bind("success", function(data) {
-      log(data);
-      pusher.disconnect();
-      $("#deployButton").attr("disabled", false);
-    });
-    channel.bind("failure", function(data) {
-      log(data);
-      pusher.disconnect();
-      $("#deployButton").attr("disabled", false);
-    });
+    var channelId = null;
+
+    if (window.pusherKey !== undefined) {
+      var pusher = new Pusher(window.pusherKey);
+      channelId = guid();
+      var channel = pusher.subscribe(channelId);
+      channel.bind("update", function(data) {
+        log(data);
+      });
+      channel.bind("success", function(data) {
+        log(data);
+        pusher.disconnect();
+        $("#deployButton").attr("disabled", false);
+      });
+      channel.bind("failure", function(data) {
+        log(data);
+        pusher.disconnect();
+        $("#deployButton").attr("disabled", false);
+      });
+    }
 
     deployLog.text("Starting Deploy");
 
-    var deployUrl = "/_" + webJarType() + "/deploy?name=" + encodeURIComponent(artifactId) + "&version=" + encodeURIComponent(version) + "&channelId=" + channelId;
+    var deployUrl = "/_" + webJarType() + "/deploy?name=" + encodeURIComponent(artifactId) + "&version=" + encodeURIComponent(version);
+
+    if (channelId !== null) {
+      deployUrl += "&channelId=" + channelId;
+    }
 
     $.ajax(deployUrl, {
       method: "post",
       success: function(data) {
-        console.log(data);
+        if (channelId !== null) {
+          console.log(data);
+        }
+        else {
+          log(data);
+        }
+      },
+      error: function(error) {
+        if (channelId !== null) {
+          console.log(error);
+        }
+        else {
+          log(error.responseText);
+        }
       }
     });
   });

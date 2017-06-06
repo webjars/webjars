@@ -20,10 +20,3 @@ object WebJarVersion {
   }
 
 }
-
-object WebJarCatalog extends Enumeration {
-  type WebJarCatalog = Value
-  val CLASSIC = Value("org.webjars")
-  val BOWER = Value("org.webjars.bower")
-  val NPM = Value("org.webjars.npm")
-}

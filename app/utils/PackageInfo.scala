@@ -4,11 +4,11 @@ import java.net.{URI, URL}
 
 import play.api.data.validation.ValidationError
 import play.api.libs.functional.syntax._
-import play.api.libs.json.{JsError, _}
+import play.api.libs.json._
 
 import scala.util.{Failure, Success, Try}
 
-case class PackageInfo[A](name: String, version: String, homepageUrl: URL, sourceUrl: URL, sourceConnectionUri: URI, issuesUrl: URL, metadataLicenses: Seq[String], dependencies: Map[String, String], webJarType: WebJarType.Value) {
+case class PackageInfo[A](name: String, version: String, homepageUrl: URL, sourceUrl: URL, sourceConnectionUri: URI, issuesUrl: URL, metadataLicenses: Seq[String], dependencies: Map[String, String]) {
 
   lazy val gitHubUrl: Option[URL] = GitHub.gitHubUrl(homepageUrl)
     .orElse(GitHub.gitHubUrl(sourceUrl))
@@ -25,17 +25,13 @@ case class PackageInfo[A](name: String, version: String, homepageUrl: URL, sourc
 
 }
 
-object WebJarType extends Enumeration {
-  val NPM, Bower = Value
-}
-
 object PackageInfo {
 
   implicit val writesUrl: Writes[URL] = Writes[URL](url => JsString(url.toString))
 
   implicit val writesUri: Writes[URI] = Writes[URI](uri => JsString(uri.toString))
 
-  implicit def jsonWrites[T](implicit nested: Writes[T]): Writes[PackageInfo[T]] = (
+  implicit def jsonWrites[T]: Writes[PackageInfo[T]] = (
     (__ \ "name").write[String] and
     (__ \ "version").write[String] and
     (__ \ "homepage").write[URL] and
@@ -43,8 +39,7 @@ object PackageInfo {
     (__ \ "sourceConnectionUri").write[URI] and
     (__ \ "issuesUrl").write[URL] and
     (__ \ "metadataLicenses").write[Seq[String]] and
-    (__ \ "dependencies").write[Map[String, String]] and
-    (__ \ "webJarType").write[WebJarType.Value]
+    (__ \ "dependencies").write[Map[String, String]]
   )(unlift(PackageInfo.unapply[T]))
 
   implicit val readsUrl: Reads[URL] = Reads[URL] {

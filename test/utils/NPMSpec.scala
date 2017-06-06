@@ -67,7 +67,7 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
   }
   "git repo tagged version zip" should {
     "work" in {
-      val tgz = await(npm.tgz("mochajs/mocha", "2.2.5"))
+      val tgz = await(npm.archive("mochajs/mocha", "2.2.5"))
       val bufferedInputStream = new BufferedInputStream(tgz)
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(bufferedInputStream)
       bufferedInputStream.available() must beEqualTo (645120)
@@ -116,7 +116,7 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
       await(npm.versions("@reactivex/rxjs")) must contain("5.0.0-alpha.7")
     }
     "have a tgz" in {
-      val tgz = await(npm.tgz("@reactivex/rxjs", "5.0.0-alpha.7"))
+      val tgz = await(npm.archive("@reactivex/rxjs", "5.0.0-alpha.7"))
       val bufferedInputStream = new BufferedInputStream(tgz)
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(bufferedInputStream)
       bufferedInputStream.available() must beEqualTo (1687)

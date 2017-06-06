@@ -12,7 +12,6 @@ import play.api.libs.ws._
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
-
 import utils.PackageInfo._
 
 class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, gitHub: GitHub) (implicit ec: ExecutionContext) {
@@ -108,7 +107,7 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
     }
   }
 
-  def zip(packageNameOrGitRepo: String, version: String): Future[InputStream] = {
+  def archive(packageNameOrGitRepo: String, version: String): Future[InputStream] = {
     if (git.isGit(packageNameOrGitRepo)) {
       git.gitUrl(packageNameOrGitRepo).flatMap { gitUrl =>
         git.tar(gitUrl, Some(version), Set("bower_modules"))
@@ -137,12 +136,23 @@ object Bower {
     sourceReads ~
     sourceReads.flatMap(PackageInfo.gitHubIssuesUrl) ~
     (__ \ "license").read[Seq[String]].orElse((__ \ "license").read[String].map(Seq(_))).orElse(Reads.pure(Seq.empty[String])) ~
-    (__ \ "dependencies").read[Map[String, String]].orElse(Reads.pure(Map.empty[String, String])) ~
-    Reads.pure(WebJarType.Bower)
+    (__ \ "dependencies").read[Map[String, String]].orElse(Reads.pure(Map.empty[String, String]))
   )(PackageInfo.apply[Bower] _)
 
-  //implicit def jsonWrites: Writes[PackageInfo[Bower]] = Json.writes[PackageInfo[Bower]]
+  val groupId: String = "org.webjars.bower"
 
-  implicit val npmWrites: Writes[Bower] = Writes[Bower](_ => JsNull)
+  def deployable(bower: Bower): Deployable[Bower] = new Deployable[Bower] {
+    override val name: String = "Bower"
+
+    override val groupId: String = Bower.groupId
+
+    override val excludes: Set[String] = Set(".bower.json")
+
+    override val metadataFile: String = "bower.json"
+
+    override def archive(nameOrUrlish: String, version: String): Future[InputStream] = bower.archive(nameOrUrlish, version)
+
+    override def info(nameOrUrlish: String, maybeVersion: Option[String]): Future[PackageInfo[Bower]] = bower.info(nameOrUrlish, maybeVersion)
+  }
 }
 

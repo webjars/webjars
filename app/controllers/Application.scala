@@ -5,12 +5,11 @@ import java.util.concurrent.TimeoutException
 import javax.inject.Inject
 
 import akka.actor.ActorSystem
-import models.WebJarCatalog.WebJarCatalog
-import models.{WebJar, WebJarCatalog}
+import models.WebJar
 import org.joda.time.DateTime
 import play.api.data.Forms._
 import play.api.data._
-import play.api.libs.json.Json
+import play.api.libs.json.{JsValue, Json}
 import play.api.mvc._
 import play.api.{Configuration, Environment, Logger, Mode}
 import utils._
@@ -19,7 +18,7 @@ import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.hashing.MurmurHash3
 
-class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Heroku, pusher: Pusher, cache: Cache, mavenCentral: MavenCentral, npmWebJar: NPMWebJar, bowerWebJar: BowerWebJar, webJarsFileService: WebJarsFileService, actorSystem: ActorSystem, configuration: Configuration, environment: Environment)(mainView: views.html.main, allView: views.html.all, indexView: views.html.index, webJarRequestView: views.html.webJarRequest, contributingView: views.html.contributing, documentationView: views.html.documentation)(implicit ec: ExecutionContext) extends Controller {
+class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Heroku, pusher: Pusher, cache: Cache, mavenCentral: MavenCentral, deployWebJar: DeployWebJar, webJarsFileService: WebJarsFileService, actorSystem: ActorSystem, configuration: Configuration, environment: Environment)(mainView: views.html.main, allView: views.html.all, indexView: views.html.index, webJarRequestView: views.html.webJarRequest, contributingView: views.html.contributing, documentationView: views.html.documentation)(implicit ec: ExecutionContext) extends Controller {
 
   private val X_GITHUB_ACCESS_TOKEN = "X-GITHUB-ACCESS-TOKEN"
 
@@ -45,8 +44,8 @@ class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Hero
 
   private val defaultTimeout = 25.seconds
 
-  private def webJarsWithTimeout(maybeCatalog: Option[WebJarCatalog.WebJarCatalog] = None): Future[List[WebJar]] = {
-    val fetcher = maybeCatalog.fold(mavenCentral.webJars)(mavenCentral.webJars)
+  private def webJarsWithTimeout(maybeGroupId: Option[String] = None): Future[List[WebJar]] = {
+    val fetcher = maybeGroupId.fold(mavenCentral.webJars)(mavenCentral.webJars)
     val future = TimeoutFuture(defaultTimeout)(fetcher)
     future.onFailure {
       case te: TimeoutException => Logger.debug("Timeout fetching WebJars", te)
@@ -55,17 +54,16 @@ class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Hero
     future
   }
 
-  private def sortedWebJars(counts: Seq[(WebJarCatalog, String, Int)], webJars: Seq[WebJar]): Seq[WebJar] = {
+  private def sortedWebJars(counts: Seq[(String, String, Int)], webJars: Seq[WebJar]): Seq[WebJar] = {
     counts.flatMap {
-      case (webJarCatalog, artifactId, _) =>
-        val maybeWebJar = webJars.find { webJar => (webJar.groupId == webJarCatalog.toString) && (webJar.artifactId == artifactId) }
-        maybeWebJar.toSeq
+      case (groupId, artifactId, _) =>
+        webJars.find { webJar => (webJar.groupId == groupId) && (webJar.artifactId == artifactId) }
     }
   }
 
   private def sortedMostPopularWebJars: Future[Seq[WebJar]] = {
     webJarsWithTimeout().flatMap { allWebJars =>
-      val mostDownloadedFuture = cache.get[Seq[(WebJarCatalog, String, Int)]]("mostDownloaded", 1.day) {
+      val mostDownloadedFuture = cache.get[Seq[(String, String, Int)]]("mostDownloaded", 1.day) {
         val lastMonth = DateTime.now().minusMonths(1)
         mavenCentral.mostDownloaded(lastMonth, MAX_POPULAR_WEBJARS).recoverWith {
           case e: Exception => mavenCentral.mostDownloaded(lastMonth.minusMonths(1), MAX_POPULAR_WEBJARS)
@@ -96,7 +94,7 @@ class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Hero
   def searchWebJars(query: String, groupId: List[String]) = Action.async { implicit request =>
     webJarsWithTimeout().flatMap { allWebJars =>
 
-      val webJarStatsFuture = cache.get[Seq[(WebJarCatalog, String, Int)]]("stats", 1.day) {
+      val webJarStatsFuture = cache.get[Seq[(String, String, Int)]]("stats", 1.day) {
         val lastMonth = DateTime.now().minusMonths(1)
         mavenCentral.getStats(lastMonth).recoverWith {
           case e: Exception => mavenCentral.getStats(lastMonth.minusMonths(1))
@@ -127,8 +125,7 @@ class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Hero
   }
 
   def webJarList(groupId: String) = Action.async { implicit request =>
-    val catalog = WebJarCatalog.withName(groupId)
-    webJarsWithTimeout(Some(catalog)).map {
+    webJarsWithTimeout(Some(groupId)).map {
       maybeCached(request, webJars => Ok(Json.toJson(webJars)))
     } recover {
       case e: Exception =>
@@ -311,41 +308,29 @@ class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Hero
     )
   }
 
-  def deployBower(artifactId: String, version: String, channelId: String) = Action.async {
-    val app = configuration.getString("bower.herokuapp").get
-    val fork = configuration.getBoolean("bower.fork").get
+  private def deploy[A](nameOrUrlish: String, version: String, maybeChannelId: Option[String])(implicit deployable: Deployable[A]): Future[JsValue] = {
+    val fork = configuration.getBoolean("deploy.fork").getOrElse(false)
 
     if (fork) {
-      val cmd = s"pubbower $artifactId $version $channelId"
-      heroku.dynoCreate(app, false, cmd, "Standard-2X").map { createJson =>
-        Ok(createJson)
-      }
+      val app = configuration.getString("deploy.herokuapp").get
+      val channelIdParam = maybeChannelId.getOrElse("")
+      val cmd = s"deploy ${deployable.groupId} $nameOrUrlish $version " + channelIdParam
+      heroku.dynoCreate(app, false, cmd, "Standard-2X")
     }
     else {
-      bowerWebJar.release(artifactId, version, Some(channelId)).map { result =>
-        Ok(Json.toJson(result))
-      } recover {
-        case e: Exception => InternalServerError(e.getMessage)
-      }
+      deployWebJar.deploy(nameOrUrlish, version, maybeChannelId).map(Json.toJson(_))
     }
   }
 
-  def deployNPM(nameOrUrlish: String, version: String, channelId: String) = Action.async {
-    val app = configuration.getString("bower.herokuapp").get
-    val fork = configuration.getBoolean("bower.fork").get
-
-    if (fork) {
-      val cmd = s"pubnpm $nameOrUrlish $version $channelId"
-      heroku.dynoCreate(app, false, cmd, "Standard-2X").map { createJson =>
-        Ok(createJson)
-      }
+  def deployBower(nameOrUrlish: String, version: String, maybeChannelId: Option[String]) = Action.async {
+    deploy(nameOrUrlish, version, maybeChannelId)(Bower.deployable(bower)).map(Ok(_)).recover {
+      case e: Exception => InternalServerError(e.getMessage)
     }
-    else {
-      npmWebJar.release(nameOrUrlish, version, Some(channelId)).map { result =>
-        Ok(Json.toJson(result))
-      } recover {
-        case e: Exception => InternalServerError(e.getMessage)
-      }
+  }
+
+  def deployNPM(nameOrUrlish: String, version: String, maybeChannelId: Option[String]) = Action.async {
+    deploy(nameOrUrlish, version, maybeChannelId)(NPM.deployable(npm)).map(Ok(_)).recover {
+      case e: Exception => InternalServerError(e.getMessage)
     }
   }
 

@@ -21,10 +21,10 @@ POST           /request                                                   contro
 
 GET            /_org.webjars.bower/exists                                 controllers.Application.bowerPackageExists(name)
 GET            /_org.webjars.bower/versions                               controllers.Application.bowerPackageVersions(name, branch: Option[String])
-POST           /_org.webjars.bower/deploy                                 controllers.Application.deployBower(name, version, channelId)
+POST           /_org.webjars.bower/deploy                                 controllers.Application.deployBower(name, version, channelId: Option[String])
 GET            /_org.webjars.npm/exists                                   controllers.Application.npmPackageExists(name)
 GET            /_org.webjars.npm/versions                                 controllers.Application.npmPackageVersions(name, branch: Option[String])
-POST           /_org.webjars.npm/deploy                                   controllers.Application.deployNPM(name, version, channelId)
+POST           /_org.webjars.npm/deploy                                   controllers.Application.deployNPM(name, version, channelId: Option[String])
 
 GET            /mockcentral/searchgroup                                   controllers.MockCentral.searchGroup()
 

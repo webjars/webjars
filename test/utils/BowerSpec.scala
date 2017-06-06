@@ -36,7 +36,7 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
   }
   "sjcl" should {
     "download" in {
-      val is = new BufferedInputStream(await(bower.zip("sjcl", "1.0.2")))
+      val is = new BufferedInputStream(await(bower.archive("sjcl", "1.0.2")))
       val zis = new ArchiveStreamFactory().createArchiveInputStream(is)
       val files = Stream.continually(zis.getNextEntry).takeWhile(_ != null).map(_.getName)
       files must contain ("sjcl.js")
@@ -73,7 +73,7 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
   }
   "git repo tagged version zip" should {
     "work" in {
-      val zip = await(bower.zip("PolymerElements/iron-elements", "v1.0.0"))
+      val zip = await(bower.archive("PolymerElements/iron-elements", "v1.0.0"))
       val bufferedInputStream = new BufferedInputStream(zip)
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(bufferedInputStream)
 
@@ -126,7 +126,7 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
 
   "long file names" should {
     "work" in {
-      val is = new BufferedInputStream(await(bower.zip("highcharts/highcharts", "v4.2.5")))
+      val is = new BufferedInputStream(await(bower.archive("highcharts/highcharts", "v4.2.5")))
       val zis = new ArchiveStreamFactory().createArchiveInputStream(is)
       val files = Stream.continually(zis.getNextEntry).takeWhile(_ != null).map(_.getName)
       files must contain ("tools/ant-contrib-0.6-bin/docs/api/net/sf/antcontrib/perf/AntPerformanceListener.StopWatchComparator.html")

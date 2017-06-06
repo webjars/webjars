@@ -145,7 +145,7 @@ class LicenseDetector @Inject() (ws: WSClient, git: Git, messages: MessagesApi) 
     seq.flatMap(failIfEmpty)
   }
 
-  def resolveLicenses[A](packageInfo: PackageInfo[A], maybeVersion: Option[String] = None): Future[Set[String]] = {
+  def resolveLicenses[A](packageInfo: PackageInfo[A], maybeVersion: Option[String] = None)(implicit deployable: Deployable[A]): Future[Set[String]] = {
     // first check just the specified licenses including synonyms
     failIfEmpty(validLicenses(packageInfo.metadataLicenses)).recoverWith {
       case _: NoValidLicenses =>
@@ -161,11 +161,7 @@ class LicenseDetector @Inject() (ws: WSClient, git: Git, messages: MessagesApi) 
         }
     } recoverWith {
       case e: Exception =>
-        val errorMessage = packageInfo.webJarType match {
-          case WebJarType.Bower => messages("licensenotfound", "bower.json", packageInfo.sourceUrl, packageInfo.metadataLicenses.mkString)
-          case WebJarType.NPM => messages("licensenotfound", "package.json", packageInfo.sourceUrl, packageInfo.metadataLicenses.mkString)
-        }
-
+        val errorMessage = messages("licensenotfound", deployable.metadataFile, packageInfo.sourceUrl, packageInfo.metadataLicenses.mkString)
         Future.failed(LicenseNotFoundException(errorMessage, e))
     } map(_.toSet)
   }
