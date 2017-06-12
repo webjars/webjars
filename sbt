@@ -8,18 +8,6 @@ get_java_cmd() {
   fi
 }
 
-# if no task is specified, run the "default" task
-# if the "shell" task is specified then enter the shell
-get_args() {
-  if [[ "$@" == "" ]]; then
-    echo "default"
-  elif [[ "$1" == "shell" ]]; then
-    echo ""
-  else
-    echo "$@"
-  fi
-}
-
 # by default we should be in the correct project dir, but when run from Finder on Mac, the cwd is wrong
 move_to_project_dir() {
   if [[ "$(uname)" == "Darwin" ]] && [[ "$HOME" == "$PWD" ]]; then
