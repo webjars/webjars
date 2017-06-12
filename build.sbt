@@ -14,6 +14,8 @@ libraryDependencies ++= Seq(
   ws,
   cache,
   filters,
+  "com.typesafe.akka" %% "akka-stream" % "2.5.2",
+  "com.typesafe.akka" %% "akka-slf4j" % "2.5.2",
   "commons-codec" % "commons-codec" % "1.10",
   "org.apache.commons" % "commons-compress" % "1.9",
   "org.apache.commons" % "commons-io" % "1.3.2",
