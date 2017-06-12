@@ -40,7 +40,7 @@ class DeployWebJar @Inject() (git: Git, binTray: BinTray, pusher: Pusher, maven:
       _ <- push("update", "Generated POM")
       zip <- deployable.archive(nameOrUrlish, version)
       _ <- push("update", s"Fetched ${deployable.name} zip")
-      jar = WebJarCreator.createWebJar(zip, false, deployable.excludes, pom, deployable.groupId, artifactId, packageInfo.version)
+      jar = WebJarCreator.createWebJar(zip, deployable.contentsInSubdir, deployable.excludes, pom, deployable.groupId, artifactId, packageInfo.version)
       _ <- push("update", s"Created ${deployable.name} WebJar")
 
       packageName = s"${deployable.groupId}:$artifactId"
@@ -125,6 +125,7 @@ trait Deployable[A] {
   val groupId: String
   val excludes: Set[String]
   val metadataFile: String
+  val contentsInSubdir: Boolean
   def mavenBaseDir: String = groupId.replaceAllLiterally(".", "/")
   def info(nameOrUrlish: String, maybeVersion: Option[String]): Future[PackageInfo[A]]
   def archive(nameOrUrlish: String, version: String): Future[InputStream]

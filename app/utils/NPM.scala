@@ -263,6 +263,8 @@ object NPM {
 
     override val metadataFile: String = "package.json"
 
+    override val contentsInSubdir: Boolean = true
+
     override def archive(nameOrUrlish: String, version: String): Future[InputStream] = npm.archive(nameOrUrlish, version)
 
     override def info(nameOrUrlish: String, maybeVersion: Option[String]): Future[PackageInfo[NPM]] = npm.info(nameOrUrlish, maybeVersion)

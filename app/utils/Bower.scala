@@ -150,6 +150,8 @@ object Bower {
 
     override val metadataFile: String = "bower.json"
 
+    override val contentsInSubdir: Boolean = false
+
     override def archive(nameOrUrlish: String, version: String): Future[InputStream] = bower.archive(nameOrUrlish, version)
 
     override def info(nameOrUrlish: String, maybeVersion: Option[String]): Future[PackageInfo[Bower]] = bower.info(nameOrUrlish, maybeVersion)
