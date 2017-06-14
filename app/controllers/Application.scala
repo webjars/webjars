@@ -54,11 +54,12 @@ class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Hero
     future
   }
 
-  private def sortedWebJars(counts: Seq[(String, String, Int)], webJars: Seq[WebJar]): Seq[WebJar] = {
-    counts.flatMap {
-      case (groupId, artifactId, _) =>
-        webJars.find { webJar => (webJar.groupId == groupId) && (webJar.artifactId == artifactId) }
-    }
+  private[controllers] def sortedWebJars(counts: Seq[(String, String, Int)], webJars: Seq[WebJar]): Seq[WebJar] = {
+    webJars.sortBy { webJar =>
+      counts.collectFirst {
+        case (groupId, artifactId, count) if groupId == webJar.groupId && artifactId == webJar.artifactId => count
+      } getOrElse 0
+    } (Ordering[Int].reverse)
   }
 
   private def sortedMostPopularWebJars: Future[Seq[WebJar]] = {
@@ -99,7 +100,12 @@ class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Hero
         mavenCentral.getStats(lastMonth).recoverWith {
           case e: Exception => mavenCentral.getStats(lastMonth.minusMonths(1))
         }
+      } recover {
+        // if the stats can't be fetched, continue without them
+        case e: Exception => Seq.empty[(String, String, Int)]
       }
+
+
 
       webJarStatsFuture.map { webJarStats =>
         val matchingWebJars = allWebJars.filter { webJar =>
