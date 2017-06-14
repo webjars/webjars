@@ -38,6 +38,21 @@ class ApplicationSpec extends PlaySpecification {
       sorted(3).artifactId must beEqualTo ("blah")
     }
   }
+  "sortedMostPopularWebJars" should {
+    "only include the max number" in new WithApplication {
+      val applicationController = app.injector.instanceOf[Application]
+
+      val sorted = await(applicationController.sortedMostPopularWebJars)
+
+      sorted must not be empty
+
+      val grouped = sorted.groupBy(_.groupId)
+
+      grouped.getOrElse("org.webjars", Seq.empty[WebJar]).length must beLessThanOrEqualTo (applicationController.MAX_POPULAR_WEBJARS)
+      grouped.getOrElse("org.webjars.npm", Seq.empty[WebJar]).length must beLessThanOrEqualTo (applicationController.MAX_POPULAR_WEBJARS)
+      grouped.getOrElse("org.webjars.bower", Seq.empty[WebJar]).length must beLessThanOrEqualTo (applicationController.MAX_POPULAR_WEBJARS)
+    }
+  }
 
   "searchWebJars" should {
     "work" in new WithApplication {

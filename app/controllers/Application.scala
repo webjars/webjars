@@ -22,7 +22,7 @@ class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Hero
 
   private val X_GITHUB_ACCESS_TOKEN = "X-GITHUB-ACCESS-TOKEN"
 
-  private val MAX_POPULAR_WEBJARS = 20
+  private[controllers] val MAX_POPULAR_WEBJARS = 20
 
   private val WEBJAR_FETCH_ERROR = "Looks like there was an error fetching the WebJars.  If this problem persists please <a href=\"https://github.com/webjars/webjars/issues/new\">file an issue</a>."
 
@@ -62,7 +62,7 @@ class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Hero
     } (Ordering[Int].reverse)
   }
 
-  private def sortedMostPopularWebJars: Future[Seq[WebJar]] = {
+  private[controllers] def sortedMostPopularWebJars: Future[Seq[WebJar]] = {
     webJarsWithTimeout().flatMap { allWebJars =>
       val mostDownloadedFuture = cache.get[Seq[(String, String, Int)]]("mostDownloaded", 1.day) {
         val lastMonth = DateTime.now().minusMonths(1)
@@ -72,7 +72,13 @@ class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Hero
       }
 
       mostDownloadedFuture.map { mostDownloaded =>
-        sortedWebJars(mostDownloaded, allWebJars)
+        val onlyMostDownloaded = allWebJars.filter { webJar =>
+          mostDownloaded.exists {
+            case (groupId, artifactId, _) =>
+              groupId == webJar.groupId && artifactId == webJar.artifactId
+          }
+        }
+        sortedWebJars(mostDownloaded, onlyMostDownloaded)
       }
     }
   }
