@@ -39,6 +39,13 @@ class BinTraySpec extends PlaySpecification with GlobalApplication {
         val result = await(binTray.createVersion("webjars", "test", "foo", "0.0.1", "Release 0.0.1"))
         (result \ "created").asOpt[Date] must beSome
       }
+      "fail to create an existing version" in {
+        await(binTray.createVersion("webjars", "test", "foo", "0.0.1", "Release 0.0.1")) must throwA[BinTray.VersionExists]
+      }
+      "overwrite an existing version" in {
+        val result = await(binTray.createOrOverwriteVersion("webjars", "test", "foo", "0.0.1", "Release 0.0.1"))
+        (result \ "created").asOpt[Date] must beSome
+      }
       "upload a maven artifact" in {
         val bytes = environment.resourceAsStream("foo.jar").map { inputStream =>
           val fileBytes = IOUtils.toByteArray(inputStream)

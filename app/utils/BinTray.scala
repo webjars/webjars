@@ -85,9 +85,9 @@ class BinTray @Inject() (ws: WSAPI, config: Configuration, git: Git, licenseDete
     }
   }
 
-  def createVersion(subject: String, repo: String, packageName: String, name: String, description: String, vcsTag: Option[String] = None): Future[JsValue] = {
+  def createVersion(subject: String, repo: String, packageName: String, version: String, description: String, vcsTag: Option[String] = None): Future[JsValue] = {
     val json = Json.obj(
-      "name" -> name,
+      "name" -> version,
       "desc" -> description,
       "vcs_tag" -> vcsTag
     )
@@ -101,6 +101,26 @@ class BinTray @Inject() (ws: WSAPI, config: Configuration, git: Git, licenseDete
         case _ =>
           Future.failed(new Exception(error(response)))
       }
+    }
+  }
+
+  def deleteVersion(subject: String, repo: String, packageName: String, version: String): Future[JsValue] = {
+    ws(s"/packages/$subject/$repo/$packageName/versions/$version").delete().flatMap { response =>
+      response.status match {
+        case Status.OK =>
+          Future.successful(response.json)
+        case _ =>
+          Future.failed(new Exception(error(response)))
+      }
+    }
+  }
+
+  def createOrOverwriteVersion(subject: String, repo: String, packageName: String, version: String, description: String, vcsTag: Option[String] = None): Future[JsValue] = {
+    createVersion(subject, repo, packageName, version, description, vcsTag).recoverWith {
+      case _: BinTray.VersionExists =>
+        deleteVersion(subject, repo, packageName, version).flatMap { _ =>
+          createVersion(subject, repo, packageName, version, description, vcsTag)
+        }
     }
   }
 

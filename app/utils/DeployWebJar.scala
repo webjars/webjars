@@ -50,8 +50,7 @@ class DeployWebJar @Inject() (git: Git, binTray: BinTray, pusher: Pusher, maven:
       createPackage <- binTray.getOrCreatePackage(binTraySubject, binTrayRepo, packageName, s"WebJar for $artifactId", Seq("webjar", artifactId), licenses, packageInfo.sourceUrl, Some(packageInfo.homepageUrl), Some(packageInfo.issuesUrl), packageInfo.gitHubOrgRepo)
       _ <- push("update", "Created BinTray Package")
 
-      // do not fail if the binTray version already exists
-      createVersion <- binTray.createVersion(binTraySubject, binTrayRepo, packageName, packageInfo.version, s"$artifactId WebJar release ${packageInfo.version}", Some(s"v${packageInfo.version}")).recover { case e: BinTray.VersionExists => e.getMessage }
+      createVersion <- binTray.createOrOverwriteVersion(binTraySubject, binTrayRepo, packageName, packageInfo.version, s"$artifactId WebJar release ${packageInfo.version}", Some(s"v${packageInfo.version}"))
       _ <- push("update", "Created BinTray Version")
       publishPom <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"${deployable.mavenBaseDir}/$artifactId/${packageInfo.version}/$artifactId-${packageInfo.version}.pom", pom.getBytes)
       publishJar <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"${deployable.mavenBaseDir}/$artifactId/${packageInfo.version}/$artifactId-${packageInfo.version}.jar", jar)
