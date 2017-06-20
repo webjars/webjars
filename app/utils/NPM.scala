@@ -92,10 +92,14 @@ class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, g
 
           case JsSuccess(initialInfo, _) =>
 
-            initialInfo.gitHubUrl.fold(Future.successful(initialInfo)) { gitHubUrl =>
+            val dependenciesSansOptionals = initialInfo.dependencies.filterKeys(initialInfo.optionalDependencies.get(_).isEmpty)
+
+            val infoWithResolvedOptionalDependencies = initialInfo.copy[NPM](dependencies = dependenciesSansOptionals)
+
+            infoWithResolvedOptionalDependencies.gitHubUrl.fold(Future.successful(infoWithResolvedOptionalDependencies)) { gitHubUrl =>
                 gitHub.currentUrls(gitHubUrl).map {
                   case (homepage, sourceConnectionUri, issuesUrl) =>
-                    initialInfo.copy[NPM](
+                    infoWithResolvedOptionalDependencies.copy[NPM](
                       homepageUrl = homepage,
                       sourceUrl = homepage,
                       sourceConnectionUri = sourceConnectionUri,
@@ -103,8 +107,8 @@ class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, g
                     )
                 } recover {
                   case e: Exception =>
-                    val newUrl = new URL("https://www.npmjs.com/package/" + initialInfo.name)
-                    initialInfo.copy(homepageUrl = newUrl, sourceUrl = newUrl, sourceConnectionUri = newUrl.toURI, issuesUrl = newUrl)
+                    val newUrl = new URL("https://www.npmjs.com/package/" + infoWithResolvedOptionalDependencies.name)
+                    infoWithResolvedOptionalDependencies.copy(homepageUrl = newUrl, sourceUrl = newUrl, sourceConnectionUri = newUrl.toURI, issuesUrl = newUrl)
                 }
             }
 
@@ -248,7 +252,8 @@ object NPM {
       sourceConnectionUriReader ~
       bugsReader ~
       licenseReader ~
-      (__ \ "dependencies").read[Map[String, String]].orElse(Reads.pure(Map.empty[String, String]))
+      (__ \ "dependencies").read[Map[String, String]].orElse(Reads.pure(Map.empty[String, String])) ~
+      (__ \ "optionalDependencies").read[Map[String, String]].orElse(Reads.pure(Map.empty[String, String]))
     )(PackageInfo.apply[NPM] _)
   }
 

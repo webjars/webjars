@@ -8,7 +8,7 @@ import play.api.libs.json._
 
 import scala.util.{Failure, Success, Try}
 
-case class PackageInfo[A](name: String, version: String, homepageUrl: URL, sourceUrl: URL, sourceConnectionUri: URI, issuesUrl: URL, metadataLicenses: Seq[String], dependencies: Map[String, String]) {
+case class PackageInfo[A](name: String, version: String, homepageUrl: URL, sourceUrl: URL, sourceConnectionUri: URI, issuesUrl: URL, metadataLicenses: Seq[String], dependencies: Map[String, String], optionalDependencies: Map[String, String]) {
 
   lazy val gitHubUrl: Option[URL] = GitHub.gitHubUrl(homepageUrl)
     .orElse(GitHub.gitHubUrl(sourceUrl))
@@ -39,7 +39,8 @@ object PackageInfo {
     (__ \ "sourceConnectionUri").write[URI] and
     (__ \ "issuesUrl").write[URL] and
     (__ \ "metadataLicenses").write[Seq[String]] and
-    (__ \ "dependencies").write[Map[String, String]]
+    (__ \ "dependencies").write[Map[String, String]] and
+    (__ \ "optionalDependencies").write[Map[String, String]]
   )(unlift(PackageInfo.unapply[T]))
 
   implicit val readsUrl: Reads[URL] = Reads[URL] {

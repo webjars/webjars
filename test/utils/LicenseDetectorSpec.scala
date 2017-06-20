@@ -21,7 +21,7 @@ class LicenseDetectorSpec extends PlaySpecification with GlobalApplication {
   implicit lazy val deployableNpm = NPM.deployable(npm)
   implicit lazy val deployableBower = Bower.deployable(bower)
 
-  def emptyPackageInfo(licenses: Seq[String]) = PackageInfo[Bower]("", "", new URL("http://webjars.org"), new URL("http://webjars.org"), new URI("http://webjars.org"), new URL("http://webjars.org"), licenses, Map.empty[String, String])
+  def emptyPackageInfo(licenses: Seq[String]) = PackageInfo[Bower]("", "", new URL("http://webjars.org"), new URL("http://webjars.org"), new URI("http://webjars.org"), new URL("http://webjars.org"), licenses, Map.empty[String, String], Map.empty[String, String])
 
   "gitHubLicenseDetect" should {
     "detect the license" in {

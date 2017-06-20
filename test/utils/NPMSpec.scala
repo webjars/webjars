@@ -234,4 +234,12 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
     }
   }
 
+  "optionalDependencies" should {
+    "not be dependencies" in {
+      val info = await(npm.info("linkifyjs", Some("2.1.4")))
+      info.dependencies must beEmpty
+      info.optionalDependencies must have size 3
+    }
+  }
+
 }
