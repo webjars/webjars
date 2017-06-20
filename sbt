@@ -17,8 +17,6 @@ move_to_project_dir() {
 
 move_to_project_dir
 
-SBT_ARGS=$(get_args $@)
-
 SBT_LAUNCHER="$(dirname $0)/sbt-launch.jar"
 
 SBT_OPTS="-Xms512M -Xmx1536M -Xss1M -XX:+CMSClassUnloadingEnabled"
@@ -27,4 +25,4 @@ SBT_OPTS="-Xms512M -Xmx1536M -Xss1M -XX:+CMSClassUnloadingEnabled"
 
 # todo: help text
 
-$(get_java_cmd) ${SBT_OPTS} -jar ${SBT_LAUNCHER} -shell ${SBT_ARGS}
+$(get_java_cmd) ${SBT_OPTS} -jar ${SBT_LAUNCHER}
