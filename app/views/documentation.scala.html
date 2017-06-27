@@ -21,18 +21,18 @@
         <div class="container">
             <h4><strong>WebJars work with most JVM-based containers and web frameworks. Using a WebJar requires:</strong></h4>
             <ol>
-                <li>The WebJar needs to be a dependency of your application</li>
-                <li>The WebJar needs to be in your application's running CLASSPATH</li>
+                <li>Addition of WebJar as a dependency in the application</li>
+                <li>Addition of the WebJar jar files in the CLASSPATH of the application</li>
                 <li>Your container, web framework, or application needs to serve static assets from Jar files</li>
             </ol>
             <h4 style="padding-top: 15px;">Public CDN via <a href="http://www.jsdelivr.com" target="_blank">jsDelivr</a></h4>
-            All of the WebJar contents are available on the public <a href="http://www.jsdelivr.com" target="_blank">jsDelivr</a> CDN.
-            Just prefix <code>//cdn.jsdelivr.net/webjars/{groupId}</code> in front of your static asset URLs.  For instance, if using the <code>org.webjars : jquery</code> WebJar and your local URL to <code>jquery.js</code> is <code>/webjars/jquery/2.1.0/jquery.js</code> then the CDN URL would be: <code>//cdn.jsdelivr.net/webjars/org.webjars/jquery/2.1.0/jquery.js</code>
+            All the content of the WebJar is available on the public <a href="http://www.jsdelivr.com" target="_blank">jsDelivr</a> CDN.
+            Just prefix <code>//cdn.jsdelivr.net/webjars/{groupId}</code> in front of your static asset URLs.  For example, if you are using the <code>org.webjars : jquery</code> WebJar and the local URL to <code>jquery.js</code> is <code>/webjars/jquery/2.1.0/jquery.js</code> then the CDN URL would be: <code>//cdn.jsdelivr.net/webjars/org.webjars/jquery/2.1.0/jquery.js</code>
         </div>
     </div>
 
     <div class="alert alert-warning" role="alert" style="margin-left: 15px; margin-right: 15px;">
-        Help improve these docs! <a href="https://github.com/webjars/webjars/blob/master/app/views/documentation.scala.html">Documentation Source</a> | <a href="https://github.com/webjars/webjars/issues/new">Create an Issue</a>
+        Help us improve these docs! <a href="https://github.com/webjars/webjars/blob/master/app/views/documentation.scala.html">Documentation Source</a> | <a href="https://github.com/webjars/webjars/issues/new">Create an Issue</a>
     </div>
 
     <div style="padding-left: 15px; padding-right: 15px;">
@@ -63,15 +63,15 @@
             <!-- Play Framework 2 -->
             <div class="tab-pane active" id="play2">
                 <h3>Instructions for Play 2.5 (<a href="http://typesafe.com/activator/template/webjars-sample-play2">Sample Source</a>)</h3>
-                WebJars can be added as dependencies to an app by simply adding them to the <span class="label label-info">build.sbt</span> file.  There is also a helper library named <span class="label label-info">webjars-play</span> that makes it easy to reference WebJar assets.  Here is an example <span class="label label-info">build.sbt</span> file with <span class="label label-info">webjars-play</span> and the <span class="label label-info">bootstrap</span> WebJar as dependencies:<br>
+                WebJars can be added as dependencies in application by simply adding them to the <span class="label label-info">build.sbt</span> file.  There is a helper library named <span class="label label-info">webjars-play</span> also available that makes it easy to reference the WebJar assets.  Here is an example of a <span class="label label-info">build.sbt</span> file with <span class="label label-info">webjars-play</span> and the <span class="label label-info">bootstrap</span> WebJar added as dependencies:<br>
                 <pre><code>libraryDependencies ++= Seq(
   "org.webjars" %% "webjars-play" % "2.5.0",
   "org.webjars" % "bootstrap" % "3.1.1-2"
 )</code></pre>
                 <br>
-                After changing the dependencies you will need to restart Play.<br>
+                After addition of the dependencies you will need to restart the Play Application.<br>
                 <br>
-                Since Play 2.3, WebJars are automatically available as static assets.  If you have a route like:
+                From Play 2.3 onwards, WebJars are automatically available as static assets.  If you have a route like:
                 <pre><code>GET         /assets/*file           controllers.Assets.at(path="/public", file)</code></pre>
                 <br/>
                 Then a WebJar file like <code>bootstrap.css</code> is available at:
