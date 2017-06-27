@@ -154,14 +154,14 @@ class LicenseDetector @Inject() (ws: WSClient, git: Git, messages: MessagesApi) 
         Future.sequence(licensesFuture).map(validLicenses).flatMap(failIfEmpty).recoverWith {
           case _: NoValidLicenses =>
             // finally if no licenses could be found, troll through the repo to find one
-            gitHubLicenseDetect(packageInfo.gitHubOrgRepo).recoverWith {
+            gitHubLicenseDetect(packageInfo.maybeGitHubOrgRepo).recoverWith {
               case _: NoValidLicenses =>
                 tryToGetLicenseFromVariousFiles(packageInfo, maybeVersion)
             } map (Set(_))
         }
     } recoverWith {
       case e: Exception =>
-        val errorMessage = messages("licensenotfound", deployable.metadataFile, packageInfo.sourceUrl, packageInfo.metadataLicenses.mkString)
+        val errorMessage = messages("licensenotfound", deployable.metadataFile, packageInfo.sourceConnectionUri, packageInfo.metadataLicenses.mkString)
         Future.failed(LicenseNotFoundException(errorMessage, e))
     } map(_.toSet)
   }

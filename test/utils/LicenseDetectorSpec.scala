@@ -21,7 +21,7 @@ class LicenseDetectorSpec extends PlaySpecification with GlobalApplication {
   implicit lazy val deployableNpm = NPM.deployable(npm)
   implicit lazy val deployableBower = Bower.deployable(bower)
 
-  def emptyPackageInfo(licenses: Seq[String]) = PackageInfo[Bower]("", "", new URL("http://webjars.org"), new URL("http://webjars.org"), new URI("http://webjars.org"), new URL("http://webjars.org"), licenses, Map.empty[String, String], Map.empty[String, String])
+  def emptyPackageInfo(licenses: Seq[String]) = PackageInfo[Bower]("", "", None, new URI("http://webjars.org"), None, licenses, Map.empty[String, String], Map.empty[String, String])
 
   "gitHubLicenseDetect" should {
     "detect the license" in {
@@ -88,12 +88,6 @@ class LicenseDetectorSpec extends PlaySpecification with GlobalApplication {
   "chokidar 1.0.1" should {
     "have a license" in {
       val packageInfo = await(npm.info("chokidar", Some("1.0.1")))
-      await(licenseDetector.resolveLicenses(packageInfo)) must contain ("MIT")
-    }
-  }
-  "is-dotfile" should {
-    "have a license" in {
-      val packageInfo = await(npm.info("is-dotfile", Some("1.0.0")))
       await(licenseDetector.resolveLicenses(packageInfo)) must contain ("MIT")
     }
   }

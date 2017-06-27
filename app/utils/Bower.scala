@@ -4,6 +4,7 @@ import java.io.InputStream
 import java.net.{URI, URL, URLEncoder}
 import javax.inject.Inject
 
+import play.api.data.validation.ValidationError
 import play.api.http.Status
 import play.api.libs.functional.syntax._
 import play.api.libs.json.Reads._
@@ -11,7 +12,7 @@ import play.api.libs.json._
 import play.api.libs.ws._
 
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.Try
+import scala.util.{Failure, Success, Try}
 import utils.PackageInfo._
 
 class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, gitHub: GitHub) (implicit ec: ExecutionContext) {
@@ -91,16 +92,14 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
 
     versionFuture.flatMap { version =>
       rawInfo(packageNameOrGitRepo, version).flatMap { initialInfo =>
-        initialInfo.gitHubUrl.fold(Future.successful(initialInfo)) { gitHubUrl =>
+        initialInfo.maybeGitHubUrl.fold(Future.successful(initialInfo)) { gitHubUrl =>
           gitHub.currentUrls(gitHubUrl).map {
             case (homepage, sourceConnectionUri, issuesUrl) =>
               initialInfo.copy[Bower](
-                homepageUrl = homepage,
-                sourceUrl = homepage,
+                maybeHomepageUrl = Some(homepage),
                 sourceConnectionUri = sourceConnectionUri,
-                issuesUrl = issuesUrl
+                maybeIssuesUrl = Some(issuesUrl)
               )
-
           }
         }
       }
@@ -128,13 +127,28 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
 object Bower {
   val sourceReads: Reads[URI] = (__ \ "_source").read[URI]
 
+  val sourceToGitHubReads: Reads[URL] = {
+    val error = ValidationError("asdf")
+    sourceReads.collect(error) {
+      // todo: nasty
+      case uri: URI if GitHub.gitHubUrl(uri).isSuccess => GitHub.gitHubUrl(uri).get
+    }
+  }
+
+  val sourceToGitHubIssuesReads: Reads[URL] = {
+    val error = ValidationError("asdf")
+    sourceReads.collect(error) {
+      // todo: nasty
+      case uri: URI if GitHub.gitHubIssuesUrl(uri).isSuccess => GitHub.gitHubIssuesUrl(uri).get
+    }
+  }
+
   implicit def jsonReads: Reads[PackageInfo[Bower]] = (
     (__ \ "name").read[String] ~
     (__ \ "version").read[String] ~
-    (__ \ "homepage").read[URL].orElse(sourceReads.flatMap(PackageInfo.gitHubUrl)) ~
-    sourceReads.flatMap(PackageInfo.gitHubUrl) ~
+    (__ \ "homepage").read[URL].orElse(sourceToGitHubReads).map(Some(_)) ~
     sourceReads ~
-    sourceReads.flatMap(PackageInfo.gitHubIssuesUrl) ~
+    sourceToGitHubIssuesReads.map(Some(_)) ~
     (__ \ "license").read[Seq[String]].orElse((__ \ "license").read[String].map(Seq(_))).orElse(Reads.pure(Seq.empty[String])) ~
     (__ \ "dependencies").read[Map[String, String]].orElse(Reads.pure(Map.empty[String, String])) ~
     Reads.pure(Map.empty[String, String])

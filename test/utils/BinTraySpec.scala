@@ -1,6 +1,6 @@
 package utils
 
-import java.net.URL
+import java.net.{URI, URL}
 import java.util.Date
 
 import akka.util.Timeout
@@ -25,14 +25,14 @@ class BinTraySpec extends PlaySpecification with GlobalApplication {
         await(binTray.getPackages("webjars", "test")).value must beEmpty
       }
       "create a package with an invalid gitHubRepo should fail" in {
-        await(binTray.createPackage("webjars", "test", "foo", "foo description", Seq("test"), Set("MIT"), new URL("http://github.com/webjars/webjars.git"), None, None, Some("asdfqwer1236sdfgasdf/zxcvasdfqwer123"))) must throwA[Exception]("No repository found under this GitHub path")
+        await(binTray.createPackage("webjars", "test", "foo", "foo description", Seq("test"), Set("MIT"), new URI("http://github.com/webjars/webjars.git"), None, None, Some("asdfqwer1236sdfgasdf/zxcvasdfqwer123"))) must throwA[Exception]("No repository found under this GitHub path")
       }
       "create a package" in {
-        val result = await(binTray.createPackage("webjars", "test", "foo", "foo description", Seq("test"), Set("MIT"), new URL("http://github.com/webjars/webjars.git"), Some(new URL("http://webjars.org")), Some(new URL("http://github.com/webjars/webjars/issues")), Some("webjars/webjars")))
+        val result = await(binTray.createPackage("webjars", "test", "foo", "foo description", Seq("test"), Set("MIT"), new URI("http://github.com/webjars/webjars.git"), Some(new URL("http://webjars.org")), Some(new URL("http://github.com/webjars/webjars/issues")), Some("webjars/webjars")))
         (result \ "created").asOpt[Date] must beSome
       }
       "get or create package should work" in {
-        val result = await(binTray.getOrCreatePackage("webjars", "test", "foo", "foo description", Seq("test"), Set("MIT"), new URL("http://github.com/webjars/webjars"), Some(new URL("http://webjars.org")), Some(new URL("http://github.com/webjars/webjars/issues")), Some("webjars/webjars")))
+        val result = await(binTray.getOrCreatePackage("webjars", "test", "foo", "foo description", Seq("test"), Set("MIT"), new URI("http://github.com/webjars/webjars"), Some(new URL("http://webjars.org")), Some(new URL("http://github.com/webjars/webjars/issues")), Some("webjars/webjars")))
         (result \ "created").asOpt[Date] must beSome
       }
       "create a version" in {

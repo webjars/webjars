@@ -5,6 +5,7 @@ import java.net.{URI, URL}
 import java.util.zip.GZIPInputStream
 import javax.inject.Inject
 
+import play.api.data.validation.ValidationError
 import play.api.http.Status
 import play.api.libs.functional.syntax._
 import play.api.libs.json._
@@ -88,6 +89,7 @@ class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, g
       }
 
       maybeForkPackageJsonFuture.flatMap { maybeForkPackageJson =>
+
         maybeForkPackageJson.validate[PackageInfo[NPM]] match {
 
           case JsSuccess(initialInfo, _) =>
@@ -96,24 +98,19 @@ class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, g
 
             val infoWithResolvedOptionalDependencies = initialInfo.copy[NPM](dependencies = dependenciesSansOptionals)
 
-            infoWithResolvedOptionalDependencies.gitHubUrl.fold(Future.successful(infoWithResolvedOptionalDependencies)) { gitHubUrl =>
+            infoWithResolvedOptionalDependencies.maybeGitHubUrl.fold(Future.successful(infoWithResolvedOptionalDependencies)) { gitHubUrl =>
                 gitHub.currentUrls(gitHubUrl).map {
                   case (homepage, sourceConnectionUri, issuesUrl) =>
                     infoWithResolvedOptionalDependencies.copy[NPM](
-                      homepageUrl = homepage,
-                      sourceUrl = homepage,
+                      maybeHomepageUrl = Some(homepage),
                       sourceConnectionUri = sourceConnectionUri,
-                      issuesUrl = issuesUrl
+                      maybeIssuesUrl = Some(issuesUrl)
                     )
-                } recover {
-                  case e: Exception =>
-                    val newUrl = new URL("https://www.npmjs.com/package/" + infoWithResolvedOptionalDependencies.name)
-                    infoWithResolvedOptionalDependencies.copy(homepageUrl = newUrl, sourceUrl = newUrl, sourceConnectionUri = newUrl.toURI, issuesUrl = newUrl)
                 }
             }
 
           case JsError(errors) =>
-            Future.failed[PackageInfo[NPM]](JsResultException(errors))
+            Future.failed[PackageInfo[NPM]](MissingMetadataException(maybeForkPackageJson, errors))
         }
       }
     }
@@ -219,12 +216,34 @@ object NPM {
 
   def repositoryToUri(uriIsh: String): Option[URI] = PackageInfo.readsUri.reads(repositoryUrlToJsString(uriIsh)).asOpt
 
+  val homepageReader: Reads[Option[URL]] = {
+    (__ \ "homepage").readNullable[URL]
+  }
+
+  val homepageToIssuesReader: Reads[URL] = {
+
+    def issuesUrl(url: URL): Option[URL] = GitHub.gitHubIssuesUrl(url).orElse(Bitbucket.bitbucketIssuesUrl(url)).toOption
+
+    val error = ValidationError("Could not figure out the issues URL.")
+
+    homepageReader.collect(error) {
+      // todo: nasty
+      case Some(url) if issuesUrl(url).isDefined => issuesUrl(url).get
+    }
+  }
+
+  val bugsReaderNullable: Reads[Option[URL]] = {
+    Reads.optionNoError {
+      (__ \ "bugs").read[URL]
+        .orElse((__ \ "bugs" \ "url").read[URL])
+        .orElse(homepageToIssuesReader)
+    }
+  }
+
   implicit val jsonReads: Reads[PackageInfo[NPM]] = {
     val repositoryUrlReader: Reads[String] = (__ \ "repository").read[String].orElse((__ \ "repository" \ "url").read[String])
 
     val sourceConnectionUriReader: Reads[URI] = repositoryUrlReader.map(repositoryUrlToJsString).andThen(PackageInfo.readsUri)
-
-    val sourceUrlReader: Reads[URL] = repositoryUrlReader.map(repositoryUrlToJsString).andThen(PackageInfo.readsUrl)
 
     val licenseReader = (__ \ "license").read[Seq[String]]
       .orElse((__ \ "license").read[String].map(Seq(_)))
@@ -234,23 +253,12 @@ object NPM {
 
     val nameReader = (__ \ "name").read[String]
 
-    val homepageReader = (__ \ "homepage").read[URL]
-      .orElse(nameReader.map(name => JsString("https://www.npmjs.com/package/" + name))
-      .andThen(PackageInfo.readsUrl))
-
-    val bugsReader = (__ \ "bugs" \ "url").read[URL]
-      .orElse(homepageReader.flatMap(gitHubIssuesUrl))
-      .orElse(sourceUrlReader.flatMap(gitHubIssuesUrl))
-      .orElse(sourceConnectionUriReader.flatMap(gitHubIssuesUrl))
-      .orElse(homepageReader.flatMap(bitbucketIssuesUrl))
-
     (
       nameReader ~
       (__ \ "version").read[String] ~
       homepageReader ~
-      sourceUrlReader.orElse(homepageReader) ~
       sourceConnectionUriReader ~
-      bugsReader ~
+      bugsReaderNullable ~
       licenseReader ~
       (__ \ "dependencies").read[Map[String, String]].orElse(Reads.pure(Map.empty[String, String])) ~
       (__ \ "optionalDependencies").read[Map[String, String]].orElse(Reads.pure(Map.empty[String, String]))

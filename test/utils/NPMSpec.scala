@@ -5,10 +5,13 @@ import java.net.{URI, URL}
 
 import akka.util.Timeout
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
-import play.api.libs.json.JsResultException
+import org.specs2.matcher.ValueCheck
+import play.api.libs.functional.syntax._
+import play.api.libs.json._
 import play.api.test._
 
 import scala.concurrent.duration._
+import scala.util.{Failure, Try}
 
 class NPMSpec extends PlaySpecification with GlobalApplication {
 
@@ -18,23 +21,23 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
 
   "inflight 1.0.4" should {
     "have the correct github url" in {
-      await(npm.info("inflight", Some("1.0.4"))).gitHubUrl must beSome(new URL("https://github.com/npm/inflight"))
+      await(npm.info("inflight", Some("1.0.4"))).maybeGitHubUrl must beSome(new URL("https://github.com/npm/inflight"))
     }
   }
   "inherits 2.0.1" should {
     "have a homepage" in {
-      await(npm.info("inherits", Some("2.0.1"))).homepageUrl must beEqualTo (new URL("https://github.com/isaacs/inherits"))
+      await(npm.info("inherits", Some("2.0.1"))).maybeHomepageUrl must beSome (new URL("https://github.com/isaacs/inherits"))
     }
   }
   "simple-fmt" should {
     "have an issue tracking url" in {
-      await(npm.info("simple-fmt", Some("0.1.0"))).issuesUrl must beEqualTo (new URL("https://github.com/olov/simple-fmt/issues"))
+      await(npm.info("simple-fmt", Some("0.1.0"))).maybeIssuesUrl must beSome (new URL("https://github.com/olov/simple-fmt/issues"))
     }
   }
   "weinre 2.0.0-pre-I0Z7U9OV" should {
     "have a correct vcs url" in {
       val info = await(npm.info("weinre", Some("2.0.0-pre-I0Z7U9OV")))
-      info.gitHubUrl must beNone
+      info.maybeGitHubUrl must beNone
     }
   }
   "valid git url" should {
@@ -55,7 +58,7 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
       info.name must beEqualTo ("mocha")
       info.version mustNotEqual ""
       info.sourceConnectionUri must beEqualTo (new URI("https://github.com/mochajs/mocha.git"))
-      info.sourceUrl must beEqualTo (new URL("https://github.com/mochajs/mocha"))
+      info.maybeGitHubUrl must beSome (new URL("https://github.com/mochajs/mocha"))
     }
   }
   "git repo tagged version info" should {
@@ -78,11 +81,10 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
       val info = await(npm.info("btford/route-recognizer"))
       info.name must beEqualTo ("route-recognizer")
       info.version mustNotEqual ""
-      info.homepageUrl must beEqualTo (new URL("https://github.com/btford/route-recognizer"))
+      info.maybeHomepageUrl must beSome (new URL("https://github.com/btford/route-recognizer"))
       info.sourceConnectionUri must beEqualTo (new URI("https://github.com/btford/route-recognizer.git"))
-      info.sourceUrl must beEqualTo (new URL("https://github.com/btford/route-recognizer"))
-      info.issuesUrl must beEqualTo (new URL("https://github.com/btford/route-recognizer/issues"))
-      info.gitHubUrl must beSome (new URL("https://github.com/btford/route-recognizer"))
+      info.maybeIssuesUrl must beSome (new URL("https://github.com/btford/route-recognizer/issues"))
+      info.maybeGitHubUrl must beSome (new URL("https://github.com/btford/route-recognizer"))
     }
   }
   "git fork - git url" should {
@@ -90,16 +92,15 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
       val info = await(npm.info("git://github.com/btford/route-recognizer"))
       info.name must beEqualTo ("route-recognizer")
       info.version mustNotEqual ""
-      info.homepageUrl must beEqualTo (new URL("https://github.com/btford/route-recognizer"))
+      info.maybeHomepageUrl must beSome (new URL("https://github.com/btford/route-recognizer"))
       info.sourceConnectionUri must beEqualTo (new URI("https://github.com/btford/route-recognizer.git"))
-      info.sourceUrl must beEqualTo (new URL("https://github.com/btford/route-recognizer"))
-      info.issuesUrl must beEqualTo (new URL("https://github.com/btford/route-recognizer/issues"))
-      info.gitHubUrl must beSome (new URL("https://github.com/btford/route-recognizer"))
+      info.maybeIssuesUrl must beSome (new URL("https://github.com/btford/route-recognizer/issues"))
+      info.maybeGitHubUrl must beSome (new URL("https://github.com/btford/route-recognizer"))
     }
   }
   "info on amp-ui 3.2.0" should {
     "fail with a nice error" in {
-      await(npm.info("amp-ui", Some("3.2.0"))) must throwA[JsResultException]
+      await(npm.info("amp-ui", Some("3.2.0"))) must throwA[MissingMetadataException]
     }
   }
   "versions on redux" should {
@@ -127,14 +128,6 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
   "typescript versions" should {
     "work" in {
       await(npm.versions("typescript")) must contain("1.7.5")
-    }
-  }
-
-  "npm info for react-flex" should {
-    "have replaced urls due to the github repo being deleted" in {
-      val info = await(npm.info("react-flex", Some("2.2.7")))
-      info.homepageUrl must beEqualTo (new URL("https://www.npmjs.com/package/react-flex"))
-      info.gitHubOrgRepo must beNone
     }
   }
 
@@ -230,7 +223,15 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
   "quadkeytools" should {
     "work for 0.0.2" in {
       val info = await(npm.info("quadkeytools", Some("0.0.2")))
-      info.issuesUrl must beEqualTo(new URL("https://bitbucket.org/steele/quadkeytools/issues"))
+      info.maybeIssuesUrl must beSome (new URL("https://bitbucket.org/steele/quadkeytools/issues"))
+    }
+  }
+
+  "react-dnd" should {
+    "fail with a useful error" in {
+      val failedInfo = Try(await(npm.info("react-dnd", Some("2.4.0"))))
+      failedInfo must beAFailedTry[PackageInfo[NPM]].withThrowable[MissingMetadataException]
+      // todo: failedInfo.asInstanceOf[Failure[MissingMetadataException]].get.errors must have size 1
     }
   }
 
@@ -239,6 +240,65 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
       val info = await(npm.info("linkifyjs", Some("2.1.4")))
       info.dependencies must beEmpty
       info.optionalDependencies must have size 3
+    }
+  }
+
+  "bugsReaderNullable" should {
+    "not fail if there is no bugs path" in {
+      val json = Json.obj()
+      val result = json.validate[Option[URL]](NPM.bugsReaderNullable)
+      result must beEqualTo(JsSuccess[Option[URL]](None))
+    }
+    "work if bugs is a url" in {
+      val json = Json.obj(
+        "bugs" -> "http://webjars.org"
+      )
+      val result = json.validate[Option[URL]](NPM.bugsReaderNullable)
+      result must beEqualTo(JsSuccess[Option[URL]](Some(new URL("http://webjars.org")), __))
+    }
+    "work if bugs.url is a url" in {
+      val json = Json.obj(
+        "bugs" -> Json.obj(
+          "url" -> "http://webjars.org"
+        )
+      )
+      val result = json.validate[Option[URL]](NPM.bugsReaderNullable)
+      result must beEqualTo(JsSuccess[Option[URL]](Some(new URL("http://webjars.org")), __))
+    }
+    "work if homepage has a GitHub url" in {
+      val json = Json.obj(
+        "homepage" -> "http://github.com/webjars/webjars"
+      )
+      val result = json.validate[Option[URL]](NPM.bugsReaderNullable)
+      result must beEqualTo(JsSuccess[Option[URL]](Some(new URL("http://github.com/webjars/webjars/issues")), __))
+    }
+    "work if homepage has a GitHub url and bugs.url is set" in {
+      val json = Json.obj(
+        "homepage" -> "http://github.com/webjars/webjars",
+        "bugs" -> Json.obj(
+          "url" -> "http://webjars.org"
+        )
+      )
+      val result = json.validate[Option[URL]](NPM.bugsReaderNullable)
+      result must beEqualTo(JsSuccess[Option[URL]](Some(new URL("http://webjars.org")), __))
+    }
+  }
+
+  "homepageToIssuesReader" should {
+    "work with missing homepage" in {
+      val json = Json.obj()
+      val result = json.validate[URL](NPM.homepageToIssuesReader)
+      result must beAnInstanceOf[JsError]
+    }
+    "work with unknown homepage" in {
+      val json = Json.obj("homepage" -> "http://webjars.org")
+      val result = json.validate[URL](NPM.homepageToIssuesReader)
+      result must beAnInstanceOf[JsError]
+    }
+    "work with github homepage" in {
+      val json = Json.obj("homepage" -> "http://github.com/webjars/webjars")
+      val result = json.validate[URL](NPM.homepageToIssuesReader)
+      result must beEqualTo(JsSuccess[URL](new URL("http://github.com/webjars/webjars/issues"), __ \ "homepage"))
     }
   }
 

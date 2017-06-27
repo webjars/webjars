@@ -15,7 +15,7 @@
     </properties>
 
     <scm>
-        <url>@packageInfo.sourceUrl</url>
+        @for(gitHubUrl <- packageInfo.maybeGitHubUrl) { <url>@gitHubUrl</url> }
         <connection>@packageInfo.sourceConnectionUri</connection>
         <developerConnection>@packageInfo.sourceConnectionUri</developerConnection>
         <tag>v@packageInfo.version</tag>

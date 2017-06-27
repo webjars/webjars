@@ -1,6 +1,6 @@
 package utils
 
-import java.net.URL
+import java.net.{URI, URL}
 import javax.inject.Inject
 
 import play.api.Configuration
@@ -28,14 +28,14 @@ class BinTray @Inject() (ws: WSAPI, config: Configuration, git: Git, licenseDete
     Try((response.json \ "message").as[String]).getOrElse(response.body)
   }
 
-  def createPackage(subject: String, repo: String, name: String, desc: String, labels: Seq[String], licenses: Set[String], vcsUrl: URL, websiteUrl: Option[URL], issueTrackerUrl: Option[URL], githubRepo: Option[String]): Future[JsValue] = {
+  def createPackage(subject: String, repo: String, name: String, desc: String, labels: Seq[String], licenses: Set[String], vcsUri: URI, websiteUrl: Option[URL], issueTrackerUrl: Option[URL], githubRepo: Option[String]): Future[JsValue] = {
 
     val json = Json.obj(
       "name" -> name,
       "desc" -> desc,
       "labels" -> labels,
       "licenses" -> licenses,
-      "vcs_url" -> vcsUrl.toString,
+      "vcs_url" -> vcsUri.toString,
       "website_url" -> websiteUrl.map(_.toString),
       "issue_tracker_url" -> issueTrackerUrl.map(_.toString),
       "github_repo" -> githubRepo
@@ -69,10 +69,10 @@ class BinTray @Inject() (ws: WSAPI, config: Configuration, git: Git, licenseDete
     }
   }
 
-  def getOrCreatePackage(subject: String, repo: String, name: String, desc: String, labels: Seq[String], licenses: Set[String], vcsUrl: URL, websiteUrl: Option[URL], issueTrackerUrl: Option[URL], githubRepo: Option[String]): Future[JsValue] = {
+  def getOrCreatePackage(subject: String, repo: String, name: String, desc: String, labels: Seq[String], licenses: Set[String], vcsUri: URI, websiteUrl: Option[URL], issueTrackerUrl: Option[URL], githubRepo: Option[String]): Future[JsValue] = {
     getPackage(subject, repo, name).recoverWith {
       case _: Exception =>
-        createPackage(subject, repo, name, desc, labels, licenses, vcsUrl, websiteUrl, issueTrackerUrl, githubRepo)
+        createPackage(subject, repo, name, desc, labels, licenses, vcsUri, websiteUrl, issueTrackerUrl, githubRepo)
     }
   }
 
