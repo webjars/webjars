@@ -21,4 +21,21 @@ class GitHubSpec extends PlaySpecification with GlobalApplication {
     }
   }
 
+  "currentUrls" should {
+    "work for good urls" in {
+      val url = new URL("https://github.com/isaacs/inherits")
+      val (homepage, _, _) = await(gitHub.currentUrls(url))
+      homepage must beEqualTo (url)
+    }
+    "work for http to https redirects" in {
+      val url = new URL("http://github.com/isaacs/inherits")
+      val (homepage, _, _) = await(gitHub.currentUrls(url))
+      homepage must beEqualTo (new URL("https://github.com/isaacs/inherits"))
+    }
+    "fail for not founds" in {
+      val url = new URL("http://github.com/asdf1234/zxcv4321")
+      await(gitHub.currentUrls(url)) must throwA[ServerError]
+    }
+  }
+
 }

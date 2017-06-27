@@ -14,7 +14,7 @@ import play.api.mvc.Results.EmptyContent
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.language.implicitConversions
-import scala.util.Try
+import scala.util.{Failure, Success, Try}
 
 class GitHub @Inject() (configuration: Configuration, wsClient: WSClient) {
 
@@ -61,7 +61,7 @@ class GitHub @Inject() (configuration: Configuration, wsClient: WSClient) {
     ws("user", accessToken).get().flatMap { response =>
       response.status match {
         case Status.OK => Future.successful(response.json)
-        case _ => Future.failed(ServerError(response.body))
+        case _ => Future.failed(ServerError(response.body, response.status))
       }
     }
   }
@@ -72,7 +72,7 @@ class GitHub @Inject() (configuration: Configuration, wsClient: WSClient) {
         case Status.OK =>
           val base64Contents = (response.json \ "content").as[String]
           Future.successful(new String(Base64.decodeBase64(base64Contents)))
-        case _ => Future.failed(ServerError(response.body))
+        case _ => Future.failed(ServerError(response.body, response.status))
       }
     }
   }
@@ -85,11 +85,12 @@ class GitHub @Inject() (configuration: Configuration, wsClient: WSClient) {
     ws(s"repos/$owner/$repo/issues", accessToken).post(json).flatMap { response =>
       response.status match {
         case Status.CREATED => Future.successful(response.json)
-        case _ => Future.failed(ServerError(response.body))
+        case _ => Future.failed(ServerError(response.body, response.status))
       }
     }
   }
 
+  // todo: max redirects?
   def currentUrls(url: URL): Future[(URL, URI, URL)] = {
     def urls(location: String) = {
       val newUrlsTry = for {
@@ -105,12 +106,18 @@ class GitHub @Inject() (configuration: Configuration, wsClient: WSClient) {
       response.status match {
         case Status.MOVED_PERMANENTLY =>
           response.header(HeaderNames.LOCATION).fold {
-            Future.failed[(URL, URI, URL)](ServerError(s"GitHub said that $url was moved but did not provide a new location"))
-          } (urls)
+            Future.failed[(URL, URI, URL)](ServerError(s"GitHub said that $url was moved but did not provide a new location", response.status))
+          } { locationString =>
+            val urlTry = Try(new URL(locationString))
+            urlTry match {
+              case Success(locationUrl) => currentUrls(locationUrl)
+              case Failure(error) => Future.failed(error)
+            }
+          }
         case Status.OK =>
           urls(url.toString)
         case _ =>
-          Future.failed(ServerError(s"Could not get the current URL for $url because status was ${response.statusText}"))
+          Future.failed(ServerError(s"Could not get the current URL for $url because status was ${response.statusText}", response.status))
       }
     }
   }
@@ -143,6 +150,6 @@ case class UnauthorizedError(message: String) extends Exception {
   override def getMessage: String = message
 }
 
-case class ServerError(message: String) extends Exception {
+case class ServerError(message: String, status: Int) extends Exception {
   override def getMessage: String = message
 }

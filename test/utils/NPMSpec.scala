@@ -302,4 +302,15 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
     }
   }
 
+  "amdefine" should {
+    "not work without a source override" in {
+      await(npm.info("amdefine", Some("0.0.4"))) must throwA[MissingMetadataException]
+    }
+    "work with a source override" in {
+      val uri = new URI("http://webjars.org")
+      val info = await(npm.info("amdefine", Some("0.0.4"), Some(uri)))
+      info.sourceConnectionUri must beEqualTo (uri)
+    }
+  }
+
 }

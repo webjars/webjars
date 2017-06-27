@@ -68,7 +68,7 @@ class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, g
     git.gitUrl(gitRepo).flatMap(git.versionsOnBranch(_, branch))
   }
 
-  def info(packageNameOrGitRepo: String, maybeVersion: Option[String] = None): Future[PackageInfo[NPM]] = {
+  def info(packageNameOrGitRepo: String, maybeVersion: Option[String] = None, maybeSourceUri: Option[URI] = None): Future[PackageInfo[NPM]] = {
 
     def packageInfo(packageJson: JsValue): Future[PackageInfo[NPM]] = {
 
@@ -90,7 +90,12 @@ class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, g
 
       maybeForkPackageJsonFuture.flatMap { maybeForkPackageJson =>
 
-        maybeForkPackageJson.validate[PackageInfo[NPM]] match {
+        // allow override of the source uri
+        val maybeSourceOverridePackageJson = maybeSourceUri.fold(maybeForkPackageJson) { sourceUri =>
+          maybeForkPackageJson.as[JsObject] ++ Json.obj("repository" -> Json.obj("url" -> sourceUri))
+        }
+
+        maybeSourceOverridePackageJson.validate[PackageInfo[NPM]] match {
 
           case JsSuccess(initialInfo, _) =>
 
@@ -106,11 +111,19 @@ class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, g
                       sourceConnectionUri = sourceConnectionUri,
                       maybeIssuesUrl = Some(issuesUrl)
                     )
+                } recover {
+                  // todo: fugly
+                  case error: ServerError if error.status == Status.NOT_FOUND && maybeSourceUri.isDefined =>
+                    infoWithResolvedOptionalDependencies.copy[NPM](
+                      maybeHomepageUrl = None,
+                      sourceConnectionUri = maybeSourceUri.get,
+                      maybeIssuesUrl = None
+                    )
                 }
             }
 
           case JsError(errors) =>
-            Future.failed[PackageInfo[NPM]](MissingMetadataException(maybeForkPackageJson, errors))
+            Future.failed[PackageInfo[NPM]](MissingMetadataException(maybeSourceOverridePackageJson, errors))
         }
       }
     }
@@ -280,7 +293,7 @@ object NPM {
 
     override def archive(nameOrUrlish: String, version: String): Future[InputStream] = npm.archive(nameOrUrlish, version)
 
-    override def info(nameOrUrlish: String, maybeVersion: Option[String]): Future[PackageInfo[NPM]] = npm.info(nameOrUrlish, maybeVersion)
+    override def info(nameOrUrlish: String, maybeVersion: Option[String], maybeSourceUri: Option[URI]): Future[PackageInfo[NPM]] = npm.info(nameOrUrlish, maybeVersion, maybeSourceUri)
   }
 
 }

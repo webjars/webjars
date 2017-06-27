@@ -1,6 +1,7 @@
 package utils
 
 import java.io.InputStream
+import java.net.URI
 import javax.inject.Inject
 
 import play.api.Logger
@@ -8,12 +9,13 @@ import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.libs.json.{JsNull, JsResultException, JsValue}
 
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.{Failure, Success}
+import scala.io.StdIn
+import scala.util.{Failure, Success, Try}
 
 
 class DeployWebJar @Inject() (git: Git, binTray: BinTray, pusher: Pusher, maven: Maven, licenseDetector: LicenseDetector) (implicit ec: ExecutionContext) {
 
-  def deploy[A](nameOrUrlish: String, version: String, maybePusherChannelId: Option[String])(implicit deployable: Deployable[A]): Future[PackageInfo[A]] = {
+  def deploy[A](nameOrUrlish: String, version: String, maybePusherChannelId: Option[String], maybeSourceUri: Option[URI] = None)(implicit deployable: Deployable[A]): Future[PackageInfo[A]] = {
     val binTraySubject = "webjars"
     val binTrayRepo = "maven"
 
@@ -30,7 +32,7 @@ class DeployWebJar @Inject() (git: Git, binTray: BinTray, pusher: Pusher, maven:
       _ <- push("update", s"Deploying ${deployable.groupId} $nameOrUrlish $version")
       artifactId <- git.artifactId(nameOrUrlish)
       _ <- push("update", s"Determined Artifact Name: $artifactId")
-      packageInfo <- deployable.info(nameOrUrlish, Some(version))
+      packageInfo <- deployable.info(nameOrUrlish, Some(version), maybeSourceUri)
       _ <- push("update", s"Got ${deployable.name} info")
       licenses <- licenseDetector.resolveLicenses(packageInfo, Some(version))
       _ <- push("update", "Resolved Licenses")
@@ -90,16 +92,36 @@ class DeployWebJar @Inject() (git: Git, binTray: BinTray, pusher: Pusher, maven:
 
 object DeployWebJar extends App {
 
-  if (args.length < 2) {
-    println("You must specify the NPM artifact name and version")
+  val (groupId, nameOrUrlish, version, maybePusherChannelId, maybeSourceUri) = if (args.length < 3) {
+    val groupId = StdIn.readLine("GroupId: ")
+    val nameOrUrlish = StdIn.readLine("Name or URL: ")
+    val version = StdIn.readLine("Version: ")
+    val sourceUriIn = StdIn.readLine("Source URI (override): ")
+
+    val maybeSourceUri = if (sourceUriIn.isEmpty) {
+      None
+    }
+    else {
+      Try(new URI(sourceUriIn)).toOption
+    }
+
+    (groupId, nameOrUrlish, version, None, maybeSourceUri)
+  }
+  else {
+    val maybePusherChannelId = if (args.length == 4) {
+      Some(args(3))
+    } else {
+      None
+    }
+
+    (args(0), args(1), args(2), maybePusherChannelId, None)
+  }
+
+  if (nameOrUrlish.isEmpty || version.isEmpty) {
+    println("Name and version must be specified")
     sys.exit(1)
   }
   else {
-    val groupId = args(0)
-    val nameOrUrlish = args(1)
-    val version = args(2)
-    val maybePusherChannelId = if (args.length == 4) { Some(args(3)) } else { None }
-
     val app = new GuiceApplicationBuilder().build()
 
     val deployWebJar = app.injector.instanceOf[DeployWebJar]
@@ -109,7 +131,7 @@ object DeployWebJar extends App {
       case Bower.groupId => Bower.deployable(app.injector.instanceOf[Bower])
     }
 
-    deployWebJar.deploy(nameOrUrlish, version, maybePusherChannelId).onComplete {
+    deployWebJar.deploy(nameOrUrlish, version, maybePusherChannelId, maybeSourceUri).onComplete {
       case Success(s) =>
         println("Done!")
         app.stop()
@@ -128,6 +150,6 @@ trait Deployable[A] {
   val metadataFile: String
   val contentsInSubdir: Boolean
   def mavenBaseDir: String = groupId.replaceAllLiterally(".", "/")
-  def info(nameOrUrlish: String, maybeVersion: Option[String]): Future[PackageInfo[A]]
+  def info(nameOrUrlish: String, maybeVersion: Option[String], maybeSourceUri: Option[URI]): Future[PackageInfo[A]]
   def archive(nameOrUrlish: String, version: String): Future[InputStream]
 }
