@@ -25,4 +25,4 @@ SBT_OPTS="-Xms512M -Xmx1536M -Xss1M -XX:+CMSClassUnloadingEnabled"
 
 # todo: help text
 
-$(get_java_cmd) ${SBT_OPTS} -jar ${SBT_LAUNCHER}
+$(get_java_cmd) ${SBT_OPTS} -jar ${SBT_LAUNCHER} "$@"
