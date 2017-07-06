@@ -14,7 +14,7 @@ import play.api.libs.ws.WSClient
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.io.{Codec, Source}
-import scala.util.Try
+import scala.util.{Failure, Success, Try}
 
 class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
 
@@ -110,7 +110,7 @@ class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
   }
 
   def versionsOnBranch(gitRepo: String, branch: String): Future[Seq[String]] = {
-    gitUrl(gitRepo).flatMap { url =>
+    gitUrl(gitRepo).flatMap { _ =>
       cloneOrCheckout(gitRepo, Some(s"origin/$branch")).flatMap { baseDir =>
         Future.fromTry {
           Try {
@@ -141,8 +141,9 @@ class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
           }
         }
 
-        cloneFuture.onFailure {
-          case _ => FileUtils.deleteDirectory(baseDir)
+        cloneFuture.onComplete {
+          case _: Failure[File] => FileUtils.deleteDirectory(baseDir)
+          case _: Success[File] => Unit
         }
 
         cloneFuture

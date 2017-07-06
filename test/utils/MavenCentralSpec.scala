@@ -1,13 +1,15 @@
 package utils
 
 import org.joda.time.DateTime
+import play.api.Configuration
+import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.test._
 import utils.MavenCentral.UnavailableException
 
 class MavenCentralSpec extends PlaySpecification {
 
   "fetchWebJars" should {
-    "fail when the searchGroupUrl does not return JSON" in new WithServer(port = testServerPort, app = FakeApplication(additionalConfiguration = Map("webjars.searchGroupUrl" -> s"http://localhost:$testServerPort/asdf"))) {
+    "fail when the searchGroupUrl does not return JSON" in new WithServer(port = testServerPort, app = GuiceApplicationBuilder(configuration = Configuration("webjars.searchGroupUrl" -> s"http://localhost:$testServerPort/asdf")).build()) {
       val mavenCentral = app.injector.instanceOf[MavenCentral]
       await(mavenCentral.fetchWebJars(Classic.groupId)) should throwA[UnavailableException]
     }

@@ -1,8 +1,10 @@
 package controllers
 
 import models.{WebJar, WebJarVersion}
+import play.api.Configuration
 import play.api.http.{ContentTypes, HeaderNames, Status}
-import play.api.test.{FakeApplication, FakeRequest, PlaySpecification, WithApplication}
+import play.api.inject.guice.GuiceApplicationBuilder
+import play.api.test.{FakeRequest, PlaySpecification, WithApplication}
 
 import scala.util.Random
 
@@ -65,7 +67,7 @@ class ApplicationSpec extends PlaySpecification {
 
       (contentAsJson(resultFuture) \\ "artifactId").map(_.as[String]) must contain ("jquery")
     }
-    "work when stats can't be fetched" in new WithApplication(app = FakeApplication(additionalConfiguration = Map("oss.username" -> s"asdf"))) {
+    "work when stats can't be fetched" in new WithApplication(app = GuiceApplicationBuilder(configuration = Configuration("oss.username" -> s"asdf")).build()) {
       val applicationController = app.injector.instanceOf[Application]
 
       val request = FakeRequest().withHeaders(HeaderNames.ACCEPT -> ContentTypes.JSON)

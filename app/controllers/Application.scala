@@ -16,9 +16,10 @@ import utils._
 
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.Failure
 import scala.util.hashing.MurmurHash3
 
-class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Heroku, pusher: Pusher, cache: Cache, mavenCentral: MavenCentral, deployWebJar: DeployWebJar, webJarsFileService: WebJarsFileService, actorSystem: ActorSystem, configuration: Configuration, environment: Environment)(mainView: views.html.main, allView: views.html.all, indexView: views.html.index, webJarRequestView: views.html.webJarRequest, contributingView: views.html.contributing, documentationView: views.html.documentation)(implicit ec: ExecutionContext) extends Controller {
+class Application @Inject() (gitHub: GitHub, bower: Bower, npm: NPM, heroku: Heroku, pusher: Pusher, cache: Cache, mavenCentral: MavenCentral, deployWebJar: DeployWebJar, webJarsFileService: WebJarsFileService, actorSystem: ActorSystem, configuration: Configuration, environment: Environment)(mainView: views.html.main, allView: views.html.all, indexView: views.html.index, webJarRequestView: views.html.webJarRequest, contributingView: views.html.contributing, documentationView: views.html.documentation)(implicit ec: ExecutionContext) extends InjectedController {
 
   private val X_GITHUB_ACCESS_TOKEN = "X-GITHUB-ACCESS-TOKEN"
 
@@ -47,9 +48,10 @@ class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Hero
   private def webJarsWithTimeout(maybeGroupId: Option[String] = None): Future[List[WebJar]] = {
     val fetcher = maybeGroupId.fold(mavenCentral.webJars)(mavenCentral.webJars)
     val future = TimeoutFuture(defaultTimeout)(fetcher)
-    future.onFailure {
-      case te: TimeoutException => Logger.debug("Timeout fetching WebJars", te)
-      case e: Exception => Logger.error("Error loading WebJars", e)
+    future.onComplete {
+      case Failure(te: TimeoutException) => Logger.debug("Timeout fetching WebJars", te)
+      case Failure(e) => Logger.error("Error loading WebJars", e)
+      case _ => Unit
     }
     future
   }
@@ -274,7 +276,7 @@ class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Hero
     }
   }
 
-  def makeWebJarRequest = Action.async(parse.urlFormEncoded) { implicit request =>
+  def makeWebJarRequest = Action.async(parse.formUrlEncoded) { implicit request =>
 
     Application.webJarRequestForm.bindFromRequest().fold(
       formWithErrors => {
@@ -321,10 +323,10 @@ class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Hero
   }
 
   private def deploy[A](nameOrUrlish: String, version: String, maybeChannelId: Option[String])(implicit deployable: Deployable[A]): Future[JsValue] = {
-    val fork = configuration.getBoolean("deploy.fork").getOrElse(false)
+    val fork = configuration.getOptional[Boolean]("deploy.fork").getOrElse(false)
 
     if (fork) {
-      val app = configuration.getString("deploy.herokuapp").get
+      val app = configuration.get[String]("deploy.herokuapp")
       val channelIdParam = maybeChannelId.getOrElse("")
       val cmd = s"deploy ${deployable.groupId} $nameOrUrlish $version " + channelIdParam
       heroku.dynoCreate(app, false, cmd, "Standard-2X")
@@ -362,7 +364,8 @@ class Application @Inject()(gitHub: GitHub, bower: Bower, npm: NPM, heroku: Hero
       action(request).map(result => result.withHeaders(ACCESS_CONTROL_ALLOW_ORIGIN -> "*"))
     }
 
-    lazy val parser = action.parser
+    override def parser = action.parser
+    override def executionContext = action.executionContext
   }
 
   def corsPreflight(path: String) = Action {

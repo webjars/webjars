@@ -237,7 +237,7 @@ object NPM {
 
     def issuesUrl(url: URL): Option[URL] = GitHub.gitHubIssuesUrl(url).orElse(Bitbucket.bitbucketIssuesUrl(url)).toOption
 
-    val error = ValidationError("Could not figure out the issues URL.")
+    val error = JsonValidationError("Could not figure out the issues URL.")
 
     homepageReader.collect(error) {
       // todo: nasty

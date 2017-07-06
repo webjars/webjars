@@ -37,8 +37,7 @@ OPTIONS        /files/*file                                               contro
 GET            /_github_authorize                                         controllers.Application.gitHubAuthorize()
 GET            /_github_oauth_callback                                    controllers.Application.gitHubOauthCallback(code: String)
 
-GET            /webjars/org.webjars/*file                                 controllers.StaticWebJarAssets.at(file)
-GET            /webjars/org.webjars.bower/*file                           controllers.StaticWebJarAssets.atBower(file)
+->             /webjars                                                   webjars.Routes
 
 GET            /assets/*file                                              controllers.Assets.versioned(path="/public", file)
 

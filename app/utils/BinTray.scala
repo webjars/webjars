@@ -6,19 +6,19 @@ import javax.inject.Inject
 import play.api.Configuration
 import play.api.http.Status
 import play.api.libs.json.{JsArray, JsValue, Json}
-import play.api.libs.ws.{WSAPI, WSAuthScheme, WSRequest, WSResponse}
-import play.api.mvc.Results.EmptyContent
+import play.api.libs.ws.{WSAuthScheme, WSClient, WSRequest, WSResponse}
+import play.mvc.Http.HttpVerbs
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
-class BinTray @Inject() (ws: WSAPI, config: Configuration, git: Git, licenseDetector: LicenseDetector, mavenCentral: MavenCentral) (implicit ec: ExecutionContext) {
+class BinTray @Inject() (ws: WSClient, config: Configuration, git: Git, licenseDetector: LicenseDetector, mavenCentral: MavenCentral) (implicit ec: ExecutionContext) {
 
   val BASE_URL = "https://bintray.com/api/v1"
 
-  lazy val username: String = config.getString("bintray.username").get
-  lazy val password: String = config.getString("bintray.password").get
-  lazy val gpgPassphrase: String = config.getString("bintray.gpg.passphrase").get
+  lazy val username: String = config.get[String]("bintray.username")
+  lazy val password: String = config.get[String]("bintray.password")
+  lazy val gpgPassphrase: String = config.get[String]("bintray.gpg.passphrase")
 
   def ws(path: String): WSRequest = {
     ws.url(BASE_URL + path).withAuth(username, password, WSAuthScheme.BASIC)
@@ -125,7 +125,7 @@ class BinTray @Inject() (ws: WSAPI, config: Configuration, git: Git, licenseDete
   }
 
   def uploadMavenArtifact(subject: String, repo: String, packageName: String, path: String, jarBytes: Array[Byte]): Future[JsValue] = {
-    ws(s"/maven/$subject/$repo/$packageName/$path").withHeaders("X-GPG-PASSPHRASE" -> gpgPassphrase).put(jarBytes).flatMap { response =>
+    ws(s"/maven/$subject/$repo/$packageName/$path").withHttpHeaders("X-GPG-PASSPHRASE" -> gpgPassphrase).put(jarBytes).flatMap { response =>
       response.status match {
         case Status.CREATED => Future.successful(response.json)
         case _ => Future.failed(new Exception(error(response)))
@@ -144,7 +144,7 @@ class BinTray @Inject() (ws: WSAPI, config: Configuration, git: Git, licenseDete
   }
 
   def signVersion(subject: String, repo: String, packageName: String, version: String): Future[JsValue] = {
-    ws(s"/gpg/$subject/$repo/$packageName/versions/$version").withHeaders("X-GPG-PASSPHRASE" -> gpgPassphrase).post(EmptyContent()).flatMap { response =>
+    ws(s"/gpg/$subject/$repo/$packageName/versions/$version").withHttpHeaders("X-GPG-PASSPHRASE" -> gpgPassphrase).execute(HttpVerbs.POST).flatMap { response =>
       response.status match {
         case Status.OK => Future.successful(response.json)
         case _ => Future.failed(new Exception(error(response)))
