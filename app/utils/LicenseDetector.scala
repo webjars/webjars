@@ -5,12 +5,14 @@ import javax.inject.Inject
 
 import play.api.Logger
 import play.api.http.{HeaderNames, MimeTypes, Status}
-import play.api.i18n.MessagesApi
+import play.api.i18n.{Lang, Langs, MessagesApi}
 import play.api.libs.ws.WSClient
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class LicenseDetector @Inject() (ws: WSClient, git: Git, messages: MessagesApi) (implicit ec: ExecutionContext) {
+class LicenseDetector @Inject() (ws: WSClient, git: Git, messages: MessagesApi, langs: Langs) (implicit ec: ExecutionContext) {
+
+  implicit lazy val lang: Lang = langs.availables.head
 
   def gitHubLicenseDetect(maybeGitHubOrgRepo: Option[String]): Future[String] = {
     def fetchLicense(url: String): Future[String] = ws.url(url).get().flatMap { response =>
@@ -58,7 +60,7 @@ class LicenseDetector @Inject() (ws: WSClient, git: Git, messages: MessagesApi) 
 
   def normalize(s: String): String = s.replace(" ", "").replace("-", "").toLowerCase
 
-  val licenseSynonyms = Map(
+  val licenseSynonyms: Map[String, String] = Map(
     "OFL-1.1" -> "Openfont-1.1",
     "Artistic-2.0" -> "Artistic-License-2.0",
     "Apache 2" -> "Apache-2.0",

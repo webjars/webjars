@@ -15,11 +15,11 @@ class Memcache @Inject() (configuration: Configuration, lifecycle: ApplicationLi
 
   lazy val instance: Memcached = {
     val maybeAuthConfig = for {
-      username <- configuration.getString("memcached.username")
-      password <- configuration.getString("memcached.password")
+      username <- configuration.getOptional[String]("memcached.username")
+      password <- configuration.getOptional[String]("memcached.password")
     } yield AuthConfiguration(username, password)
 
-    Memcached(shade.memcached.Configuration(addresses = configuration.getString("memcached.servers").get, authentication = maybeAuthConfig, operationTimeout = 30.seconds))
+    Memcached(shade.memcached.Configuration(addresses = configuration.get[String]("memcached.servers"), authentication = maybeAuthConfig, operationTimeout = 30.seconds))
   }
 
   lifecycle.addStopHook(() => Future.fromTry(Try(instance.close())))

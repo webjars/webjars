@@ -128,7 +128,7 @@ object Bower {
   val sourceReads: Reads[URI] = (__ \ "_source").read[URI]
 
   val sourceToGitHubReads: Reads[URL] = {
-    val error = ValidationError("asdf")
+    val error = JsonValidationError("Could not convert source to GitHub URL")
     sourceReads.collect(error) {
       // todo: nasty
       case uri: URI if GitHub.gitHubUrl(uri).isSuccess => GitHub.gitHubUrl(uri).get
@@ -136,7 +136,7 @@ object Bower {
   }
 
   val sourceToGitHubIssuesReads: Reads[URL] = {
-    val error = ValidationError("asdf")
+    val error = JsonValidationError("Could not convert source to GitHub Issues URL")
     sourceReads.collect(error) {
       // todo: nasty
       case uri: URI if GitHub.gitHubIssuesUrl(uri).isSuccess => GitHub.gitHubIssuesUrl(uri).get

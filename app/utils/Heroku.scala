@@ -11,13 +11,13 @@ import scala.concurrent.{ExecutionContext, Future}
 
 class Heroku @Inject() (ws: WSClient, config: Configuration) (implicit ec: ExecutionContext) {
 
-  lazy val apikey = config.getString("heroku.apikey").get
+  lazy val apikey = config.get[String]("heroku.apikey")
 
 
   private def ws(path: String): WSRequest = {
     ws
       .url("https://api.heroku.com" + path)
-      .withHeaders(
+      .withHttpHeaders(
         HeaderNames.ACCEPT -> "application/vnd.heroku+json; version=3",
         HeaderNames.AUTHORIZATION -> s"Bearer $apikey"
       )

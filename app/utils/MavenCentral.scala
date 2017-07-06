@@ -16,7 +16,7 @@ import shade.memcached.MemcachedCodecs._
 
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.Try
+import scala.util.{Failure, Try}
 import scala.xml.Elem
 
 class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClient, actorSystem: ActorSystem, configuration: Configuration, webJarsFileService: WebJarsFileService) (implicit ec: ExecutionContext) {
@@ -29,9 +29,9 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
   implicit val webJarReads = Json.reads[WebJar]
   implicit val webJarWrites = Json.writes[WebJar]
 
-  lazy val ossUsername = configuration.getString("oss.username").get
-  lazy val ossPassword = configuration.getString("oss.password").get
-  lazy val ossProject = configuration.getString("oss.project").get
+  lazy val ossUsername = configuration.get[String]("oss.username")
+  lazy val ossPassword = configuration.get[String]("oss.password")
+  lazy val ossProject = configuration.get[String]("oss.project")
 
   def fetchWebJarNameAndUrl(groupId: String, artifactId: String, version: String): Future[(String, String)] = {
     getPom(groupId, artifactId, version).flatMap { xml =>
@@ -98,7 +98,7 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
           } recover {
             case e: Exception =>
               Logger.error(s"Error fetching file list for $groupId $artifactId $version", e)
-              WebJarVersion(version, 0)
+              WebJarVersion(version)
           }
         }
       } map { webJarVersions =>
@@ -148,7 +148,7 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
 
     Logger.info("Getting the WebJars for " + groupId)
 
-    val searchUrl = configuration.getString("webjars.searchGroupUrl").get.format(groupId)
+    val searchUrl = configuration.get[String]("webjars.searchGroupUrl").format(groupId)
 
     wsClient.url(searchUrl).get().flatMap { response =>
       Try(response.json).map(webJarsFromJson(groupId)).getOrElse(Future.failed(new MavenCentral.UnavailableException(response.body)))
@@ -159,21 +159,22 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
   def webJars(groupId: String): Future[List[WebJar]] = {
     cache.get[List[WebJar]](groupId, 1.hour) {
       // todo: for some reason this blocks longer than 1 second if things are busy
-      actorSystem.actorSelection("user/" + groupId).resolveOne(1.second).flatMap { actorRef =>
+      actorSystem.actorSelection("user/" + groupId).resolveOne(1.second).flatMap { _ =>
         // in-flight request exists
         Future.failed(new Exception("Existing request for WebJars"))
       } recoverWith {
         // no request so make one
-        case e: ActorNotFound =>
+        case _ =>
           implicit val timeout = Timeout(10.minutes)
           val webJarFetcher = actorSystem.actorOf(Props(classOf[WebJarFetcher], this, ec), groupId)
           val fetchWebJarsFuture = (webJarFetcher ? FetchWebJars(groupId)).mapTo[List[WebJar]]
-          fetchWebJarsFuture.onFailure {
-            case e: Exception =>
+          fetchWebJarsFuture.onComplete {
+            case f: Failure[List[WebJar]] =>
               actorSystem.stop(webJarFetcher)
-              Logger.error(s"WebJar fetch failed for $groupId: ${e.getMessage}", e)
+              Logger.error(s"WebJar fetch failed for $groupId: ${f.exception.getMessage}", f.exception)
+            case _ => Unit
           }
-          fetchWebJarsFuture.foreach { fetchedWebJars =>
+          fetchWebJarsFuture.foreach { _ =>
             Logger.info(s"WebJar fetch complete for $groupId")
             actorSystem.stop(webJarFetcher)
           }
@@ -225,8 +226,8 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
 
     val statsFuture = wsClient.url("https://oss.sonatype.org/service/local/stats/slices")
       .withAuth(ossUsername, ossPassword, WSAuthScheme.BASIC)
-      .withHeaders(HeaderNames.ACCEPT -> MimeTypes.JSON)
-      .withQueryString(queryString:_*)
+      .withHttpHeaders(HeaderNames.ACCEPT -> MimeTypes.JSON)
+      .withQueryStringParameters(queryString: _*)
       .get()
 
     statsFuture.flatMap { response =>

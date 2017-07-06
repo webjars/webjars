@@ -47,25 +47,25 @@ object PackageInfo {
     case JsString(s) =>
       Try(new URL(s)) match {
         case Success(url) => JsSuccess(url)
-        case _ => JsError(ValidationError(s"Could not convert $s to a URL"))
+        case _ => JsError(JsonValidationError(s"Could not convert $s to a URL"))
       }
     case _ =>
-      JsError(ValidationError("Could not read the URL as a string"))
+      JsError(JsonValidationError("Could not read the URL as a string"))
   }
 
   implicit val readsUri: Reads[URI] = Reads[URI] {
     case JsString(s) =>
       Try(new URI(s)) match {
         case Success(uri) => JsSuccess(uri)
-        case _ => JsError(ValidationError(s"Could not convert $s to a URI"))
+        case _ => JsError(JsonValidationError(s"Could not convert $s to a URI"))
       }
     case _ =>
-      JsError(ValidationError("Could not read the URI as a string"))
+      JsError(JsonValidationError("Could not read the URI as a string"))
   }
 
 }
 
-case class MissingMetadataException(json: JsValue, errors: Seq[(JsPath, Seq[ValidationError])]) extends Exception {
+case class MissingMetadataException(json: JsValue, errors: Seq[(JsPath, Seq[JsonValidationError])]) extends Exception {
   override def getMessage: String = {
     if (errors.length == 1) {
       "The metadata was missing a required field: " + errors.head._1.path.mkString

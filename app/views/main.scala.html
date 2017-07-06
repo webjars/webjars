@@ -1,4 +1,4 @@
-@this(staticWebJarAssets: StaticWebJarAssets)
+@this(contentWebJarsUtil: ContentWebJarsUtil)
 
 @(title: String)(content: Html)
 
@@ -12,16 +12,16 @@
         <title>@title</title>
         <link rel="shortcut icon" href="/favicon.ico" />
         <link rel="icon" type="image/png" href="@routes.Assets.versioned("logo.png")" />
-        <link rel='stylesheet' href='@staticWebJarAssets.getUrl("css/bootstrap.min.css")'>
-        <link rel='stylesheet' href='@staticWebJarAssets.getUrl("css/bootstrap-theme.min.css")'>
-        <link rel="stylesheet" href='@staticWebJarAssets.getUrl("select2.css")'>
-        <link rel="stylesheet" href='@staticWebJarAssets.getUrl("select2-bootstrap.css")'>
-        <link rel="stylesheet" href='@staticWebJarAssets.getUrl("styles/default.min.css")'>
+        <link rel='stylesheet' href='@contentWebJarsUtil.getUrl("css/bootstrap.min.css")'>
+        <link rel='stylesheet' href='@contentWebJarsUtil.getUrl("css/bootstrap-theme.min.css")'>
+        <link rel="stylesheet" href='@contentWebJarsUtil.getUrl("select2.css")'>
+        <link rel="stylesheet" href='@contentWebJarsUtil.getUrl("select2-bootstrap.css")'>
+        <link rel="stylesheet" href='@contentWebJarsUtil.getUrl("styles/default.css")'>
         <link rel="stylesheet" href='@routes.Assets.versioned("main.css")'>
-        <script type='text/javascript' src='@staticWebJarAssets.getUrl("jquery.min.js")'></script>
-        <script type='text/javascript' src='@staticWebJarAssets.getUrl("js/bootstrap.min.js")'></script>
-        <script type='text/javascript' src='@staticWebJarAssets.getUrl("select2.min.js")'></script>
-        <script type='text/javascript' src='@staticWebJarAssets.getUrl("highlight.min.js")'></script>
+        <script type='text/javascript' src='@contentWebJarsUtil.getUrl("jquery.min.js")'></script>
+        <script type='text/javascript' src='@contentWebJarsUtil.getUrl("js/bootstrap.min.js")'></script>
+        <script type='text/javascript' src='@contentWebJarsUtil.getUrl("select2.min.js")'></script>
+        <script type='text/javascript' src='@contentWebJarsUtil.getUrl("highlight.pack.min.js")'></script>
         <script>hljs.initHighlightingOnLoad();</script>
         <script>
             (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){

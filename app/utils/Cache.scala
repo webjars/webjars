@@ -2,13 +2,13 @@ package utils
 
 import javax.inject.Inject
 
-import play.api.cache.CacheApi
+import play.api.cache.SyncCacheApi
 
 import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.{ExecutionContext, Future}
 import scala.reflect.ClassTag
 
-class Cache @Inject() (cache: CacheApi) (implicit ec: ExecutionContext) {
+class Cache @Inject() (cache: SyncCacheApi) (implicit ec: ExecutionContext) {
 
   // todo: configurable duration that the stale cache is kept around for onMiss failures
 

@@ -5,21 +5,19 @@ import javax.inject.Inject
 
 import org.apache.commons.codec.binary.Base64
 import play.api.Configuration
-import play.api.http.{HeaderNames, MimeTypes, Status}
+import play.api.http.{HeaderNames, HttpVerbs, MimeTypes, Status}
 import play.api.libs.json.{JsValue, Json}
 import play.api.libs.ws.{WSClient, WSRequest}
 import play.api.mvc.RequestHeader
-import play.api.mvc.Results.EmptyContent
 
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
 import scala.language.implicitConversions
 import scala.util.{Failure, Success, Try}
 
-class GitHub @Inject() (configuration: Configuration, wsClient: WSClient) {
+class GitHub @Inject() (configuration: Configuration, wsClient: WSClient) (implicit ec: ExecutionContext) {
 
-  lazy val clientId = configuration.getString("github.oauth.client-id").get
-  lazy val clientSecret = configuration.getString("github.oauth.client-secret").get
+  lazy val clientId = configuration.get[String]("github.oauth.client-id")
+  lazy val clientSecret = configuration.get[String]("github.oauth.client-secret")
 
   def authUrl()(implicit request: RequestHeader): String = {
     val scope = "public_repo"
@@ -27,7 +25,7 @@ class GitHub @Inject() (configuration: Configuration, wsClient: WSClient) {
   }
 
   def redirectUri(implicit request: RequestHeader): String = {
-    configuration.getString("github.oauth.redirect_uri").getOrElse {
+    configuration.get[Option[String]]("github.oauth.redirect_uri").getOrElse {
       controllers.routes.Application.gitHubOauthCallback("").absoluteURL(request.secure).stripSuffix("?code=")
     }
   }
@@ -35,18 +33,18 @@ class GitHub @Inject() (configuration: Configuration, wsClient: WSClient) {
   def ws(path: String, accessToken: String): WSRequest = {
     wsClient
       .url(s"https://api.github.com/$path")
-      .withHeaders(
+      .withHttpHeaders(
         HeaderNames.AUTHORIZATION -> s"token $accessToken",
         HeaderNames.ACCEPT -> "application/vnd.github.v3+json"
       )
   }
 
   def accessToken(code: String)(implicit request: RequestHeader): Future[String] = {
-    val wsFuture = wsClient.url("https://github.com/login/oauth/access_token").withQueryString(
+    val wsFuture = wsClient.url("https://github.com/login/oauth/access_token").withQueryStringParameters(
       "client_id" -> clientId,
       "client_secret" -> clientSecret,
       "code" -> code
-    ).withHeaders(HeaderNames.ACCEPT -> MimeTypes.JSON).post(EmptyContent())
+    ).withHttpHeaders(HeaderNames.ACCEPT -> MimeTypes.JSON).execute(HttpVerbs.POST)
 
     wsFuture.flatMap { response =>
       (response.json \ "access_token").asOpt[String].fold {

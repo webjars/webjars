@@ -13,14 +13,14 @@ import scala.concurrent.{ExecutionContext, Future}
 
 class Pusher @Inject() (ws: WSClient, config: Configuration) (implicit ec: ExecutionContext) {
 
-  val maybeKey = config.getString("pusher.key")
+  val maybeKey = config.getOptional[String]("pusher.key")
 
   def push(channelId: String, event: String, message: String): Future[JsValue] = {
 
     val maybeConfig = for {
-      appid <- config.getString("pusher.appid")
+      appid <- config.getOptional[String]("pusher.appid")
       key <- maybeKey
-      secret <- config.getString("pusher.secret")
+      secret <- config.getOptional[String]("pusher.secret")
     } yield (appid, key, secret)
 
     maybeConfig.fold[Future[JsValue]] {

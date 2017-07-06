@@ -18,7 +18,7 @@ class BinTraySpec extends PlaySpecification with GlobalApplication {
   lazy val environment: Environment = application.injector.instanceOf[Environment]
 
   "BinTray with auth" should {
-    if (application.configuration.getString("bintray.username").isEmpty)
+    if (application.configuration.getOptional[String]("bintray.username").isEmpty)
       "BinTray Auth" in skipped("skipped due to missing config")
     else {
       "get packages" in {

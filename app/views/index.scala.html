@@ -1,4 +1,4 @@
-@this(staticWebJarAssets: StaticWebJarAssets, main: main, pusher: utils.Pusher)
+@this(contentWebJarsUtil: ContentWebJarsUtil, main: main, pusher: utils.Pusher)
 
 @(webjarsOrError: Either[Iterable[WebJar], String])
 
@@ -15,7 +15,7 @@
         <script src="https://js.pusher.com/2.2/pusher.min.js"></script>
     }
 
-    <script src="@staticWebJarAssets.getUrlBower("jquery.typewatch.js")"></script>
+    <script src="@contentWebJarsUtil.getUrl("jquery.typewatch.js")"></script>
 
     <div class="jumbotron" style="margin-bottom: 0; background-color: #cccccc;">
         <div class="container">

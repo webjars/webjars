@@ -1,8 +1,8 @@
 package controllers
 
-import play.api.mvc.{Action, Controller}
+import play.api.mvc.InjectedController
 
-class MockCentral extends Controller {
+class MockCentral extends InjectedController {
 
   def searchGroup = Action {
     Ok(
