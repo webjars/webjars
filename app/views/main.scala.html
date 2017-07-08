@@ -1,4 +1,4 @@
-@this(contentWebJarsUtil: ContentWebJarsUtil)
+@this(webJarsUtil: org.webjars.play.WebJarsUtil)
 
 @(title: String)(content: Html)
 
@@ -12,16 +12,18 @@
         <title>@title</title>
         <link rel="shortcut icon" href="/favicon.ico" />
         <link rel="icon" type="image/png" href="@routes.Assets.versioned("logo.png")" />
-        <link rel='stylesheet' href='@contentWebJarsUtil.getUrl("css/bootstrap.min.css")'>
-        <link rel='stylesheet' href='@contentWebJarsUtil.getUrl("css/bootstrap-theme.min.css")'>
-        <link rel="stylesheet" href='@contentWebJarsUtil.getUrl("select2.css")'>
-        <link rel="stylesheet" href='@contentWebJarsUtil.getUrl("select2-bootstrap.css")'>
-        <link rel="stylesheet" href='@contentWebJarsUtil.getUrl("styles/default.css")'>
+
+        @Html(webJarsUtil.css("bootstrap.min.css"))
+        @Html(webJarsUtil.css("bootstrap-theme.min.css"))
+        @Html(webJarsUtil.css("select2.css"))
+        @Html(webJarsUtil.css("select2-bootstrap.css"))
+        @Html(webJarsUtil.css("default.css"))
         <link rel="stylesheet" href='@routes.Assets.versioned("main.css")'>
-        <script type='text/javascript' src='@contentWebJarsUtil.getUrl("jquery.min.js")'></script>
-        <script type='text/javascript' src='@contentWebJarsUtil.getUrl("js/bootstrap.min.js")'></script>
-        <script type='text/javascript' src='@contentWebJarsUtil.getUrl("select2.min.js")'></script>
-        <script type='text/javascript' src='@contentWebJarsUtil.getUrl("highlight.pack.min.js")'></script>
+
+        @Html(webJarsUtil.script("jquery.min.js"))
+        @Html(webJarsUtil.script("bootstrap.min.js"))
+        @Html(webJarsUtil.script("select2.min.js"))
+        @Html(webJarsUtil.script("highlight.pack.min.js"))
         <script>hljs.initHighlightingOnLoad();</script>
         <script>
             (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
