@@ -10,6 +10,7 @@ import play.api.libs.ws.{WSAuthScheme, WSClient, WSRequest, WSResponse}
 import play.mvc.Http.HttpVerbs
 
 import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.duration._
 import scala.util.Try
 
 class BinTray @Inject() (ws: WSClient, config: Configuration, git: Git, licenseDetector: LicenseDetector, mavenCentral: MavenCentral) (implicit ec: ExecutionContext) {
@@ -159,7 +160,7 @@ class BinTray @Inject() (ws: WSClient, config: Configuration, git: Git, licenseD
       "password" -> mavenCentral.ossPassword
     )
 
-    ws(s"/maven_central_sync/$subject/$repo/$packageName/versions/$version").post(json).flatMap { response =>
+    ws(s"/maven_central_sync/$subject/$repo/$packageName/versions/$version").withRequestTimeout(5.minutes).post(json).flatMap { response =>
       response.status match {
         case Status.OK => Future.successful(response.json)
         case _ => Future.failed(new Exception(error(response)))
