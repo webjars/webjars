@@ -158,29 +158,25 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
 
   def webJars(groupId: String): Future[List[WebJar]] = {
     cache.get[List[WebJar]](groupId, 1.hour) {
-      // todo: for some reason this blocks longer than 1 second if things are busy
       actorSystem.actorSelection("user/" + groupId).resolveOne(1.second).flatMap { _ =>
         // in-flight request exists
-        Future.failed(new Exception("Existing request for WebJars"))
+        Future.failed(new MavenCentral.ExistingWebJarRequestException(groupId))
       } recoverWith {
         // no request so make one
-        case _ =>
+        case _: ActorNotFound =>
           implicit val timeout = Timeout(10.minutes)
-          val webJarFetcher = actorSystem.actorOf(Props(classOf[WebJarFetcher], this, ec), groupId)
-          val fetchWebJarsFuture = (webJarFetcher ? FetchWebJars(groupId)).mapTo[List[WebJar]]
-          fetchWebJarsFuture.onComplete {
-            case f: Failure[List[WebJar]] =>
-              actorSystem.stop(webJarFetcher)
-              Logger.error(s"WebJar fetch failed for $groupId: ${f.exception.getMessage}", f.exception)
-            case _ => Unit
+
+          val webJarFetcherTry = Future.fromTry(Try(actorSystem.actorOf(Props(classOf[WebJarFetcher], this, ec), groupId))).recoverWith {
+            case _: InvalidActorNameException => Future.failed(new MavenCentral.ExistingWebJarRequestException(groupId))
           }
-          fetchWebJarsFuture.foreach { _ =>
-            Logger.info(s"WebJar fetch complete for $groupId")
-            actorSystem.stop(webJarFetcher)
+
+          webJarFetcherTry.flatMap { webJarFetcher =>
+            val fetchWebJarsFuture = (webJarFetcher ? FetchWebJars(groupId)).mapTo[List[WebJar]]
+
+            fetchWebJarsFuture.onComplete(_ => actorSystem.stop(webJarFetcher))
+
+            fetchWebJarsFuture
           }
-          // fail cause this is will likely take a long time
-          //Future.failed(new Exception("Making new request for WebJars"))
-          fetchWebJarsFuture
       }
     }
   }
@@ -290,4 +286,5 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
 
 object MavenCentral {
   class UnavailableException(msg: String) extends RuntimeException(msg)
+  class ExistingWebJarRequestException(groupId: String) extends RuntimeException(s"There is an existing WebJar request for $groupId")
 }

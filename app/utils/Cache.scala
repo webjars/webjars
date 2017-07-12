@@ -29,7 +29,7 @@ class Cache @Inject() (cache: SyncCacheApi) (implicit ec: ExecutionContext) {
         case e: Exception =>
           // onMiss failed so use the stale cache
           cache.get[K](actualKey).fold[Future[K]] {
-            Future.failed(new Exception("The cache expired and could not be refreshed", e))
+            Future.failed(e)
           } (Future.successful)
       }
     } { s: String =>

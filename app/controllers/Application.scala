@@ -4,14 +4,16 @@ import java.io.FileNotFoundException
 import java.util.concurrent.TimeoutException
 import javax.inject.Inject
 
-import akka.actor.ActorSystem
+import akka.actor.{ActorSystem, InvalidActorNameException}
 import models.WebJar
 import org.joda.time.DateTime
 import play.api.data.Forms._
 import play.api.data._
+import play.api.libs.concurrent.Futures
 import play.api.libs.json.{JsValue, Json}
 import play.api.mvc._
 import play.api.{Configuration, Environment, Logger, Mode}
+import utils.MavenCentral.ExistingWebJarRequestException
 import utils._
 
 import scala.concurrent.duration._
@@ -19,7 +21,7 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Failure
 import scala.util.hashing.MurmurHash3
 
-class Application @Inject() (gitHub: GitHub, bower: Bower, npm: NPM, heroku: Heroku, pusher: Pusher, cache: Cache, mavenCentral: MavenCentral, deployWebJar: DeployWebJar, webJarsFileService: WebJarsFileService, actorSystem: ActorSystem, configuration: Configuration, environment: Environment)(mainView: views.html.main, allView: views.html.all, indexView: views.html.index, webJarRequestView: views.html.webJarRequest, contributingView: views.html.contributing, documentationView: views.html.documentation)(implicit ec: ExecutionContext) extends InjectedController {
+class Application @Inject() (gitHub: GitHub, bower: Bower, npm: NPM, heroku: Heroku, pusher: Pusher, cache: Cache, mavenCentral: MavenCentral, deployWebJar: DeployWebJar, webJarsFileService: WebJarsFileService, actorSystem: ActorSystem, configuration: Configuration, environment: Environment, futures: Futures)(mainView: views.html.main, allView: views.html.all, indexView: views.html.index, webJarRequestView: views.html.webJarRequest, contributingView: views.html.contributing, documentationView: views.html.documentation)(implicit ec: ExecutionContext) extends InjectedController {
 
   private val X_GITHUB_ACCESS_TOKEN = "X-GITHUB-ACCESS-TOKEN"
 
@@ -49,7 +51,8 @@ class Application @Inject() (gitHub: GitHub, bower: Bower, npm: NPM, heroku: Her
     val fetcher = maybeGroupId.fold(mavenCentral.webJars)(mavenCentral.webJars)
     val future = TimeoutFuture(defaultTimeout)(fetcher)
     future.onComplete {
-      case Failure(te: TimeoutException) => Logger.debug("Timeout fetching WebJars", te)
+      case Failure(e: TimeoutException) => Logger.debug("Timeout fetching WebJars", e)
+      case Failure(e: MavenCentral.ExistingWebJarRequestException) => Logger.debug("Existing WebJar Request", e)
       case Failure(e) => Logger.error("Error loading WebJars", e)
       case _ => Unit
     }
@@ -86,10 +89,14 @@ class Application @Inject() (gitHub: GitHub, bower: Bower, npm: NPM, heroku: Her
   }
 
   def index = Action.async { request =>
-    sortedMostPopularWebJars.map(maybeCached(request, webJars => Ok(indexView(Left(webJars))))).recover {
+    sortedMostPopularWebJars.map(maybeCached(request, webJars => Ok(indexView(Left(webJars))))).recoverWith {
+      case e: TimeoutException =>
+        Future.successful(Redirect(routes.Application.index()))
+      case e: ExistingWebJarRequestException =>
+        futures.delay(defaultTimeout).map(_ => Redirect(routes.Application.index()))
       case e: Exception =>
         Logger.error("index WebJar fetch failed", e)
-        InternalServerError(indexView(Right(WEBJAR_FETCH_ERROR)))
+        Future.successful(InternalServerError(indexView(Right(WEBJAR_FETCH_ERROR))))
     }
   }
 
