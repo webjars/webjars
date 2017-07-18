@@ -2,6 +2,7 @@ package utils
 
 import java.util.UUID
 
+import play.api.cache.SyncCacheApi
 import play.api.test._
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -56,6 +57,19 @@ class CacheSpec extends PlaySpecification {
       }
 
       await(futureSecondGet) mustEqual value
+    }
+    "work if a value exists in the cache but can't be deserialized" in new WithApplication() {
+      val cache = app.injector.instanceOf[Cache]
+      val syncCache = app.injector.instanceOf[SyncCacheApi]
+
+      val key = UUID.randomUUID().toString
+      val value = "asdf"
+
+      syncCache.set(key, value)
+
+      val futureGet = cache.get[Int](key, 1.second)(Future.successful(1))
+
+      await(futureGet) mustEqual 1
     }
   }
 
