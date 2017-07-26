@@ -15,7 +15,7 @@ import scala.util.{Failure, Success, Try}
 
 class DeployWebJar @Inject() (git: Git, binTray: BinTray, pusher: Pusher, maven: Maven, licenseDetector: LicenseDetector) (implicit ec: ExecutionContext) {
 
-  def deploy[A](nameOrUrlish: String, version: String, maybePusherChannelId: Option[String], maybeSourceUri: Option[URI] = None)(implicit deployable: Deployable[A]): Future[PackageInfo[A]] = {
+  def deploy[A](nameOrUrlish: String, version: String, maybePusherChannelId: Option[String], maybeSourceUri: Option[URI] = None, maybeLicense: Option[String]= None)(implicit deployable: Deployable[A]): Future[PackageInfo[A]] = {
     val binTraySubject = "webjars"
     val binTrayRepo = "maven"
 
@@ -28,13 +28,21 @@ class DeployWebJar @Inject() (git: Git, binTray: BinTray, pusher: Pusher, maven:
       }
     }
 
+    def licenses(packageInfo: PackageInfo[A], version: String): Future[Set[String]] = {
+      maybeLicense.fold {
+        licenseDetector.resolveLicenses(packageInfo, Some(version))
+      } { license =>
+        Future.successful(Set(license))
+      }
+    }
+
     val deployFuture = for {
       _ <- push("update", s"Deploying ${deployable.groupId} $nameOrUrlish $version")
       artifactId <- git.artifactId(nameOrUrlish)
       _ <- push("update", s"Determined Artifact Name: $artifactId")
       packageInfo <- deployable.info(nameOrUrlish, Some(version), maybeSourceUri)
       _ <- push("update", s"Got ${deployable.name} info")
-      licenses <- licenseDetector.resolveLicenses(packageInfo, Some(version))
+      licenses <- licenses(packageInfo, version)
       _ <- push("update", "Resolved Licenses")
       mavenDependencies <- maven.convertNpmBowerDependenciesToMaven(packageInfo.dependencies)
       _ <- push("update", "Converted dependencies to Maven")
@@ -92,11 +100,12 @@ class DeployWebJar @Inject() (git: Git, binTray: BinTray, pusher: Pusher, maven:
 
 object DeployWebJar extends App {
 
-  val (groupId, nameOrUrlish, version, maybePusherChannelId, maybeSourceUri) = if (args.length < 3) {
+  val (groupId, nameOrUrlish, version, maybePusherChannelId, maybeSourceUri, maybeLicense) = if (args.length < 3) {
     val groupId = StdIn.readLine("GroupId: ")
     val nameOrUrlish = StdIn.readLine("Name or URL: ")
     val version = StdIn.readLine("Version: ")
     val sourceUriIn = StdIn.readLine("Source URI (override): ")
+    val licenseIn = StdIn.readLine("License (override): ")
 
     val maybeSourceUri = if (sourceUriIn.isEmpty) {
       None
@@ -105,7 +114,14 @@ object DeployWebJar extends App {
       Try(new URI(sourceUriIn)).toOption
     }
 
-    (groupId, nameOrUrlish, version, None, maybeSourceUri)
+    val maybeLicense = if (licenseIn.isEmpty) {
+      None
+    }
+    else {
+      Some(licenseIn)
+    }
+
+    (groupId, nameOrUrlish, version, None, maybeSourceUri, maybeLicense)
   }
   else {
     val maybePusherChannelId = if (args.length == 4) {
@@ -114,7 +130,7 @@ object DeployWebJar extends App {
       None
     }
 
-    (args(0), args(1), args(2), maybePusherChannelId, None)
+    (args(0), args(1), args(2), maybePusherChannelId, None, None)
   }
 
   if (nameOrUrlish.isEmpty || version.isEmpty) {
@@ -131,7 +147,7 @@ object DeployWebJar extends App {
       case Bower.groupId => Bower.deployable(app.injector.instanceOf[Bower])
     }
 
-    deployWebJar.deploy(nameOrUrlish, version, maybePusherChannelId, maybeSourceUri).onComplete {
+    deployWebJar.deploy(nameOrUrlish, version, maybePusherChannelId, maybeSourceUri, maybeLicense).onComplete {
       case Success(s) =>
         println("Done!")
         app.stop()
