@@ -129,6 +129,32 @@ class SemVerSpec extends Specification {
       SemVer.convertSemVerToMaven("^1.3.0 || >1.4.0-beta.0")  must be equalTo Some("[1.3.0,2),(1.4.0-beta.0,)")
       SemVer.convertSemVerToMaven("2 || 3 || 4")              must be equalTo Some("[2,3),[3,4),[4,5)")
     }
+    "work with alpha prefix" in {
+      SemVer.convertSemVerToMaven("a1.2.3") must be equalTo Some("a1.2.3")
+
+      SemVer.convertSemVerToMaven(">bc1")  must be equalTo Some("(bc1,)")
+      SemVer.convertSemVerToMaven("<def1") must be equalTo Some("(,def1)")
+
+      SemVer.convertSemVerToMaven(">=g1")             must be equalTo Some("[g1,)")
+      SemVer.convertSemVerToMaven("<=h1")             must be equalTo Some("(,h1]")
+      SemVer.convertSemVerToMaven(">=i1.0.0 <i1.4.0") must be equalTo Some("[i1.0.0,i1.4.0)")
+
+      SemVer.convertSemVerToMaven("j1 - j2")           must be equalTo Some("[j1,j3)")
+      SemVer.convertSemVerToMaven("k1.2 - k2")         must be equalTo Some("[k1.2,k3)")
+      SemVer.convertSemVerToMaven("l1.2.3 - l2")       must be equalTo Some("[l1.2.3,l3)")
+      SemVer.convertSemVerToMaven("m1.2.3-alpha - m2") must be equalTo Some("[m1.2.3-alpha,m3)")
+
+      SemVer.convertSemVerToMaven("n1.2") must be equalTo Some("[n1.2,n1.3)")
+
+      SemVer.convertSemVerToMaven("~o1") must be equalTo Some("[o1,o2)")
+
+      SemVer.convertSemVerToMaven("^p1.2.3") must be equalTo Some("[p1.2.3,p2)")
+      SemVer.convertSemVerToMaven("^q0.2.3") must be equalTo Some("[q0.2.3,q0.3)")
+      SemVer.convertSemVerToMaven("^r1.2.x") must be equalTo Some("[r1.2.0,r2)")
+      SemVer.convertSemVerToMaven("^s1.x")   must be equalTo Some("[s1.0.0,s2)")
+
+      SemVer.convertSemVerToMaven("^t1.3.0 || >t1.4.0-beta.0")  must be equalTo Some("[t1.3.0,t2),(t1.4.0-beta.0,)")
+    }
   }
 
 }
