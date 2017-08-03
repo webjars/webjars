@@ -63,32 +63,35 @@
             <!-- Play Framework 2 -->
             <div class="tab-pane active" id="play2">
                 <h3>Instructions for Play 2.6 (<a href="https://github.com/webjars/sample-play2">Sample Source</a>)</h3>
-                WebJars can be added as dependencies to an app by simply adding them to the <span class="label label-info">build.sbt</span> file.  There is also a helper library named <span class="label label-info">webjars-play</span> that makes it easy to reference WebJar assets.  Here is an example <span class="label label-info">build.sbt</span> file with <span class="label label-info">webjars-play</span> and the <span class="label label-info">bootstrap</span> WebJar as dependencies:<br>
-                <pre><code>libraryDependencies ++= Seq(
-  "org.webjars" %% "webjars-play" % "2.6.0",
-  "org.webjars" % "bootstrap" % "3.1.1-2"
-)</code></pre>
+                WebJars can be added as dependencies to an app by simply adding them to the <span class="label label-info">build.sbt</span> file like:<br>
+                <pre><code>libraryDependencies += "org.webjars" % "bootstrap" % "3.1.1-2"</code></pre>
                 <br>
-                After changing the dependencies you will need to restart Play.<br>
-                <br>
-                Since Play 2.3, WebJars are automatically available as static assets.  If you have a route like:
+                Play automatically extracts the WebJar contents and makes them available via the <span class="label label-info">Assets</span> controller.  So, if you have a route like:
                 <pre><code>GET         /assets/*file           controllers.Assets.at(path="/public", file)</code></pre>
                 <br/>
                 Then a WebJar file like <code>bootstrap.css</code> is available at:
                 <pre><code>/assets/lib/bootstrap/css/bootstrap.css</code></pre>
                 <br/>
+
+                There is also a helper library named <span class="label label-info">webjars-play</span> that makes it easy to reference WebJar assets.  Here is an example <span class="label label-info">build.sbt</span> file with <span class="label label-info">webjars-play</span> and the <span class="label label-info">bootstrap</span> WebJar as dependencies:<br>
+                <pre><code>libraryDependencies ++= Seq(
+  "org.webjars" %% "webjars-play" % "2.6.1",
+  "org.webjars" % "bootstrap" % "3.1.1-2"
+)</code></pre>
+                <br>
+                After changing the dependencies you will need to restart Play.<br>
+                <br>
+
                 The <span class="label label-info">webjars-play</span> helper library has a wrapper around the Play Static Asset Controller that can locate and serve WebJar assets.  A new route import needs to be added to the <span class="label label-info">conf/routes</span> file:
                 <pre><code>-&gt;          /webjars                webjars.Routes</code></pre>
                 <br>
-                The <span class="label label-info">org.webjars.play.WebJarsUtil</span> class has a <span class="label label-info">url</span> method that can be used to get a reverse route to an asset.  To use it you need to inject an instance of <span class="label label-info">WebJarsUtil</span> - usually into a template.  For example:
+                The <span class="label label-info">org.webjars.play.WebJarsUtil</span> class has a number of helpful methods for locating and loading assets.  <a href="https://javadoccentral.herokuapp.com/org.webjars/webjars-play_2.12/2.6.1/org/webjars/play/WebJarsUtil.html">Check out the JavaDoc</a>.  To use it you need to inject an instance of <span class="label label-info">WebJarsUtil</span> - usually into a template.  For example:
                 <pre><code>@@this(webJarsUtil: org.webjars.play.WebJarsUtil)
 
 ... HTML page ...
 
-&lt;link rel='stylesheet' href='@@webJarsUtil.url("css/bootstrap.min.css")'&gt;</code></pre>
-                <br/>
-                <a href="https://javadoccentral.herokuapp.com/org.webjars/webjars-play_2.12/2.6.0/org/webjars/play/WebJarsUtil.html">Check out the JavaDoc for WebJarsUtil</a>
-                <br/>
+@@Html(webJarsUtil.css("bootstrap.min.css"))
+@@Html(webJarsUtil.script("bootstrap.min.js"))</code></pre>
                 <br/>
                 WebJars have out-of-the-box support for RequireJS.  To use it in a template, call the <span class="label label-info">webJarsUtil.requireJs</span> method with a reverse route to the main JavaScript app:
                 <pre><code>@@Html(webJarsUtil.requireJs(routes.Assets.versioned("javascripts/index.js")))</code></pre>
@@ -117,8 +120,11 @@
     }
   };
 &lt;/script&gt;
-&lt;script data-main="@@routes.Assets.versioned("javascripts/index.js")" src="@@webJarsUtil.url("require.min.js"))"&gt;&lt;/script&gt;</code></pre>
-                <!-- todo: CDN -->
+@@Html(webJarsUtil.scriptWithParams("requirejs", "require.min.js", Map("data-main" -> routes.Assets.versioned("javascripts/index.js").url)))</code></pre>
+                <br>
+                You can load WebJar assets from a CDN by setting the following config:<br>
+                <pre><code>webjars.use-cdn=true
+play.filters.headers.contentSecurityPolicy = "default-src 'self' https://cdn.jsdelivr.net"</code></pre>
             </div>
 
 
