@@ -2,159 +2,158 @@ package utils
 
 import org.specs2.mutable._
 
+import scala.util.Random
+
 class SemVerSpec extends Specification {
+
+  private val random = new Random()
+  private val alphas = ('a' to 'w') ++ ('A' to 'W') ++ Seq('y', 'z', 'Y', 'Z')
+
+  private val prefix = somePrefix(10)
+  private val major1 = somePositiveIntegerBetween(1, 100)
+  private val major2 = major1 + somePositiveIntegerBetween(1, 10)
+  private val major3 = major2 + somePositiveIntegerBetween(1, 10)
+  private val minor1 = somePositiveIntegerBetween(1, 100)
+  private val minor2 = minor1 + somePositiveIntegerBetween(1, 10)
+  private val patch1 = somePositiveIntegerBetween(1, 100)
+  private val suffix = someSuffix(10)
+  private val pfx_1 = prefix + major1
+  private val pfx_1_2 = s"$pfx_1.$minor1"
+  private val pfx_2 = prefix + (major1 + 1)
+  private val pfx_1_3 = s"$pfx_1.${minor1 + 1}"
+  private val _3_sfx = s"$patch1$suffix"
+  private val pfx_1_2_3_sfx = s"$pfx_1.$minor1.${_3_sfx}"
+  private val pfx_3 = prefix + major2
+  private val pfx_3_2 = s"$pfx_3.$minor1"
+  private val pfx_1_4 = s"$pfx_1.$minor2"
+  private val pfx_3_2_3_sfx = s"$prefix$major2.$minor1.${_3_sfx}"
+  private val pfx_1_4_3_sfx = s"$pfx_1.$minor2.${_3_sfx}"
+  private val pfx_4 = prefix + (major2 + 1)
+  private val pfx_3_3 = s"$pfx_3.${minor1 + 1}"
+  private val pfx_1_5 = s"$pfx_1.${minor2 + 1}"
+  private val pfx_0_2_3_sfx = s"${prefix}0.$minor1.${_3_sfx}"
+  private val pfx_0_3 = s"${prefix}0.${minor1 + 1}"
+  private val pfx_0_0_3_sfx = s"${prefix}0.0.${_3_sfx}"
+  private val pfx_0_0_4 = s"${prefix}0.0.${patch1 + 1}"
+  private val pfx_5 = prefix + major3
+  private val pfx_6 = prefix + (major3 + 1)
+  private val a_z_0_9 = someAlphaNumericString(40) + "aBc"
 
   // SemVer Docs: https://github.com/npm/node-semver
 
   "SemVerUtil.convertSemVerToMaven" should {
     "work with static versions" in {
-      SemVer.convertSemVerToMaven("1.2.3")       must be equalTo Some("1.2.3")
-      SemVer.convertSemVerToMaven("=1.2.3")      must be equalTo Some("1.2.3")
-      SemVer.convertSemVerToMaven("1.2.3-alpha") must be equalTo Some("1.2.3-alpha")
-      SemVer.convertSemVerToMaven("1.2.3-dev-r") must be equalTo Some("1.2.3-dev-r")
+      SemVer.convertSemVerToMaven(pfx_1_2_3_sfx)      must be equalTo Some(pfx_1_2_3_sfx)
+      SemVer.convertSemVerToMaven(s"=$pfx_1_2_3_sfx") must be equalTo Some(s"$pfx_1_2_3_sfx")
     }
     "work with basic ranges" in {
-      SemVer.convertSemVerToMaven(">1")           must be equalTo Some("(1,)")
-      SemVer.convertSemVerToMaven("> 1")          must be equalTo Some("(1,)")
-      SemVer.convertSemVerToMaven(">1.2")         must be equalTo Some("(1.2,)")
-      SemVer.convertSemVerToMaven(">1.2.3")       must be equalTo Some("(1.2.3,)")
-      SemVer.convertSemVerToMaven(">1.2.3-alpha") must be equalTo Some("(1.2.3-alpha,)")
-      SemVer.convertSemVerToMaven(">1.2.3-dev-r") must be equalTo Some("(1.2.3-dev-r,)")
+      SemVer.convertSemVerToMaven(s">$pfx_1")         must be equalTo Some(s"($pfx_1,)")
+      SemVer.convertSemVerToMaven(s"> $pfx_1")        must be equalTo Some(s"($pfx_1,)")
+      SemVer.convertSemVerToMaven(s">$pfx_1_2")       must be equalTo Some(s"($pfx_1_2,)")
+      SemVer.convertSemVerToMaven(s">$pfx_1_2_3_sfx") must be equalTo Some(s"($pfx_1_2_3_sfx,)")
 
-      SemVer.convertSemVerToMaven(">=1")           must be equalTo Some("[1,)")
-      SemVer.convertSemVerToMaven(">= 1")          must be equalTo Some("[1,)")
-      SemVer.convertSemVerToMaven(">=1.2")         must be equalTo Some("[1.2,)")
-      SemVer.convertSemVerToMaven(">=1.2.3")       must be equalTo Some("[1.2.3,)")
-      SemVer.convertSemVerToMaven(">=1.2.3-alpha") must be equalTo Some("[1.2.3-alpha,)")
-      SemVer.convertSemVerToMaven(">=1.2.3-dev-r") must be equalTo Some("[1.2.3-dev-r,)")
-      SemVer.convertSemVerToMaven(">=1.9.x")       must be equalTo Some("[1.9,)")
+      SemVer.convertSemVerToMaven(s">=$pfx_1")         must be equalTo Some(s"[$pfx_1,)")
+      SemVer.convertSemVerToMaven(s">= $pfx_1")        must be equalTo Some(s"[$pfx_1,)")
+      SemVer.convertSemVerToMaven(s">=$pfx_1_2")       must be equalTo Some(s"[$pfx_1_2,)")
+      SemVer.convertSemVerToMaven(s">=$pfx_1_2_3_sfx") must be equalTo Some(s"[$pfx_1_2_3_sfx,)")
+      SemVer.convertSemVerToMaven(s">=$pfx_1.x")       must be equalTo Some(s"[$pfx_1,)")
 
-      SemVer.convertSemVerToMaven("<1")           must be equalTo Some("(,1)")
-      SemVer.convertSemVerToMaven("< 1")          must be equalTo Some("(,1)")
-      SemVer.convertSemVerToMaven("<1.2")         must be equalTo Some("(,1.2)")
-      SemVer.convertSemVerToMaven("<1.2.3")       must be equalTo Some("(,1.2.3)")
-      SemVer.convertSemVerToMaven("<1.2.3-alpha") must be equalTo Some("(,1.2.3-alpha)")
-      SemVer.convertSemVerToMaven("<1.2.3-dev-r") must be equalTo Some("(,1.2.3-dev-r)")
+      SemVer.convertSemVerToMaven(s"<$pfx_1")         must be equalTo Some(s"(,$pfx_1)")
+      SemVer.convertSemVerToMaven(s"< $pfx_1")        must be equalTo Some(s"(,$pfx_1)")
+      SemVer.convertSemVerToMaven(s"<$pfx_1_2")       must be equalTo Some(s"(,$pfx_1_2)")
+      SemVer.convertSemVerToMaven(s"<$pfx_1_2_3_sfx") must be equalTo Some(s"(,$pfx_1_2_3_sfx)")
 
-      SemVer.convertSemVerToMaven("<=1")           must be equalTo Some("(,1]")
-      SemVer.convertSemVerToMaven("<= 1")          must be equalTo Some("(,1]")
-      SemVer.convertSemVerToMaven("<=1.2")         must be equalTo Some("(,1.2]")
-      SemVer.convertSemVerToMaven("<=1.2.3")       must be equalTo Some("(,1.2.3]")
-      SemVer.convertSemVerToMaven("<=1.2.3-alpha") must be equalTo Some("(,1.2.3-alpha]")
-      SemVer.convertSemVerToMaven("<=1.2.3-dev-r") must be equalTo Some("(,1.2.3-dev-r]")
+      SemVer.convertSemVerToMaven(s"<=$pfx_1")         must be equalTo Some(s"(,$pfx_1]")
+      SemVer.convertSemVerToMaven(s"<= $pfx_1")        must be equalTo Some(s"(,$pfx_1]")
+      SemVer.convertSemVerToMaven(s"<=$pfx_1_2")       must be equalTo Some(s"(,$pfx_1_2]")
+      SemVer.convertSemVerToMaven(s"<=$pfx_1_2_3_sfx") must be equalTo Some(s"(,$pfx_1_2_3_sfx]")
     }
     "work with range sets" in {
-      SemVer.convertSemVerToMaven(">=1.0.0 <1.4.0")      must be equalTo Some("[1.0.0,1.4.0)")
-      SemVer.convertSemVerToMaven(">= 0.10.1 < 0.12.0")  must be equalTo Some("[0.10.1,0.12.0)")
-      SemVer.convertSemVerToMaven(">=1.2.x <=1.4.x")     must be equalTo Some("[1.2,1.4]")
-      SemVer.convertSemVerToMaven(">=1.2.16 1.4.x")      must be equalTo Some("[1.2.16,1.5)")
-      SemVer.convertSemVerToMaven(">=1.2.16 1.4.0")      must be equalTo Some("[1.2.16,1.4.0]")
+      SemVer.convertSemVerToMaven(s">=$pfx_1_2_3_sfx <$pfx_1_4_3_sfx")   must be equalTo Some(s"[$pfx_1_2_3_sfx,$pfx_1_4_3_sfx)")
+      SemVer.convertSemVerToMaven(s">= $pfx_1_2_3_sfx < $pfx_1_4_3_sfx") must be equalTo Some(s"[$pfx_1_2_3_sfx,$pfx_1_4_3_sfx)")
+      SemVer.convertSemVerToMaven(s">=$pfx_1_2.x <=$pfx_1_4.x")      must be equalTo Some(s"[$pfx_1_2,$pfx_1_4]")
+      SemVer.convertSemVerToMaven(s">=$pfx_1_2_3_sfx $pfx_1_4.x")    must be equalTo Some(s"[$pfx_1_2_3_sfx,$pfx_1_5)")
+      SemVer.convertSemVerToMaven(s">=$pfx_1_2_3_sfx $pfx_1_4_3_sfx")    must be equalTo Some(s"[$pfx_1_2_3_sfx,$pfx_1_4_3_sfx]")
     }
     "work with hyphen ranges" in {
-      SemVer.convertSemVerToMaven("1 - 2")           must be equalTo Some("[1,3)")
-      SemVer.convertSemVerToMaven("1 - 2.4")         must be equalTo Some("[1,2.5)")
-      SemVer.convertSemVerToMaven("1 - 2.3.4")       must be equalTo Some("[1,2.3.4]")
-      SemVer.convertSemVerToMaven("1 - 2.3.4-alpha") must be equalTo Some("[1,2.3.4-alpha]")
-      SemVer.convertSemVerToMaven("1 - 2.3.4-dev-r") must be equalTo Some("[1,2.3.4-dev-r]")
+      SemVer.convertSemVerToMaven(s"$pfx_1 - $pfx_3")     must be equalTo Some(s"[$pfx_1,$pfx_4)")
+      SemVer.convertSemVerToMaven(s"$pfx_1 - $pfx_3_2")   must be equalTo Some(s"[$pfx_1,$pfx_3_3)")
+      SemVer.convertSemVerToMaven(s"$pfx_1 - $pfx_3_2_3_sfx") must be equalTo Some(s"[$pfx_1,$pfx_3_2_3_sfx]")
 
-      SemVer.convertSemVerToMaven("1.2 - 2")           must be equalTo Some("[1.2,3)")
-      SemVer.convertSemVerToMaven("1.2 - 1.4")         must be equalTo Some("[1.2,1.5)")
-      SemVer.convertSemVerToMaven("1.2 - 1.2.3")       must be equalTo Some("[1.2,1.2.3]")
-      SemVer.convertSemVerToMaven("1.2 - 1.2.3-alpha") must be equalTo Some("[1.2,1.2.3-alpha]")
-      SemVer.convertSemVerToMaven("1.2 - 1.2.3-dev-r") must be equalTo Some("[1.2,1.2.3-dev-r]")
+      SemVer.convertSemVerToMaven(s"$pfx_1_2 - $pfx_3")         must be equalTo Some(s"[$pfx_1_2,$pfx_4)")
+      SemVer.convertSemVerToMaven(s"$pfx_1_2 - $pfx_1_4")       must be equalTo Some(s"[$pfx_1_2,$pfx_1_5)")
+      SemVer.convertSemVerToMaven(s"$pfx_1_2 - $pfx_1_2_3_sfx") must be equalTo Some(s"[$pfx_1_2,$pfx_1_2_3_sfx]")
 
-      SemVer.convertSemVerToMaven("1.2.3 - 2")           must be equalTo Some("[1.2.3,3)")
-      SemVer.convertSemVerToMaven("1.2.3 - 1.4")         must be equalTo Some("[1.2.3,1.5)")
-      SemVer.convertSemVerToMaven("1.2.3 - 1.3.4")       must be equalTo Some("[1.2.3,1.3.4]")
-      SemVer.convertSemVerToMaven("1.2.3 - 1.3.4-alpha") must be equalTo Some("[1.2.3,1.3.4-alpha]")
-      SemVer.convertSemVerToMaven("1.2.3 - 1.3.4-dev-r") must be equalTo Some("[1.2.3,1.3.4-dev-r]")
-
-      SemVer.convertSemVerToMaven("1.2.3-alpha - 2")           must be equalTo Some("[1.2.3-alpha,3)")
-      SemVer.convertSemVerToMaven("1.2.3-dev-r - 2")           must be equalTo Some("[1.2.3-dev-r,3)")
-      SemVer.convertSemVerToMaven("1.2.3-alpha - 1.4")         must be equalTo Some("[1.2.3-alpha,1.5)")
-      SemVer.convertSemVerToMaven("1.2.3-dev-r - 1.4")         must be equalTo Some("[1.2.3-dev-r,1.5)")
-      SemVer.convertSemVerToMaven("1.2.3-alpha - 1.3.4")       must be equalTo Some("[1.2.3-alpha,1.3.4]")
-      SemVer.convertSemVerToMaven("1.2.3-dev-r - 1.3.4")       must be equalTo Some("[1.2.3-dev-r,1.3.4]")
-      SemVer.convertSemVerToMaven("1.2.3-alpha - 1.3.4-alpha") must be equalTo Some("[1.2.3-alpha,1.3.4-alpha]")
-      SemVer.convertSemVerToMaven("1.2.3-dev-r - 1.3.4-dev-r") must be equalTo Some("[1.2.3-dev-r,1.3.4-dev-r]")
+      SemVer.convertSemVerToMaven(s"$pfx_1_2_3_sfx - $pfx_3")     must be equalTo Some(s"[$pfx_1_2_3_sfx,$pfx_4)")
+      SemVer.convertSemVerToMaven(s"$pfx_1_2_3_sfx - $pfx_1_4")   must be equalTo Some(s"[$pfx_1_2_3_sfx,$pfx_1_5)")
+      SemVer.convertSemVerToMaven(s"$pfx_1_2_3_sfx - $pfx_1_4_3_sfx") must be equalTo Some(s"[$pfx_1_2_3_sfx,$pfx_1_4_3_sfx]")
     }
     "work with X ranges" in {
-      SemVer.convertSemVerToMaven("")      must be equalTo Some("[0,)")
-      SemVer.convertSemVerToMaven("*")     must be equalTo Some("[0,)")
-      SemVer.convertSemVerToMaven("1")     must be equalTo Some("[1,2)")
-      SemVer.convertSemVerToMaven("1.x")   must be equalTo Some("[1,2)")
-      SemVer.convertSemVerToMaven("1.x.x") must be equalTo Some("[1,2)")
-      SemVer.convertSemVerToMaven("1.X")   must be equalTo Some("[1,2)")
-      SemVer.convertSemVerToMaven("1.X.X") must be equalTo Some("[1,2)")
-      SemVer.convertSemVerToMaven("1.*")   must be equalTo Some("[1,2)")
-      SemVer.convertSemVerToMaven("1.*.*") must be equalTo Some("[1,2)")
-      SemVer.convertSemVerToMaven("1-alpha") must be equalTo Some("[1-alpha,2)")
+      SemVer.convertSemVerToMaven("")               must be equalTo Some("[0,)")
+      SemVer.convertSemVerToMaven("*")              must be equalTo Some("[0,)")
+      SemVer.convertSemVerToMaven(s"$pfx_1")        must be equalTo Some(s"[$pfx_1,$pfx_2)")
+      SemVer.convertSemVerToMaven(s"$pfx_1.x")      must be equalTo Some(s"[$pfx_1,$pfx_2)")
+      SemVer.convertSemVerToMaven(s"$pfx_1.x.x")    must be equalTo Some(s"[$pfx_1,$pfx_2)")
+      SemVer.convertSemVerToMaven(s"$pfx_1.X")      must be equalTo Some(s"[$pfx_1,$pfx_2)")
+      SemVer.convertSemVerToMaven(s"$pfx_1.X.X")    must be equalTo Some(s"[$pfx_1,$pfx_2)")
+      SemVer.convertSemVerToMaven(s"$pfx_1.*")      must be equalTo Some(s"[$pfx_1,$pfx_2)")
+      SemVer.convertSemVerToMaven(s"$pfx_1.*.*")    must be equalTo Some(s"[$pfx_1,$pfx_2)")
+      SemVer.convertSemVerToMaven(s"$pfx_1$suffix") must be equalTo Some(s"[$pfx_1$suffix,$pfx_2)")
 
-      SemVer.convertSemVerToMaven("1.2")       must be equalTo Some("[1.2,1.3)")
-      SemVer.convertSemVerToMaven("1.2.x")     must be equalTo Some("[1.2,1.3)")
-      SemVer.convertSemVerToMaven("1.2.X")     must be equalTo Some("[1.2,1.3)")
-      SemVer.convertSemVerToMaven("1.2.*")     must be equalTo Some("[1.2,1.3)")
-      SemVer.convertSemVerToMaven("1.2-alpha") must be equalTo Some("[1.2-alpha,1.3)")
+      SemVer.convertSemVerToMaven(s"$pfx_1_2")        must be equalTo Some(s"[$pfx_1_2,$pfx_1_3)")
+      SemVer.convertSemVerToMaven(s"$pfx_1_2.x")      must be equalTo Some(s"[$pfx_1_2,$pfx_1_3)")
+      SemVer.convertSemVerToMaven(s"$pfx_1_2.X")      must be equalTo Some(s"[$pfx_1_2,$pfx_1_3)")
+      SemVer.convertSemVerToMaven(s"$pfx_1_2.*")      must be equalTo Some(s"[$pfx_1_2,$pfx_1_3)")
+      SemVer.convertSemVerToMaven(s"$pfx_1_2$suffix") must be equalTo Some(s"[$pfx_1_2$suffix,$pfx_1_3)")
     }
     "work with tilde ranges" in {
-      SemVer.convertSemVerToMaven("~1")           must be equalTo Some("[1,2)")
-      SemVer.convertSemVerToMaven("~1.2")         must be equalTo Some("[1.2,1.3)")
-      SemVer.convertSemVerToMaven("~1.2.3")       must be equalTo Some("[1.2.3,1.3)")
-      SemVer.convertSemVerToMaven("~1.2.3-alpha") must be equalTo Some("[1.2.3-alpha,1.3)")
-      SemVer.convertSemVerToMaven("~1.2.3-dev-r") must be equalTo Some("[1.2.3-dev-r,1.3)")
-      SemVer.convertSemVerToMaven("~1.x")         must be equalTo Some("[1,2)")
-      SemVer.convertSemVerToMaven("~ 0.1.11")     must be equalTo Some("[0.1.11,0.2)")
+      SemVer.convertSemVerToMaven(s"~$pfx_1")          must be equalTo Some(s"[$pfx_1,$pfx_2)")
+      SemVer.convertSemVerToMaven(s"~$pfx_1_2")        must be equalTo Some(s"[$pfx_1_2,$pfx_1_3)")
+      SemVer.convertSemVerToMaven(s"~$pfx_1_2_3_sfx")  must be equalTo Some(s"[$pfx_1_2_3_sfx,$pfx_1_3)")
+      SemVer.convertSemVerToMaven(s"~$pfx_1.x")        must be equalTo Some(s"[$pfx_1,$pfx_2)")
+      SemVer.convertSemVerToMaven(s"~ $pfx_1_2_3_sfx") must be equalTo Some(s"[$pfx_1_2_3_sfx,$pfx_1_3)")
     }
     "work with caret ranges" in {
-      SemVer.convertSemVerToMaven("^1.2.3")        must be equalTo Some("[1.2.3,2)")
-      SemVer.convertSemVerToMaven("^1.2.3-beta.2") must be equalTo Some("[1.2.3-beta.2,2)")
+      SemVer.convertSemVerToMaven(s"^$pfx_1_2_3_sfx") must be equalTo Some(s"[$pfx_1_2_3_sfx,$pfx_2)")
 
-      SemVer.convertSemVerToMaven("^0.2.3")        must be equalTo Some("[0.2.3,0.3)")
-      SemVer.convertSemVerToMaven("^0.0.3")        must be equalTo Some("[0.0.3,0.0.4)")
-      SemVer.convertSemVerToMaven("^0.0.3-beta")   must be equalTo Some("[0.0.3-beta,0.0.4)")
+      SemVer.convertSemVerToMaven(s"^$pfx_0_2_3_sfx") must be equalTo Some(s"[$pfx_0_2_3_sfx,$pfx_0_3)")
+      SemVer.convertSemVerToMaven(s"^$pfx_0_0_3_sfx") must be equalTo Some(s"[$pfx_0_0_3_sfx,$pfx_0_0_4)")
 
-      SemVer.convertSemVerToMaven("^1.2.x") must be equalTo Some("[1.2.0,2)")
-      SemVer.convertSemVerToMaven("^0.0.x") must be equalTo Some("[0.0.0,0.1)")
-      SemVer.convertSemVerToMaven("^0.0")   must be equalTo Some("[0.0.0,0.1)")
+      SemVer.convertSemVerToMaven(s"^$pfx_1_2.x") must be equalTo Some(s"[$pfx_1_2.0,$pfx_2)")
+      SemVer.convertSemVerToMaven("^0.0.x")       must be equalTo Some("[0.0.0,0.1)")
+      SemVer.convertSemVerToMaven("^0.0")         must be equalTo Some("[0.0.0,0.1)")
 
-      SemVer.convertSemVerToMaven("^1.x") must be equalTo Some("[1.0.0,2)")
-      SemVer.convertSemVerToMaven("^0.x") must be equalTo Some("[0.0.0,1)")
+      SemVer.convertSemVerToMaven(s"^$pfx_1.x") must be equalTo Some(s"[$pfx_1.0.0,$pfx_2)")
+      SemVer.convertSemVerToMaven("^0.x")       must be equalTo Some("[0.0.0,1)")
     }
     "work with crazy stuff" in {
       SemVer.convertSemVerToMaven("latest") must be equalTo Some("[0,)")
-      SemVer.convertSemVerToMaven("b4e74e38e43ac53af8acd62c78c9213be0194245") must be equalTo Some("b4e74e38e43ac53af8acd62c78c9213be0194245")
-      SemVer.convertSemVerToMaven("2432d39a1693ccd728cbe7eb55810063737d3403") must be equalTo Some("2432d39a1693ccd728cbe7eb55810063737d3403")
+      SemVer.convertSemVerToMaven(a_z_0_9)  must be equalTo Some(a_z_0_9)
     }
     "work with || syntax" in {
-      SemVer.convertSemVerToMaven("^1.3.0 || >1.4.0-beta.0")  must be equalTo Some("[1.3.0,2),(1.4.0-beta.0,)")
-      SemVer.convertSemVerToMaven("2 || 3 || 4")              must be equalTo Some("[2,3),[3,4),[4,5)")
-    }
-    "work with alpha prefix" in {
-      SemVer.convertSemVerToMaven("a1.2.3") must be equalTo Some("a1.2.3")
-
-      SemVer.convertSemVerToMaven(">bc1")  must be equalTo Some("(bc1,)")
-      SemVer.convertSemVerToMaven("<def1") must be equalTo Some("(,def1)")
-
-      SemVer.convertSemVerToMaven(">=g1")             must be equalTo Some("[g1,)")
-      SemVer.convertSemVerToMaven("<=h1")             must be equalTo Some("(,h1]")
-      SemVer.convertSemVerToMaven(">=i1.0.0 <i1.4.0") must be equalTo Some("[i1.0.0,i1.4.0)")
-
-      SemVer.convertSemVerToMaven("j1 - j2")           must be equalTo Some("[j1,j3)")
-      SemVer.convertSemVerToMaven("k1.2 - k2")         must be equalTo Some("[k1.2,k3)")
-      SemVer.convertSemVerToMaven("l1.2.3 - l2")       must be equalTo Some("[l1.2.3,l3)")
-      SemVer.convertSemVerToMaven("m1.2.3-alpha - m2") must be equalTo Some("[m1.2.3-alpha,m3)")
-
-      SemVer.convertSemVerToMaven("n1.2") must be equalTo Some("[n1.2,n1.3)")
-
-      SemVer.convertSemVerToMaven("~o1") must be equalTo Some("[o1,o2)")
-
-      SemVer.convertSemVerToMaven("^p1.2.3") must be equalTo Some("[p1.2.3,p2)")
-      SemVer.convertSemVerToMaven("^q0.2.3") must be equalTo Some("[q0.2.3,q0.3)")
-      SemVer.convertSemVerToMaven("^r1.2.x") must be equalTo Some("[r1.2.0,r2)")
-      SemVer.convertSemVerToMaven("^s1.x")   must be equalTo Some("[s1.0.0,s2)")
-
-      SemVer.convertSemVerToMaven("^t1.3.0 || >t1.4.0-beta.0")  must be equalTo Some("[t1.3.0,t2),(t1.4.0-beta.0,)")
+      SemVer.convertSemVerToMaven(s"^$pfx_1_2.0 || >$pfx_1_2_3_sfx") must be equalTo Some(s"[$pfx_1_2.0,$pfx_2),($pfx_1_2_3_sfx,)")
+      SemVer.convertSemVerToMaven(s"$pfx_1 || $pfx_3 || $pfx_5")     must be equalTo Some(s"[$pfx_1,$pfx_2),[$pfx_3,$pfx_4),[$pfx_5,$pfx_6)")
     }
   }
 
+  def somePrefix(length: Int): String = {
+    (for (i <- 0 to random.nextInt(length)) yield alphas(random.nextInt(alphas.length))).mkString("")
+  }
+
+  def somePositiveIntegerBetween(start: Int, end: Int): Int = {
+    start + random.nextInt(end - start)
+  }
+
+  def someSuffix(length: Int): String = {
+    val chars = alphas ++ Seq('-', '.')
+    val randomLength = random.nextInt(length)
+    if (randomLength == 0) return ""
+    // We clear the first '.' to make sure we never have a string that starts with "-." which is invalid.
+    '-' + (for (i <- 0 to randomLength) yield chars(random.nextInt(chars.length))).mkString("").replaceFirst("\\.", "")
+  }
+
+  def someAlphaNumericString(length: Int): String = {
+    val chars = alphas ++ ('0' to '9')
+    (for (i <- 0 to random.nextInt(length)) yield chars(random.nextInt(chars.length))).mkString("")
+  }
 }
