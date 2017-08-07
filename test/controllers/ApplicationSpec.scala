@@ -42,40 +42,50 @@ class ApplicationSpec extends PlaySpecification {
   }
   "sortedMostPopularWebJars" should {
     "only include the max number" in new WithApplication {
-      val applicationController = app.injector.instanceOf[Application]
+      if (app.configuration.getOptional[String]("oss.username").isEmpty) {
+        skipped("skipped due to missing config")
+      }
+      else {
+        val applicationController = app.injector.instanceOf[Application]
 
-      val sorted = await(applicationController.sortedMostPopularWebJars)
+        val sorted = await(applicationController.sortedMostPopularWebJars)
 
-      sorted must not be empty
+        sorted must not be empty
 
-      val grouped = sorted.groupBy(_.groupId)
+        val grouped = sorted.groupBy(_.groupId)
 
-      grouped.getOrElse("org.webjars", Seq.empty[WebJar]).length must beLessThanOrEqualTo (applicationController.MAX_POPULAR_WEBJARS)
-      grouped.getOrElse("org.webjars.npm", Seq.empty[WebJar]).length must beLessThanOrEqualTo (applicationController.MAX_POPULAR_WEBJARS)
-      grouped.getOrElse("org.webjars.bower", Seq.empty[WebJar]).length must beLessThanOrEqualTo (applicationController.MAX_POPULAR_WEBJARS)
+        grouped.getOrElse("org.webjars", Seq.empty[WebJar]).length must beLessThanOrEqualTo(applicationController.MAX_POPULAR_WEBJARS)
+        grouped.getOrElse("org.webjars.npm", Seq.empty[WebJar]).length must beLessThanOrEqualTo(applicationController.MAX_POPULAR_WEBJARS)
+        grouped.getOrElse("org.webjars.bower", Seq.empty[WebJar]).length must beLessThanOrEqualTo(applicationController.MAX_POPULAR_WEBJARS)
+      }
     }
   }
 
   "searchWebJars" should {
     "work" in new WithApplication {
-      val applicationController = app.injector.instanceOf[Application]
+      if (app.configuration.getOptional[String]("oss.username").isEmpty) {
+        skipped("skipped due to missing config")
+      }
+      else {
+        val applicationController = app.injector.instanceOf[Application]
 
-      val request = FakeRequest().withHeaders(HeaderNames.ACCEPT -> ContentTypes.JSON)
-      val resultFuture = applicationController.searchWebJars("jquery", List("org.webjars"))(request)
+        val request = FakeRequest().withHeaders(HeaderNames.ACCEPT -> ContentTypes.JSON)
+        val resultFuture = applicationController.searchWebJars("jquery", List("org.webjars"))(request)
 
-      status(resultFuture) must beEqualTo (Status.OK)
+        status(resultFuture) must beEqualTo(Status.OK)
 
-      // todo: this test flaps due to ordering of maven central results
-      (contentAsJson(resultFuture) \\ "artifactId").map(_.as[String]) must contain ("jquery-form")
+        // todo: this test flaps due to ordering of maven central results
+        (contentAsJson(resultFuture) \\ "artifactId").map(_.as[String]) must contain("jquery-form")
+      }
     }
-    "work when stats can't be fetched" in new WithApplication(app = GuiceApplicationBuilder(configuration = Configuration("oss.username" -> s"asdf")).build()) {
+    "work when stats can't be fetched" in new WithApplication(app = GuiceApplicationBuilder(configuration = Configuration("oss.username" -> "asdf", "oss.password" -> "asdf")).build()) {
       val applicationController = app.injector.instanceOf[Application]
 
       val request = FakeRequest().withHeaders(HeaderNames.ACCEPT -> ContentTypes.JSON)
       val resultFuture = applicationController.searchWebJars("jquery", List("org.webjars"))(request)
 
       // todo: this test flaps due to ordering of maven central results
-      (contentAsJson(resultFuture) \\ "artifactId").map(_.as[String]) must contain ("jquery-form")
+      (contentAsJson(resultFuture) \\ "artifactId").map(_.as[String]) must contain("jquery-form")
     }
   }
 

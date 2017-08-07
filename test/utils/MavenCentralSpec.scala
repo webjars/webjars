@@ -22,18 +22,28 @@ class MavenCentralSpec extends PlaySpecification {
 
   "getStats" should {
     "get the stats for a given date" in new WithApplication() {
-      val mavenCentral = app.injector.instanceOf[MavenCentral]
-      val stats = await(mavenCentral.getStats(Classic.groupId, new DateTime(2016, 1, 1, 1, 1)))
-      stats.head should beEqualTo (Classic.groupId, "jquery", 45947)
+      if (app.configuration.getOptional[String]("oss.username").isEmpty) {
+        skipped("skipped due to missing config")
+      }
+      else {
+        val mavenCentral = app.injector.instanceOf[MavenCentral]
+        val stats = await(mavenCentral.getStats(Classic.groupId, new DateTime(2016, 1, 1, 1, 1)))
+        stats.head should beEqualTo(Classic.groupId, "jquery", 45947)
+      }
     }
   }
 
   "mostDownloaded" should {
     "get the 20 most downloaded for each catalog" in new WithApplication() {
-      val mavenCentral = app.injector.instanceOf[MavenCentral]
-      val mostDownloaded = await(mavenCentral.mostDownloaded(new DateTime(2016, 1, 1, 1, 1), 20))
-      mostDownloaded.size should beEqualTo (60)
-      mostDownloaded.head should beEqualTo (NPM.groupId, "validate.js", 2901)
+      if (app.configuration.getOptional[String]("oss.username").isEmpty) {
+        skipped("skipped due to missing config")
+      }
+      else {
+        val mavenCentral = app.injector.instanceOf[MavenCentral]
+        val mostDownloaded = await(mavenCentral.mostDownloaded(new DateTime(2016, 1, 1, 1, 1), 20))
+        mostDownloaded.size should beEqualTo(60)
+        mostDownloaded.head should beEqualTo(NPM.groupId, "validate.js", 2901)
+      }
     }
   }
 
