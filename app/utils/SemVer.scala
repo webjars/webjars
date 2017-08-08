@@ -25,9 +25,8 @@ object SemVer {
 
   private def toSemVersion(versionString: String): SemVersion = {
     val normalisedVersion = versionString.replaceAll("(\\.[xX\\*])+", "").trim
-    val SemVerCapture = """^([<>=~^ ]*)([a-zA-Z]*[0-9\.]+(?:-[\.\-a-zA-Z0-9]+)?)([<>=\- ]+)?([a-zA-Z]*[0-9\.]+(?:-[\.\-a-zA-Z0-9]+)?)?$""".r
     normalisedVersion match {
-      case SemVerCapture(Trimmed(prefix), Trimmed(leftVersion), Trimmed(infix), Trimmed(rightVersion)) =>
+      case r"^([<>=~^ ]*)${Trimmed(prefix)}([a-zA-Z]*[0-9\.]+(?:-[\.\-a-zA-Z0-9]+)?)${Trimmed(leftVersion)}([<>=\- ]+)?${Trimmed(infix)}([a-zA-Z]*[0-9\.]+(?:-[\.\-a-zA-Z0-9]+)?)?${Trimmed(rightVersion)}$$" =>
         SemVersion(prefix, leftVersion, infix, rightVersion)
       case _ =>
         SemVersion("", "", "", "")
@@ -100,9 +99,8 @@ object SemVer {
   }
 
   private def extractVersion(version: String, capture: Version => String): String = {
-    val VersionCapture = """([a-zA-Z]*)(\d+)\.?(\d*)\.?(\d*)((?:-[\.\-a-zA-Z0-9]+)?)""".r
     version match {
-      case VersionCapture(prefix, major, minor, patch, tag) =>
+      case r"^([a-zA-Z]*)${prefix}(\d+)${major}\.?(\d*)${minor}\.?(\d*)${patch}((?:-[\.\-a-zA-Z0-9]+)?)${tag}$$" =>
         capture(Version(prefix, major, minor, patch, tag))
     }
   }
