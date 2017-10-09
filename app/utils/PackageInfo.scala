@@ -2,15 +2,12 @@ package utils
 
 import java.net.{URI, URL}
 
-import play.api.data.validation.ValidationError
 import play.api.libs.functional.syntax._
 import play.api.libs.json._
 
-import scala.util.{Failure, Success, Try}
+import scala.util.{Success, Try}
 
 case class PackageInfo[A](name: String, version: String, maybeHomepageUrl: Option[URL], sourceConnectionUri: URI, maybeIssuesUrl: Option[URL], metadataLicenses: Seq[String], dependencies: Map[String, String], optionalDependencies: Map[String, String]) {
-
-  // todo: right now we can't reliably derive a sourceUrl (web interface to SCM) so just use maybeGitHubUrl instead
 
   lazy val maybeGitHubUrl: Option[URL] = GitHub.gitHubUrl(sourceConnectionUri).toOption
     .orElse(maybeHomepageUrl.flatMap(GitHub.gitHubUrl(_).toOption))
@@ -23,6 +20,8 @@ case class PackageInfo[A](name: String, version: String, maybeHomepageUrl: Optio
       repo <- maybeGitHubRepo
     } yield s"$org/$repo"
   }
+
+  lazy val maybeSourceUrl: Option[URL] = maybeGitHubUrl.orElse(maybeHomepageUrl)
 
 }
 

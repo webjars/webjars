@@ -1,7 +1,7 @@
 package utils
 
 import java.io.InputStream
-import java.net.URI
+import java.net.{URI, URL}
 import javax.inject.Inject
 
 import play.api.Logger
@@ -48,7 +48,8 @@ class DeployWebJar @Inject() (git: Git, binTray: BinTray, pusher: Pusher, maven:
       _ <- push("update", "Converted dependencies to Maven")
       optionalMavenDependencies <- maven.convertNpmBowerDependenciesToMaven(packageInfo.optionalDependencies)
       _ <- push("update", "Converted optional dependencies to Maven")
-      pom = templates.xml.pom(deployable.groupId, artifactId, packageInfo, mavenDependencies, optionalMavenDependencies, licenses).toString()
+      sourceUrl <- packageInfo.maybeSourceUrl.fold(Future.failed[URL](new Exception("Could not determine a source URL")))(Future.successful)
+      pom = templates.xml.pom(deployable.groupId, artifactId, packageInfo, sourceUrl, mavenDependencies, optionalMavenDependencies, licenses).toString()
       _ <- push("update", "Generated POM")
       zip <- deployable.archive(nameOrUrlish, version)
       _ <- push("update", s"Fetched ${deployable.name} zip")
