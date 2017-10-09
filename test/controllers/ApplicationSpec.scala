@@ -70,22 +70,30 @@ class ApplicationSpec extends PlaySpecification {
         val applicationController = app.injector.instanceOf[Application]
 
         val request = FakeRequest().withHeaders(HeaderNames.ACCEPT -> ContentTypes.JSON)
+
+        val webJars = contentAsJson(applicationController.webJarList("org.webjars")(request)).as[Seq[WebJar]]
+
+        val possibleMatches = webJars.filter(_.artifactId.toLowerCase.contains("jquery"))
+
         val resultFuture = applicationController.searchWebJars("jquery", List("org.webjars"))(request)
 
         status(resultFuture) must beEqualTo(Status.OK)
 
-        // todo: this test flaps due to ordering of maven central results
-        (contentAsJson(resultFuture) \\ "artifactId").map(_.as[String]) must contain("jquery-form")
+        contentAsJson(resultFuture).as[Seq[WebJar]] must containTheSameElementsAs(possibleMatches)
       }
     }
     "work when stats can't be fetched" in new WithApplication(app = GuiceApplicationBuilder(configuration = Configuration("oss.username" -> "asdf", "oss.password" -> "asdf")).build()) {
       val applicationController = app.injector.instanceOf[Application]
 
       val request = FakeRequest().withHeaders(HeaderNames.ACCEPT -> ContentTypes.JSON)
+
+      val webJars = contentAsJson(applicationController.webJarList("org.webjars")(request)).as[Seq[WebJar]]
+
+      val possibleMatches = webJars.filter(_.artifactId.toLowerCase.contains("jquery"))
+
       val resultFuture = applicationController.searchWebJars("jquery", List("org.webjars"))(request)
 
-      // todo: this test flaps due to ordering of maven central results
-      (contentAsJson(resultFuture) \\ "artifactId").map(_.as[String]) must contain("jquery-form")
+      contentAsJson(resultFuture).as[Seq[WebJar]] must containTheSameElementsAs(possibleMatches)
     }
   }
 
