@@ -73,7 +73,8 @@ class LicenseDetector @Inject() (ws: WSClient, git: Git, messages: MessagesApi, 
     "New BSD License" -> "BSD 3-Clause",
     "GPLv2" -> "GPL-2.0",
     "GPLv3" -> "GPL-3.0",
-    "MIT/X11" -> "MIT"
+    "MIT/X11" -> "MIT",
+    "AGPL-3.0" -> "AGPL-V3"
   ) map {
     case (key, value) => normalize(key) -> value
   }
