@@ -64,13 +64,17 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
       info.maybeHomepageUrl must beSome (new URL("https://github.com/PolymerElements/iron-elements"))
     }
   }
-  "git repo tagged version info" should {
-    "work" in {
-      val info = await(bower.info("PolymerElements/iron-elements", Some("v1.0.0")))
-      info.name must beEqualTo ("iron-elements")
-      info.version must beEqualTo ("1.0.0")
+
+  "git repo without 'version' info in bower.json" should {
+    "have version without git 'v' prefix" in {
+      val info = await(bower.info("https://github.com/vaadin/vaadin-grid"))
+      info.name must beEqualTo ("vaadin-grid")
+      info.version must not startingWith "v"
+      info.sourceConnectionUri must beEqualTo (new URI("https://github.com/vaadin/vaadin-grid.git"))
+      info.maybeHomepageUrl must beSome (new URL("https://github.com/vaadin/vaadin-grid"))
     }
   }
+
   "git repo tagged version zip" should {
     "work" in {
       val zip = await(bower.archive("PolymerElements/iron-elements", "v1.0.0"))
