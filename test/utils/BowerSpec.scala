@@ -17,7 +17,9 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
 
   "jquery info" should {
     "work with a correct version" in {
-      await(bower.info("jquery", Some("1.11.1"))).name must equalTo("jquery")
+      val info = await(bower.info("jquery", Some("1.11.1")))
+      info.name must equalTo("jquery")
+      info.version must not startingWith "v"
     }
     "fail with an invalid version" in {
       await(bower.info("jquery", Some("0.0.0"))) must throwA[Exception]
@@ -27,11 +29,14 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
     val info = await(bower.info("bootstrap", Some("3.3.2")))
     "have a dependency on jquery" in {
       info.dependencies must contain("jquery" -> ">= 1.9.1")
+      info.version must not startingWith "v"
     }
   }
   "dc.js" should {
     "have the corrected GitHub url" in {
-      await(bower.info("dc.js", Some("1.7.3"))).maybeHomepageUrl must beSome(new URL("https://github.com/dc-js/dc.js"))
+      val info = await(bower.info("dc.js", Some("1.7.3")))
+      info.version must not startingWith "v"
+      info.maybeHomepageUrl must beSome(new URL("https://github.com/dc-js/dc.js"))
     }
   }
   "sjcl" should {
@@ -60,6 +65,7 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
       val info = await(bower.info("PolymerElements/iron-elements"))
       info.name must beEqualTo ("iron-elements")
       info.version mustNotEqual ""
+      info.version must not startingWith "v"
       info.sourceConnectionUri must beEqualTo (new URI("https://github.com/PolymerElements/iron-elements.git"))
       info.maybeHomepageUrl must beSome (new URL("https://github.com/PolymerElements/iron-elements"))
     }
@@ -69,6 +75,7 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
     "have version without git 'v' prefix" in {
       val info = await(bower.info("https://github.com/vaadin/vaadin-grid"))
       info.name must beEqualTo ("vaadin-grid")
+      info.version mustNotEqual ""
       info.version must not startingWith "v"
       info.sourceConnectionUri must beEqualTo (new URI("https://github.com/vaadin/vaadin-grid.git"))
       info.maybeHomepageUrl must beSome (new URL("https://github.com/vaadin/vaadin-grid"))
@@ -89,6 +96,7 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
       val info = await(bower.info("PolymerElements/iron-elements"))
       info.name must beEqualTo ("iron-elements")
       info.version mustNotEqual ""
+      info.version must not startingWith "v"
       info.maybeHomepageUrl must beSome (new URL("https://github.com/PolymerElements/iron-elements"))
       info.sourceConnectionUri must beEqualTo (new URI("https://github.com/PolymerElements/iron-elements.git"))
       info.maybeIssuesUrl must beSome (new URL("https://github.com/PolymerElements/iron-elements/issues"))
@@ -100,6 +108,7 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
       val info = await(bower.info("git://github.com/PolymerElements/iron-elements"))
       info.name must beEqualTo ("iron-elements")
       info.version mustNotEqual ""
+      info.version must not startingWith "v"
       info.maybeHomepageUrl must beSome (new URL("https://github.com/PolymerElements/iron-elements"))
       info.sourceConnectionUri must beEqualTo (new URI("https://github.com/PolymerElements/iron-elements.git"))
       info.maybeIssuesUrl must beSome (new URL("https://github.com/PolymerElements/iron-elements/issues"))
@@ -116,7 +125,9 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
 
   "homepage" should {
     "be have a default" in {
-      await(bower.info("git://github.com/millermedeiros/requirejs-plugins")).maybeHomepageUrl must beSome (new URL("https://github.com/millermedeiros/requirejs-plugins"))
+      val info = await(bower.info("git://github.com/millermedeiros/requirejs-plugins"))
+      info.version must not startingWith "v"
+      info.maybeHomepageUrl must beSome (new URL("https://github.com/millermedeiros/requirejs-plugins"))
     }
   }
 
@@ -139,6 +150,7 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
     "have a dependency on jquery" in {
       val packageInfo = await(bower.info("bootstrap", Some("3.3.2")))
       packageInfo.dependencies must contain("jquery" -> ">= 1.9.1")
+      packageInfo.version must not startingWith "v"
     }
   }
 
