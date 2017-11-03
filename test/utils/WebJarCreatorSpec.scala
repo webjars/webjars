@@ -54,6 +54,17 @@ class WebJarCreatorSpec extends PlaySpecification {
       val maybeLib = Stream.continually(archiveStream.getNextEntry).find(_.getName == "META-INF/resources/webjars/react-router/2.0.41/lib/")
       maybeLib.exists(_.isDirectory) must beTrue
     }
+    "handle non gzip tgzs" in {
+      val url = new URL(s"http://registry.npmjs.org/@types/escodegen/-/escodegen-0.0.2.tgz")
+      val inputStream = url.openConnection().getInputStream
+
+      val webJar = WebJarCreator.createWebJar(inputStream, true, Set("node_modules"), "", "org.webjars.npm", "escodegen", "0.0.2")
+
+      val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(new ByteArrayInputStream(webJar))
+
+      val allNames = Stream.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName)
+      allNames must contain ("META-INF/resources/webjars/escodegen/0.0.2/package.json")
+    }
   }
 
 }

@@ -2,7 +2,7 @@ package utils
 
 import java.io.InputStream
 import java.net.{URI, URL}
-import java.util.zip.GZIPInputStream
+import java.util.zip.{GZIPInputStream, ZipException}
 import javax.inject.Inject
 
 import play.api.data.validation.ValidationError
@@ -179,6 +179,12 @@ class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, g
           val inputStream = url.openConnection().getInputStream
           val gzipInputStream = new GZIPInputStream(inputStream)
           gzipInputStream
+        } recoverWith {
+          case e: ZipException =>
+            Try {
+              val url = new URL(registryTgzUrl(packageNameOrGitRepo, version))
+              url.openConnection().getInputStream
+            }
         }
       }
     }
