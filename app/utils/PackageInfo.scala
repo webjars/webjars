@@ -7,7 +7,7 @@ import play.api.libs.json._
 
 import scala.util.{Success, Try}
 
-case class PackageInfo[A](name: String, version: String, maybeHomepageUrl: Option[URL], sourceConnectionUri: URI, maybeIssuesUrl: Option[URL], metadataLicenses: Seq[String], dependencies: Map[String, String], optionalDependencies: Map[String, String]) {
+case class PackageInfo(name: String, version: String, maybeHomepageUrl: Option[URL], sourceConnectionUri: URI, maybeIssuesUrl: Option[URL], metadataLicenses: Seq[String], dependencies: Map[String, String], optionalDependencies: Map[String, String]) {
 
   lazy val maybeGitHubUrl: Option[URL] = GitHub.gitHubUrl(sourceConnectionUri).toOption
     .orElse(maybeHomepageUrl.flatMap(GitHub.gitHubUrl(_).toOption))
@@ -31,7 +31,7 @@ object PackageInfo {
 
   implicit val writesUri: Writes[URI] = Writes[URI](uri => JsString(uri.toString))
 
-  implicit def jsonWrites[T]: Writes[PackageInfo[T]] = (
+  implicit def jsonWrites: Writes[PackageInfo] = (
     (__ \ "name").write[String] and
     (__ \ "version").write[String] and
     (__ \ "homepage").writeNullable[URL] and
@@ -40,7 +40,7 @@ object PackageInfo {
     (__ \ "metadataLicenses").write[Seq[String]] and
     (__ \ "dependencies").write[Map[String, String]] and
     (__ \ "optionalDependencies").write[Map[String, String]]
-  )(unlift(PackageInfo.unapply[T]))
+  )(unlift(PackageInfo.unapply))
 
   implicit val readsUrl: Reads[URL] = Reads[URL] {
     case JsString(s) =>

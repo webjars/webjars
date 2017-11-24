@@ -11,11 +11,13 @@ class MavenCentralSpec extends PlaySpecification {
   "fetchWebJars" should {
     "fail when the searchGroupUrl does not return JSON" in new WithServer(port = testServerPort, app = GuiceApplicationBuilder(configuration = Configuration("webjars.searchGroupUrl" -> s"http://localhost:$testServerPort/asdf")).build()) {
       val mavenCentral = app.injector.instanceOf[MavenCentral]
-      await(mavenCentral.fetchWebJars(Classic.groupId)) should throwA[UnavailableException]
+      val classic = app.injector.instanceOf[Classic]
+      await(mavenCentral.fetchWebJars(classic)) should throwA[UnavailableException]
     }
     "work normally" in new WithApplication() {
       val mavenCentral = app.injector.instanceOf[MavenCentral]
-      val webJars = await(mavenCentral.fetchWebJars(NPM.groupId))
+      val npm = app.injector.instanceOf[NPM]
+      val webJars = await(mavenCentral.fetchWebJars(npm))
       webJars.foldLeft(0)(_ + _.versions.size) should beEqualTo (50)
     }
   }
@@ -27,8 +29,9 @@ class MavenCentralSpec extends PlaySpecification {
       }
       else {
         val mavenCentral = app.injector.instanceOf[MavenCentral]
-        val stats = await(mavenCentral.getStats(Classic.groupId, new DateTime(2016, 1, 1, 1, 1)))
-        stats.head should beEqualTo(Classic.groupId, "jquery", 45947)
+        val classic = app.injector.instanceOf[Classic]
+        val stats = await(mavenCentral.getStats(classic, new DateTime(2016, 1, 1, 1, 1)))
+        stats.head should beEqualTo("org.webjars", "jquery", 45947)
       }
     }
   }
@@ -42,7 +45,7 @@ class MavenCentralSpec extends PlaySpecification {
         val mavenCentral = app.injector.instanceOf[MavenCentral]
         val mostDownloaded = await(mavenCentral.mostDownloaded(new DateTime(2016, 1, 1, 1, 1), 20))
         mostDownloaded.size should beEqualTo(60)
-        mostDownloaded.head should beEqualTo(NPM.groupId, "validate.js", 2901)
+        mostDownloaded.head should beEqualTo("org.webjars", "jquery", 45947)
       }
     }
   }

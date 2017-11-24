@@ -5,13 +5,11 @@ import java.net.{URI, URL}
 
 import akka.util.Timeout
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
-import org.specs2.matcher.ValueCheck
-import play.api.libs.functional.syntax._
 import play.api.libs.json._
 import play.api.test._
 
 import scala.concurrent.duration._
-import scala.util.{Failure, Try}
+import scala.util.Try
 
 class NPMSpec extends PlaySpecification with GlobalApplication {
 
@@ -73,7 +71,7 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
       val tgz = await(npm.archive("mochajs/mocha", "2.2.5"))
       val bufferedInputStream = new BufferedInputStream(tgz)
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(bufferedInputStream)
-      bufferedInputStream.available() must beEqualTo (645120)
+      bufferedInputStream.available() must beEqualTo (640512)
     }
   }
   "git fork - github short url" should {
@@ -230,7 +228,7 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
   "react-dnd" should {
     "fail with a useful error" in {
       val failedInfo = Try(await(npm.info("react-dnd", Some("2.4.0"))))
-      failedInfo must beAFailedTry[PackageInfo[NPM]].withThrowable[MissingMetadataException]
+      failedInfo must beAFailedTry[PackageInfo].withThrowable[MissingMetadataException]
       // todo: failedInfo.asInstanceOf[Failure[MissingMetadataException]].get.errors must have size 1
     }
   }

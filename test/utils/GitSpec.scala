@@ -79,7 +79,7 @@ class GitSpec extends PlaySpecification with GlobalApplication {
       val bufferedInputStream = new BufferedInputStream(tar)
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(bufferedInputStream)
 
-      bufferedInputStream.available() must beEqualTo (645120)
+      bufferedInputStream.available() must beEqualTo (640512)
 
       val files = Stream.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName)
       files.size must beEqualTo (178)

@@ -5,7 +5,6 @@ import java.net.{URI, URL}
 import java.util.zip.{GZIPInputStream, ZipException}
 import javax.inject.Inject
 
-import play.api.data.validation.ValidationError
 import play.api.http.Status
 import play.api.libs.functional.syntax._
 import play.api.libs.json._
@@ -15,9 +14,25 @@ import utils.PackageInfo._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
-class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, gitHub: GitHub) (implicit ec: ExecutionContext) {
+class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, gitHub: GitHub)(implicit ec: ExecutionContext) extends Deployable {
 
   val BASE_URL = "http://registry.npmjs.org"
+
+  override val name: String = "NPM"
+
+  override val groupIdQuery: String = "org.webjars.npm"
+
+  override def includesGroupId(groupId: String): Boolean = groupId.equalsIgnoreCase("org.webjars.npm")
+
+  override def groupId(packageInfo: PackageInfo) = Some("org.webjars.npm")
+
+  override def artifactId(packageInfo: PackageInfo) = Some(packageInfo.name)
+
+  override val excludes: Set[String] = Set("node_modules")
+
+  override val metadataFile: String = "package.json"
+
+  override val contentsInSubdir: Boolean = true
 
   // a whole lot of WTF
   private def registryMetadataUrl(packageName: String, maybeVersion: Option[String] = None): String = {
@@ -68,9 +83,9 @@ class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, g
     git.gitUrl(gitRepo).flatMap(git.versionsOnBranch(_, branch))
   }
 
-  def info(packageNameOrGitRepo: String, maybeVersion: Option[String] = None, maybeSourceUri: Option[URI] = None): Future[PackageInfo[NPM]] = {
+  override def info(packageNameOrGitRepo: String, maybeVersion: Option[String] = None, maybeSourceUri: Option[URI] = None): Future[PackageInfo] = {
 
-    def packageInfo(packageJson: JsValue): Future[PackageInfo[NPM]] = {
+    def packageInfo(packageJson: JsValue): Future[PackageInfo] = {
 
       val maybeForkPackageJsonFuture = if (git.isGit(packageNameOrGitRepo)) {
         // this is a git repo so its package.json values might be wrong
@@ -95,18 +110,18 @@ class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, g
           maybeForkPackageJson.as[JsObject] ++ Json.obj("repository" -> Json.obj("url" -> sourceUri))
         }
 
-        maybeSourceOverridePackageJson.validate[PackageInfo[NPM]] match {
+        maybeSourceOverridePackageJson.validate[PackageInfo](NPM.jsonReads) match {
 
           case JsSuccess(initialInfo, _) =>
 
             val dependenciesSansOptionals = initialInfo.dependencies.filterKeys(initialInfo.optionalDependencies.get(_).isEmpty)
 
-            val infoWithResolvedOptionalDependencies = initialInfo.copy[NPM](dependencies = dependenciesSansOptionals)
+            val infoWithResolvedOptionalDependencies = initialInfo.copy(dependencies = dependenciesSansOptionals)
 
             infoWithResolvedOptionalDependencies.maybeGitHubUrl.fold(Future.successful(infoWithResolvedOptionalDependencies)) { gitHubUrl =>
                 gitHub.currentUrls(gitHubUrl).map {
                   case (homepage, sourceConnectionUri, issuesUrl) =>
-                    infoWithResolvedOptionalDependencies.copy[NPM](
+                    infoWithResolvedOptionalDependencies.copy(
                       maybeHomepageUrl = Some(homepage),
                       sourceConnectionUri = sourceConnectionUri,
                       maybeIssuesUrl = Some(issuesUrl)
@@ -114,7 +129,7 @@ class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, g
                 } recover {
                   // todo: fugly
                   case error: ServerError if error.status == Status.NOT_FOUND && maybeSourceUri.isDefined =>
-                    infoWithResolvedOptionalDependencies.copy[NPM](
+                    infoWithResolvedOptionalDependencies.copy(
                       maybeHomepageUrl = None,
                       sourceConnectionUri = maybeSourceUri.get,
                       maybeIssuesUrl = None
@@ -123,7 +138,7 @@ class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, g
             }
 
           case JsError(errors) =>
-            Future.failed[PackageInfo[NPM]](MissingMetadataException(maybeSourceOverridePackageJson, errors))
+            Future.failed[PackageInfo](MissingMetadataException(maybeSourceOverridePackageJson, errors))
         }
       }
     }
@@ -146,9 +161,9 @@ class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, g
           response.status match {
             case Status.OK =>
               val maybeVersionOrLatest = maybeVersion.orElse((response.json \ "dist-tags" \ "latest").asOpt[String])
-              maybeVersionOrLatest.fold(Future.failed[PackageInfo[NPM]](new Exception("Could not determine the version to get"))) { versionOrLatest =>
+              maybeVersionOrLatest.fold(Future.failed[PackageInfo](new Exception("Could not determine the version to get"))) { versionOrLatest =>
                 val versionInfoLookup = response.json \ "versions" \ versionOrLatest
-                versionInfoLookup.toOption.fold(Future.failed[PackageInfo[NPM]](new Exception(s"Could not parse: ${response.body}")))(packageInfo)
+                versionInfoLookup.toOption.fold(Future.failed[PackageInfo](new Exception(s"Could not parse: ${response.body}")))(packageInfo)
               }
             case _ =>
               Future.failed(new Exception(response.body))
@@ -168,7 +183,7 @@ class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, g
     }
   }
 
-  def archive(packageNameOrGitRepo: String, version: String): Future[InputStream] = {
+  override def archive(packageNameOrGitRepo: String, version: String): Future[InputStream] = {
     if (git.isGit(packageNameOrGitRepo)) {
       git.tar(packageNameOrGitRepo, Some(version), Set("node_modules"))
     }
@@ -180,7 +195,7 @@ class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, g
           val gzipInputStream = new GZIPInputStream(inputStream)
           gzipInputStream
         } recoverWith {
-          case e: ZipException =>
+          case _: ZipException =>
             Try {
               val url = new URL(registryTgzUrl(packageNameOrGitRepo, version))
               url.openConnection().getInputStream
@@ -259,7 +274,7 @@ object NPM {
     }
   }
 
-  implicit val jsonReads: Reads[PackageInfo[NPM]] = {
+  implicit val jsonReads: Reads[PackageInfo] = {
     val repositoryUrlReader: Reads[String] = (__ \ "repository").read[String].orElse((__ \ "repository" \ "url").read[String])
 
     val sourceConnectionUriReader: Reads[URI] = repositoryUrlReader.map(repositoryUrlToJsString).andThen(PackageInfo.readsUri)
@@ -281,25 +296,7 @@ object NPM {
       licenseReader ~
       (__ \ "dependencies").read[Map[String, String]].orElse(Reads.pure(Map.empty[String, String])) ~
       (__ \ "optionalDependencies").read[Map[String, String]].orElse(Reads.pure(Map.empty[String, String]))
-    )(PackageInfo.apply[NPM] _)
-  }
-
-  val groupId: String = "org.webjars.npm"
-
-  def deployable(npm: NPM): Deployable[NPM] = new Deployable[NPM] {
-    override val name: String = "NPM"
-
-    override val groupId: String = NPM.groupId
-
-    override val excludes: Set[String] = Set("node_modules")
-
-    override val metadataFile: String = "package.json"
-
-    override val contentsInSubdir: Boolean = true
-
-    override def archive(nameOrUrlish: String, version: String): Future[InputStream] = npm.archive(nameOrUrlish, version)
-
-    override def info(nameOrUrlish: String, maybeVersion: Option[String], maybeSourceUri: Option[URI]): Future[PackageInfo[NPM]] = npm.info(nameOrUrlish, maybeVersion, maybeSourceUri)
+    )(PackageInfo.apply _)
   }
 
 }

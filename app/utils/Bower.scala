@@ -4,20 +4,35 @@ import java.io.InputStream
 import java.net.{URI, URL, URLEncoder}
 import javax.inject.Inject
 
-import play.api.data.validation.ValidationError
 import play.api.http.Status
 import play.api.libs.functional.syntax._
 import play.api.libs.json.Reads._
 import play.api.libs.json._
 import play.api.libs.ws._
-
-import scala.concurrent.{ExecutionContext, Future}
-import scala.util.{Failure, Success, Try}
 import utils.PackageInfo._
 
-class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, gitHub: GitHub) (implicit ec: ExecutionContext) {
+import scala.concurrent.{ExecutionContext, Future}
+import scala.util.Try
+
+class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, gitHub: GitHub) (implicit ec: ExecutionContext) extends Deployable {
 
   val BASE_URL = "https://bower-as-a-service.herokuapp.com"
+
+  override val name: String = "Bower"
+
+  override val groupIdQuery: String = "org.webjars.bower"
+
+  override def includesGroupId(groupId: String): Boolean = groupId.equalsIgnoreCase("org.webjars.bower")
+
+  override def groupId(packageInfo: PackageInfo): Option[String] = Some("org.webjars.bower")
+
+  override def artifactId(packageInfo: PackageInfo): Option[String] = Some(packageInfo.name)
+
+  override val excludes: Set[String] = Set(".bower.json")
+
+  override val metadataFile: String = "bower.json"
+
+  override val contentsInSubdir: Boolean = true
 
   def versions(packageNameOrGitRepo: String): Future[Seq[String]] = {
     if (git.isGit(packageNameOrGitRepo)) {
@@ -49,7 +64,7 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
     git.gitUrl(gitRepo).flatMap(git.versionsOnBranch(_, branch))
   }
 
-  def rawInfo(packageNameOrGitRepo: String, version: String): Future[PackageInfo[Bower]] = {
+  def rawInfo(packageNameOrGitRepo: String, version: String): Future[PackageInfo] = {
     if (git.isGit(packageNameOrGitRepo)) {
       git.gitUrl(packageNameOrGitRepo).flatMap { gitUrl =>
         git.file(gitUrl, Some(version), "bower.json").map { bowerJson =>
@@ -59,13 +74,13 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
           val jsonWithCorrectVersion = (json \ "version").asOpt[String].fold {
             // the version was not in the json so add the specified version
             json + ("version" -> JsString(version))
-          } { version =>
+          } { _ =>
             // todo: resolve conflicts?
             // for now just use the version from the json
             json
           }
 
-          jsonWithCorrectVersion.as[PackageInfo[Bower]](Bower.jsonReads)
+          jsonWithCorrectVersion.as[PackageInfo](Bower.jsonReads)
         }
       }
     }
@@ -73,7 +88,7 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
       ws.url(s"$BASE_URL/info/$packageNameOrGitRepo/$version").get().flatMap { response =>
         response.status match {
           case Status.OK =>
-            Future.successful(response.json.as[PackageInfo[Bower]](Bower.jsonReads))
+            Future.successful(response.json.as[PackageInfo](Bower.jsonReads))
           case _ =>
             Future.failed(new Exception(response.body))
         }
@@ -81,7 +96,7 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
     }
   }
 
-  def info(packageNameOrGitRepo: String, maybeVersion: Option[String] = None): Future[PackageInfo[Bower]] = {
+  override def info(packageNameOrGitRepo: String, maybeVersion: Option[String] = None, maybeSourceUri: Option[URI] = None): Future[PackageInfo] = {
 
     // if no version was specified use the latest
     val versionFuture: Future[String] = maybeVersion.fold {
@@ -95,7 +110,7 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
         initialInfo.maybeGitHubUrl.fold(Future.successful(initialInfo)) { gitHubUrl =>
           gitHub.currentUrls(gitHubUrl).map {
             case (homepage, sourceConnectionUri, issuesUrl) =>
-              initialInfo.copy[Bower](
+              initialInfo.copy(
                 maybeHomepageUrl = Some(homepage),
                 sourceConnectionUri = sourceConnectionUri,
                 maybeIssuesUrl = Some(issuesUrl)
@@ -106,7 +121,7 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
     }
   }
 
-  def archive(packageNameOrGitRepo: String, version: String): Future[InputStream] = {
+  override def archive(packageNameOrGitRepo: String, version: String): Future[InputStream] = {
     if (git.isGit(packageNameOrGitRepo)) {
       git.gitUrl(packageNameOrGitRepo).flatMap { gitUrl =>
         git.tar(gitUrl, Some(version), Set("bower_modules"))
@@ -143,7 +158,7 @@ object Bower {
     }
   }
 
-  implicit def jsonReads: Reads[PackageInfo[Bower]] = (
+  implicit def jsonReads: Reads[PackageInfo] = (
     (__ \ "name").read[String] ~
     (__ \ "version").read[String] ~
     (__ \ "homepage").read[URL].orElse(sourceToGitHubReads).map(Some(_)) ~
@@ -152,24 +167,7 @@ object Bower {
     (__ \ "license").read[Seq[String]].orElse((__ \ "license").read[String].map(Seq(_))).orElse(Reads.pure(Seq.empty[String])) ~
     (__ \ "dependencies").read[Map[String, String]].orElse(Reads.pure(Map.empty[String, String])) ~
     Reads.pure(Map.empty[String, String])
-  )(PackageInfo.apply[Bower] _)
+  )(PackageInfo.apply _)
 
-  val groupId: String = "org.webjars.bower"
-
-  def deployable(bower: Bower): Deployable[Bower] = new Deployable[Bower] {
-    override val name: String = "Bower"
-
-    override val groupId: String = Bower.groupId
-
-    override val excludes: Set[String] = Set(".bower.json")
-
-    override val metadataFile: String = "bower.json"
-
-    override val contentsInSubdir: Boolean = false
-
-    override def archive(nameOrUrlish: String, version: String): Future[InputStream] = bower.archive(nameOrUrlish, version)
-
-    override def info(nameOrUrlish: String, maybeVersion: Option[String], maybeSourceUrl: Option[URI]): Future[PackageInfo[Bower]] = bower.info(nameOrUrlish, maybeVersion)
-  }
 }
 

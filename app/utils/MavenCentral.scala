@@ -6,7 +6,7 @@ import actors.{FetchWebJars, WebJarFetcher}
 import akka.actor._
 import akka.pattern.ask
 import akka.util.Timeout
-import models.{WebJar, WebJarVersion}
+import models.{WebJar, WebJarType, WebJarVersion}
 import org.joda.time.DateTime
 import play.api.http.{HeaderNames, MimeTypes, Status}
 import play.api.libs.json._
@@ -16,12 +16,14 @@ import shade.memcached.MemcachedCodecs._
 
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.{Failure, Try}
+import scala.util.Try
 import scala.xml.Elem
 
-class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClient, actorSystem: ActorSystem, configuration: Configuration, webJarsFileService: WebJarsFileService) (implicit ec: ExecutionContext) {
+class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClient, actorSystem: ActorSystem, configuration: Configuration, webJarsFileService: WebJarsFileService)(classic: Classic, bower: Bower, npm: NPM) (implicit ec: ExecutionContext) {
 
   lazy val webJarFetcher: ActorRef = actorSystem.actorOf(Props[WebJarFetcher])
+
+  val allWebJarTypes = Set(classic, bower, npm)
 
   implicit val webJarVersionReads = Json.reads[WebJarVersion]
   implicit val webJarVersionWrites = Json.writes[WebJarVersion]
@@ -71,19 +73,27 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
     }
   }
 
-  def webJarsFromJson(groupId: String)(json: JsValue): Future[List[WebJar]] = {
+  def webJarsFromJson(webJarType: WebJarType)(json: JsValue): Future[List[WebJar]] = {
 
     val allVersions = (json \ "response" \ "docs").as[List[JsObject]].map { jsObject =>
-      ((jsObject \ "a").as[String], (jsObject \ "v").as[String])
+      ((jsObject \ "g").as[String], (jsObject \ "a").as[String], (jsObject \ "v").as[String])
     }
 
     // group by the artifactId
-    val artifactsAndVersions: Map[String, List[String]] = allVersions.groupBy(_._1).filterKeys(!_.startsWith("webjars-")).mapValues(_.map(_._2))
+    val artifactsAndVersions = allVersions.groupBy {
+      case (groupId, artifactId, _) => groupId -> artifactId
+    } filterKeys {
+      case (_, artifactId) => !artifactId.startsWith("webjars-")
+    } mapValues { versions =>
+      versions.map {
+        case (_, _, version) => version
+      }
+    }
 
     // partition and batch
 
-    def fetchWebJarVersions(artifactAndVersions: (String, List[String])): (String, Future[List[WebJarVersion]]) = {
-      val (artifactId, versions) = artifactAndVersions
+    def fetchWebJarVersions(artifactAndVersions: ((String, String), List[String])): ((String, String), Future[List[WebJarVersion]]) = {
+      val ((groupId, artifactId), versions) = artifactAndVersions
       val versionsFuture = Future.sequence {
         versions.map { version =>
           val cacheKey = s"numfiles-$groupId-$artifactId-$version"
@@ -105,15 +115,16 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
         webJarVersions.sorted.reverse
       }
 
-      artifactId -> versionsFuture
+      (groupId -> artifactId) -> versionsFuture
     }
 
-    def processBatch(resultsFuture: Future[Map[String, List[WebJarVersion]]], batch: Map[String, List[String]]): Future[Map[String, List[WebJarVersion]]] = {
+    def processBatch(resultsFuture: Future[Map[(String, String), List[WebJarVersion]]], batch: Map[(String, String), List[String]]): Future[Map[(String, String), List[WebJarVersion]]] = {
       resultsFuture.flatMap { results =>
-        val batchFutures: Map[String, Future[List[WebJarVersion]]] = batch.map(fetchWebJarVersions)
-        val batchFuture: Future[Map[String, List[WebJarVersion]]] = Future.traverse(batchFutures) {
-          case (artifactId, futureVersions) =>
-            futureVersions.map(artifactId -> _)
+        val batchFutures: Map[(String, String), Future[List[WebJarVersion]]] = batch.map(fetchWebJarVersions)
+
+        val batchFuture: Future[Map[(String, String), List[WebJarVersion]]] = Future.traverse(batchFutures) {
+          case ((groupId, artifactId), futureVersions) =>
+            futureVersions.map((groupId -> artifactId) -> _)
         }.map(_.toMap)
 
         batchFuture.map { batchResult =>
@@ -123,12 +134,12 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
     }
 
     // batch size = 100
-    val artifactsWithWebJarVersionsFuture: Future[Map[String, List[WebJarVersion]]] = artifactsAndVersions.grouped(100).foldLeft(Future.successful(Map.empty[String, List[WebJarVersion]]))(processBatch)
+    val artifactsWithWebJarVersionsFuture: Future[Map[(String, String), List[WebJarVersion]]] = artifactsAndVersions.grouped(100).foldLeft(Future.successful(Map.empty[(String, String), List[WebJarVersion]]))(processBatch)
 
     val webJarsFuture: Future[List[WebJar]] = artifactsWithWebJarVersionsFuture.flatMap { artifactsWithWebJarVersions =>
       Future.sequence {
         artifactsWithWebJarVersions.map {
-          case (artifactId, webJarVersions) =>
+          case ((groupId, artifactId), webJarVersions) =>
             val latestVersion = webJarVersions.map(_.number).head
 
             fetchWebJarNameAndUrl(groupId, artifactId, latestVersion).map {
@@ -144,34 +155,34 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
     webJarsFuture
   }
 
-  def fetchWebJars(groupId: String): Future[List[WebJar]] = {
+  def fetchWebJars(webJarType: WebJarType): Future[List[WebJar]] = {
 
-    Logger.info("Getting the WebJars for " + groupId)
+    Logger.info(s"Getting ${webJarType.name} WebJars")
 
-    val searchUrl = configuration.get[String]("webjars.searchGroupUrl").format(groupId)
+    val searchUrl = configuration.get[String]("webjars.searchGroupUrl").format(webJarType.groupIdQuery)
 
     wsClient.url(searchUrl).get().flatMap { response =>
-      Try(response.json).map(webJarsFromJson(groupId)).getOrElse(Future.failed(new MavenCentral.UnavailableException(response.body)))
+      Try(response.json).map(webJarsFromJson(webJarType)).getOrElse(Future.failed(new MavenCentral.UnavailableException(response.body)))
     }
 
   }
 
-  def webJars(groupId: String): Future[List[WebJar]] = {
-    cache.get[List[WebJar]](groupId, 1.hour) {
-      actorSystem.actorSelection("user/" + groupId).resolveOne(1.second).flatMap { _ =>
+  def webJars(webJarType: WebJarType): Future[List[WebJar]] = {
+    cache.get[List[WebJar]](webJarType.toString, 1.hour) {
+      actorSystem.actorSelection("user/" + webJarType.toString).resolveOne(1.second).flatMap { _ =>
         // in-flight request exists
-        Future.failed(new MavenCentral.ExistingWebJarRequestException(groupId))
+        Future.failed(new MavenCentral.ExistingWebJarRequestException(webJarType.toString))
       } recoverWith {
         // no request so make one
         case _: ActorNotFound =>
-          implicit val timeout = Timeout(10.minutes)
+          implicit val timeout: Timeout = Timeout(10.minutes)
 
-          val webJarFetcherTry = Future.fromTry(Try(actorSystem.actorOf(Props(classOf[WebJarFetcher], this, ec), groupId))).recoverWith {
-            case _: InvalidActorNameException => Future.failed(new MavenCentral.ExistingWebJarRequestException(groupId))
+          val webJarFetcherTry = Future.fromTry(Try(actorSystem.actorOf(Props(classOf[WebJarFetcher], this, ec), webJarType.toString))).recoverWith {
+            case _: InvalidActorNameException => Future.failed(new MavenCentral.ExistingWebJarRequestException(webJarType.toString))
           }
 
           webJarFetcherTry.flatMap { webJarFetcher =>
-            val fetchWebJarsFuture = (webJarFetcher ? FetchWebJars(groupId)).mapTo[List[WebJar]]
+            val fetchWebJarsFuture = (webJarFetcher ? FetchWebJars(webJarType)).mapTo[List[WebJar]]
 
             fetchWebJarsFuture.onComplete(_ => actorSystem.stop(webJarFetcher))
 
@@ -182,15 +193,8 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
   }
 
   def webJars: Future[List[WebJar]] = {
-    val npmFuture = webJars(NPM.groupId)
-    val bowerFuture = webJars(Bower.groupId)
-    val classicFuture = webJars(Classic.groupId)
-
-    for {
-      npmWebJars <- npmFuture
-      bowerWebJars <- bowerFuture
-      classicWebJars <- classicFuture
-    } yield npmWebJars ++ bowerWebJars ++ classicWebJars
+    val allWebJarsFutures = allWebJarTypes.map(webJars)
+    Future.foldLeft(allWebJarsFutures)(List.empty[WebJar])(_ ++ _)
   }
 
   private def fetchPom(groupId: String, artifactId: String, version: String): Future[Elem] = {
@@ -211,10 +215,10 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
     }
   }
 
-  def getStats(groupId: String, dateTime: DateTime): Future[Seq[(String, String, Int)]] = {
+  def getStats(webJarType: WebJarType, dateTime: DateTime): Future[Seq[(String, String, Int)]] = {
     val queryString = Seq(
       "p" -> ossProject,
-      "g" -> groupId,
+      "g" -> webJarType.groupIdQuery,
       "t" -> "raw",
       "from" -> dateTime.toString("yyyyMM"),
       "nom" -> "1"
@@ -229,6 +233,8 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
     statsFuture.flatMap { response =>
       response.status match {
         case Status.OK =>
+
+          val groupId = (response.json \ "data" \ "groupId").as[String]
           val total = (response.json \ "data" \ "total").as[Int]
 
           if (total > 0) {
@@ -254,31 +260,17 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
   }
 
   def getStats(dateTime: DateTime): Future[Seq[(String, String, Int)]] = {
-    val classicStatsFuture = getStats(Classic.groupId, dateTime)
-    val bowerStatsFuture = getStats(Bower.groupId, dateTime)
-    val npmStatsFuture = getStats(NPM.groupId, dateTime)
-
-    for {
-      classicStats <- classicStatsFuture
-      bowerStats <- bowerStatsFuture
-      npmStats <- npmStatsFuture
-    } yield npmStats ++ bowerStats ++ classicStats
+    val allStatsFutures = allWebJarTypes.map { webJarType => getStats(webJarType, dateTime) }
+    Future.foldLeft(allStatsFutures)(Seq.empty[(String, String, Int)])(_ ++ _)
   }
 
-  def mostDownloaded(groupId: String, dateTime: DateTime, num: Int): Future[Seq[(String, String, Int)]] = {
-    getStats(groupId, dateTime).map(_.take(num))
+  def mostDownloaded(webJarType: WebJarType, dateTime: DateTime, num: Int): Future[Seq[(String, String, Int)]] = {
+    getStats(webJarType, dateTime).map(_.take(num))
   }
 
   def mostDownloaded(dateTime: DateTime, num: Int): Future[Seq[(String, String, Int)]] = {
-    val mostDownloadedNpmFuture = mostDownloaded(NPM.groupId, dateTime, num)
-    val mostDownloadedBowerFuture = mostDownloaded(Bower.groupId, dateTime, num)
-    val mostDownloadedClassicFuture = mostDownloaded(Classic.groupId, dateTime, num)
-
-    for {
-      mostDownloadedClassic <- mostDownloadedClassicFuture
-      mostDownloadedBower <- mostDownloadedBowerFuture
-      mostDownloadedNpm <- mostDownloadedNpmFuture
-    } yield mostDownloadedNpm ++ mostDownloadedBower ++ mostDownloadedClassic
+    val allMostDownloadedFutures = allWebJarTypes.map { webJarType => mostDownloaded(webJarType, dateTime, num) }
+    Future.foldLeft(allMostDownloadedFutures)(Seq.empty[(String, String, Int)])(_ ++ _)
   }
 
 }

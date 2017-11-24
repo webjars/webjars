@@ -77,7 +77,7 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
       val bufferedInputStream = new BufferedInputStream(zip)
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(bufferedInputStream)
 
-      bufferedInputStream.available() must beEqualTo (10240)
+      bufferedInputStream.available() must beEqualTo (7680)
     }
   }
   "git fork - github short url" should {

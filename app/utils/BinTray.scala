@@ -9,8 +9,8 @@ import play.api.libs.json.{JsArray, JsValue, Json}
 import play.api.libs.ws.{WSAuthScheme, WSClient, WSRequest, WSResponse}
 import play.mvc.Http.HttpVerbs
 
-import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
 class BinTray @Inject() (ws: WSClient, config: Configuration, git: Git, licenseDetector: LicenseDetector, mavenCentral: MavenCentral) (implicit ec: ExecutionContext) {

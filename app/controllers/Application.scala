@@ -4,8 +4,8 @@ import java.io.FileNotFoundException
 import java.util.concurrent.TimeoutException
 import javax.inject.Inject
 
-import akka.actor.{ActorSystem, InvalidActorNameException}
-import models.WebJar
+import akka.actor.ActorSystem
+import models.{WebJar, WebJarType}
 import org.joda.time.DateTime
 import play.api.data.Forms._
 import play.api.data._
@@ -21,7 +21,9 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Failure
 import scala.util.hashing.MurmurHash3
 
-class Application @Inject() (gitHub: GitHub, bower: Bower, npm: NPM, heroku: Heroku, pusher: Pusher, cache: Cache, mavenCentral: MavenCentral, deployWebJar: DeployWebJar, webJarsFileService: WebJarsFileService, actorSystem: ActorSystem, configuration: Configuration, environment: Environment, futures: Futures)(mainView: views.html.main, allView: views.html.all, indexView: views.html.index, webJarRequestView: views.html.webJarRequest, contributingView: views.html.contributing, documentationView: views.html.documentation)(implicit ec: ExecutionContext) extends InjectedController {
+class Application @Inject() (gitHub: GitHub, heroku: Heroku, pusher: Pusher, cache: Cache, mavenCentral: MavenCentral, deployWebJar: DeployWebJar, webJarsFileService: WebJarsFileService, actorSystem: ActorSystem, configuration: Configuration, environment: Environment, futures: Futures)(classic: Classic, bower: Bower, npm: NPM)(mainView: views.html.main, allView: views.html.all, indexView: views.html.index, webJarRequestView: views.html.webJarRequest, contributingView: views.html.contributing, documentationView: views.html.documentation)(implicit ec: ExecutionContext) extends InjectedController {
+
+  private val allWebJarTypes = Set(classic, bower, npm)
 
   private val X_GITHUB_ACCESS_TOKEN = "X-GITHUB-ACCESS-TOKEN"
 
@@ -47,8 +49,8 @@ class Application @Inject() (gitHub: GitHub, bower: Bower, npm: NPM, heroku: Her
 
   private val defaultTimeout = 25.seconds
 
-  private def webJarsWithTimeout(maybeGroupId: Option[String] = None): Future[List[WebJar]] = {
-    val fetcher = maybeGroupId.fold(mavenCentral.webJars)(mavenCentral.webJars)
+  private def webJarsWithTimeout(maybeWebJarType: Option[WebJarType] = None): Future[List[WebJar]] = {
+    val fetcher = maybeWebJarType.fold(mavenCentral.webJars)(mavenCentral.webJars)
     val future = TimeoutFuture(defaultTimeout)(fetcher)
     future.onComplete {
       case Failure(e: TimeoutException) => Logger.debug("Timeout fetching WebJars", e)
@@ -146,7 +148,7 @@ class Application @Inject() (gitHub: GitHub, bower: Bower, npm: NPM, heroku: Her
   }
 
   def webJarList(groupId: String) = Action.async { implicit request =>
-    webJarsWithTimeout(Some(groupId)).map {
+    webJarsWithTimeout(WebJarType.fromGroupId(groupId, allWebJarTypes)).map {
       maybeCached(request, webJars => Ok(Json.toJson(webJars)))
     } recover {
       case e: Exception =>
@@ -329,28 +331,28 @@ class Application @Inject() (gitHub: GitHub, bower: Bower, npm: NPM, heroku: Her
     )
   }
 
-  private def deploy[A](nameOrUrlish: String, version: String, maybeChannelId: Option[String])(implicit deployable: Deployable[A]): Future[JsValue] = {
+  private def deploy(deployable: Deployable, nameOrUrlish: String, version: String, maybeChannelId: Option[String]): Future[JsValue] = {
     val fork = configuration.getOptional[Boolean]("deploy.fork").getOrElse(false)
 
     if (fork) {
       val app = configuration.get[String]("deploy.herokuapp")
       val channelIdParam = maybeChannelId.getOrElse("")
-      val cmd = s"deploy ${deployable.groupId} $nameOrUrlish $version " + channelIdParam
+      val cmd = s"deploy ${WebJarType.toString(deployable)} $nameOrUrlish $version " + channelIdParam
       heroku.dynoCreate(app, false, cmd, "Standard-2X")
     }
     else {
-      deployWebJar.deploy(nameOrUrlish, version, maybeChannelId).map(Json.toJson(_))
+      deployWebJar.deploy(deployable, nameOrUrlish, version, maybeChannelId).map(Json.toJson(_))
     }
   }
 
   def deployBower(nameOrUrlish: String, version: String, maybeChannelId: Option[String]) = Action.async {
-    deploy(nameOrUrlish, version, maybeChannelId)(Bower.deployable(bower)).map(Ok(_)).recover {
+    deploy(bower, nameOrUrlish, version, maybeChannelId).map(Ok(_)).recover {
       case e: Exception => InternalServerError(e.getMessage)
     }
   }
 
   def deployNPM(nameOrUrlish: String, version: String, maybeChannelId: Option[String]) = Action.async {
-    deploy(nameOrUrlish, version, maybeChannelId)(NPM.deployable(npm)).map(Ok(_)).recover {
+    deploy(npm, nameOrUrlish, version, maybeChannelId).map(Ok(_)).recover {
       case e: Exception => InternalServerError(e.getMessage)
     }
   }

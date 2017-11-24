@@ -44,11 +44,11 @@ class LicenseDetector @Inject() (ws: WSClient, git: Git, messages: MessagesApi, 
     }
   }
 
-  def fetchLicenseFromRepo[A](packageInfo: PackageInfo[A], maybeVersion: Option[String], file: String): Future[String] = {
+  def fetchLicenseFromRepo[A](packageInfo: PackageInfo, maybeVersion: Option[String], file: String): Future[String] = {
     git.file(packageInfo.sourceConnectionUri, maybeVersion, file).flatMap(licenseDetect)
   }
 
-  def tryToGetLicenseFromVariousFiles[A](packageInfo: PackageInfo[A], maybeVersion: Option[String]): Future[String] = {
+  def tryToGetLicenseFromVariousFiles[A](packageInfo: PackageInfo, maybeVersion: Option[String]): Future[String] = {
     fetchLicenseFromRepo(packageInfo, maybeVersion, "LICENSE").recoverWith {
       case _: Exception =>
         fetchLicenseFromRepo(packageInfo, maybeVersion, "LICENSE.txt").recoverWith {
@@ -93,7 +93,7 @@ class LicenseDetector @Inject() (ws: WSClient, git: Git, messages: MessagesApi, 
     } intersect availableLicenses.toSeq
   }
 
-  def licenseReference[A](packageInfo: PackageInfo[A])(maybeRef: String): Seq[Future[String]] = {
+  def licenseReference(packageInfo: PackageInfo)(maybeRef: String): Seq[Future[String]] = {
     if (maybeRef.contains("/") || maybeRef.startsWith("SEE LICENSE IN ")) {
       // we need to fetch the file and try to detect the license from the contents
 
@@ -148,7 +148,7 @@ class LicenseDetector @Inject() (ws: WSClient, git: Git, messages: MessagesApi, 
     seq.flatMap(failIfEmpty)
   }
 
-  def resolveLicenses[A](packageInfo: PackageInfo[A], maybeVersion: Option[String] = None)(implicit deployable: Deployable[A]): Future[Set[String]] = {
+  def resolveLicenses(deployable: Deployable, packageInfo: PackageInfo, maybeVersion: Option[String] = None): Future[Set[String]] = {
     // first check just the specified licenses including synonyms
     failIfEmpty(validLicenses(packageInfo.metadataLicenses)).recoverWith {
       case _: NoValidLicenses =>
