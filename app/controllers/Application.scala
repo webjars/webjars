@@ -1,6 +1,7 @@
 package controllers
 
 import java.io.FileNotFoundException
+import java.util.Locale
 import java.util.concurrent.TimeoutException
 import javax.inject.Inject
 
@@ -331,15 +332,16 @@ class Application @Inject() (gitHub: GitHub, bower: Bower, npm: NPM, heroku: Her
 
   private def deploy[A](nameOrUrlish: String, version: String, maybeChannelId: Option[String])(implicit deployable: Deployable[A]): Future[JsValue] = {
     val fork = configuration.getOptional[Boolean]("deploy.fork").getOrElse(false)
+    val lowerCaseNameOrUrlish = nameOrUrlish.toLowerCase(Locale.US)
 
     if (fork) {
       val app = configuration.get[String]("deploy.herokuapp")
       val channelIdParam = maybeChannelId.getOrElse("")
-      val cmd = s"deploy ${deployable.groupId} $nameOrUrlish $version " + channelIdParam
+      val cmd = s"deploy ${deployable.groupId} $lowerCaseNameOrUrlish $version " + channelIdParam
       heroku.dynoCreate(app, false, cmd, "Standard-2X")
     }
     else {
-      deployWebJar.deploy(nameOrUrlish, version, maybeChannelId).map(Json.toJson(_))
+      deployWebJar.deploy(lowerCaseNameOrUrlish, version, maybeChannelId).map(Json.toJson(_))
     }
   }
 
