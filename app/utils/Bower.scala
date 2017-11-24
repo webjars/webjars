@@ -56,15 +56,10 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
           // add the gitUrl into the json since it is not in the file, just the json served by the Bower index
           val json = Json.parse(bowerJson).as[JsObject] + ("_source" -> JsString(gitUrl))
 
-          val jsonWithCorrectVersion = (json \ "version").asOpt[String].fold {
-            // the version was not in the json so add the specified version
-            json + ("version" -> JsString(version))
-          } { version =>
-            // todo: resolve conflicts?
-            // for now just use the version from the json
-            json
-          }
-
+          // Don't spoil git commit hashes: remove 'v' prefix for strings that are definitely not a hash
+          val correctVersion = if (version.contains(".")) version.stripPrefix("v") else version
+          // Don't use bower.json deprecated version: https://github.com/bower/spec/blob/master/json.md#version
+          val jsonWithCorrectVersion = json + ("version" -> JsString(correctVersion))
           jsonWithCorrectVersion.as[PackageInfo[Bower]](Bower.jsonReads)
         }
       }
