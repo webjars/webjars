@@ -32,7 +32,7 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
 
   override val metadataFile: String = "bower.json"
 
-  override val contentsInSubdir: Boolean = true
+  override val contentsInSubdir: Boolean = false
 
   def versions(packageNameOrGitRepo: String): Future[Seq[String]] = {
     if (git.isGit(packageNameOrGitRepo)) {

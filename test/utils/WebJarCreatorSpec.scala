@@ -28,7 +28,7 @@ class WebJarCreatorSpec extends PlaySpecification {
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(new ByteArrayInputStream(webJar))
 
       val allNames = Stream.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName)
-      allNames must contain ("META-INF/resources/webjars/react-redux/4.4.32/package.json")
+      allNames must contain("META-INF/resources/webjars/react-redux/4.4.32/package.json")
     }
     "handle packages where the contents are in the base dir" in {
       val url = new URL(s"http://registry.npmjs.org/@types/react-redux/-/react-redux-4.4.32.tgz")
@@ -40,7 +40,7 @@ class WebJarCreatorSpec extends PlaySpecification {
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(new ByteArrayInputStream(webJar))
 
       val allNames = Stream.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName)
-      allNames must contain ("META-INF/resources/webjars/react-redux/4.4.32/react-redux/package.json")
+      allNames must contain("META-INF/resources/webjars/react-redux/4.4.32/react-redux/package.json")
     }
     "handle packages where the contents are in the base dir" in {
       val url = new URL(s"http://registry.npmjs.org/@types/react-router/-/react-router-2.0.41.tgz")
@@ -63,7 +63,21 @@ class WebJarCreatorSpec extends PlaySpecification {
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(new ByteArrayInputStream(webJar))
 
       val allNames = Stream.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName)
-      allNames must contain ("META-INF/resources/webjars/escodegen/0.0.2/package.json")
+      allNames must contain("META-INF/resources/webjars/escodegen/0.0.2/package.json")
+    }
+  }
+
+  "vaadin-ordered-layout-1.0.0-alpha3" should {
+    "not have duplicate dir entries" in {
+      val url = new URL(s"https://bower-as-a-service.herokuapp.com/download/vaadin-ordered-layout/1.0.0-alpha3")
+      val inputStream = url.openConnection().getInputStream
+
+      val webJar = WebJarCreator.createWebJar(inputStream, false, Set(".bower.json"), "", "org.webjars.bower", "vaadin-ordered-layout", "1.0.0-alpha3")
+
+      val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(new ByteArrayInputStream(webJar))
+
+      val allNames = Stream.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName)
+      allNames must contain("META-INF/resources/webjars/vaadin-ordered-layout/1.0.0-alpha3/bower.json")
     }
   }
 
