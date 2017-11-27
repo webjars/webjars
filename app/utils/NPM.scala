@@ -14,17 +14,19 @@ import utils.PackageInfo._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
-class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, gitHub: GitHub)(implicit ec: ExecutionContext) extends Deployable {
+class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, gitHub: GitHub, maven: Maven)(implicit ec: ExecutionContext) extends Deployable {
 
   val BASE_URL = "http://registry.npmjs.org"
 
   override val name: String = "NPM"
 
-  override val groupIdQuery: String = "org.webjars.npm"
+  private val groupId = "org.webjars.npm"
 
-  override def includesGroupId(groupId: String): Boolean = groupId.equalsIgnoreCase("org.webjars.npm")
+  override val groupIdQuery: String = groupId
 
-  override def groupId(packageInfo: PackageInfo) = Some("org.webjars.npm")
+  override def includesGroupId(groupId: String): Boolean = groupId.equalsIgnoreCase(groupId)
+
+  override def groupId(packageInfo: PackageInfo) = Some(groupId)
 
   override def artifactId(nameOrUrlish: String, packageInfo: PackageInfo): Future[String] = git.artifactId(nameOrUrlish)
 
@@ -33,6 +35,10 @@ class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, g
   override val metadataFile: String = "package.json"
 
   override val contentsInSubdir: Boolean = true
+
+  override def pathPrefix(packageInfo: PackageInfo): String = {
+    s"$groupId/${packageInfo.name}/${packageInfo.version}/"
+  }
 
   // a whole lot of WTF
   private def registryMetadataUrl(packageName: String, maybeVersion: Option[String] = None): String = {
@@ -202,6 +208,15 @@ class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, g
             }
         }
       }
+    }
+  }
+
+  override def mavenDependencies(dependencies: Map[String, String]): Future[Set[(String, String, String)]] = {
+    maven.convertNpmBowerDependenciesToMaven(dependencies).map { mavenDependencies =>
+      mavenDependencies.map {
+        case (artifactId, version) =>
+          ("org.webjars.npm", artifactId, version)
+      }.toSet
     }
   }
 

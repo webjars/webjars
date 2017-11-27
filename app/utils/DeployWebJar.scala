@@ -58,10 +58,11 @@ class DeployWebJar @Inject() (git: Git, binTray: BinTray, pusher: Pusher, maven:
 
       _ <- push("update", s"Deploying $groupId $artifactId $releaseVersion")
       licenses <- licenses(packageInfo, upstreamVersion)
+
       _ <- push("update", "Resolved Licenses")
-      mavenDependencies <- maven.convertNpmBowerDependenciesToMaven(packageInfo.dependencies)
+      mavenDependencies <- deployable.mavenDependencies(packageInfo.dependencies)
       _ <- push("update", "Converted dependencies to Maven")
-      optionalMavenDependencies <- maven.convertNpmBowerDependenciesToMaven(packageInfo.optionalDependencies)
+      optionalMavenDependencies <- deployable.mavenDependencies(packageInfo.optionalDependencies)
       _ <- push("update", "Converted optional dependencies to Maven")
       sourceUrl <- sourceLocator.sourceUrl(packageInfo.sourceConnectionUri)
       _ <- push("update", s"Got the source URL: $sourceUrl")
@@ -69,7 +70,9 @@ class DeployWebJar @Inject() (git: Git, binTray: BinTray, pusher: Pusher, maven:
       _ <- push("update", "Generated POM")
       zip <- deployable.archive(nameOrUrlish, upstreamVersion)
       _ <- push("update", s"Fetched ${deployable.name} zip")
-      jar = WebJarCreator.createWebJar(zip, deployable.contentsInSubdir, deployable.excludes, pom, groupId, artifactId, releaseVersion)
+
+      jar = WebJarCreator.createWebJar(zip, deployable.contentsInSubdir, deployable.excludes, pom, groupId, artifactId, releaseVersion, deployable.pathPrefix(packageInfo))
+
       _ <- push("update", s"Created ${deployable.name} WebJar")
 
       packageName = s"$groupId:$artifactId"
@@ -177,7 +180,8 @@ trait Deployable extends WebJarType {
   val excludes: Set[String]
   val metadataFile: String
   val contentsInSubdir: Boolean
-  def mavenBaseDir(packageInfo: PackageInfo): Option[String] = groupId(packageInfo).map(_.replaceAllLiterally(".", "/"))
+  def pathPrefix(packageInfo: PackageInfo): String
   def info(nameOrUrlish: String, maybeVersion: Option[String], maybeSourceUri: Option[URI]): Future[PackageInfo]
+  def mavenDependencies(dependencies: Map[String, String]): Future[Set[(String, String, String)]]
   def archive(nameOrUrlish: String, version: String): Future[InputStream]
 }

@@ -31,6 +31,8 @@ class LicenseDetectorSpec extends PlaySpecification with GlobalApplication {
     override def includesGroupId(groupId: String): Boolean = ???
     override lazy val groupIdQuery: String = ???
     override lazy val name: String = ???
+    override def mavenDependencies(dependencies: Map[String, String]): Future[Set[(String, String, String)]] = ???
+    override def pathPrefix(packageInfo: PackageInfo): String = ???
   }
 
   def emptyPackageInfo(licenses: Seq[String]) = PackageInfo("", "", None, new URI("http://webjars.org"), None, licenses, Map.empty[String, String], Map.empty[String, String])

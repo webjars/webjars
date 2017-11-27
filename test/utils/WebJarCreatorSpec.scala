@@ -15,7 +15,7 @@ class WebJarCreatorSpec extends PlaySpecification {
       val inputStream = url.openConnection().getInputStream
       val gzipInputStream = new GZIPInputStream(inputStream)
 
-      val webJar = WebJarCreator.createWebJar(gzipInputStream, true, Set("node_modules"), "test", "test", "test", "2.10.0")
+      val webJar = WebJarCreator.createWebJar(gzipInputStream, true, Set("node_modules"), "test", "test", "test", "2.10.0", "test")
       webJar.length must beGreaterThan(0)
     }
     "deal with different tgz base dirs" in {
@@ -23,7 +23,7 @@ class WebJarCreatorSpec extends PlaySpecification {
       val inputStream = url.openConnection().getInputStream
       val gzipInputStream = new GZIPInputStream(inputStream)
 
-      val webJar = WebJarCreator.createWebJar(gzipInputStream, true, Set("node_modules"), "", "org.webjars.npm", "react-redux", "4.4.32")
+      val webJar = WebJarCreator.createWebJar(gzipInputStream, true, Set("node_modules"), "", "org.webjars.npm", "react-redux", "4.4.32", "react-redux/4.4.32/")
 
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(new ByteArrayInputStream(webJar))
 
@@ -35,7 +35,7 @@ class WebJarCreatorSpec extends PlaySpecification {
       val inputStream = url.openConnection().getInputStream
       val gzipInputStream = new GZIPInputStream(inputStream)
 
-      val webJar = WebJarCreator.createWebJar(gzipInputStream, false, Set("node_modules"), "", "org.webjars.npm", "react-redux", "4.4.32")
+      val webJar = WebJarCreator.createWebJar(gzipInputStream, false, Set("node_modules"), "", "org.webjars.npm", "react-redux", "4.4.32", "react-redux/4.4.32/")
 
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(new ByteArrayInputStream(webJar))
 
@@ -47,7 +47,7 @@ class WebJarCreatorSpec extends PlaySpecification {
       val inputStream = url.openConnection().getInputStream
       val gzipInputStream = new GZIPInputStream(inputStream)
 
-      val webJar = WebJarCreator.createWebJar(gzipInputStream, true, Set("node_modules"), "", "org.webjars.npm", "react-router", "2.0.41")
+      val webJar = WebJarCreator.createWebJar(gzipInputStream, true, Set("node_modules"), "", "org.webjars.npm", "react-router", "2.0.41", "react-router/2.0.41/")
 
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(new ByteArrayInputStream(webJar))
 
@@ -58,7 +58,7 @@ class WebJarCreatorSpec extends PlaySpecification {
       val url = new URL(s"http://registry.npmjs.org/@types/escodegen/-/escodegen-0.0.2.tgz")
       val inputStream = url.openConnection().getInputStream
 
-      val webJar = WebJarCreator.createWebJar(inputStream, true, Set("node_modules"), "", "org.webjars.npm", "escodegen", "0.0.2")
+      val webJar = WebJarCreator.createWebJar(inputStream, true, Set("node_modules"), "", "org.webjars.npm", "escodegen", "0.0.2", "escodegen/0.0.2/")
 
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(new ByteArrayInputStream(webJar))
 

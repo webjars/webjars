@@ -14,7 +14,7 @@ import utils.PackageInfo._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
-class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, gitHub: GitHub) (implicit ec: ExecutionContext) extends Deployable {
+class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, gitHub: GitHub, maven: Maven) (implicit ec: ExecutionContext) extends Deployable {
 
   val BASE_URL = "https://bower-as-a-service.herokuapp.com"
 
@@ -22,9 +22,9 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
 
   override val groupIdQuery: String = "org.webjars.bower"
 
-  override def includesGroupId(groupId: String): Boolean = groupId.equalsIgnoreCase("org.webjars.bower")
+  override def includesGroupId(groupId: String): Boolean = groupId.equalsIgnoreCase(groupIdQuery)
 
-  override def groupId(packageInfo: PackageInfo): Option[String] = Some("org.webjars.bower")
+  override def groupId(packageInfo: PackageInfo): Option[String] = Some(groupIdQuery)
 
   override def artifactId(nameOrUrlish: String, packageInfo: PackageInfo): Future[String] = git.artifactId(nameOrUrlish)
 
@@ -33,6 +33,10 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
   override val metadataFile: String = "bower.json"
 
   override val contentsInSubdir: Boolean = false
+
+  override def pathPrefix(packageInfo: PackageInfo): String = {
+    s"$groupIdQuery/${packageInfo.name}/${packageInfo.version}/"
+  }
 
   def versions(packageNameOrGitRepo: String): Future[Seq[String]] = {
     if (git.isGit(packageNameOrGitRepo)) {
@@ -137,6 +141,14 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
     }
   }
 
+  override def mavenDependencies(dependencies: Map[String, String]): Future[Set[(String, String, String)]] = {
+    maven.convertNpmBowerDependenciesToMaven(dependencies).map { mavenDependencies =>
+      mavenDependencies.map {
+        case (artifactId, version) =>
+          ("org.webjars.bower", artifactId, version)
+      }.toSet
+    }
+  }
 }
 
 object Bower {

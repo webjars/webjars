@@ -1,4 +1,4 @@
-@(groupId: String, artifactId: String, releaseVersion: String, packageInfo: utils.PackageInfo, sourceUrl: java.net.URL, mavenDependencies: Map[String, String], optionalMavenDependencies: Map[String, String], licenses: Set[String])<?xml version="1.0" encoding="UTF-8"?>
+@(groupId: String, artifactId: String, releaseVersion: String, packageInfo: utils.PackageInfo, sourceUrl: java.net.URL, mavenDependencies: Set[(String, String, String)], optionalMavenDependencies: Set[(String, String, String)], licenses: Set[String])<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
@@ -45,17 +45,17 @@
     }
 
     <dependencies>
-        @mavenDependencies.map { case (name, version) =>
+        @mavenDependencies.map { case (depGroupId, depArtifactId, version) =>
         <dependency>
-            <groupId>@groupId</groupId>
-            <artifactId>@name</artifactId>
+            <groupId>@depGroupId</groupId>
+            <artifactId>@depArtifactId</artifactId>
             <version>@version</version>
         </dependency>
         }
-        @optionalMavenDependencies.map { case (name, version) =>
+        @optionalMavenDependencies.map { case (depGroupId, depArtifactId, version) =>
         <dependency>
-            <groupId>@groupId</groupId>
-            <artifactId>@name</artifactId>
+            <groupId>@depGroupId</groupId>
+            <artifactId>@depArtifactId</artifactId>
             <version>@version</version>
             <optional>true</optional>
         </dependency>
