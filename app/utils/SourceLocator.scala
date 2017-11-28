@@ -17,7 +17,7 @@ class SourceLocator @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
         response.status match {
           case Status.OK =>
             Future.successful(url)
-          case Status.FOUND =>
+          case Status.FOUND | Status.MOVED_PERMANENTLY =>
             val maybeLocation = response.header(HeaderNames.LOCATION).flatMap { location =>
               Try(new URL(location)).toOption
             }

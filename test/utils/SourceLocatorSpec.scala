@@ -20,6 +20,13 @@ class SourceLocatorSpec extends PlaySpecification with GlobalApplication {
     }
   }
 
+  "https://github.com/angular/bower-angular-touch.git" should {
+    "work" in {
+      val sourceUrl = await(sourceLocator.sourceUrl(new URI("https://github.com/angular/bower-angular-touch.git")))
+      sourceUrl.toString must beEqualTo ("https://github.com/angular/bower-angular-touch")
+    }
+  }
+
   "an invalid URL" should {
     "not work" in {
       await(sourceLocator.sourceUrl(new URI("asdf"))) should throwA[Exception]
