@@ -14,7 +14,7 @@ import scala.io.StdIn
 import scala.util.{Failure, Success, Try}
 
 
-class DeployWebJar @Inject() (git: Git, binTray: BinTray, pusher: Pusher, maven: Maven, licenseDetector: LicenseDetector)(implicit ec: ExecutionContext) {
+class DeployWebJar @Inject() (git: Git, binTray: BinTray, pusher: Pusher, maven: Maven, licenseDetector: LicenseDetector, sourceLocator: SourceLocator)(implicit ec: ExecutionContext) {
 
   def deploy(deployable: Deployable, nameOrUrlish: String, version: String, maybePusherChannelId: Option[String], maybeSourceUri: Option[URI] = None, maybeLicense: Option[String] = None): Future[PackageInfo] = {
     val binTraySubject = "webjars"
@@ -49,7 +49,8 @@ class DeployWebJar @Inject() (git: Git, binTray: BinTray, pusher: Pusher, maven:
       _ <- push("update", "Converted dependencies to Maven")
       optionalMavenDependencies <- maven.convertNpmBowerDependenciesToMaven(packageInfo.optionalDependencies)
       _ <- push("update", "Converted optional dependencies to Maven")
-      sourceUrl <- packageInfo.maybeSourceUrl.fold(Future.failed[URL](new Exception("Could not determine a source URL")))(Future.successful)
+      sourceUrl <- sourceLocator.sourceUrl(packageInfo.sourceConnectionUri)
+      _ <- push("update", s"Got the source URL: $sourceUrl")
       pom = templates.xml.pom(groupId, artifactId, packageInfo, sourceUrl, mavenDependencies, optionalMavenDependencies, licenses).toString()
       _ <- push("update", "Generated POM")
       zip <- deployable.archive(nameOrUrlish, version)

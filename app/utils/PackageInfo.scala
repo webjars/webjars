@@ -21,8 +21,6 @@ case class PackageInfo(name: String, version: String, maybeHomepageUrl: Option[U
     } yield s"$org/$repo"
   }
 
-  lazy val maybeSourceUrl: Option[URL] = maybeGitHubUrl.orElse(maybeHomepageUrl)
-
 }
 
 object PackageInfo {
