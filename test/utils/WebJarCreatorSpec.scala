@@ -72,7 +72,7 @@ class WebJarCreatorSpec extends PlaySpecification {
       val url = new URL(s"https://bower-as-a-service.herokuapp.com/download/vaadin-ordered-layout/1.0.0-alpha3")
       val inputStream = url.openConnection().getInputStream
 
-      val webJar = WebJarCreator.createWebJar(inputStream, false, Set(".bower.json"), "", "org.webjars.bower", "vaadin-ordered-layout", "1.0.0-alpha3")
+      val webJar = WebJarCreator.createWebJar(inputStream, false, Set(".bower.json"), "", "org.webjars.bower", "vaadin-ordered-layout", "1.0.0-alpha3", "vaadin-ordered-layout/1.0.0-alpha3/")
 
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(new ByteArrayInputStream(webJar))
 
