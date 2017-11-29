@@ -181,6 +181,7 @@ trait Deployable extends WebJarType {
   val metadataFile: String
   val contentsInSubdir: Boolean
   def pathPrefix(packageInfo: PackageInfo): String
+  def mavenBaseDir(packageInfo: PackageInfo): Option[String] = groupId(packageInfo).map(_.replaceAllLiterally(".", "/"))
   def info(nameOrUrlish: String, maybeVersion: Option[String], maybeSourceUri: Option[URI]): Future[PackageInfo]
   def mavenDependencies(dependencies: Map[String, String]): Future[Set[(String, String, String)]]
   def archive(nameOrUrlish: String, version: String): Future[InputStream]
