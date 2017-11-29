@@ -341,7 +341,7 @@ class Application @Inject() (gitHub: GitHub, heroku: Heroku, pusher: Pusher, cac
       heroku.dynoCreate(app, false, cmd, "Standard-2X")
     }
     else {
-      deployWebJar.deploy(deployable, nameOrUrlish, version, maybeChannelId).map(Json.toJson(_))
+      deployWebJar.deploy(deployable, nameOrUrlish, version, None, maybeChannelId).map(Json.toJson(_))
     }
   }
 

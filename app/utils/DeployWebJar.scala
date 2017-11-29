@@ -16,7 +16,7 @@ import scala.util.{Failure, Success, Try}
 
 class DeployWebJar @Inject() (git: Git, binTray: BinTray, pusher: Pusher, maven: Maven, licenseDetector: LicenseDetector, sourceLocator: SourceLocator)(implicit ec: ExecutionContext) {
 
-  def deploy(deployable: Deployable, nameOrUrlish: String, version: String, maybePusherChannelId: Option[String], maybeSourceUri: Option[URI] = None, maybeLicense: Option[String] = None): Future[PackageInfo] = {
+  def deploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, maybeReleaseVersion: Option[String] = None,  maybePusherChannelId: Option[String], maybeSourceUri: Option[URI] = None, maybeLicense: Option[String] = None): Future[PackageInfo] = {
     val binTraySubject = "webjars"
     val binTrayRepo = "maven"
 
@@ -38,12 +38,15 @@ class DeployWebJar @Inject() (git: Git, binTray: BinTray, pusher: Pusher, maven:
     }
 
     val deployFuture = for {
-      packageInfo <- deployable.info(nameOrUrlish, Some(version), maybeSourceUri)
+      packageInfo <- deployable.info(nameOrUrlish, Some(upstreamVersion), maybeSourceUri)
       groupId <- deployable.groupId(packageInfo).fold(Future.failed[String](new Exception("Could not groupId")))(Future.successful)
       artifactId <- deployable.artifactId(packageInfo).fold(Future.failed[String](new Exception("Could not determine artifactId")))(Future.successful)
       mavenBaseDir <- deployable.mavenBaseDir(packageInfo).fold(Future.failed[String](new Exception("Could not determine mavenBaseDir")))(Future.successful)
-      _ <- push("update", s"Deploying $groupId $artifactId $version")
-      licenses <- licenses(packageInfo, version)
+
+      releaseVersion = maybeReleaseVersion.getOrElse(packageInfo.version)
+
+      _ <- push("update", s"Deploying $groupId $artifactId $releaseVersion")
+      licenses <- licenses(packageInfo, upstreamVersion)
       _ <- push("update", "Resolved Licenses")
       mavenDependencies <- maven.convertNpmBowerDependenciesToMaven(packageInfo.dependencies)
       _ <- push("update", "Converted dependencies to Maven")
@@ -51,11 +54,11 @@ class DeployWebJar @Inject() (git: Git, binTray: BinTray, pusher: Pusher, maven:
       _ <- push("update", "Converted optional dependencies to Maven")
       sourceUrl <- sourceLocator.sourceUrl(packageInfo.sourceConnectionUri)
       _ <- push("update", s"Got the source URL: $sourceUrl")
-      pom = templates.xml.pom(groupId, artifactId, packageInfo, sourceUrl, mavenDependencies, optionalMavenDependencies, licenses).toString()
+      pom = templates.xml.pom(groupId, artifactId, releaseVersion, packageInfo, sourceUrl, mavenDependencies, optionalMavenDependencies, licenses).toString()
       _ <- push("update", "Generated POM")
-      zip <- deployable.archive(nameOrUrlish, version)
+      zip <- deployable.archive(nameOrUrlish, upstreamVersion)
       _ <- push("update", s"Fetched ${deployable.name} zip")
-      jar = WebJarCreator.createWebJar(zip, deployable.contentsInSubdir, deployable.excludes, pom, groupId, artifactId, packageInfo.version)
+      jar = WebJarCreator.createWebJar(zip, deployable.contentsInSubdir, deployable.excludes, pom, groupId, artifactId, releaseVersion)
       _ <- push("update", s"Created ${deployable.name} WebJar")
 
       packageName = s"$groupId:$artifactId"
@@ -63,27 +66,27 @@ class DeployWebJar @Inject() (git: Git, binTray: BinTray, pusher: Pusher, maven:
       createPackage <- binTray.getOrCreatePackage(binTraySubject, binTrayRepo, packageName, s"WebJar for $artifactId", Seq("webjar", artifactId), licenses, packageInfo.sourceConnectionUri, packageInfo.maybeHomepageUrl, packageInfo.maybeIssuesUrl, packageInfo.maybeGitHubOrgRepo)
       _ <- push("update", "Created BinTray Package")
 
-      createVersion <- binTray.createOrOverwriteVersion(binTraySubject, binTrayRepo, packageName, packageInfo.version, s"$artifactId WebJar release ${packageInfo.version}", Some(s"v${packageInfo.version}"))
+      createVersion <- binTray.createOrOverwriteVersion(binTraySubject, binTrayRepo, packageName, releaseVersion, s"$artifactId WebJar release $releaseVersion", Some(s"v$releaseVersion"))
       _ <- push("update", "Created BinTray Version")
-      publishPom <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/${packageInfo.version}/$artifactId-${packageInfo.version}.pom", pom.getBytes)
-      publishJar <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/${packageInfo.version}/$artifactId-${packageInfo.version}.jar", jar)
+      publishPom <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/$releaseVersion/$artifactId-$releaseVersion.pom", pom.getBytes)
+      publishJar <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/$releaseVersion/$artifactId-$releaseVersion.jar", jar)
       emptyJar = WebJarCreator.emptyJar()
-      publishSourceJar <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/${packageInfo.version}/$artifactId-${packageInfo.version}-sources.jar", emptyJar)
-      publishJavadocJar <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/${packageInfo.version}/$artifactId-${packageInfo.version}-javadoc.jar", emptyJar)
+      publishSourceJar <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/$releaseVersion/$artifactId-$releaseVersion-sources.jar", emptyJar)
+      publishJavadocJar <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/$releaseVersion/$artifactId-$releaseVersion-javadoc.jar", emptyJar)
       _ <- push("update", "Published BinTray Assets")
-      signVersion <- binTray.signVersion(binTraySubject, binTrayRepo, packageName, packageInfo.version)
+      signVersion <- binTray.signVersion(binTraySubject, binTrayRepo, packageName, releaseVersion)
       _ <- push("update", "Signed BinTray Assets")
-      publishVersion <- binTray.publishVersion(binTraySubject, binTrayRepo, packageName, packageInfo.version)
+      publishVersion <- binTray.publishVersion(binTraySubject, binTrayRepo, packageName, releaseVersion)
       _ <- push("update", "Published BinTray Version")
 
-      syncToMavenCentral <- binTray.syncToMavenCentral(binTraySubject, binTrayRepo, packageName, packageInfo.version)
+      syncToMavenCentral <- binTray.syncToMavenCentral(binTraySubject, binTrayRepo, packageName, releaseVersion)
       _ <- push("update", "Synced With Maven Central")
       _ <- push("success",
         s"""Deployed!
            |It will take a few hours for the Maven Central index to update but you should be able to start using the ${deployable.name} WebJar now.
            |GroupID = $groupId
            |ArtifactID = $artifactId
-           |Version = ${packageInfo.version}
+           |Version = $releaseVersion
         """.stripMargin)
     } yield packageInfo
 
@@ -103,28 +106,21 @@ class DeployWebJar @Inject() (git: Git, binTray: BinTray, pusher: Pusher, maven:
 
 object DeployWebJar extends App {
 
-  val (webJarType, nameOrUrlish, version, maybePusherChannelId, maybeSourceUri, maybeLicense) = if (args.length < 3) {
+  val (webJarType, nameOrUrlish, upstreamVersion, maybeReleaseVersion, maybePusherChannelId, maybeSourceUri, maybeLicense) = if (args.length < 3) {
     val webJarType = StdIn.readLine("WebJar Type: ")
     val nameOrUrlish = StdIn.readLine("Name or URL: ")
-    val version = StdIn.readLine("Version: ")
+    val upstreamVersion = StdIn.readLine("Upstream Version: ")
+    val releaseVersionIn = StdIn.readLine("Release Version (override): ")
     val sourceUriIn = StdIn.readLine("Source URI (override): ")
     val licenseIn = StdIn.readLine("License (override): ")
 
-    val maybeSourceUri = if (sourceUriIn.isEmpty) {
-      None
-    }
-    else {
-      Try(new URI(sourceUriIn)).toOption
-    }
+    val maybeReleaseVersion = if (releaseVersionIn.isEmpty) None else Some(releaseVersionIn)
 
-    val maybeLicense = if (licenseIn.isEmpty) {
-      None
-    }
-    else {
-      Some(licenseIn)
-    }
+    val maybeSourceUri = if (sourceUriIn.isEmpty) None else Try(new URI(sourceUriIn)).toOption
 
-    (webJarType, nameOrUrlish, version, None, maybeSourceUri, maybeLicense)
+    val maybeLicense = if (licenseIn.isEmpty) None else Some(licenseIn)
+
+    (webJarType, nameOrUrlish, upstreamVersion, maybeReleaseVersion, None, maybeSourceUri, maybeLicense)
   }
   else {
     val maybePusherChannelId = if (args.length == 4) {
@@ -133,10 +129,10 @@ object DeployWebJar extends App {
       None
     }
 
-    (args(0), args(1), args(2), maybePusherChannelId, None, None)
+    (args(0), args(1), args(2), None, maybePusherChannelId, None, None)
   }
 
-  if (nameOrUrlish.isEmpty || version.isEmpty) {
+  if (nameOrUrlish.isEmpty || upstreamVersion.isEmpty) {
     println("Name and version must be specified")
     sys.exit(1)
   }
@@ -154,7 +150,7 @@ object DeployWebJar extends App {
       println(s"Specified WebJar type '$webJarType' can not be deployed")
       sys.exit(1)
     } { deployable =>
-      deployWebJar.deploy(deployable, nameOrUrlish, version, maybePusherChannelId, maybeSourceUri, maybeLicense).onComplete {
+      deployWebJar.deploy(deployable, nameOrUrlish, upstreamVersion, maybeReleaseVersion, maybePusherChannelId, maybeSourceUri, maybeLicense).onComplete {
         case Success(s) =>
           println("Done!")
           app.stop()
