@@ -1,5 +1,6 @@
 package utils
 
+import java.io.FileNotFoundException
 import javax.inject.Inject
 
 import actors.{FetchWebJars, WebJarFetcher}
@@ -200,11 +201,20 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
   private def fetchPom(groupId: String, artifactId: String, version: String): Future[Elem] = {
     val groupIdPath = groupId.replace(".", "/")
     val url = s"http://repo1.maven.org/maven2/$groupIdPath/$artifactId/$version/$artifactId-$version.pom"
-    wsClient.url(url).get().map(_.xml)
+    wsClient.url(url).get().flatMap { response =>
+      response.status match {
+        case Status.OK =>
+          Future.fromTry(Try(response.xml))
+        case Status.NOT_FOUND =>
+          Future.failed(new FileNotFoundException(url))
+        case _ =>
+          Future.failed(new Exception(response.body))
+      }
+    }
   }
 
   def getPom(groupId: String, artifactId: String, version: String): Future[Elem] = {
-    val cacheKey = s"pom-$groupId-$artifactId"
+    val cacheKey = s"pom-$groupId-$artifactId-$version"
     memcache.instance.get[Elem](cacheKey).flatMap { maybeElem =>
       maybeElem.map(Future.successful).getOrElse {
         val pomFuture = fetchPom(groupId, artifactId, version)

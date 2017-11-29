@@ -1,7 +1,7 @@
 package utils
 
-import java.io.InputStream
-import java.net.{URI, URL}
+import java.io.{FileNotFoundException, InputStream}
+import java.net.URI
 import javax.inject.Inject
 
 import models.WebJarType
@@ -11,10 +11,10 @@ import play.api.libs.json.{JsNull, JsValue}
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.io.StdIn
-import scala.util.{Failure, Success, Try}
+import scala.util.Try
 
 
-class DeployWebJar @Inject() (git: Git, binTray: BinTray, pusher: Pusher, maven: Maven, licenseDetector: LicenseDetector, sourceLocator: SourceLocator)(implicit ec: ExecutionContext) {
+class DeployWebJar @Inject() (git: Git, binTray: BinTray, pusher: Pusher, maven: Maven, mavenCentral: MavenCentral, licenseDetector: LicenseDetector, sourceLocator: SourceLocator)(implicit ec: ExecutionContext) {
 
   def deploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, maybeReleaseVersion: Option[String] = None,  maybePusherChannelId: Option[String], maybeSourceUri: Option[URI] = None, maybeLicense: Option[String] = None): Future[PackageInfo] = {
     val binTraySubject = "webjars"
@@ -37,13 +37,24 @@ class DeployWebJar @Inject() (git: Git, binTray: BinTray, pusher: Pusher, maven:
       }
     }
 
+    def webJarNotYetDeployed(groupId: String, artifactId: String, version: String): Future[Unit] = {
+      mavenCentral.getPom(groupId, artifactId, version).flatMap { elem =>
+        Future.failed(new IllegalStateException(s"WebJar $groupId $artifactId $version has already been deployed"))
+      } recoverWith {
+        case _: FileNotFoundException =>
+          Future.successful(Unit)
+      }
+    }
+
     val deployFuture = for {
       packageInfo <- deployable.info(nameOrUrlish, Some(upstreamVersion), maybeSourceUri)
-      groupId <- deployable.groupId(packageInfo).fold(Future.failed[String](new Exception("Could not groupId")))(Future.successful)
+      groupId <- deployable.groupId(packageInfo).fold(Future.failed[String](new Exception("Could not determine groupId")))(Future.successful)
       artifactId <- deployable.artifactId(packageInfo).fold(Future.failed[String](new Exception("Could not determine artifactId")))(Future.successful)
       mavenBaseDir <- deployable.mavenBaseDir(packageInfo).fold(Future.failed[String](new Exception("Could not determine mavenBaseDir")))(Future.successful)
 
       releaseVersion = maybeReleaseVersion.getOrElse(packageInfo.version)
+
+      _ <- webJarNotYetDeployed(groupId, artifactId, releaseVersion)
 
       _ <- push("update", s"Deploying $groupId $artifactId $releaseVersion")
       licenses <- licenses(packageInfo, upstreamVersion)
@@ -133,11 +144,13 @@ object DeployWebJar extends App {
   }
 
   if (nameOrUrlish.isEmpty || upstreamVersion.isEmpty) {
-    println("Name and version must be specified")
+    Logger.error("Name and version must be specified")
     sys.exit(1)
   }
   else {
     val app = new GuiceApplicationBuilder().build()
+
+    implicit val ec: ExecutionContext = app.injector.instanceOf[ExecutionContext]
 
     val deployWebJar = app.injector.instanceOf[DeployWebJar]
 
@@ -146,19 +159,14 @@ object DeployWebJar extends App {
 
     val allDeployables = Set(npm, bower)
 
-    WebJarType.fromString(webJarType, allDeployables).fold {
-      println(s"Specified WebJar type '$webJarType' can not be deployed")
-      sys.exit(1)
+    val deployFuture = WebJarType.fromString(webJarType, allDeployables).fold[Future[_]] {
+      Future.failed(new Exception(s"Specified WebJar type '$webJarType' can not be deployed"))
     } { deployable =>
-      deployWebJar.deploy(deployable, nameOrUrlish, upstreamVersion, maybeReleaseVersion, maybePusherChannelId, maybeSourceUri, maybeLicense).onComplete {
-        case Success(s) =>
-          println("Done!")
-          app.stop()
-        case Failure(f) =>
-          println("Error: ", f)
-          app.stop()
-      } (ExecutionContext.global)
+      deployWebJar.deploy(deployable, nameOrUrlish, upstreamVersion, maybeReleaseVersion, maybePusherChannelId, maybeSourceUri, maybeLicense)
     }
+
+    deployFuture.failed.foreach(e => Logger.error(e.getMessage))
+    deployFuture.onComplete(_ => app.stop())
   }
 
 }
