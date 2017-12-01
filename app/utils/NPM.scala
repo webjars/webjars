@@ -26,7 +26,7 @@ class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, g
 
   override def groupId(packageInfo: PackageInfo) = Some("org.webjars.npm")
 
-  override def artifactId(packageInfo: PackageInfo) = Some(packageInfo.name)
+  override def artifactId(nameOrUrlish: String, packageInfo: PackageInfo): Future[String] = git.artifactId(nameOrUrlish)
 
   override val excludes: Set[String] = Set("node_modules")
 

@@ -49,7 +49,7 @@ class DeployWebJar @Inject() (git: Git, binTray: BinTray, pusher: Pusher, maven:
     val deployFuture = for {
       packageInfo <- deployable.info(nameOrUrlish, Some(upstreamVersion), maybeSourceUri)
       groupId <- deployable.groupId(packageInfo).fold(Future.failed[String](new Exception("Could not determine groupId")))(Future.successful)
-      artifactId <- deployable.artifactId(packageInfo).fold(Future.failed[String](new Exception("Could not determine artifactId")))(Future.successful)
+      artifactId <- deployable.artifactId(nameOrUrlish, packageInfo)
       mavenBaseDir <- deployable.mavenBaseDir(packageInfo).fold(Future.failed[String](new Exception("Could not determine mavenBaseDir")))(Future.successful)
 
       releaseVersion = maybeReleaseVersion.getOrElse(packageInfo.version)
@@ -173,7 +173,7 @@ object DeployWebJar extends App {
 
 trait Deployable extends WebJarType {
   def groupId(packageInfo: PackageInfo): Option[String]
-  def artifactId(packageInfo: PackageInfo): Option[String]
+  def artifactId(nameOrUrlish: String, packageInfo: PackageInfo): Future[String]
   val excludes: Set[String]
   val metadataFile: String
   val contentsInSubdir: Boolean

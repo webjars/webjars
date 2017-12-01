@@ -23,7 +23,7 @@ class LicenseDetectorSpec extends PlaySpecification with GlobalApplication {
   val deployable = new Deployable {
     override def groupId(packageInfo: PackageInfo): Option[String] = ???
     override def archive(nameOrUrlish: String, version: String): Future[InputStream] = ???
-    override def artifactId(packageInfo: PackageInfo): Option[String] = ???
+    override def artifactId(nameOrUrlish: String, packageInfo: PackageInfo): Future[String] = ???
     override def info(nameOrUrlish: String, maybeVersion: Option[String], maybeSourceUri: Option[URI]): Future[PackageInfo] = ???
     override lazy val excludes: Set[String] = ???
     override lazy val metadataFile: String = "foo.json"

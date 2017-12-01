@@ -26,7 +26,7 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
 
   override def groupId(packageInfo: PackageInfo): Option[String] = Some("org.webjars.bower")
 
-  override def artifactId(packageInfo: PackageInfo): Option[String] = Some(packageInfo.name)
+  override def artifactId(nameOrUrlish: String, packageInfo: PackageInfo): Future[String] = git.artifactId(nameOrUrlish)
 
   override val excludes: Set[String] = Set(".bower.json")
 
