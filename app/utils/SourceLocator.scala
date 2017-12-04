@@ -3,16 +3,20 @@ package utils
 import java.net.{URI, URL}
 import javax.inject.Inject
 
-import play.api.http.{HeaderNames, HttpVerbs, Status}
+import play.api.http.{HeaderNames, Status}
 import play.api.libs.ws.WSClient
 
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.Try
+import scala.util.{Failure, Try}
 
 class SourceLocator @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
 
   def sourceUrl(uri: URI): Future[URL] = {
-    Future.fromTry(Try(uri.toURL)).flatMap { url =>
+    val urlTry = Try(uri.toURL).recoverWith {
+      case e => Failure(new Exception(s"Could not convert provided source uri '$uri' to a URL", e))
+    }
+
+    Future.fromTry(urlTry).flatMap { url =>
       ws.url(url.toString).withFollowRedirects(false).get().flatMap { response =>
         response.status match {
           case Status.OK =>
