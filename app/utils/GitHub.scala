@@ -90,6 +90,7 @@ class GitHub @Inject() (configuration: Configuration, wsClient: WSClient) (impli
 
   // todo: max redirects?
   def currentUrls(url: URL): Future[(URL, URI, URL)] = {
+
     def urls(location: String) = {
       val newUrlsTry = for {
         gitHubUrl <- GitHub.gitHubUrl(location)
@@ -124,9 +125,9 @@ class GitHub @Inject() (configuration: Configuration, wsClient: WSClient) (impli
 
 object GitHub {
 
-  def gitHubUrl(url: URL): Try[URL] = Try(new URL(url.getProtocol, url.getHost, url.getPath.stripSuffix(".git"))).filter(_.getHost.stripPrefix("www.") == "github.com")
+  def gitHubUrl(url: URL): Try[URL] = Try(new URL(url.getProtocol, url.getHost, url.getPath.stripSuffix(".git").stripSuffix("/"))).filter(_.getHost.stripPrefix("www.") == "github.com")
 
-  def gitHubUrl(uri: URI): Try[URL] = Try(new URL("https", uri.getHost, uri.getPath)).flatMap(gitHubUrl)
+  def gitHubUrl(uri: URI): Try[URL] = Try(new URL("https", uri.getHost, uri.getPath.stripSuffix("/"))).flatMap(gitHubUrl)
 
   def gitHubUrl(s: String): Try[URL] = Try(new URI(s)).flatMap(gitHubUrl)
 

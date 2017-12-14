@@ -325,4 +325,11 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
     }
   }
 
+  "electron-to-chromium 1.3.28" should {
+    "work" in {
+      val packageInfo = await(npm.info("electron-to-chromium", Some("1.3.28")))
+      packageInfo.sourceConnectionUri.toString must beEqualTo ("https://github.com/kilian/electron-to-chromium.git")
+    }
+  }
+
 }
