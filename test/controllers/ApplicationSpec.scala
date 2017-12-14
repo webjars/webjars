@@ -73,9 +73,9 @@ class ApplicationSpec extends PlaySpecification {
 
         val webJars = contentAsJson(applicationController.webJarList("org.webjars")(request)).as[Seq[WebJar]]
 
-        val possibleMatches = webJars.filter(_.artifactId.toLowerCase.contains("jquery"))
+        val possibleMatches = webJars.filter(_.artifactId.toLowerCase.contains("openui5"))
 
-        val resultFuture = applicationController.searchWebJars("jquery", List("org.webjars"))(request)
+        val resultFuture = applicationController.searchWebJars("openui5", List("org.webjars"))(request)
 
         status(resultFuture) must beEqualTo(Status.OK)
 
@@ -89,9 +89,9 @@ class ApplicationSpec extends PlaySpecification {
 
       val webJars = contentAsJson(applicationController.webJarList("org.webjars")(request)).as[Seq[WebJar]]
 
-      val possibleMatches = webJars.filter(_.artifactId.toLowerCase.contains("jquery"))
+      val possibleMatches = webJars.filter(_.artifactId.toLowerCase.contains("openui5"))
 
-      val resultFuture = applicationController.searchWebJars("jquery", List("org.webjars"))(request)
+      val resultFuture = applicationController.searchWebJars("openui5", List("org.webjars"))(request)
 
       contentAsJson(resultFuture).as[Seq[WebJar]] must containTheSameElementsAs(possibleMatches)
     }
