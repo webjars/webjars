@@ -7,7 +7,7 @@ import play.api.libs.ws._
 import scala.concurrent.{ExecutionContext, Future}
 
 
-class BowerGitHub @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, gitHub: GitHub, maven: Maven)(ec: ExecutionContext)
+class BowerGitHub @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, gitHub: GitHub, maven: Maven)(implicit ec: ExecutionContext)
   extends Bower(ws, git, licenseDetector, gitHub, maven)(ec) {
 
   override val name: String = "BowerGitHub"
@@ -16,14 +16,32 @@ class BowerGitHub @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDet
 
   override def includesGroupId(groupId: String): Boolean = groupId.startsWith("org.webjars.bowergithub.")
 
-  // todo: if just given a name, we should lookup the repo in the Bower system instead of trusting the bower metadata
-  override def groupId(nameOrUrlish: String): Future[String] = Future.failed(new NotImplementedError())
+  override def groupId(nameOrUrlish: String): Future[String] = lookup(nameOrUrlish).flatMap { url =>
+    GitHub.maybeGitHubOrg(Some(url)).fold {
+      Future.failed[String](new Exception(s"Could not determine GitHub org from $url"))
+    } { org =>
+      Future.successful("org.webjars.bowergithub." + org.toLowerCase)
+    }
+  }
 
-  // todo: if just given a name, we should lookup the repo in the Bower system instead of trusting the bower metadata
-  override def artifactId(nameOrUrlish: String): Future[String] = Future.failed(new NotImplementedError())
+  override def artifactId(nameOrUrlish: String): Future[String] = lookup(nameOrUrlish).flatMap { url =>
+    GitHub.maybeGitHubRepo(Some(url)).fold {
+      Future.failed[String](new Exception(s"Could not determine GitHub repo from $url"))
+    } { repo =>
+      Future.successful(repo.toLowerCase)
+    }
+  }
 
   override def mavenDependencies(dependencies: Map[String, String]): Future[Set[(String, String, String)]] = {
-    Future.failed[Set[(String, String, String)]](new Exception("not implemented"))
+    Future.sequence {
+      dependencies.map { case (nameOrUrlish, version) =>
+        for {
+          groupId <- groupId(nameOrUrlish)
+          artifactId <- artifactId(nameOrUrlish)
+          version <- SemVer.convertSemVerToMaven(version).fold(Future.failed[String](new Exception(s"Could not convert version '$version' to Maven form")))(Future.successful)
+        } yield (groupId, artifactId, version)
+      }.toSet
+    }
   }
 
   override def pathPrefix(packageInfo: PackageInfo): String = {

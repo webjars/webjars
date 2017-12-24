@@ -138,4 +138,21 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
     }
   }
 
+  "lookup" should {
+    "work with a name" in {
+      val url = await(bower.lookup("jquery"))
+      url.toString must beEqualTo ("https://github.com/jquery/jquery-dist")
+    }
+    "fail with an invalid name" in {
+      await(bower.lookup("asdfqwer1234")) must throwA[Exception]
+    }
+    "work with a valid github git url" in {
+      val url = await(bower.lookup("https://github.com/jquery/jquery-dist.git"))
+      url.toString must beEqualTo ("https://github.com/jquery/jquery-dist")
+    }
+    "fail with an invalid url" in {
+      await(bower.lookup("https://asdf.com/")) must throwA[Exception]
+    }
+  }
+
 }

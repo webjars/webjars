@@ -149,6 +149,20 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
       }.toSet
     }
   }
+
+  def lookup(packageNameOrGitRepo: String): Future[URL] = {
+    Future.fromTry(Try(new URL(packageNameOrGitRepo)).flatMap(GitHub.gitHubUrl)).recoverWith {
+      case _ =>
+        ws.url(s"$BASE_URL/lookup/$packageNameOrGitRepo").get().flatMap { response =>
+          response.status match {
+            case Status.OK =>
+              Future.fromTry(Try((response.json \ "url").as[URL]).flatMap(GitHub.gitHubUrl))
+            case _ =>
+              Future.failed(new Exception(response.body))
+          }
+        }
+    }
+  }
 }
 
 object Bower {
