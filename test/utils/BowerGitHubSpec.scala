@@ -1,7 +1,7 @@
 package utils
 
 
-import java.io.{BufferedInputStream, ByteArrayInputStream}
+import java.io.ByteArrayInputStream
 import java.net.URL
 
 import akka.util.Timeout
@@ -18,27 +18,31 @@ class BowerGitHubSpec extends PlaySpecification with GlobalApplication {
 
   "groupId" should {
     "contain the org when given a Bower package name" in {
-      val justName = await(bowerGitHub.info("jQuery"))
-      bowerGitHub.groupId(justName) must beSome ("org.webjars.bowergithub.jquery")
+      await(bowerGitHub.groupId("jQuery")) must beEqualTo ("org.webjars.bowergithub.jquery")
     }
     "be lowercase" in {
-      val gitHubWithUpperCase = await(bowerGitHub.info("https://github.com/PolymerElements/iron-elements"))
-      bowerGitHub.groupId(gitHubWithUpperCase) must beSome ("org.webjars.bowergithub.polymerelements")
+      await(bowerGitHub.groupId("https://github.com/PolymerElements/iron-elements")) must beEqualTo ("org.webjars.bowergithub.polymerelements")
+    }
+    "work with forks" in {
+      await(bowerGitHub.groupId("https://github.com/jamesward/iron-elements")) must beEqualTo ("org.webjars.bowergithub.jamesward")
     }
   }
 
   "artifactId" should {
     "be the repo name" in {
-      val gitHubWithUpperCase = await(bowerGitHub.info("https://github.com/PolymerElements/iron-elements"))
-      bowerGitHub.artifactId(gitHubWithUpperCase) must beSome ("iron-elements")
+      val url = "https://github.com/PolymerElements/iron-elements"
+      await(bowerGitHub.artifactId(url)) must beEqualTo ("iron-elements")
     }
     "be lowercase" in {
-      val justName = await(bowerGitHub.info("jQuery"))
-      bowerGitHub.artifactId(justName) must beSome ("jquery")
+      await(bowerGitHub.artifactId("jQuery")) must beEqualTo ("jquery")
     }
     "not contain a .git" in {
-      val gitHubWithUpperCase = await(bowerGitHub.info("https://github.com/PolymerElements/iron-elements.git"))
-      bowerGitHub.artifactId(gitHubWithUpperCase) must beSome ("iron-elements")
+      val url = "https://github.com/PolymerElements/iron-elements.git"
+      await(bowerGitHub.artifactId(url)) must beEqualTo ("iron-elements")
+    }
+    "work with forks" in {
+      val url = "https://github.com/jamesward/test-iron-elements"
+      await(bowerGitHub.artifactId(url)) must beEqualTo ("test-iron-elements")
     }
   }
 

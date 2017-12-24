@@ -26,9 +26,9 @@ class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, g
 
   override def includesGroupId(groupId: String): Boolean = groupId.equalsIgnoreCase(groupId)
 
-  override def groupId(packageInfo: PackageInfo) = Some(groupId)
+  override def groupId(nameOrUrlish: String): Future[String] = Future.successful(groupId)
 
-  override def artifactId(nameOrUrlish: String, packageInfo: PackageInfo): Future[String] = git.artifactId(nameOrUrlish)
+  override def artifactId(nameOrUrlish: String): Future[String] = git.artifactId(nameOrUrlish)
 
   override val excludes: Set[String] = Set("node_modules")
 

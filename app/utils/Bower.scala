@@ -24,9 +24,9 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
 
   override def includesGroupId(groupId: String): Boolean = groupId.equalsIgnoreCase(groupIdQuery)
 
-  override def groupId(packageInfo: PackageInfo): Option[String] = Some(groupIdQuery)
+  override def groupId(nameOrUrlish: String): Future[String] = Future.successful(groupIdQuery)
 
-  override def artifactId(nameOrUrlish: String, packageInfo: PackageInfo): Future[String] = git.artifactId(nameOrUrlish)
+  override def artifactId(nameOrUrlish: String): Future[String] = git.artifactId(nameOrUrlish)
 
   override val excludes: Set[String] = Set(".bower.json")
 

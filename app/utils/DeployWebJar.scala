@@ -48,9 +48,9 @@ class DeployWebJar @Inject() (git: Git, binTray: BinTray, pusher: Pusher, maven:
 
     val deployFuture = for {
       packageInfo <- deployable.info(nameOrUrlish, Some(upstreamVersion), maybeSourceUri)
-      groupId <- deployable.groupId(packageInfo).fold(Future.failed[String](new Exception("Could not determine groupId")))(Future.successful)
-      artifactId <- deployable.artifactId(nameOrUrlish, packageInfo)
-      mavenBaseDir <- deployable.mavenBaseDir(packageInfo).fold(Future.failed[String](new Exception("Could not determine mavenBaseDir")))(Future.successful)
+      groupId <- deployable.groupId(nameOrUrlish)
+      artifactId <- deployable.artifactId(nameOrUrlish)
+      mavenBaseDir = groupId.replaceAllLiterally(".", "/")
 
       releaseVersion = maybeReleaseVersion.getOrElse(packageInfo.version)
 
@@ -175,13 +175,12 @@ object DeployWebJar extends App {
 }
 
 trait Deployable extends WebJarType {
-  def groupId(packageInfo: PackageInfo): Option[String]
-  def artifactId(nameOrUrlish: String, packageInfo: PackageInfo): Future[String]
+  def groupId(nameOrUrlish: String): Future[String]
+  def artifactId(nameOrUrlish: String): Future[String]
   val excludes: Set[String]
   val metadataFile: String
   val contentsInSubdir: Boolean
   def pathPrefix(packageInfo: PackageInfo): String
-  def mavenBaseDir(packageInfo: PackageInfo): Option[String] = groupId(packageInfo).map(_.replaceAllLiterally(".", "/"))
   def info(nameOrUrlish: String, maybeVersion: Option[String], maybeSourceUri: Option[URI]): Future[PackageInfo]
   def mavenDependencies(dependencies: Map[String, String]): Future[Set[(String, String, String)]]
   def archive(nameOrUrlish: String, version: String): Future[InputStream]
