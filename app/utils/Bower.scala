@@ -151,7 +151,17 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
   }
 
   def lookup(packageNameOrGitRepo: String): Future[URL] = {
-    Future.fromTry(Try(new URL(packageNameOrGitRepo)).flatMap(GitHub.gitHubUrl)).recoverWith {
+    val urlTry = Try {
+      val maybeUrl = if (packageNameOrGitRepo.contains("/") && !packageNameOrGitRepo.contains(":")) {
+        s"https://github.com/$packageNameOrGitRepo"
+      }
+      else {
+        packageNameOrGitRepo
+      }
+      new URL(maybeUrl)
+    }
+
+    Future.fromTry(urlTry.flatMap(GitHub.gitHubUrl)).recoverWith {
       case _ =>
         ws.url(s"$BASE_URL/lookup/$packageNameOrGitRepo").get().flatMap { response =>
           response.status match {

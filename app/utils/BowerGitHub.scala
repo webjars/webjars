@@ -6,7 +6,6 @@ import play.api.libs.ws._
 
 import scala.concurrent.{ExecutionContext, Future}
 
-
 class BowerGitHub @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, gitHub: GitHub, maven: Maven)(implicit ec: ExecutionContext)
   extends Bower(ws, git, licenseDetector, gitHub, maven)(ec) {
 
@@ -32,15 +31,36 @@ class BowerGitHub @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDet
     }
   }
 
+  def bowerToMaven(keyValue: (String, String)): Future[(String, String, String)] = {
+    val (key, value) = keyValue
+
+    def convertSemVerToMaven(version: String): Future[String] = {
+      SemVer.convertSemVerToMaven(version).fold {
+        Future.failed[String](new Exception(s"Could not convert version '$version' to Maven form"))
+      } (Future.successful)
+    }
+
+    if (value.contains("/")) {
+      val urlish = value.takeWhile(_ != '#')
+      val version = value.stripPrefix(urlish).stripPrefix("#").stripPrefix("v")
+      for {
+        groupId <- groupId(urlish)
+        artifactId <- artifactId(urlish)
+        version <- convertSemVerToMaven(version)
+      } yield (groupId, artifactId, version)
+    }
+    else {
+      for {
+        groupId <- groupId(key)
+        artifactId <- artifactId(key)
+        version <- convertSemVerToMaven(value.stripPrefix("v"))
+      } yield (groupId, artifactId, version)
+    }
+  }
+
   override def mavenDependencies(dependencies: Map[String, String]): Future[Set[(String, String, String)]] = {
     Future.sequence {
-      dependencies.map { case (nameOrUrlish, version) =>
-        for {
-          groupId <- groupId(nameOrUrlish)
-          artifactId <- artifactId(nameOrUrlish)
-          version <- SemVer.convertSemVerToMaven(version).fold(Future.failed[String](new Exception(s"Could not convert version '$version' to Maven form")))(Future.successful)
-        } yield (groupId, artifactId, version)
-      }.toSet
+      dependencies.map(bowerToMaven).toSet
     }
   }
 

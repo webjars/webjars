@@ -14,7 +14,7 @@ class BowerGitHubSpec extends PlaySpecification with GlobalApplication {
 
   override implicit def defaultAwaitTimeout: Timeout = 300.seconds
 
-  lazy val bowerGitHub: Bower = application.injector.instanceOf[BowerGitHub]
+  lazy val bowerGitHub: BowerGitHub = application.injector.instanceOf[BowerGitHub]
 
   "groupId" should {
     "contain the org when given a Bower package name" in {
@@ -57,6 +57,45 @@ class BowerGitHubSpec extends PlaySpecification with GlobalApplication {
     }
   }
 
+  "bowerToMaven" should {
+    "work with a plain name and version" in {
+      val (group, artifact, version) = await(bowerGitHub.bowerToMaven("jQuery" -> "1.0.0"))
+      group must beEqualTo ("org.webjars.bowergithub.jquery")
+      artifact must beEqualTo ("jquery")
+      version must beEqualTo ("1.0.0")
+    }
+    "work with a github short reference" in {
+      val (group, artifact, version) = await(bowerGitHub.bowerToMaven("jquery/jquery" -> "1.0.0"))
+      group must beEqualTo ("org.webjars.bowergithub.jquery")
+      artifact must beEqualTo ("jquery")
+      version must beEqualTo ("1.0.0")
+    }
+    "work with a github short reference" in {
+      val (group, artifact, version) = await(bowerGitHub.bowerToMaven("jquery" -> "jquery/jquery"))
+      group must beEqualTo ("org.webjars.bowergithub.jquery")
+      artifact must beEqualTo ("jquery")
+      version must beEqualTo ("[0,)")
+    }
+    "work with a github short reference and version" in {
+      val (group, artifact, version) = await(bowerGitHub.bowerToMaven("jquery" -> "jquery/jquery#1.0.0"))
+      group must beEqualTo ("org.webjars.bowergithub.jquery")
+      artifact must beEqualTo ("jquery")
+      version must beEqualTo ("1.0.0")
+    }
+    "work with a github url" in {
+      val (group, artifact, version) = await(bowerGitHub.bowerToMaven("jquery" -> "https://github.com/jquery/jquery"))
+      group must beEqualTo ("org.webjars.bowergithub.jquery")
+      artifact must beEqualTo ("jquery")
+      version must beEqualTo ("[0,)")
+    }
+    "work with a github url and version" in {
+      val (group, artifact, version) = await(bowerGitHub.bowerToMaven("jquery" -> "https://github.com/jquery/jquery#1.0.0"))
+      group must beEqualTo ("org.webjars.bowergithub.jquery")
+      artifact must beEqualTo ("jquery")
+      version must beEqualTo ("1.0.0")
+    }
+  }
+
   "dependencies" should {
     "be converted from bower package names" in {
       val dependencies = await(bowerGitHub.mavenDependencies(Map("jQuery" -> "3.2.1")))
@@ -64,7 +103,7 @@ class BowerGitHubSpec extends PlaySpecification with GlobalApplication {
     }
     "be converted from github short syntax package names" in {
       val dependencies = await(bowerGitHub.mavenDependencies(Map("iron-validator-behavior" -> "PolymerElements/iron-validator-behavior#^1.0.0")))
-      dependencies.head must beEqualTo ("org.webjars.bowergithub.polymerelements", "iron-validator-behavior", "[1.0.0,2.0.0)")
+      dependencies.head must beEqualTo ("org.webjars.bowergithub.polymerelements", "iron-validator-behavior", "[1.0.0,2)")
     }
     "not have a prepended v in the version" in {
       val dependencies = await(bowerGitHub.mavenDependencies(Map("jQuery" -> "v3.2.1")))
@@ -78,8 +117,8 @@ class BowerGitHubSpec extends PlaySpecification with GlobalApplication {
       bowerInfo.version must beEqualTo ("3.2.1")
     }
     "should always be a git tag with any prepended v removed" in {
-      val gitHubInfo = await(bowerGitHub.info("https://github.com/jquery/jquery.git", Some("v3.2.1")))
-      gitHubInfo.version must beEqualTo ("3.2.1")
+      val gitHubInfo = await(bowerGitHub.info("https://github.com/PolymerElements/iron-elements.git", Some("v1.0.10")))
+      gitHubInfo.version must beEqualTo ("1.0.10")
     }
   }
 
