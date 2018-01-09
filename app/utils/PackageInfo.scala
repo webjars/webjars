@@ -13,7 +13,7 @@ case class PackageInfo(name: String, version: String, maybeHomepageUrl: Option[U
     .orElse(maybeHomepageUrl.flatMap(GitHub.gitHubUrl(_).toOption))
 
   lazy val maybeGitHubOrg: Option[String] = GitHub.maybeGitHubOrg(maybeGitHubUrl)
-  lazy val maybeGitHubRepo: Option[String] = GitHub.maybeGitHubOrg(maybeGitHubUrl)
+  lazy val maybeGitHubRepo: Option[String] = GitHub.maybeGitHubRepo(maybeGitHubUrl)
   lazy val maybeGitHubOrgRepo: Option[String] = {
     for {
       org <- maybeGitHubOrg

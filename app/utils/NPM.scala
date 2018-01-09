@@ -28,7 +28,10 @@ class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, g
 
   override def artifactId(nameOrUrlish: String): Future[String] = git.artifactId(nameOrUrlish)
 
-  override val excludes: Set[String] = Set("node_modules")
+  override def excludes(nameOrUrlish: String, version: String): Future[Set[String]] = {
+    // todo: apply npm ignore in case of git repo
+    Future.successful(Set("node_modules"))
+  }
 
   override val metadataFile: String = "package.json"
 

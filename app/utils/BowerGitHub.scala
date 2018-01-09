@@ -1,7 +1,10 @@
 package utils
 
+import java.io.{FileNotFoundException, InputStream}
 import javax.inject.Inject
 
+import org.eclipse.jgit.api.errors.RefNotFoundException
+import play.api.libs.json.Json
 import play.api.libs.ws._
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -66,6 +69,29 @@ class BowerGitHub @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDet
 
   override def pathPrefix(packageInfo: PackageInfo): String = {
     s"${packageInfo.name}/"
+  }
+
+  override def excludes(nameOrUrlish: String, version: String): Future[Set[String]] = {
+    lookup(nameOrUrlish).flatMap { url =>
+      val bowerJsonFuture = git.file(url.toURI, Some(version), "bower.json").recoverWith {
+        // try with a "v" version prefix
+        case _: RefNotFoundException if !version.startsWith("v") => git.file(url.toURI, Some("v" + version), "bower.json")
+      }
+
+      bowerJsonFuture.map { bowerJson =>
+        val json = Json.parse(bowerJson)
+        (json \ "ignore").asOpt[Set[String]].getOrElse(Set.empty[String])
+      }
+    }
+  }
+
+  override def archive(packageNameOrGitRepo: String, version: String): Future[InputStream] = {
+    lookup(packageNameOrGitRepo).flatMap { url =>
+      super.archive(url.toString, version).recoverWith {
+        // try with a "v" version prefix
+        case _: RefNotFoundException if !version.startsWith("v") => super.archive(url.toString, "v" + version)
+      }
+    }
   }
 
 }

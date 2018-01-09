@@ -28,7 +28,10 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
 
   override def artifactId(nameOrUrlish: String): Future[String] = git.artifactId(nameOrUrlish)
 
-  override val excludes: Set[String] = Set(".bower.json")
+  override def excludes(nameOrUrlish: String, version: String): Future[Set[String]] = {
+    // todo: apply bower ignore in case of git repo
+    Future.successful(Set(".bower.json"))
+  }
 
   override val metadataFile: String = "bower.json"
 

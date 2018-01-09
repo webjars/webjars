@@ -5,6 +5,7 @@ import java.io._
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry
 import org.apache.commons.compress.archivers.{ArchiveOutputStream, ArchiveStreamFactory}
 import org.apache.commons.compress.utils.IOUtils
+import org.eclipse.jgit.ignore.IgnoreNode
 
 
 object WebJarCreator {
@@ -31,6 +32,22 @@ object WebJarCreator {
     jar.closeArchiveEntry()
   }
 
+
+  def isExcluded(excludes: Set[String], name: String, isDirectory: Boolean): Boolean = {
+    val ignoreNode = new IgnoreNode()
+    val excludesInputStream = new ByteArrayInputStream(excludes.mkString("\n").getBytes)
+    ignoreNode.parse(excludesInputStream)
+    ignoreNode.isIgnored(name, isDirectory) match {
+      case IgnoreNode.MatchResult.IGNORED => true
+      case IgnoreNode.MatchResult.NOT_IGNORED => false
+      case IgnoreNode.MatchResult.CHECK_PARENT | IgnoreNode.MatchResult.CHECK_PARENT_NEGATE_FIRST_MATCH =>
+        val parent = name.split("/").dropRight(1).mkString("/")
+        if (parent == "")
+          false
+        else
+          isExcluded(excludes, parent, true)
+    }
+  }
 
   def createWebJar(in: InputStream, contentsInSubdir: Boolean, exclude: Set[String], pom: String, groupId: String, artifactId: String, version: String, pathPrefix: String): Array[Byte] = {
 
@@ -74,7 +91,7 @@ object WebJarCreator {
         ze.getName
       }
 
-      if (!exclude.exists(name.startsWith)) {
+      if (!isExcluded(exclude, name, ze.isDirectory)) {
         val path = webJarPrefix + name
         val nze = new ZipArchiveEntry(path)
         jar.putArchiveEntry(nze)

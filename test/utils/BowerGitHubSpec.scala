@@ -1,7 +1,7 @@
 package utils
 
 
-import java.io.ByteArrayInputStream
+import java.io.{BufferedInputStream, ByteArrayInputStream}
 import java.net.URL
 
 import akka.util.Timeout
@@ -124,14 +124,61 @@ class BowerGitHubSpec extends PlaySpecification with GlobalApplication {
 
   "contents" should {
     "be in the META-INF/resources/webjars/[BOWER NAME]/[CONTENTS] form" in {
-      val url = new URL("https://bower-as-a-service.herokuapp.com/download/jQuery/v3.2.1")
-      val inputStream = url.openConnection().getInputStream
+      val name = "jquery"
 
-      val webJar = WebJarCreator.createWebJar(inputStream, bowerGitHub.contentsInSubdir, bowerGitHub.excludes, "", "org.webjars.bowergithub.jquery", "jquery", "3.2.1", "jQuery/")
+      val archive = await(bowerGitHub.archive(name, "3.2.1"))
+
+      val excludes = await(bowerGitHub.excludes(name, "3.2.1"))
+
+      val webJar = WebJarCreator.createWebJar(archive, bowerGitHub.contentsInSubdir, excludes, "", "org.webjars.bowergithub.jquery", "jquery", "3.2.1", "jQuery/")
 
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(new ByteArrayInputStream(webJar))
 
-      Stream.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName) must contain ("META-INF/resources/webjars/jQuery/dist/jquery.js")
+      val names = Stream.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName).toSet
+      names must contain ("META-INF/resources/webjars/jQuery/dist/jquery.js")
+    }
+    "must exclude ignored files" in {
+      val name = "vaadin-grid"
+
+      val archive = await(bowerGitHub.archive(name, "4.0.0-alpha5"))
+      val excludes = await(bowerGitHub.excludes(name, "4.0.0-alpha5"))
+
+      val webJar = WebJarCreator.createWebJar(archive, bowerGitHub.contentsInSubdir, excludes, "", "org.webjars.bowergithub.vaadin", "vaadin-grid", "4.0.0-alpha5", "vaadin-grid/")
+
+      val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(new ByteArrayInputStream(webJar))
+
+      val names = Stream.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName).toSet
+      names must contain ("META-INF/resources/webjars/vaadin-grid/index.html")
+      names must not contain "META-INF/resources/webjars/vaadin-grid/.npmignore"
     }
   }
+
+  "archive" should {
+    "work with a v in front of the version" in {
+      val inputStream = await(bowerGitHub.archive("vaadin-grid", "v4.0.0-alpha5"))
+      val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(new BufferedInputStream(inputStream))
+
+      Stream.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName) must contain (".npmignore")
+    }
+    "work when using a bower name" in {
+      val inputStream = await(bowerGitHub.archive("vaadin-grid", "4.0.0-alpha5"))
+      val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(new BufferedInputStream(inputStream))
+
+      Stream.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName) must contain (".npmignore")
+    }
+    "work when using a github short url" in {
+      val inputStream = await(bowerGitHub.archive("vaadin/vaadin-grid", "4.0.0-alpha5"))
+      val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(new BufferedInputStream(inputStream))
+
+      Stream.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName) must contain (".npmignore")
+    }
+  }
+
+  "excludes" should {
+    "contain contents of the ignore section from bower.json" in {
+      val excludes = await(bowerGitHub.excludes("vaadin-grid", "4.0.0-alpha5"))
+      excludes must contain ("**/.*")
+    }
+  }
+
 }

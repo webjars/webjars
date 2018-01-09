@@ -25,7 +25,7 @@ class LicenseDetectorSpec extends PlaySpecification with GlobalApplication {
     override def archive(nameOrUrlish: String, version: String): Future[InputStream] = ???
     override def artifactId(nameOrUrlish: String): Future[String] = ???
     override def info(nameOrUrlish: String, maybeVersion: Option[String], maybeSourceUri: Option[URI]): Future[PackageInfo] = ???
-    override lazy val excludes: Set[String] = ???
+    override def excludes(nameOrUrlish: String, version: String): Future[Set[String]] = ???
     override lazy val metadataFile: String = "foo.json"
     override lazy val contentsInSubdir: Boolean = ???
     override def includesGroupId(groupId: String): Boolean = ???
