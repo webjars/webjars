@@ -20,13 +20,11 @@ class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, g
 
   override val name: String = "NPM"
 
-  private val groupId = "org.webjars.npm"
+  override val groupIdQuery: String = "org.webjars.npm"
 
-  override val groupIdQuery: String = groupId
+  override def includesGroupId(groupId: String): Boolean = groupId.equalsIgnoreCase(groupIdQuery)
 
-  override def includesGroupId(groupId: String): Boolean = groupId.equalsIgnoreCase(groupId)
-
-  override def groupId(nameOrUrlish: String): Future[String] = Future.successful(groupId)
+  override def groupId(nameOrUrlish: String): Future[String] = Future.successful(groupIdQuery)
 
   override def artifactId(nameOrUrlish: String): Future[String] = git.artifactId(nameOrUrlish)
 
@@ -37,7 +35,7 @@ class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, g
   override val contentsInSubdir: Boolean = true
 
   override def pathPrefix(packageInfo: PackageInfo): String = {
-    s"$groupId/${packageInfo.name}/${packageInfo.version}/"
+    s"$groupIdQuery/${packageInfo.name}/${packageInfo.version}/"
   }
 
   // a whole lot of WTF
