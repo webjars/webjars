@@ -13,7 +13,7 @@ libraryDependencies ++= Seq(
   "org.apache.commons" % "commons-compress" % "1.15",
   "org.apache.commons" % "commons-io" % "1.3.2",
   "org.eclipse.jgit" % "org.eclipse.jgit" % "4.9.0.201710071750-r",
-  "org.webjars" %% "webjars-play" % "2.6.2",
+  "org.webjars" %% "webjars-play" % "2.6.3",
   "org.webjars.bower" % "bootstrap" % "3.3.4",
   "org.webjars.bower" % "select2" % "3.5.2",
   "org.webjars.bower" % "highlightjs" % "9.10.0",

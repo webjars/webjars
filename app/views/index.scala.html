@@ -2,8 +2,6 @@
 
 @(webjarsOrError: Either[Iterable[WebJar], String])
 
-@import java.net.URLEncoder
-
 @main("WebJars - Web Libraries in Jars") {
 
     <script type="text/javascript" src="@routes.Assets.versioned("javascripts/index.js")"></script>
@@ -15,7 +13,7 @@
         <script src="https://js.pusher.com/2.2/pusher.min.js"></script>
     }
 
-    @Html(webJarsUtil.script("jquery.typewatch.js"))
+    @webJarsUtil.locate("jquery.typewatch.js").script()
 
     <div class="jumbotron" style="margin-bottom: 0; background-color: #cccccc;">
         <div class="container">
