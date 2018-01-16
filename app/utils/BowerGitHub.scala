@@ -1,7 +1,6 @@
 package utils
 
-import java.io.{FileNotFoundException, InputStream}
-import java.net.URI
+import java.io.InputStream
 import javax.inject.Inject
 
 import org.eclipse.jgit.api.errors.RefNotFoundException
@@ -12,6 +11,8 @@ import scala.concurrent.{ExecutionContext, Future}
 
 class BowerGitHub @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, gitHub: GitHub, maven: Maven)(implicit ec: ExecutionContext)
   extends Bower(ws, git, licenseDetector, gitHub, maven)(ec) {
+
+  import BowerGitHubImplicits._
 
   override val name: String = "BowerGitHub"
 
@@ -42,10 +43,6 @@ class BowerGitHub @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDet
       SemVer.convertSemVerToMaven(version).fold {
         Future.failed[String](new Exception(s"Could not convert version '$version' to Maven form"))
       } (Future.successful)
-    }
-
-    implicit class RichString(val s: String) extends AnyVal {
-      def vless = s.stripPrefix("v").replaceAllLiterally("^v", "^").replaceAllLiterally("~v", "v")
     }
 
     if (value.contains("/")) {
@@ -99,4 +96,10 @@ class BowerGitHub @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDet
     }
   }
 
+}
+
+object BowerGitHubImplicits {
+  implicit class RichString(val s: String) extends AnyVal {
+    def vless = s.stripPrefix("v").replaceAllLiterally("^v", "^").replaceAllLiterally("~v", "v")
+  }
 }
