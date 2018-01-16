@@ -161,8 +161,9 @@ object DeployWebJar extends App {
 
     val npm = app.injector.instanceOf[NPM]
     val bower = app.injector.instanceOf[Bower]
+    val bowerGitHub = app.injector.instanceOf[BowerGitHub]
 
-    val allDeployables = Set(npm, bower)
+    val allDeployables = Set(npm, bower, bowerGitHub)
 
     val deployFuture = WebJarType.fromString(webJarType, allDeployables).fold[Future[_]] {
       Future.failed(new Exception(s"Specified WebJar type '$webJarType' can not be deployed"))
