@@ -44,9 +44,13 @@ class BowerGitHub @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDet
       } (Future.successful)
     }
 
+    implicit class RichString(val s: String) extends AnyVal {
+      def vless = s.stripPrefix("v").replaceAllLiterally("^v", "^").replaceAllLiterally("~v", "v")
+    }
+
     if (value.contains("/")) {
       val urlish = value.takeWhile(_ != '#')
-      val version = value.stripPrefix(urlish).stripPrefix("#").stripPrefix("v").replaceAllLiterally("^v", "^").replaceAllLiterally("~v", "v")
+      val version = value.stripPrefix(urlish).stripPrefix("#").vless
       for {
         groupId <- groupId(urlish)
         artifactId <- artifactId(urlish)
@@ -57,7 +61,7 @@ class BowerGitHub @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDet
       for {
         groupId <- groupId(key)
         artifactId <- artifactId(key)
-        version <- convertSemVerToMaven(value.stripPrefix("v"))
+        version <- convertSemVerToMaven(value.vless)
       } yield (groupId, artifactId, version)
     }
   }
