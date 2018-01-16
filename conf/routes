@@ -25,6 +25,7 @@ POST           /_org.webjars.bower/deploy                                 contro
 GET            /_org.webjars.npm/exists                                   controllers.Application.npmPackageExists(name)
 GET            /_org.webjars.npm/versions                                 controllers.Application.npmPackageVersions(name, branch: Option[String])
 POST           /_org.webjars.npm/deploy                                   controllers.Application.deployNPM(name, version, channelId: Option[String])
+POST           /deploy                                                    controllers.Application.deploy(webJarType, nameOrUrlish, version)
 
 GET            /mockcentral/searchgroup                                   controllers.MockCentral.searchGroup()
 

@@ -21,7 +21,10 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Failure
 import scala.util.hashing.MurmurHash3
 
-class Application @Inject() (gitHub: GitHub, heroku: Heroku, pusher: Pusher, cache: Cache, mavenCentral: MavenCentral, deployWebJar: DeployWebJar, webJarsFileService: WebJarsFileService, actorSystem: ActorSystem, configuration: Configuration, environment: Environment, futures: Futures)(classic: Classic, bower: Bower, npm: NPM)(mainView: views.html.main, allView: views.html.all, indexView: views.html.index, webJarRequestView: views.html.webJarRequest, contributingView: views.html.contributing, documentationView: views.html.documentation)(implicit ec: ExecutionContext) extends InjectedController {
+class Application @Inject() (gitHub: GitHub, heroku: Heroku, pusher: Pusher, cache: Cache, mavenCentral: MavenCentral, deployWebJar: DeployWebJar, webJarsFileService: WebJarsFileService, actorSystem: ActorSystem, configuration: Configuration, environment: Environment, futures: Futures)
+                            (classic: Classic, bower: Bower, npm: NPM, bowerGitHub: BowerGitHub)
+                            (mainView: views.html.main, allView: views.html.all, indexView: views.html.index, webJarRequestView: views.html.webJarRequest, contributingView: views.html.contributing, documentationView: views.html.documentation)
+                            (implicit ec: ExecutionContext) extends InjectedController {
 
   private val allWebJarTypes = Set(classic, bower, npm)
 
@@ -342,6 +345,18 @@ class Application @Inject() (gitHub: GitHub, heroku: Heroku, pusher: Pusher, cac
     }
     else {
       deployWebJar.deploy(deployable, nameOrUrlish, version, None, maybeChannelId).map(Json.toJson(_))
+    }
+  }
+
+  def deploy(webJarType: String, nameOrUrlish: String, version: String): Action[AnyContent] = Action.async {
+    val allDeployables = Set(npm, bower, bowerGitHub)
+
+    WebJarType.fromString(webJarType, allDeployables).fold {
+      Future.successful(BadRequest(s"Specified WebJar type '$webJarType' can not be deployed"))
+    } { deployable =>
+      deploy(deployable, nameOrUrlish, version, None).map(Ok(_)).recover {
+        case e: Exception => InternalServerError(e.getMessage)
+      }
     }
   }
 

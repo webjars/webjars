@@ -16,7 +16,7 @@ import scala.util.Try
 
 class DeployWebJar @Inject() (git: Git, binTray: BinTray, pusher: Pusher, maven: Maven, mavenCentral: MavenCentral, licenseDetector: LicenseDetector, sourceLocator: SourceLocator)(implicit ec: ExecutionContext) {
 
-  def deploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, maybeReleaseVersion: Option[String] = None,  maybePusherChannelId: Option[String], maybeSourceUri: Option[URI] = None, maybeLicense: Option[String] = None): Future[PackageInfo] = {
+  def deploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, maybeReleaseVersion: Option[String] = None, maybePusherChannelId: Option[String] = None, maybeSourceUri: Option[URI] = None, maybeLicense: Option[String] = None): Future[PackageInfo] = {
     val binTraySubject = "webjars"
     val binTrayRepo = "maven"
 
