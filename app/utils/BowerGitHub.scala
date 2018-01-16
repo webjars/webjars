@@ -1,6 +1,7 @@
 package utils
 
 import java.io.{FileNotFoundException, InputStream}
+import java.net.URI
 import javax.inject.Inject
 
 import org.eclipse.jgit.api.errors.RefNotFoundException

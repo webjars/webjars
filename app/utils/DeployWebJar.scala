@@ -52,7 +52,7 @@ class DeployWebJar @Inject() (git: Git, binTray: BinTray, pusher: Pusher, maven:
       artifactId <- deployable.artifactId(nameOrUrlish)
       mavenBaseDir = groupId.replaceAllLiterally(".", "/")
 
-      releaseVersion = maybeReleaseVersion.getOrElse(packageInfo.version)
+      releaseVersion = deployable.releaseVersion(maybeReleaseVersion, packageInfo)
 
       _ <- webJarNotYetDeployed(groupId, artifactId, releaseVersion)
 
@@ -180,6 +180,7 @@ object DeployWebJar extends App {
 trait Deployable extends WebJarType {
   def groupId(nameOrUrlish: String): Future[String]
   def artifactId(nameOrUrlish: String): Future[String]
+  def releaseVersion(maybeVersion: Option[String], packageInfo: PackageInfo): String = maybeVersion.getOrElse(packageInfo.version).stripPrefix("v")
   def excludes(nameOrUrlish: String, version: String): Future[Set[String]]
   val metadataFile: String
   val contentsInSubdir: Boolean

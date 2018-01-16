@@ -2,7 +2,7 @@ package utils
 
 
 import java.io.{BufferedInputStream, ByteArrayInputStream}
-import java.net.URL
+import java.net.{URI, URL}
 
 import akka.util.Timeout
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
@@ -47,13 +47,13 @@ class BowerGitHubSpec extends PlaySpecification with GlobalApplication {
   }
 
   "name" should {
-    "be the package name" in {
-      val gitHubWithUpperCase = await(bowerGitHub.info("https://github.com/PolymerElements/iron-elements"))
-      gitHubWithUpperCase.name must beEqualTo ("iron-elements")
+    "be the same as the bower.json when using a url" in {
+      val info = await(bowerGitHub.info("https://github.com/PolymerElements/iron-elements"))
+      info.name must beEqualTo ("iron-elements")
     }
-    "be the same case as the bower.json" in {
-      val justName = await(bowerGitHub.info("jQuery"))
-      justName.name must beEqualTo ("jQuery")
+    "be the same as the bower index when using a bower name" in {
+      val info = await(bowerGitHub.info("jQuery"))
+      info.name must beEqualTo ("jQuery")
     }
   }
 
@@ -82,6 +82,12 @@ class BowerGitHubSpec extends PlaySpecification with GlobalApplication {
       artifact must beEqualTo ("jquery")
       version must beEqualTo ("1.0.0")
     }
+    "work with a github short reference and version with a v" in {
+      val (group, artifact, version) = await(bowerGitHub.bowerToMaven("jquery" -> "jquery/jquery#v1.0.0"))
+      group must beEqualTo ("org.webjars.bowergithub.jquery")
+      artifact must beEqualTo ("jquery")
+      version must beEqualTo ("1.0.0")
+    }
     "work with a github url" in {
       val (group, artifact, version) = await(bowerGitHub.bowerToMaven("jquery" -> "https://github.com/jquery/jquery"))
       group must beEqualTo ("org.webjars.bowergithub.jquery")
@@ -90,6 +96,12 @@ class BowerGitHubSpec extends PlaySpecification with GlobalApplication {
     }
     "work with a github url and version" in {
       val (group, artifact, version) = await(bowerGitHub.bowerToMaven("jquery" -> "https://github.com/jquery/jquery#1.0.0"))
+      group must beEqualTo ("org.webjars.bowergithub.jquery")
+      artifact must beEqualTo ("jquery")
+      version must beEqualTo ("1.0.0")
+    }
+    "work with a github url and version with a v" in {
+      val (group, artifact, version) = await(bowerGitHub.bowerToMaven("jquery" -> "https://github.com/jquery/jquery#v1.0.0"))
       group must beEqualTo ("org.webjars.bowergithub.jquery")
       artifact must beEqualTo ("jquery")
       version must beEqualTo ("1.0.0")
@@ -178,6 +190,20 @@ class BowerGitHubSpec extends PlaySpecification with GlobalApplication {
     "contain contents of the ignore section from bower.json" in {
       val excludes = await(bowerGitHub.excludes("vaadin-grid", "4.0.0-alpha5"))
       excludes must contain ("**/.*")
+    }
+  }
+
+  "releaseVersion" should {
+    val packageInfo = PackageInfo("foo", "3.2.1", None, new URI("foo://bar"), None, Seq.empty[String], Map.empty[String, String], Map.empty[String, String])
+
+    "strip the v prefix" in {
+      bowerGitHub.releaseVersion(Some("v1.2.3"), packageInfo) must beEqualTo ("1.2.3")
+    }
+    "leave the version alone if there is no v prefix" in {
+      bowerGitHub.releaseVersion(Some("1.2.3"), packageInfo) must beEqualTo ("1.2.3")
+    }
+    "fallback to the packageInfo when no version is specified" in {
+      bowerGitHub.releaseVersion(None, packageInfo) must beEqualTo ("3.2.1")
     }
   }
 

@@ -92,12 +92,19 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
       }
     }
     else {
-      ws.url(s"$BASE_URL/info/$packageNameOrGitRepo/$version").get().flatMap { response =>
-        response.status match {
-          case Status.OK =>
-            Future.successful(response.json.as[PackageInfo](Bower.jsonReads))
-          case _ =>
-            Future.failed(new Exception(response.body))
+      ws.url(s"$BASE_URL/info/$packageNameOrGitRepo").get().flatMap { versionlessResponse =>
+        // todo: we do this because this is not correct: https://bower-as-a-service.herokuapp.com/info/jQuery/3.2.1
+        // but it should probably be fixed in the bower-as-a-service
+        // since the name returned on `bower info jQuery#3.2.1` is "jQuery"
+        val name = (versionlessResponse.json \ "name").as[String]
+
+        ws.url(s"$BASE_URL/info/$packageNameOrGitRepo/$version").get().flatMap { versionResponse =>
+          versionResponse.status match {
+            case Status.OK =>
+              Future.successful(versionResponse.json.as[PackageInfo](Bower.jsonReads).copy(name = name))
+            case _ =>
+              Future.failed(new Exception(versionResponse.body))
+          }
         }
       }
     }

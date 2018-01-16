@@ -18,7 +18,7 @@
         <url>@sourceUrl</url>
         <connection>@packageInfo.sourceConnectionUri</connection>
         <developerConnection>@packageInfo.sourceConnectionUri</developerConnection>
-        <tag>v@packageInfo.version</tag>
+        <tag>v@releaseVersion</tag>
     </scm>
 
     <developers>
