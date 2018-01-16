@@ -64,6 +64,18 @@ class BowerGitHubSpec extends PlaySpecification with GlobalApplication {
       artifact must beEqualTo ("jquery")
       version must beEqualTo ("1.0.0")
     }
+    "work with a plain name and semver range" in {
+      val (group, artifact, version) = await(bowerGitHub.bowerToMaven("jQuery" -> "^1.0.0"))
+      group must beEqualTo ("org.webjars.bowergithub.jquery")
+      artifact must beEqualTo ("jquery")
+      version must beEqualTo ("[1.0.0,2)")
+    }
+    "work with a plain name and semver range and a v prefix" in {
+      val (group, artifact, version) = await(bowerGitHub.bowerToMaven("jQuery" -> "^v1.0.0"))
+      group must beEqualTo ("org.webjars.bowergithub.jquery")
+      artifact must beEqualTo ("jquery")
+      version must beEqualTo ("[1.0.0,2)")
+    }
     "work with a github short reference" in {
       val (group, artifact, version) = await(bowerGitHub.bowerToMaven("jquery/jquery" -> "1.0.0"))
       group must beEqualTo ("org.webjars.bowergithub.jquery")
