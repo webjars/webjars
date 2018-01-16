@@ -106,6 +106,12 @@ class BowerGitHubSpec extends PlaySpecification with GlobalApplication {
       artifact must beEqualTo ("jquery")
       version must beEqualTo ("1.0.0")
     }
+    "work with semver ranges and a v prefix" in {
+      val (group, artifact, version) = await(bowerGitHub.bowerToMaven("shadycss" -> "webcomponents/shadycss#^v1.1.0"))
+      group must beEqualTo ("org.webjars.bowergithub.webcomponents")
+      artifact must beEqualTo ("shadycss")
+      version must beEqualTo ("[1.1.0,2)")
+    }
   }
 
   "dependencies" should {

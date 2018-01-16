@@ -46,7 +46,7 @@ class BowerGitHub @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDet
 
     if (value.contains("/")) {
       val urlish = value.takeWhile(_ != '#')
-      val version = value.stripPrefix(urlish).stripPrefix("#").stripPrefix("v")
+      val version = value.stripPrefix(urlish).stripPrefix("#").stripPrefix("v").replaceAllLiterally("^v", "^").replaceAllLiterally("~v", "v")
       for {
         groupId <- groupId(urlish)
         artifactId <- artifactId(urlish)
