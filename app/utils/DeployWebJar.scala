@@ -38,7 +38,7 @@ class DeployWebJar @Inject() (git: Git, binTray: BinTray, pusher: Pusher, maven:
     }
 
     def webJarNotYetDeployed(groupId: String, artifactId: String, version: String): Future[Unit] = {
-      mavenCentral.getPom(groupId, artifactId, version).flatMap { elem =>
+      mavenCentral.fetchPom(groupId, artifactId, version, Some("https://oss.sonatype.org/content/repositories/release")).flatMap { elem =>
         Future.failed(new IllegalStateException(s"WebJar $groupId $artifactId $version has already been deployed"))
       } recoverWith {
         case _: FileNotFoundException =>

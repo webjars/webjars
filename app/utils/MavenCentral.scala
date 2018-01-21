@@ -198,9 +198,10 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
     Future.foldLeft(allWebJarsFutures)(List.empty[WebJar])(_ ++ _)
   }
 
-  private def fetchPom(groupId: String, artifactId: String, version: String): Future[Elem] = {
+  def fetchPom(groupId: String, artifactId: String, version: String, maybeUrlPrefix: Option[String] = None): Future[Elem] = {
     val groupIdPath = groupId.replace(".", "/")
-    val url = s"http://repo1.maven.org/maven2/$groupIdPath/$artifactId/$version/$artifactId-$version.pom"
+    val urlPrefix = maybeUrlPrefix.getOrElse("http://repo1.maven.org/maven2")
+    val url = s"$urlPrefix/$groupIdPath/$artifactId/$version/$artifactId-$version.pom"
     wsClient.url(url).get().flatMap { response =>
       response.status match {
         case Status.OK =>
