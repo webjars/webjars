@@ -16,7 +16,7 @@ import scala.util.Try
 
 class DeployWebJar @Inject() (git: Git, binTray: BinTray, pusher: Pusher, maven: Maven, mavenCentral: MavenCentral, licenseDetector: LicenseDetector, sourceLocator: SourceLocator)(implicit ec: ExecutionContext) {
 
-  def deploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, maybeReleaseVersion: Option[String] = None,  maybePusherChannelId: Option[String], maybeSourceUri: Option[URI] = None, maybeLicense: Option[String] = None): Future[PackageInfo] = {
+  def deploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, maybeReleaseVersion: Option[String] = None, maybePusherChannelId: Option[String] = None, maybeSourceUri: Option[URI] = None, maybeLicense: Option[String] = None): Future[PackageInfo] = {
     val binTraySubject = "webjars"
     val binTrayRepo = "maven"
 
@@ -48,20 +48,21 @@ class DeployWebJar @Inject() (git: Git, binTray: BinTray, pusher: Pusher, maven:
 
     val deployFuture = for {
       packageInfo <- deployable.info(nameOrUrlish, Some(upstreamVersion), maybeSourceUri)
-      groupId <- deployable.groupId(packageInfo).fold(Future.failed[String](new Exception("Could not determine groupId")))(Future.successful)
-      artifactId <- deployable.artifactId(nameOrUrlish, packageInfo)
-      mavenBaseDir <- deployable.mavenBaseDir(packageInfo).fold(Future.failed[String](new Exception("Could not determine mavenBaseDir")))(Future.successful)
+      groupId <- deployable.groupId(nameOrUrlish)
+      artifactId <- deployable.artifactId(nameOrUrlish)
+      mavenBaseDir = groupId.replaceAllLiterally(".", "/")
 
-      releaseVersion = maybeReleaseVersion.getOrElse(packageInfo.version)
+      releaseVersion = deployable.releaseVersion(maybeReleaseVersion, packageInfo)
 
       _ <- webJarNotYetDeployed(groupId, artifactId, releaseVersion)
 
       _ <- push("update", s"Deploying $groupId $artifactId $releaseVersion")
       licenses <- licenses(packageInfo, upstreamVersion)
+
       _ <- push("update", "Resolved Licenses")
-      mavenDependencies <- maven.convertNpmBowerDependenciesToMaven(packageInfo.dependencies)
+      mavenDependencies <- deployable.mavenDependencies(packageInfo.dependencies)
       _ <- push("update", "Converted dependencies to Maven")
-      optionalMavenDependencies <- maven.convertNpmBowerDependenciesToMaven(packageInfo.optionalDependencies)
+      optionalMavenDependencies <- deployable.mavenDependencies(packageInfo.optionalDependencies)
       _ <- push("update", "Converted optional dependencies to Maven")
       sourceUrl <- sourceLocator.sourceUrl(packageInfo.sourceConnectionUri)
       _ <- push("update", s"Got the source URL: $sourceUrl")
@@ -69,7 +70,11 @@ class DeployWebJar @Inject() (git: Git, binTray: BinTray, pusher: Pusher, maven:
       _ <- push("update", "Generated POM")
       zip <- deployable.archive(nameOrUrlish, upstreamVersion)
       _ <- push("update", s"Fetched ${deployable.name} zip")
-      jar = WebJarCreator.createWebJar(zip, deployable.contentsInSubdir, deployable.excludes, pom, groupId, artifactId, releaseVersion)
+
+      excludes <- deployable.excludes(nameOrUrlish, upstreamVersion)
+
+      jar = WebJarCreator.createWebJar(zip, deployable.contentsInSubdir, excludes, pom, groupId, artifactId, releaseVersion, deployable.pathPrefix(packageInfo))
+
       _ <- push("update", s"Created ${deployable.name} WebJar")
 
       packageName = s"$groupId:$artifactId"
@@ -156,8 +161,9 @@ object DeployWebJar extends App {
 
     val npm = app.injector.instanceOf[NPM]
     val bower = app.injector.instanceOf[Bower]
+    val bowerGitHub = app.injector.instanceOf[BowerGitHub]
 
-    val allDeployables = Set(npm, bower)
+    val allDeployables = Set(npm, bower, bowerGitHub)
 
     val deployFuture = WebJarType.fromString(webJarType, allDeployables).fold[Future[_]] {
       Future.failed(new Exception(s"Specified WebJar type '$webJarType' can not be deployed"))
@@ -172,12 +178,14 @@ object DeployWebJar extends App {
 }
 
 trait Deployable extends WebJarType {
-  def groupId(packageInfo: PackageInfo): Option[String]
-  def artifactId(nameOrUrlish: String, packageInfo: PackageInfo): Future[String]
-  val excludes: Set[String]
+  def groupId(nameOrUrlish: String): Future[String]
+  def artifactId(nameOrUrlish: String): Future[String]
+  def releaseVersion(maybeVersion: Option[String], packageInfo: PackageInfo): String = maybeVersion.getOrElse(packageInfo.version).stripPrefix("v")
+  def excludes(nameOrUrlish: String, version: String): Future[Set[String]]
   val metadataFile: String
   val contentsInSubdir: Boolean
-  def mavenBaseDir(packageInfo: PackageInfo): Option[String] = groupId(packageInfo).map(_.replaceAllLiterally(".", "/"))
+  def pathPrefix(packageInfo: PackageInfo): String
   def info(nameOrUrlish: String, maybeVersion: Option[String], maybeSourceUri: Option[URI]): Future[PackageInfo]
+  def mavenDependencies(dependencies: Map[String, String]): Future[Set[(String, String, String)]]
   def archive(nameOrUrlish: String, version: String): Future[InputStream]
 }

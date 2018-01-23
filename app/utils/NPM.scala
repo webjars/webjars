@@ -14,7 +14,7 @@ import utils.PackageInfo._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
-class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, gitHub: GitHub)(implicit ec: ExecutionContext) extends Deployable {
+class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, gitHub: GitHub, maven: Maven)(implicit ec: ExecutionContext) extends Deployable {
 
   val BASE_URL = "http://registry.npmjs.org"
 
@@ -22,17 +22,24 @@ class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, g
 
   override val groupIdQuery: String = "org.webjars.npm"
 
-  override def includesGroupId(groupId: String): Boolean = groupId.equalsIgnoreCase("org.webjars.npm")
+  override def includesGroupId(groupId: String): Boolean = groupId.equalsIgnoreCase(groupIdQuery)
 
-  override def groupId(packageInfo: PackageInfo) = Some("org.webjars.npm")
+  override def groupId(nameOrUrlish: String): Future[String] = Future.successful(groupIdQuery)
 
-  override def artifactId(nameOrUrlish: String, packageInfo: PackageInfo): Future[String] = git.artifactId(nameOrUrlish)
+  override def artifactId(nameOrUrlish: String): Future[String] = git.artifactId(nameOrUrlish)
 
-  override val excludes: Set[String] = Set("node_modules")
+  override def excludes(nameOrUrlish: String, version: String): Future[Set[String]] = {
+    // todo: apply npm ignore in case of git repo
+    Future.successful(Set("node_modules"))
+  }
 
   override val metadataFile: String = "package.json"
 
   override val contentsInSubdir: Boolean = true
+
+  override def pathPrefix(packageInfo: PackageInfo): String = {
+    s"$groupIdQuery/${packageInfo.name}/${packageInfo.version}/"
+  }
 
   // a whole lot of WTF
   private def registryMetadataUrl(packageName: String, maybeVersion: Option[String] = None): String = {
@@ -202,6 +209,15 @@ class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, g
             }
         }
       }
+    }
+  }
+
+  override def mavenDependencies(dependencies: Map[String, String]): Future[Set[(String, String, String)]] = {
+    maven.convertNpmBowerDependenciesToMaven(dependencies).map { mavenDependencies =>
+      mavenDependencies.map {
+        case (artifactId, version) =>
+          ("org.webjars.npm", artifactId, version)
+      }.toSet
     }
   }
 

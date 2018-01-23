@@ -14,7 +14,7 @@ import utils.PackageInfo._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
-class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, gitHub: GitHub) (implicit ec: ExecutionContext) extends Deployable {
+class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, gitHub: GitHub, maven: Maven) (implicit ec: ExecutionContext) extends Deployable {
 
   val BASE_URL = "https://bower-as-a-service.herokuapp.com"
 
@@ -22,17 +22,24 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
 
   override val groupIdQuery: String = "org.webjars.bower"
 
-  override def includesGroupId(groupId: String): Boolean = groupId.equalsIgnoreCase("org.webjars.bower")
+  override def includesGroupId(groupId: String): Boolean = groupId.equalsIgnoreCase(groupIdQuery)
 
-  override def groupId(packageInfo: PackageInfo): Option[String] = Some("org.webjars.bower")
+  override def groupId(nameOrUrlish: String): Future[String] = Future.successful(groupIdQuery)
 
-  override def artifactId(nameOrUrlish: String, packageInfo: PackageInfo): Future[String] = git.artifactId(nameOrUrlish)
+  override def artifactId(nameOrUrlish: String): Future[String] = git.artifactId(nameOrUrlish)
 
-  override val excludes: Set[String] = Set(".bower.json")
+  override def excludes(nameOrUrlish: String, version: String): Future[Set[String]] = {
+    // todo: apply bower ignore in case of git repo
+    Future.successful(Set(".bower.json"))
+  }
 
   override val metadataFile: String = "bower.json"
 
   override val contentsInSubdir: Boolean = false
+
+  override def pathPrefix(packageInfo: PackageInfo): String = {
+    s"$groupIdQuery/${packageInfo.name}/${packageInfo.version}/"
+  }
 
   def versions(packageNameOrGitRepo: String): Future[Seq[String]] = {
     if (git.isGit(packageNameOrGitRepo)) {
@@ -85,12 +92,19 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
       }
     }
     else {
-      ws.url(s"$BASE_URL/info/$packageNameOrGitRepo/$version").get().flatMap { response =>
-        response.status match {
-          case Status.OK =>
-            Future.successful(response.json.as[PackageInfo](Bower.jsonReads))
-          case _ =>
-            Future.failed(new Exception(response.body))
+      ws.url(s"$BASE_URL/info/$packageNameOrGitRepo").get().flatMap { versionlessResponse =>
+        // todo: we do this because this is not correct: https://bower-as-a-service.herokuapp.com/info/jQuery/3.2.1
+        // but it should probably be fixed in the bower-as-a-service
+        // since the name returned on `bower info jQuery#3.2.1` is "jQuery"
+        val name = (versionlessResponse.json \ "name").as[String]
+
+        ws.url(s"$BASE_URL/info/$packageNameOrGitRepo/$version").get().flatMap { versionResponse =>
+          versionResponse.status match {
+            case Status.OK =>
+              Future.successful(versionResponse.json.as[PackageInfo](Bower.jsonReads).copy(name = name))
+            case _ =>
+              Future.failed(new Exception(versionResponse.body))
+          }
         }
       }
     }
@@ -137,6 +151,38 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
     }
   }
 
+  override def mavenDependencies(dependencies: Map[String, String]): Future[Set[(String, String, String)]] = {
+    maven.convertNpmBowerDependenciesToMaven(dependencies).map { mavenDependencies =>
+      mavenDependencies.map {
+        case (artifactId, version) =>
+          ("org.webjars.bower", artifactId, version)
+      }.toSet
+    }
+  }
+
+  def lookup(packageNameOrGitRepo: String): Future[URL] = {
+    val urlTry = Try {
+      val maybeUrl = if (packageNameOrGitRepo.contains("/") && !packageNameOrGitRepo.contains(":")) {
+        s"https://github.com/$packageNameOrGitRepo"
+      }
+      else {
+        packageNameOrGitRepo
+      }
+      new URL(maybeUrl)
+    }
+
+    Future.fromTry(urlTry.flatMap(GitHub.gitHubUrl)).recoverWith {
+      case _ =>
+        ws.url(s"$BASE_URL/lookup/$packageNameOrGitRepo").get().flatMap { response =>
+          response.status match {
+            case Status.OK =>
+              Future.fromTry(Try((response.json \ "url").as[URL]).flatMap(GitHub.gitHubUrl))
+            case _ =>
+              Future.failed(new Exception(response.body))
+          }
+        }
+    }
+  }
 }
 
 object Bower {

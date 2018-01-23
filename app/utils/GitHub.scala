@@ -143,6 +143,8 @@ object GitHub {
 
   def gitHubIssuesUrl(uri: URI): Try[URL] = gitHubUrl(uri).flatMap(gitHubIssuesUrl)
 
+  def maybeGitHubOrg(maybeGitHubUrl: Option[URL]) = maybeGitHubUrl.map(_.getPath.split("/")(1))
+  def maybeGitHubRepo(maybeGitHubUrl: Option[URL]) = maybeGitHubUrl.map(_.getPath.split("/")(2).stripSuffix(".git"))
 }
 
 case class UnauthorizedError(message: String) extends Exception {

@@ -35,6 +35,7 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
   lazy val ossUsername = configuration.get[String]("oss.username")
   lazy val ossPassword = configuration.get[String]("oss.password")
   lazy val ossProject = configuration.get[String]("oss.project")
+  lazy val disableDeploy = configuration.getOptional[Boolean]("oss.disable-deploy").getOrElse(false)
 
   def fetchWebJarNameAndUrl(groupId: String, artifactId: String, version: String): Future[(String, String)] = {
     getPom(groupId, artifactId, version).flatMap { xml =>

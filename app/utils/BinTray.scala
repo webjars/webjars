@@ -155,15 +155,20 @@ class BinTray @Inject() (ws: WSClient, config: Configuration, git: Git, licenseD
 
   def syncToMavenCentral(subject: String, repo: String, packageName: String, version:String): Future[JsValue] = {
 
-    val json = Json.obj(
-      "username" -> mavenCentral.ossUsername,
-      "password" -> mavenCentral.ossPassword
-    )
+    if (mavenCentral.disableDeploy) {
+      Future.failed(new Exception("Deployment to Maven Central Disabled"))
+    }
+    else {
+      val json = Json.obj(
+        "username" -> mavenCentral.ossUsername,
+        "password" -> mavenCentral.ossPassword
+      )
 
-    ws(s"/maven_central_sync/$subject/$repo/$packageName/versions/$version").withRequestTimeout(5.minutes).post(json).flatMap { response =>
-      response.status match {
-        case Status.OK => Future.successful(response.json)
-        case _ => Future.failed(new Exception(error(response)))
+      ws(s"/maven_central_sync/$subject/$repo/$packageName/versions/$version").withRequestTimeout(5.minutes).post(json).flatMap { response =>
+        response.status match {
+          case Status.OK => Future.successful(response.json)
+          case _ => Future.failed(new Exception(error(response)))
+        }
       }
     }
   }
