@@ -4,7 +4,9 @@ import java.io.FileNotFoundException
 import java.util.concurrent.TimeoutException
 import javax.inject.Inject
 
+import akka.NotUsed
 import akka.actor.ActorSystem
+import akka.stream.scaladsl.Source
 import models.{WebJar, WebJarType}
 import org.joda.time.DateTime
 import play.api.data.Forms._
@@ -334,17 +336,30 @@ class Application @Inject() (gitHub: GitHub, heroku: Heroku, pusher: Pusher, cac
     )
   }
 
-  private def deploy(deployable: Deployable, nameOrUrlish: String, version: String, maybeChannelId: Option[String]): Future[JsValue] = {
+  private def deploy(deployable: Deployable, nameOrUrlish: String, version: String, maybeChannelId: Option[String]): Future[Either[JsValue, Source[String, NotUsed]]] = {
     val fork = configuration.getOptional[Boolean]("deploy.fork").getOrElse(false)
 
     if (fork) {
       val app = configuration.get[String]("deploy.herokuapp")
       val channelIdParam = maybeChannelId.getOrElse("")
       val cmd = s"deploy ${WebJarType.toString(deployable)} $nameOrUrlish $version " + channelIdParam
-      heroku.dynoCreate(app, false, cmd, "Standard-2X")
+      heroku.dynoCreate(app, maybeChannelId.isEmpty, cmd, "Standard-2X")
     }
     else {
-      deployWebJar.deploy(deployable, nameOrUrlish, version, None, maybeChannelId).map(Json.toJson(_))
+      deployWebJar.deploy(deployable, nameOrUrlish, version, None, maybeChannelId).map { packageInfo =>
+        Left(Json.toJson(packageInfo))
+      }
+    }
+  }
+
+  implicit class DeployConverters(deploy: Future[Either[JsValue, Source[String, NotUsed]]]) {
+    def toResult: Future[Result] = {
+      deploy.map {
+        case Left(jsValue) => Ok(jsValue)
+        case Right(source) => Ok.chunked(source)
+      } recover {
+        case e: Exception => InternalServerError(e.getMessage)
+      }
     }
   }
 
@@ -354,22 +369,16 @@ class Application @Inject() (gitHub: GitHub, heroku: Heroku, pusher: Pusher, cac
     WebJarType.fromString(webJarType, allDeployables).fold {
       Future.successful(BadRequest(s"Specified WebJar type '$webJarType' can not be deployed"))
     } { deployable =>
-      deploy(deployable, nameOrUrlish, version, None).map(Ok(_)).recover {
-        case e: Exception => InternalServerError(e.getMessage)
-      }
+      deploy(deployable, nameOrUrlish, version, None).toResult
     }
   }
 
   def deployBower(nameOrUrlish: String, version: String, maybeChannelId: Option[String]) = Action.async {
-    deploy(bower, nameOrUrlish, version, maybeChannelId).map(Ok(_)).recover {
-      case e: Exception => InternalServerError(e.getMessage)
-    }
+    deploy(bower, nameOrUrlish, version, maybeChannelId).toResult
   }
 
   def deployNPM(nameOrUrlish: String, version: String, maybeChannelId: Option[String]) = Action.async {
-    deploy(npm, nameOrUrlish, version, maybeChannelId).map(Ok(_)).recover {
-      case e: Exception => InternalServerError(e.getMessage)
-    }
+    deploy(npm, nameOrUrlish, version, maybeChannelId).toResult
   }
 
   def gitHubAuthorize = Action { implicit request =>
