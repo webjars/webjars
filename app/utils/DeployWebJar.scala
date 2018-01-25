@@ -73,7 +73,9 @@ class DeployWebJar @Inject() (git: Git, binTray: BinTray, pusher: Pusher, maven:
 
       excludes <- deployable.excludes(nameOrUrlish, upstreamVersion)
 
-      jar = WebJarCreator.createWebJar(zip, deployable.contentsInSubdir, excludes, pom, groupId, artifactId, releaseVersion, deployable.pathPrefix(packageInfo))
+      pathPrefix <- deployable.pathPrefix(nameOrUrlish, releaseVersion, packageInfo)
+
+      jar = WebJarCreator.createWebJar(zip, deployable.contentsInSubdir, excludes, pom, groupId, artifactId, releaseVersion, pathPrefix)
 
       _ <- push("update", s"Created ${deployable.name} WebJar")
 
@@ -184,7 +186,7 @@ trait Deployable extends WebJarType {
   def excludes(nameOrUrlish: String, version: String): Future[Set[String]]
   val metadataFile: String
   val contentsInSubdir: Boolean
-  def pathPrefix(packageInfo: PackageInfo): String
+  def pathPrefix(nameOrUrlish: String, releaseVersion: String, packageInfo: PackageInfo): Future[String]
   def info(nameOrUrlish: String, maybeVersion: Option[String], maybeSourceUri: Option[URI]): Future[PackageInfo]
   def mavenDependencies(dependencies: Map[String, String]): Future[Set[(String, String, String)]]
   def archive(nameOrUrlish: String, version: String): Future[InputStream]

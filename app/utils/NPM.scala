@@ -37,8 +37,10 @@ class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, g
 
   override val contentsInSubdir: Boolean = true
 
-  override def pathPrefix(packageInfo: PackageInfo): String = {
-    s"$groupIdQuery/${packageInfo.name}/${packageInfo.version}/"
+  override def pathPrefix(nameOrUrlish: String, releaseVersion: String, packageInfo: PackageInfo): Future[String] = {
+    artifactId(nameOrUrlish).map { artifactId =>
+      s"$artifactId/$releaseVersion/"
+    }
   }
 
   // a whole lot of WTF

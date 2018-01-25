@@ -20,21 +20,6 @@ class LicenseDetectorSpec extends PlaySpecification with GlobalApplication {
   lazy val npm: NPM = application.injector.instanceOf[NPM]
   lazy val bower: Bower = application.injector.instanceOf[Bower]
 
-  val deployable = new Deployable {
-    override def groupId(nameOrUrlish: String): Future[String] = ???
-    override def archive(nameOrUrlish: String, version: String): Future[InputStream] = ???
-    override def artifactId(nameOrUrlish: String): Future[String] = ???
-    override def info(nameOrUrlish: String, maybeVersion: Option[String], maybeSourceUri: Option[URI]): Future[PackageInfo] = ???
-    override def excludes(nameOrUrlish: String, version: String): Future[Set[String]] = ???
-    override lazy val metadataFile: String = "foo.json"
-    override lazy val contentsInSubdir: Boolean = ???
-    override def includesGroupId(groupId: String): Boolean = ???
-    override lazy val groupIdQuery: String = ???
-    override lazy val name: String = ???
-    override def mavenDependencies(dependencies: Map[String, String]): Future[Set[(String, String, String)]] = ???
-    override def pathPrefix(packageInfo: PackageInfo): String = ???
-  }
-
   def emptyPackageInfo(licenses: Seq[String]) = PackageInfo("", "", None, new URI("http://webjars.org"), None, licenses, Map.empty[String, String], Map.empty[String, String])
 
   "gitHubLicenseDetect" should {
@@ -52,41 +37,41 @@ class LicenseDetectorSpec extends PlaySpecification with GlobalApplication {
   "resolveLicenses" should {
     "convert licenses to accepted ones" in {
       val licenses = Seq("BSD 2-Clause", "BSD-2-Clause", "bsd2clause", "GPLv2", "GPLv3", "MIT/X11")
-      val result = await(licenseDetector.resolveLicenses(deployable, emptyPackageInfo(licenses)))
+      val result = await(licenseDetector.resolveLicenses(DeployableMock(), emptyPackageInfo(licenses)))
       result must be equalTo Set("GPL-2.0", "BSD 2-Clause", "GPL-3.0", "MIT")
     }
     "convert SPDX to BinTray" in {
       val licenses = Seq("OFL-1.1")
-      val result = await(licenseDetector.resolveLicenses(deployable, emptyPackageInfo(licenses)))
+      val result = await(licenseDetector.resolveLicenses(DeployableMock(), emptyPackageInfo(licenses)))
       result must be equalTo Set("Openfont-1.1")
     }
     "convert raw license URL to license" in {
       val licenses = Seq("http://polymer.github.io/LICENSE.txt")
-      val result = await(licenseDetector.resolveLicenses(deployable, emptyPackageInfo(licenses)))
+      val result = await(licenseDetector.resolveLicenses(DeployableMock(), emptyPackageInfo(licenses)))
       result must be equalTo Set("BSD 3-Clause")
     }
     "convert github license URL to license" in {
       val licenses = Seq("https://github.com/facebook/flux/blob/master/LICENSE")
-      val result = await(licenseDetector.resolveLicenses(deployable, emptyPackageInfo(licenses)))
+      val result = await(licenseDetector.resolveLicenses(DeployableMock(), emptyPackageInfo(licenses)))
       result must be equalTo Set("BSD 3-Clause")
     }
     "fail to convert incompatible licenses" in {
-      await(licenseDetector.resolveLicenses(deployable, emptyPackageInfo(Seq("foo")))) must throwA[Exception]
+      await(licenseDetector.resolveLicenses(DeployableMock(), emptyPackageInfo(Seq("foo")))) must throwA[Exception]
     }
     "fail on license conversion if no valid licenses are found" in {
-      await(licenseDetector.resolveLicenses(deployable, emptyPackageInfo(Seq()))) must throwA[Exception]
+      await(licenseDetector.resolveLicenses(DeployableMock(), emptyPackageInfo(Seq()))) must throwA[Exception]
     }
     "succeed with at least one valid license" in {
-      val licenses = await(licenseDetector.resolveLicenses(deployable, emptyPackageInfo(Seq("foo", "MIT"))))
+      val licenses = await(licenseDetector.resolveLicenses(DeployableMock(), emptyPackageInfo(Seq("foo", "MIT"))))
       licenses must be equalTo Set("MIT")
     }
     "work with SPDX OR expressions" in {
-      val licenses = await(licenseDetector.resolveLicenses(deployable, emptyPackageInfo(Seq("(Apache-2.0 OR MIT)"))))
+      val licenses = await(licenseDetector.resolveLicenses(DeployableMock(), emptyPackageInfo(Seq("(Apache-2.0 OR MIT)"))))
       licenses must be equalTo Set("Apache-2.0", "MIT")
     }
     "work with SPDX 'SEE LICENSE IN LICENSE' expressions" in {
       val testPackageInfo = emptyPackageInfo(Seq("SEE LICENSE IN LICENSE")).copy(sourceConnectionUri = new URI("git://github.com/stacktracejs/error-stack-parser.git"))
-      val licenses = await(licenseDetector.resolveLicenses(deployable, testPackageInfo))
+      val licenses = await(licenseDetector.resolveLicenses(DeployableMock(), testPackageInfo))
       licenses must be equalTo Set("MIT")
     }
     "be able to be fetched from git repos" in {
@@ -158,7 +143,7 @@ class LicenseDetectorSpec extends PlaySpecification with GlobalApplication {
   "New BSD License" should {
     "resolve to BSD 3-Clause" in {
       val licenses = Seq("New BSD License")
-      val result = await(licenseDetector.resolveLicenses(deployable, emptyPackageInfo(licenses)))
+      val result = await(licenseDetector.resolveLicenses(DeployableMock(), emptyPackageInfo(licenses)))
       result must be equalTo Set("BSD 3-Clause")
     }
   }

@@ -77,8 +77,8 @@ class BowerGitHub @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDet
     }
   }
 
-  override def pathPrefix(packageInfo: PackageInfo): String = {
-    s"${packageInfo.name}/"
+  override def pathPrefix(nameOrUrlish: String, releaseVersion: String, packageInfo: PackageInfo): Future[String] = {
+    Future.successful(s"${packageInfo.name}/")
   }
 
   override def excludes(nameOrUrlish: String, version: String): Future[Set[String]] = {

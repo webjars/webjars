@@ -155,4 +155,12 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
     }
   }
 
+  "pathPrefix" should {
+    "be in the form artifactid/releaseVersion" in {
+      val packageInfo = await(bower.info("bootstrap", Some("3.3.2")))
+      val pathPrefix = await(bower.pathPrefix("foobar", "1.2.3", packageInfo))
+      pathPrefix must beEqualTo ("foobar/1.2.3/")
+    }
+  }
+
 }

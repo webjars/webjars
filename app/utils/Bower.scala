@@ -37,8 +37,10 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
 
   override val contentsInSubdir: Boolean = false
 
-  override def pathPrefix(packageInfo: PackageInfo): String = {
-    s"$groupIdQuery/${packageInfo.name}/${packageInfo.version}/"
+  override def pathPrefix(nameOrUrlish: String, releaseVersion: String, packageInfo: PackageInfo): Future[String] = {
+    artifactId(nameOrUrlish).map { artifactId =>
+      s"$artifactId/$releaseVersion/"
+    }
   }
 
   def versions(packageNameOrGitRepo: String): Future[Seq[String]] = {
