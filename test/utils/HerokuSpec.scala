@@ -6,6 +6,8 @@ import play.api.Configuration
 import play.api.libs.json.JsValue
 import play.api.test._
 
+import scala.util.Try
+
 
 class HerokuSpec extends PlaySpecification with GlobalApplication {
 
@@ -16,15 +18,22 @@ class HerokuSpec extends PlaySpecification with GlobalApplication {
   lazy val app = configuration.get[String]("deploy.herokuapp")
 
   "dynoCreate" should {
-    "return json when attach is false" in {
-      await(heroku.dynoCreate(app, false, "echo test", "Standard-2X")) must beLeft[JsValue]
+    if (Try(heroku.apikey).isSuccess) {
+      "return json when attach is false" in {
+        await(heroku.dynoCreate(app, false, "echo test", "Standard-2X")) must beLeft[JsValue]
+      }
+      "return a stream when attach is true" in {
+        val deploy = await(heroku.dynoCreate(app, true, "echo test", "Standard-2X"))
+        deploy must beRight
+        val source = deploy.toOption.get
+        val output = await(source.runReduce(_ + _))
+        output must beEqualTo("test")
+      }
     }
-    "return a stream when attach is true" in {
-      val deploy = await(heroku.dynoCreate(app, true, "echo test", "Standard-2X"))
-      deploy must beRight
-      val source = deploy.toOption.get
-      val output = await(source.runReduce(_ + _))
-      output must beEqualTo ("test")
+    else {
+      "Heroku Config Not Set" in {
+        skipped
+      }
     }
   }
 
