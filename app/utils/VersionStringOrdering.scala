@@ -4,7 +4,7 @@ import java.util.Calendar
 
 import scala.util.Try
 
-object VersionOrdering extends Ordering[String] {
+object VersionStringOrdering extends Ordering[String] {
 
   def unmalform(versionString: String): String = {
     val noPlus = { s: String => s.replaceAllLiterally("+", "-") }

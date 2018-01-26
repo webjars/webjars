@@ -1,7 +1,7 @@
 import models.WebJarVersion
 import models.WebJarVersion.WebJarVersionOrdering
 import org.specs2.mutable._
-import utils.VersionOrdering
+import utils.VersionStringOrdering
 
 import scala.util.Random
 
@@ -10,8 +10,8 @@ class WebJarVersionOrderingSpec extends Specification {
   "WebJarVersionOrdering" should {
 
     "deal with malformed version" in {
-      VersionOrdering.unmalform("0rc1") must beEqualTo("0.rc.1")
-      VersionOrdering.unmalform("0beta1") must beEqualTo("0.beta.1")
+      VersionStringOrdering.unmalform("0rc1") must beEqualTo("0.rc.1")
+      VersionStringOrdering.unmalform("0beta1") must beEqualTo("0.beta.1")
     }
 
     "sort in the correct order" in {

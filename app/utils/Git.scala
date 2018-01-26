@@ -103,7 +103,7 @@ class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
             .setTags(true)
             .call()
 
-          tags.asScala.map(_.getName.stripPrefix("refs/tags/")).toSeq.sorted(VersionOrdering).reverse
+          tags.asScala.map(_.getName.stripPrefix("refs/tags/")).toSeq.sorted(VersionStringOrdering).reverse
         }
       }
     }
