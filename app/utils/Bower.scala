@@ -5,6 +5,7 @@ import java.net.{URI, URL, URLEncoder}
 import javax.inject.Inject
 
 import play.api.http.Status
+import play.api.libs.concurrent.Futures
 import play.api.libs.functional.syntax._
 import play.api.libs.json.Reads._
 import play.api.libs.json._
@@ -14,7 +15,7 @@ import utils.PackageInfo._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
-class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, gitHub: GitHub, maven: Maven) (implicit ec: ExecutionContext) extends Deployable {
+class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, gitHub: GitHub, maven: Maven) (implicit ec: ExecutionContext, futures: Futures) extends Deployable {
 
   import Bower._
 
@@ -43,6 +44,36 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
     artifactId(nameOrUrlish).map { artifactId =>
       s"$artifactId/$releaseVersion/"
     }
+  }
+
+  def parseBowerDep(nameAndVersionish: (String, String)): (String, String) = {
+    val (name, versionish) = nameAndVersionish
+
+    if (versionish.contains("/")) {
+      val urlish = versionish.takeWhile(_ != '#')
+      val version = versionish.stripPrefix(urlish).stripPrefix("#").vless
+
+      urlish -> version
+    }
+    else {
+      name -> versionish.vless
+    }
+  }
+
+  def bowerToMaven(keyValue: (String, String)): Future[(String, String, String)] = {
+    val (name, version) = parseBowerDep(keyValue)
+
+    def convertSemVerToMaven(version: String): Future[String] = {
+      SemVer.convertSemVerToMaven(version).fold {
+        Future.failed[String](new Exception(s"Could not convert version '$version' to Maven form"))
+      } (Future.successful)
+    }
+
+    for {
+      groupId <- groupId(name)
+      artifactId <- artifactId(name)
+      version <- convertSemVerToMaven(version)
+    } yield (groupId, artifactId, version)
   }
 
   def versions(packageNameOrGitRepo: String): Future[Seq[String]] = {
@@ -78,21 +109,49 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
   def rawInfo(packageNameOrGitRepo: String, version: String): Future[PackageInfo] = {
     if (git.isGit(packageNameOrGitRepo)) {
       git.gitUrl(packageNameOrGitRepo).flatMap { gitUrl =>
-        git.file(gitUrl, Some(version), "bower.json").map { bowerJson =>
-          // add the gitUrl into the json since it is not in the file, just the json served by the Bower index
-          val json = Json.parse(bowerJson).as[JsObject] + ("_source" -> JsString(gitUrl))
 
-          val jsonWithCorrectVersion = (json \ "version").asOpt[String].fold {
-            // the version was not in the json so add the specified version
-            json + ("version" -> JsString(version.vless))
-          } { _ =>
-            // todo: resolve conflicts?
-            // for now just use the version from the json
-            json
+        def parseBowerJson(bowerJson: String): Future[PackageInfo] = {
+          Future.fromTry {
+            Try {
+              // add the gitUrl into the json since it is not in the file, just the json served by the Bower index
+              val json = Json.parse(bowerJson).as[JsObject] + ("_source" -> JsString(gitUrl))
+
+              val jsonWithCorrectVersion = (json \ "version").asOpt[String].fold {
+                // the version was not in the json so add the specified version
+                json + ("version" -> JsString(version.vless))
+              } { _ =>
+                // todo: resolve conflicts?
+                // for now just use the version from the json
+                json
+              }
+
+              jsonWithCorrectVersion.as[PackageInfo].copy(version = version.vless) // ignore the version in the bower.json
+            }
           }
-
-          jsonWithCorrectVersion.as[PackageInfo].copy(version = version.vless) // ignore the version in the bower.json
         }
+
+        GitHub.gitHubUrl(gitUrl).fold({ _ =>
+          git.file(gitUrl, Some(version), "bower.json").flatMap(parseBowerJson)
+        }, { gitHubUrl =>
+          gitHub.currentUrls(gitHubUrl).flatMap { case (homepage, sourceConnectionUri, issuesUrl) =>
+            gitHub.raw(homepage, version, "bower.json").flatMap(parseBowerJson).map { packageInfo =>
+              packageInfo.copy(
+                maybeHomepageUrl = Some(homepage),
+                sourceConnectionUri = sourceConnectionUri,
+                maybeIssuesUrl = Some(issuesUrl)
+              )
+            } recoverWith {
+              case e =>
+                GitHub.maybeGitHubRepo(Some(gitHubUrl)).fold {
+                  Future.failed[PackageInfo](new Exception(s"Could not determine GitHub repo name: $gitHubUrl"))
+                } { repo =>
+                  Future.successful {
+                    PackageInfo(repo, version.vless, Some(homepage), sourceConnectionUri, Some(issuesUrl), Seq.empty[String], Map.empty[String, String], Map.empty[String, String])
+                  }
+                }
+            }
+          }
+        })
       }
     }
     else {
@@ -125,6 +184,7 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
 
     versionFuture.flatMap { version =>
       rawInfo(packageNameOrGitRepo, version).flatMap { initialInfo =>
+
         initialInfo.maybeGitHubUrl.fold(Future.successful(initialInfo)) { gitHubUrl =>
           gitHub.currentUrls(gitHubUrl).map {
             case (homepage, sourceConnectionUri, issuesUrl) =>
@@ -187,6 +247,45 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
         }
     }
   }
+
+  def latestDep(dep: (String, String)): Future[(String, String)] = {
+    val (packageName, versionish) = parseBowerDep(dep)
+
+    versions(packageName).flatMap { availableVersions =>
+      val versionRange = SemVer.parseSemVerRange(versionish)
+      SemVer.latestInRange(versionRange, availableVersions.toSet).fold {
+        Future.failed[(String, String)](new Exception("Could not find a valid version in the provided range"))
+      } { version =>
+        Future.successful(packageName -> version)
+      }
+    }
+  }
+
+  def depResolver(unresolvedDeps: Map[String, String], resolvedDeps: Map[String, String]): Future[(Map[String, String], Map[String, String])] = {
+
+    val packagesToResolve = unresolvedDeps.filterKeys(!resolvedDeps.contains(_))
+
+    packagesToResolve.headOption.fold {
+      Future.successful(unresolvedDeps -> resolvedDeps)
+    } { dep =>
+      latestDep(dep).flatMap { case (nameOrUrlish, version) =>
+        val newResolvedDeps = resolvedDeps + (nameOrUrlish -> version)
+        info(nameOrUrlish, Some(version)).flatMap { newPackageInfo =>
+          val newUnresolvedDeps = unresolvedDeps.tail ++ newPackageInfo.dependencies.map(parseBowerDep)
+
+          depResolver(newUnresolvedDeps, newResolvedDeps)
+        }
+      }
+    }
+  }
+
+  override def depGraph(packageInfo: PackageInfo, deps: Map[String, String] = Map.empty[String, String]): Future[Map[String, String]] = {
+    import scala.concurrent.duration._
+    import play.api.libs.concurrent.Futures._
+
+    depResolver(packageInfo.dependencies.map(parseBowerDep), Map.empty[String, String]).map(_._2).withTimeout(10.minutes)
+  }
+
 }
 
 object Bower {

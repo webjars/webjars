@@ -42,7 +42,7 @@ object SemVer {
       version match {
         case r"^(\d+[a-z0-9]+)?${SomeString(maybeTag)}$$" =>
           Version(None, None, None, maybeTag)
-        case r"^(\d+)?${SomeInt(maybeMajor)}\.?(\d+)?${SomeInt(maybeMinor)}\.?(\d+)?${SomeInt(maybePatch)}-?(.+)?${SomeString(maybeTag)}$$" =>
+        case r"^v?(\d+)?${SomeInt(maybeMajor)}\.?(\d+)?${SomeInt(maybeMinor)}\.?(\d+)?${SomeInt(maybePatch)}-?(.+)?${SomeString(maybeTag)}$$" =>
           Version(maybeMajor, maybeMinor, maybePatch, maybeTag)
         case _ =>
           Version()
@@ -260,8 +260,14 @@ object SemVer {
     }
   }
 
-  def latestInRange(versionRange: VersionRange, versions: Set[String]): Option[Version] = {
-    versions.map(Version(_)).filter(versionRange.includesVersion).toSeq.sorted.lastOption
+  def latestInRange(versionRange: VersionRange, versions: Set[String]): Option[String] = {
+    versions
+      .map { v => Version(v) -> v }
+      .filter { case (v, _) => versionRange.includesVersion(v) }
+      .toSeq
+      .sorted
+      .lastOption
+      .map(_._2)
   }
 
 }

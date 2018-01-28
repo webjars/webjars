@@ -143,6 +143,7 @@ class SemVerSpec extends Specification {
       Version("asdf") must beEqualTo(Version(None, None, None, Some("asdf")))
       Version("1asdf") must beEqualTo(Version(None, None, None, Some("1asdf")))
       Version("1-asdf") must beEqualTo(Version(Some(1), None, None, Some("asdf")))
+      Version("v1") must beEqualTo(Version(Some(1), None, None, None))
     }
   }
 
@@ -322,7 +323,11 @@ class SemVerSpec extends Specification {
   "latestInRange" should {
     "work" in {
       val latest = latestInRange(VersionRange(Some(Comparator(Operator.GT, Version("0.1"))), None), Set("0", "0.1", "0.2", "1.0"))
-      latest must beSome(Version("1.0"))
+      latest must beSome("1.0")
+    }
+    "deal with a v prefix" in {
+      val latest = latestInRange(VersionRange(Some(Comparator(Operator.GT, Version("0.1"))), None), Set("v0", "v0.1", "v0.2", "v1.0"))
+      latest must beSome("v1.0")
     }
     "be empty if no version is in the range" in {
       val latest = latestInRange(VersionRange(Some(Comparator(Operator.GT, Version("1"))), None), Set("0", "0.1", "0.2", "1.0"))

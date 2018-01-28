@@ -223,6 +223,8 @@ class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, g
     }
   }
 
+  override def depGraph(packageInfo: PackageInfo, deps: Map[String, String] = Map.empty[String, String]): Future[Map[String, String]] = Future.failed(new NotImplementedError())
+
 }
 
 object NPM {

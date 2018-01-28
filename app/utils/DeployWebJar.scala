@@ -190,4 +190,5 @@ trait Deployable extends WebJarType {
   def info(nameOrUrlish: String, maybeVersion: Option[String], maybeSourceUri: Option[URI]): Future[PackageInfo]
   def mavenDependencies(dependencies: Map[String, String]): Future[Set[(String, String, String)]]
   def archive(nameOrUrlish: String, version: String): Future[InputStream]
+  def depGraph(packageInfo: PackageInfo, deps: Map[String, String] = Map.empty[String, String]): Future[Map[String, String]]
 }

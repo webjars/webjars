@@ -163,4 +163,28 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
     }
   }
 
+  "info" should {
+    "work even when a package.json doesn't exist" in {
+      await(bower.info("https://github.com/Polymer/polymer-analyzer.git", Some("v2.7.0"))).name must equalTo("polymer-analyzer")
+    }
+  }
+
+  "depGraph" should {
+    "work with bootstrap" in {
+      val packageInfo = await(bower.info("bootstrap", Some("3.3.7")))
+      val depGraph = await(bower.depGraph(packageInfo))
+      depGraph must beEqualTo(Map("jquery" -> "3.3.1"))
+    }
+    "work with " in {
+      val packageInfo = await(bower.info("ng-bootstrap-select", Some("0.5.0")))
+      val depGraph = await(bower.depGraph(packageInfo))
+      depGraph.keySet must beEqualTo(Set("angular", "bootstrap-select", "jquery"))
+    }
+    "work with PolymerElements/iron-behaviors" in {
+      val packageInfo = await(bower.info("PolymerElements/iron-behaviors", Some("v2.0.0")))
+      val depGraph = await(bower.depGraph(packageInfo))
+      depGraph.keySet must beEqualTo(Set("Polymer/polymer", "polymerelements/iron-a11y-keys-behavior", "webcomponents/shadycss", "webcomponents/webcomponentsjs"))
+    }
+  }
+
 }

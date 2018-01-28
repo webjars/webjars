@@ -2,7 +2,10 @@ package utils
 
 import java.net.URL
 
+import play.api.libs.json.Json
 import play.api.test._
+
+import scala.util.Try
 
 
 class GitHubSpec extends PlaySpecification with GlobalApplication {
@@ -35,6 +38,14 @@ class GitHubSpec extends PlaySpecification with GlobalApplication {
     "fail for not founds" in {
       val url = new URL("http://github.com/asdf1234/zxcv4321")
       await(gitHub.currentUrls(url)) must throwA[ServerError]
+    }
+  }
+
+  "raw" should {
+    "work for valid files" in {
+      val url = GitHub.gitHubUrl("https://github.com/PolymerElements/iron-behaviors.git").get
+      val content = await(gitHub.raw(url, "v2.0.0", "bower.json"))
+      Try(Json.parse(content)) must beASuccessfulTry
     }
   }
 
