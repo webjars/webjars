@@ -1,7 +1,7 @@
 package utils
 
 import org.specs2.mutable._
-import SemVer._
+import utils.SemVer._
 
 class SemVerSpec extends Specification {
 

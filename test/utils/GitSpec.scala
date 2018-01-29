@@ -22,31 +22,31 @@ class GitSpec extends PlaySpecification with GlobalApplication {
     }
     "work with git://host/path.git" in {
       val versions = await(git.versions("git://github.com/mochajs/mocha.git"))
-      versions.length must beGreaterThan (0)
+      versions must not be empty
     }
     "work with git+http://host/path.git" in {
       val versions = await(git.versions("git+http://github.com/mochajs/mocha.git"))
-      versions.length must beGreaterThan (0)
+      versions must not be empty
     }
     "work with git+https://host/path.git" in {
       val versions = await(git.versions("git+https://github.com/mochajs/mocha.git"))
-      versions.length must beGreaterThan (0)
+      versions must not be empty
     }
     "work with http://host/path.git" in {
       val versions = await(git.versions("http://github.com/mochajs/mocha.git"))
-      versions.length must beGreaterThan (0)
+      versions must not be empty
     }
     "work with https://host/path.git" in {
       val versions = await(git.versions("https://github.com/mochajs/mocha.git"))
-      versions.length must beGreaterThan (0)
+      versions must not be empty
     }
     "work with githuborg/repo" in {
       val versions = await(git.versions("mochajs/mocha"))
-      versions.length must beGreaterThan (0)
+      versions must not be empty
     }
     "work with a redirect" in {
       val versions = await(git.versions("visionmedia/mocha"))
-      versions.length must beGreaterThan (0)
+      versions must not be empty
     }
   }
 
@@ -58,7 +58,7 @@ class GitSpec extends PlaySpecification with GlobalApplication {
     }
     "fetch a file" in {
       val file = await(git.file("mochajs/mocha", None, "package.json"))
-      file.length must beGreaterThan (0)
+      file must not be empty
     }
     "fetch a file with a different version" in {
       val file = await(git.file("mochajs/mocha", Some("2.2.4"), "package.json"))
@@ -115,6 +115,9 @@ class GitSpec extends PlaySpecification with GlobalApplication {
   "versionsOnBranch" should {
     "get the commits on a branch" in {
       await(git.versionsOnBranch("git://github.com/mochajs/mocha.git", "master")) must contain("8a100df959")
+    }
+    "fetch the versions" in {
+      await(git.versionsOnBranch("git://github.com/mdedetrich/requirejs-plugins", "jsonSecurityVulnerability")) must contain ("d9c103e7a0")
     }
   }
 

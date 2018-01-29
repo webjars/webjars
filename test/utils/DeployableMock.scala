@@ -18,5 +18,6 @@ case class DeployableMock() extends Deployable {
   override lazy val name: String = ???
   override def mavenDependencies(dependencies: Map[String, String]): Future[Set[(String, String, String)]] = ???
   override def pathPrefix(nameOrUrlish: String, releaseVersion: String, packageInfo: PackageInfo): Future[String] = ???
-  override def depGraph(packageInfo: PackageInfo, deps: Map[String, String] = Map.empty[String, String]): Future[Map[String, String]] = ???
+  override def versions(nameOrUrlish: String): Future[Set[String]] = ???
+  override def parseDep(dep: (String, String)): (String, String) = ???
 }

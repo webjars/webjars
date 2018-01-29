@@ -41,7 +41,7 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
   "valid git url" should {
     "have versions" in {
       val versions = await(npm.versions("visionmedia/mocha"))
-      versions.length must beGreaterThan (0)
+      versions must not be empty
       versions.contains("1.0.0") must beTrue
     }
   }

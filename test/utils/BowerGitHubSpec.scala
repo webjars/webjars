@@ -2,7 +2,7 @@ package utils
 
 
 import java.io.{BufferedInputStream, ByteArrayInputStream}
-import java.net.{URI, URL}
+import java.net.URI
 
 import akka.util.Timeout
 import org.apache.commons.compress.archivers.ArchiveStreamFactory

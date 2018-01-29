@@ -5,8 +5,10 @@ import java.net.{URI, URL}
 
 import akka.util.Timeout
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
+import play.api.libs.concurrent.Futures
 import play.api.test._
 
+import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
 class BowerSpec extends PlaySpecification with GlobalApplication {
@@ -14,6 +16,9 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
   override implicit def defaultAwaitTimeout: Timeout = 300.seconds
 
   lazy val bower: Bower = application.injector.instanceOf[Bower]
+
+  lazy implicit val ec: ExecutionContext = application.injector.instanceOf[ExecutionContext]
+  lazy implicit val futures: Futures = application.injector.instanceOf[Futures]
 
   "jquery info" should {
     "work with a correct version" in {
@@ -46,7 +51,7 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
   "valid git short url" should {
     "have versions" in {
       val versions = await(bower.versions("PolymerElements/iron-elements"))
-      versions.length must beGreaterThan (0)
+      versions must not be empty
       versions.contains("v1.0.0") must beTrue
     }
   }
@@ -113,12 +118,6 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
   "homepage" should {
     "be have a default" in {
       await(bower.info("git://github.com/millermedeiros/requirejs-plugins")).maybeHomepageUrl must beSome (new URL("https://github.com/millermedeiros/requirejs-plugins"))
-    }
-  }
-
-  "git repo with branch" should {
-    "fetch the versions" in {
-      await(bower.versionsOnBranch("git://github.com/mdedetrich/requirejs-plugins", "jsonSecurityVulnerability")) must contain ("d9c103e7a0")
     }
   }
 

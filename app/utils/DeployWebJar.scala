@@ -7,6 +7,7 @@ import javax.inject.Inject
 import models.WebJarType
 import play.api.Logger
 import play.api.inject.guice.GuiceApplicationBuilder
+import play.api.libs.concurrent.Futures
 import play.api.libs.json.{JsNull, JsValue}
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -187,8 +188,48 @@ trait Deployable extends WebJarType {
   val metadataFile: String
   val contentsInSubdir: Boolean
   def pathPrefix(nameOrUrlish: String, releaseVersion: String, packageInfo: PackageInfo): Future[String]
-  def info(nameOrUrlish: String, maybeVersion: Option[String], maybeSourceUri: Option[URI]): Future[PackageInfo]
+  def info(nameOrUrlish: String, maybeVersion: Option[String], maybeSourceUri: Option[URI] = None): Future[PackageInfo]
   def mavenDependencies(dependencies: Map[String, String]): Future[Set[(String, String, String)]]
   def archive(nameOrUrlish: String, version: String): Future[InputStream]
-  def depGraph(packageInfo: PackageInfo, deps: Map[String, String] = Map.empty[String, String]): Future[Map[String, String]]
+  def versions(nameOrUrlish: String): Future[Set[String]]
+  def parseDep(dep: (String, String)): (String, String)
+
+  def latestDep(nameOrUrlish: String, version: String)(implicit ec: ExecutionContext): Future[String] = {
+    versions(nameOrUrlish).flatMap { availableVersions =>
+      val versionRange = SemVer.parseSemVerRange(version)
+      SemVer.latestInRange(versionRange, availableVersions).fold {
+        Future.failed[String](new Exception("Could not find a valid version in the provided range"))
+      } { version =>
+        Future.successful(version)
+      }
+    }
+  }
+
+  def depGraph(packageInfo: PackageInfo, deps: Map[String, String] = Map.empty[String, String])(implicit ec: ExecutionContext, futures: Futures): Future[Map[String, String]] = {
+    import play.api.libs.concurrent.Futures._
+
+    import scala.concurrent.duration._
+
+    def depResolver(unresolvedDeps: Map[String, String], resolvedDeps: Map[String, String]): Future[(Map[String, String], Map[String, String])] = {
+
+      val packagesToResolve = unresolvedDeps.filterKeys(!resolvedDeps.contains(_))
+
+      packagesToResolve.headOption.fold {
+        Future.successful(unresolvedDeps -> resolvedDeps)
+      } { dep =>
+        val (nameOrUrlish, versionish) = parseDep(dep)
+        latestDep(nameOrUrlish, versionish).flatMap { version =>
+          val newResolvedDeps = resolvedDeps + (nameOrUrlish -> version)
+          info(nameOrUrlish, Some(version)).flatMap { newPackageInfo =>
+            val newUnresolvedDeps = unresolvedDeps.tail ++ newPackageInfo.dependencies.map(parseDep)
+
+            depResolver(newUnresolvedDeps, newResolvedDeps)
+          }
+        }
+      }
+    }
+
+    depResolver(packageInfo.dependencies.map(parseDep), Map.empty[String, String]).map(_._2).withTimeout(10.minutes)
+  }
+
 }

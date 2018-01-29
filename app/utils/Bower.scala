@@ -46,7 +46,7 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
     }
   }
 
-  def parseBowerDep(nameAndVersionish: (String, String)): (String, String) = {
+  override def parseDep(nameAndVersionish: (String, String)): (String, String) = {
     val (name, versionish) = nameAndVersionish
 
     if (versionish.contains("/")) {
@@ -61,7 +61,7 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
   }
 
   def bowerToMaven(keyValue: (String, String)): Future[(String, String, String)] = {
-    val (name, version) = parseBowerDep(keyValue)
+    val (name, version) = parseDep(keyValue)
 
     def convertSemVerToMaven(version: String): Future[String] = {
       SemVer.convertSemVerToMaven(version).fold {
@@ -76,7 +76,7 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
     } yield (groupId, artifactId, version)
   }
 
-  def versions(packageNameOrGitRepo: String): Future[Seq[String]] = {
+  override def versions(packageNameOrGitRepo: String): Future[Set[String]] = {
     if (git.isGit(packageNameOrGitRepo)) {
       git.gitUrl(packageNameOrGitRepo).flatMap(git.versions)
     }
@@ -85,7 +85,7 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
         URLEncoder.encode(packageNameOrGitRepo, "UTF-8")
       }
 
-      maybeName.toOption.fold[Future[Seq[String]]] {
+      maybeName.toOption.fold[Future[Set[String]]] {
         Future.failed(new Exception("Could not encode the URL for the specified package"))
       } { name =>
         ws.url(s"$BASE_URL/info/$name").get().flatMap { response =>
@@ -93,17 +93,13 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
             case Status.OK =>
               val versions = (response.json \ "versions").as[Seq[String]]
               val cleanVersions = versions.filterNot(_.contains("sha"))
-              Future.successful(cleanVersions)
+              Future.successful(cleanVersions.toSet)
             case _ =>
               Future.failed(new Exception(response.body))
           }
         }
       }
     }
-  }
-
-  def versionsOnBranch(gitRepo: String, branch: String): Future[Seq[String]] = {
-    git.gitUrl(gitRepo).flatMap(git.versionsOnBranch(_, branch))
   }
 
   def rawInfo(packageNameOrGitRepo: String, version: String): Future[PackageInfo] = {
@@ -246,44 +242,6 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
           }
         }
     }
-  }
-
-  def latestDep(dep: (String, String)): Future[(String, String)] = {
-    val (packageName, versionish) = parseBowerDep(dep)
-
-    versions(packageName).flatMap { availableVersions =>
-      val versionRange = SemVer.parseSemVerRange(versionish)
-      SemVer.latestInRange(versionRange, availableVersions.toSet).fold {
-        Future.failed[(String, String)](new Exception("Could not find a valid version in the provided range"))
-      } { version =>
-        Future.successful(packageName -> version)
-      }
-    }
-  }
-
-  def depResolver(unresolvedDeps: Map[String, String], resolvedDeps: Map[String, String]): Future[(Map[String, String], Map[String, String])] = {
-
-    val packagesToResolve = unresolvedDeps.filterKeys(!resolvedDeps.contains(_))
-
-    packagesToResolve.headOption.fold {
-      Future.successful(unresolvedDeps -> resolvedDeps)
-    } { dep =>
-      latestDep(dep).flatMap { case (nameOrUrlish, version) =>
-        val newResolvedDeps = resolvedDeps + (nameOrUrlish -> version)
-        info(nameOrUrlish, Some(version)).flatMap { newPackageInfo =>
-          val newUnresolvedDeps = unresolvedDeps.tail ++ newPackageInfo.dependencies.map(parseBowerDep)
-
-          depResolver(newUnresolvedDeps, newResolvedDeps)
-        }
-      }
-    }
-  }
-
-  override def depGraph(packageInfo: PackageInfo, deps: Map[String, String] = Map.empty[String, String]): Future[Map[String, String]] = {
-    import scala.concurrent.duration._
-    import play.api.libs.concurrent.Futures._
-
-    depResolver(packageInfo.dependencies.map(parseBowerDep), Map.empty[String, String]).map(_._2).withTimeout(10.minutes)
   }
 
 }

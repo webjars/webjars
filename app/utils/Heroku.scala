@@ -6,17 +6,16 @@ import javax.net.ssl.SSLContext
 
 import akka.NotUsed
 import akka.actor.ActorSystem
-import akka.stream.{Materializer, OverflowStrategy, TLSProtocol, TLSRole}
 import akka.stream.TLSProtocol.NegotiateNewSession
-import akka.stream.scaladsl.{BidiFlow, BroadcastHub, Flow, Framing, MergeHub, Sink, Source, TLS, Tcp}
+import akka.stream.scaladsl.{BidiFlow, Flow, Framing, Source, TLS, Tcp}
+import akka.stream.{Materializer, TLSProtocol, TLSRole}
 import akka.util.ByteString
 import play.api.Configuration
 import play.api.http.{HeaderNames, Status}
 import play.api.libs.json.{JsValue, Json}
 import play.api.libs.ws.{WSClient, WSRequest}
 
-import scala.concurrent.duration._
-import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
 class Heroku @Inject() (ws: WSClient, config: Configuration) (implicit ec: ExecutionContext, actorSystem: ActorSystem, materializer: Materializer) {

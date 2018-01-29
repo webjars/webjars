@@ -23,7 +23,7 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Failure
 import scala.util.hashing.MurmurHash3
 
-class Application @Inject() (gitHub: GitHub, heroku: Heroku, pusher: Pusher, cache: Cache, mavenCentral: MavenCentral, deployWebJar: DeployWebJar, webJarsFileService: WebJarsFileService, actorSystem: ActorSystem, configuration: Configuration, environment: Environment, futures: Futures)
+class Application @Inject() (git: Git, gitHub: GitHub, heroku: Heroku, pusher: Pusher, cache: Cache, mavenCentral: MavenCentral, deployWebJar: DeployWebJar, webJarsFileService: WebJarsFileService, actorSystem: ActorSystem, configuration: Configuration, environment: Environment, futures: Futures)
                             (classic: Classic, bower: Bower, npm: NPM, bowerGitHub: BowerGitHub)
                             (mainView: views.html.main, allView: views.html.all, indexView: views.html.index, webJarRequestView: views.html.webJarRequest, contributingView: views.html.contributing, documentationView: views.html.documentation)
                             (implicit ec: ExecutionContext) extends InjectedController {
@@ -183,17 +183,17 @@ class Application @Inject() (gitHub: GitHub, heroku: Heroku, pusher: Pusher, cac
   def bowerPackageVersions(packageNameOrGitRepo: String, maybeBranch: Option[String]) = Action.async { request =>
 
     val packageVersionsFuture = maybeBranch.fold {
-      cache.get[Seq[String]](s"bower-versions-$packageNameOrGitRepo", 1.hour) {
+      cache.get[Set[String]](s"bower-versions-$packageNameOrGitRepo", 1.hour) {
         bower.versions(packageNameOrGitRepo)
       }
     } { branch =>
-      cache.get[Seq[String]](s"bower-versions-$packageNameOrGitRepo-$branch", 1.hour) {
-        bower.versionsOnBranch(packageNameOrGitRepo, branch)
+      cache.get[Set[String]](s"bower-versions-$packageNameOrGitRepo-$branch", 1.hour) {
+        git.versionsOnBranch(packageNameOrGitRepo, branch)
       }
     }
 
     packageVersionsFuture.map { json =>
-      Ok(Json.toJson(json))
+      Ok(Json.toJson(json.toSeq.sorted(VersionStringOrdering)))
     } recover {
       case e: Exception =>
         InternalServerError
@@ -208,17 +208,17 @@ class Application @Inject() (gitHub: GitHub, heroku: Heroku, pusher: Pusher, cac
 
   def npmPackageVersions(packageNameOrGitRepo: String, maybeBranch: Option[String]) = Action.async {
     val packageVersionsFuture = maybeBranch.fold {
-      cache.get[Seq[String]](s"npm-versions-$packageNameOrGitRepo", 1.hour) {
+      cache.get[Set[String]](s"npm-versions-$packageNameOrGitRepo", 1.hour) {
         npm.versions(packageNameOrGitRepo)
       }
     } { branch =>
-      cache.get[Seq[String]](s"npm-versions-$packageNameOrGitRepo-$branch", 1.hour) {
-        npm.versionsOnBranch(packageNameOrGitRepo, branch)
+      cache.get[Set[String]](s"npm-versions-$packageNameOrGitRepo-$branch", 1.hour) {
+        git.versionsOnBranch(packageNameOrGitRepo, branch)
       }
     }
 
     packageVersionsFuture.map { versions =>
-      Ok(Json.toJson(versions))
+      Ok(Json.toJson(versions.toSeq.sorted(VersionStringOrdering)))
     } recover {
       case e: Exception =>
         InternalServerError

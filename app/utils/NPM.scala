@@ -72,7 +72,7 @@ class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, g
     }
   }
 
-  def versions(packageNameOrGitRepo: String): Future[Seq[String]] = {
+  override def versions(packageNameOrGitRepo: String): Future[Set[String]] = {
     if (git.isGit(packageNameOrGitRepo)) {
       git.versions(packageNameOrGitRepo)
     }
@@ -80,16 +80,12 @@ class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, g
       ws.url(registryMetadataUrl(packageNameOrGitRepo)).get().flatMap { response =>
         response.status match {
           case Status.OK =>
-            val versions = (response.json \ "versions").as[Map[String, JsObject]].keys.toIndexedSeq.sorted(VersionStringOrdering).reverse
+            val versions = (response.json \ "versions").as[Map[String, JsObject]].keys.toSet
             Future.successful(versions)
           case _ => Future.failed(new Exception(response.body))
         }
       }
     }
-  }
-
-  def versionsOnBranch(gitRepo: String, branch: String): Future[Seq[String]] = {
-    git.gitUrl(gitRepo).flatMap(git.versionsOnBranch(_, branch))
   }
 
   override def info(packageNameOrGitRepo: String, maybeVersion: Option[String] = None, maybeSourceUri: Option[URI] = None): Future[PackageInfo] = {
@@ -223,7 +219,11 @@ class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, g
     }
   }
 
-  override def depGraph(packageInfo: PackageInfo, deps: Map[String, String] = Map.empty[String, String]): Future[Map[String, String]] = Future.failed(new NotImplementedError())
+  override def parseDep(dep: (String, String)): (String, String) = {
+    println(dep)
+
+    ???
+  }
 
 }
 
