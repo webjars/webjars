@@ -193,7 +193,7 @@ class Application @Inject() (git: Git, gitHub: GitHub, heroku: Heroku, pusher: P
     }
 
     packageVersionsFuture.map { json =>
-      Ok(Json.toJson(json.toSeq.sorted(VersionStringOrdering)))
+      Ok(Json.toJson(json.toSeq.sorted(VersionStringOrdering).reverse))
     } recover {
       case e: Exception =>
         InternalServerError
@@ -218,7 +218,7 @@ class Application @Inject() (git: Git, gitHub: GitHub, heroku: Heroku, pusher: P
     }
 
     packageVersionsFuture.map { versions =>
-      Ok(Json.toJson(versions.toSeq.sorted(VersionStringOrdering)))
+      Ok(Json.toJson(versions.toSeq.sorted(VersionStringOrdering).reverse))
     } recover {
       case e: Exception =>
         InternalServerError
