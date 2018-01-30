@@ -33,7 +33,7 @@ class DeployWebJar @Inject() (git: Git, binTray: BinTray, pusher: Pusher, maven:
       maybeLicense.fold {
         licenseDetector.resolveLicenses(deployable, packageInfo, Some(version))
       } { license =>
-        Future.successful(Set(license))
+        Future.successful(license.split(",").toSet)
       }
     }
 
