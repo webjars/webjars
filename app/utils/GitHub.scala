@@ -101,7 +101,7 @@ class GitHub @Inject() (configuration: Configuration, wsClient: WSClient) (impli
       Future.fromTry(newUrlsTry)
     }
 
-    wsClient.url(url.toString).withFollowRedirects(false).get().flatMap { response =>
+    wsClient.url(url.toString).withFollowRedirects(false).head().flatMap { response =>
       response.status match {
         case Status.MOVED_PERMANENTLY =>
           response.header(HeaderNames.LOCATION).fold {

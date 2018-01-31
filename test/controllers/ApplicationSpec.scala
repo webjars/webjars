@@ -25,10 +25,10 @@ class ApplicationSpec extends PlaySpecification {
 
       val webJars = Random.shuffle(
         Seq(
-          WebJar("foo", "foo", "foo", "foo", List.empty[WebJarVersion]),
-          WebJar("foo", "bar", "foo", "foo", List.empty[WebJarVersion]),
-          WebJar("foo", "baz", "foo", "foo", List.empty[WebJarVersion]),
-          WebJar("foo", "blah", "foo", "foo", List.empty[WebJarVersion])
+          WebJar("foo", "foo", "foo", "foo", "foo", List.empty[WebJarVersion]),
+          WebJar("foo","foo", "bar", "foo", "foo", List.empty[WebJarVersion]),
+          WebJar("foo","foo", "baz", "foo", "foo", List.empty[WebJarVersion]),
+          WebJar("foo","foo", "blah", "foo", "foo", List.empty[WebJarVersion])
         )
       )
 

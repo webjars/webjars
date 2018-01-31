@@ -133,7 +133,7 @@ function checkPackageName(packageName) {
   $("#newWebJarVersion").select2("enable", false);
 
   $.ajax({
-    url: "/_" + webJarType() + "/exists?name=" + packageName,
+    url: "/exists?webJarType=" + webJarType() + "&name=" + packageName,
     success: function(data, status) {
       $("#newWebJarName").parent().addClass("has-success");
       $("#newWebJarNameFeedback").addClass("glyphicon-ok").removeClass("glyphicon-refresh spin");
@@ -190,7 +190,7 @@ $(function() {
   });
 
   $("input[type=radio][name=new_webjar_catalog]").change(function() {
-    if (this.value === "org.webjars") {
+    if (this.value === "classic") {
       $(".npm-bower-deploy").hide();
       $(".classic-deploy").show();
     }
@@ -214,7 +214,7 @@ $(function() {
     query: function(query) {
       var packageOrRepoName = getPackageOrRepoName();
 
-      var url = "/_" + webJarType() + "/versions?name=" + packageOrRepoName.packageOrRepo;
+      var url = "/versions?webJarType=" + webJarType() + "&name=" + packageOrRepoName.packageOrRepo;
 
       if (packageOrRepoName.branch !== undefined) {
         url += "&branch=" + packageOrRepoName.branch;
@@ -240,7 +240,7 @@ $(function() {
     var deployLog = $("#deployLog");
     function log(message) {
       var t = deployLog.text();
-      deployLog.text(message + "\n" + t);
+      deployLog.text(message + t);
     }
 
     $("#deployButton").attr("disabled", true);
@@ -250,62 +250,40 @@ $(function() {
     var artifactId = packageOrRepoName.packageOrRepo;
     var version = $("#newWebJarVersion").select2("val");
 
-    var channelId = null;
-
-    if (window.pusherKey !== undefined) {
-      var pusher = new Pusher(window.pusherKey);
-      channelId = guid();
-      var channel = pusher.subscribe(channelId);
-      channel.bind("update", function(data) {
-        log(data);
-      });
-      channel.bind("success", function(data) {
-        log(data);
-        pusher.disconnect();
-        $("#deployButton").attr("disabled", false);
-      });
-      channel.bind("failure", function(data) {
-        log(data);
-        pusher.disconnect();
-        $("#deployButton").attr("disabled", false);
-      });
-    }
-
     deployLog.text("Starting Deploy");
 
-    var deployUrl = "/_" + webJarType() + "/deploy?name=" + encodeURIComponent(artifactId) + "&version=" + encodeURIComponent(version);
+    var deployUrl = "/deploy?webJarType=" + webJarType() + "&nameOrUrlish=" + encodeURIComponent(artifactId) + "&version=" + encodeURIComponent(version);
 
-    if (channelId !== null) {
-      deployUrl += "&channelId=" + channelId;
-    }
+    fetch(deployUrl, {method: 'POST'})
+      .then(response => {
+        var reader = response.body.getReader();
+        var decoder = new TextDecoder();
 
-    $.ajax(deployUrl, {
-      method: "post",
-      success: function(data) {
-        if (channelId !== null) {
-          console.log(data);
+        function readChunk() {
+          return reader.read().then(result => {
+            var chunk = decoder.decode(result.value || new Uint8Array, {stream: !result.done});
+            if (result.done) {
+              $("#deployButton").attr("disabled", false);
+            }
+            else {
+              log(chunk);
+              readChunk();
+            }
+          });
         }
-        else {
-          log(data);
-        }
-      },
-      error: function(error) {
-        if (channelId !== null) {
-          console.log(error);
-        }
-        else {
-          log(error.responseText);
-        }
-      }
-    });
+
+        return readChunk();
+      })
+      .catch(error => $("#deployButton").attr("disabled", false));
+
   });
 
   $("#newWebJarModal").on("show.bs.modal", function (event) {
     var artifactId = $(event.relatedTarget).data("artifact-id");
-    var groupId = $(event.relatedTarget).data("group-id");
-    if (groupId !== undefined) {
+    var webJarType = $(event.relatedTarget).data("webjar-type");
+    if (webJarType !== undefined) {
       $("input[type=radio][name=new_webjar_catalog]").prop("checked", false);
-      $("input[type=radio][name=new_webjar_catalog][value='" + groupId + "']").prop("checked", true).trigger("change");
+      $("input[type=radio][name=new_webjar_catalog][value='" + webJarType + "']").prop("checked", true).trigger("change");
     }
 
     if (artifactId !== undefined) {
@@ -325,3 +303,7 @@ $(function() {
   });
 
 });
+
+function cometMessage(event) {
+  console.log('Received event: ' + event);
+}

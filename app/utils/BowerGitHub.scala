@@ -13,8 +13,6 @@ import scala.concurrent.{ExecutionContext, Future}
 class BowerGitHub @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, gitHub: GitHub, maven: Maven)(implicit ec: ExecutionContext, futures: Futures)
   extends Bower(ws, git, licenseDetector, gitHub, maven)(ec, futures) {
 
-  import Bower._
-
   override val name: String = "BowerGitHub"
 
   override val groupIdQuery: String = "org.webjars.bowergithub.*"

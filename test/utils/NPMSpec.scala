@@ -5,19 +5,23 @@ import java.net.{URI, URL}
 
 import akka.util.Timeout
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
+import play.api.libs.concurrent.Futures
 import play.api.libs.json._
 import play.api.test._
 
+import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.util.Try
 
 class NPMSpec extends PlaySpecification with GlobalApplication {
 
-  override implicit def defaultAwaitTimeout: Timeout = 30.seconds
+  override implicit def defaultAwaitTimeout: Timeout = 10.minutes
 
   lazy val npm: NPM = application.injector.instanceOf[NPM]
+  lazy implicit val ec: ExecutionContext = application.injector.instanceOf[ExecutionContext]
+  lazy implicit val futures: Futures = application.injector.instanceOf[Futures]
 
-  "inflight 1.0.4" should {
+  "inflight 1.0.4" should {NPM
     "have the correct github url" in {
       await(npm.info("inflight", Some("1.0.4"))).maybeGitHubUrl must beSome(new URL("https://github.com/npm/inflight"))
     }
@@ -329,6 +333,20 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
     "work" in {
       val packageInfo = await(npm.info("electron-to-chromium", Some("1.3.28")))
       packageInfo.sourceConnectionUri.toString must beEqualTo ("https://github.com/kilian/electron-to-chromium.git")
+    }
+  }
+
+  "depGraph" should {
+    "work" in {
+      val packageInfo = await(npm.info("ng-bootstrap-modal", Some("1.1.19")))
+      val depGraph = await(npm.depGraph(packageInfo))
+      depGraph.keys must contain ("path-is-absolute")
+    }
+    "deal with undeployables" in {
+      // is-color-stop depends on an undeployable package 'rgba-regex'
+      val packageInfo = await(npm.info("is-color-stop", Some("1.1.0")))
+      val depGraph = await(npm.depGraph(packageInfo))
+      depGraph.keySet must contain ("hsl-regex")
     }
   }
 

@@ -146,7 +146,7 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
 
             fetchWebJarNameAndUrl(groupId, artifactId, latestVersion).map {
               case (name, url) =>
-                WebJar(groupId, artifactId, name, url, webJarVersions)
+                WebJar(WebJarType.toString(webJarType), groupId, artifactId, name, url, webJarVersions)
             }
         }
       }

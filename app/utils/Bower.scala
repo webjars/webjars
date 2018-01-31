@@ -46,20 +46,6 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
     }
   }
 
-  override def parseDep(nameAndVersionish: (String, String)): (String, String) = {
-    val (name, versionish) = nameAndVersionish
-
-    if (versionish.contains("/")) {
-      val urlish = versionish.takeWhile(_ != '#')
-      val version = versionish.stripPrefix(urlish).stripPrefix("#").vless
-
-      urlish -> version
-    }
-    else {
-      name -> versionish.vless
-    }
-  }
-
   def bowerToMaven(keyValue: (String, String)): Future[(String, String, String)] = {
     val (name, version) = parseDep(keyValue)
 
@@ -276,8 +262,5 @@ object Bower {
     Reads.pure(Map.empty[String, String])
   )(PackageInfo.apply _)
 
-  implicit class RichString(val s: String) extends AnyVal {
-    def vless = s.stripPrefix("v").replaceAllLiterally("^v", "^").replaceAllLiterally("~v", "v")
-  }
 }
 

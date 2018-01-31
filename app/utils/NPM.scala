@@ -219,12 +219,6 @@ class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, g
     }
   }
 
-  override def parseDep(dep: (String, String)): (String, String) = {
-    println(dep)
-
-    ???
-  }
-
 }
 
 object NPM {
