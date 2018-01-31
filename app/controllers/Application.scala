@@ -324,7 +324,7 @@ class Application @Inject() (git: Git, gitHub: GitHub, heroku: Heroku, cache: Ca
     WebJarType.fromString(webJarType, allDeployables).fold {
       BadRequest(s"Specified WebJar type '$webJarType' can not be deployed")
     } { deployable =>
-      val source = deployWebJar.deploy(deployable, nameOrUrlish, version, true)(true)
+      val source = deployWebJar.deploy(deployable, nameOrUrlish, version, true)(true, false)
       Ok.chunked {
         source.via {
           Flow[String].map { s =>
