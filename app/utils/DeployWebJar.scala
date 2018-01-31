@@ -11,7 +11,7 @@ import models.WebJarType
 import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.libs.concurrent.Futures
 import play.api.libs.json.JsValue
-import play.api.{Configuration, Logger}
+import play.api.Configuration
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.io.StdIn
@@ -30,7 +30,7 @@ class DeployWebJar @Inject()(git: Git, binTray: BinTray, maven: Maven, mavenCent
     heroku.dynoCreate(app, attach, cmd, "Standard-2X")
   }
 
-  def localDeploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, deployDependencies: Boolean, maybeReleaseVersion: Option[String] = None, maybeSourceUri: Option[URI] = None, maybeLicense: Option[String] = None): Source[String, Future[Option[JsValue]]] = {
+  def localDeploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, deployDependencies: Boolean, maybeReleaseVersion: Option[String] = None, maybeSourceUri: Option[URI] = None, maybeLicense: Option[String] = None)(preventFork: Boolean): Source[String, Future[Option[JsValue]]] = {
     def licenses(packageInfo: PackageInfo, version: String): Future[Set[String]] = {
       maybeLicense.fold {
         licenseDetector.resolveLicenses(deployable, packageInfo, Some(version))
@@ -67,7 +67,7 @@ class DeployWebJar @Inject()(git: Git, binTray: BinTray, maven: Maven, mavenCent
             }
             _ <- queue.offer(deployDepGraphMessage)
           } yield depGraph.map { case (nameish, version) =>
-            deploy(deployable, nameish, version, false)(false, false)
+            deploy(deployable, nameish, version, false)(false, preventFork)
           }.foldLeft(emptySource) { (s1, s2) =>
             s1.mergeMat(s2) { (fm1, fm2) =>
               for {
@@ -163,7 +163,7 @@ class DeployWebJar @Inject()(git: Git, binTray: BinTray, maven: Maven, mavenCent
       forkDeploy(deployable, nameOrUrlish, upstreamVersion, deployDependencies)(attach, true)
     }
     else {
-      localDeploy(deployable, nameOrUrlish, upstreamVersion, deployDependencies, maybeReleaseVersion, maybeSourceUri, maybeLicense)
+      localDeploy(deployable, nameOrUrlish, upstreamVersion, deployDependencies, maybeReleaseVersion, maybeSourceUri, maybeLicense)(preventFork)
     }
   }
 
@@ -198,7 +198,7 @@ object DeployWebJar extends App {
   }
 
   if (nameOrUrlish.isEmpty || upstreamVersion.isEmpty) {
-    Logger.error("Name and version must be specified")
+    println("Name and version must be specified")
     sys.exit(1)
   }
   else {
@@ -219,10 +219,10 @@ object DeployWebJar extends App {
       Future.failed(new Exception(s"Specified WebJar type '$webJarType' can not be deployed"))
     } { deployable =>
       val source = deployWebJar.deploy(deployable, nameOrUrlish, upstreamVersion, deployDependencies, maybeReleaseVersion, maybeSourceUri, maybeLicense)(true, preventFork)
-      source.runForeach(Logger.info(_))
+      source.runForeach(println)
     }
 
-    deployFuture.failed.foreach(e => Logger.error(e.getMessage))
+    deployFuture.failed.foreach(e => println(e.getMessage))
     deployFuture.onComplete(_ => app.stop())
   }
 
