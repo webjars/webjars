@@ -332,6 +332,8 @@ class Application @Inject() (git: Git, gitHub: GitHub, heroku: Heroku, cache: Ca
           Flow[String].map { s =>
             ByteString.fromString(s + "\n")
           }
+        } via {
+          Flow[ByteString].keepAlive(25.seconds, () => ByteString.fromString(" "))
         }
       }
     }
