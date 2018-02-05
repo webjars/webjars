@@ -4,18 +4,21 @@ import java.io.{FileNotFoundException, InputStream}
 import java.net.URI
 import javax.inject.Inject
 
-import akka.actor.ActorSystem
-import akka.stream.scaladsl.{Sink, Source}
-import akka.stream.{Materializer, OverflowStrategy}
+import akka.actor.{ActorSystem, Props}
+import akka.stream.Materializer
+import akka.stream.actor.ActorPublisher
+import akka.stream.actor.ActorPublisherMessage.Request
+import akka.stream.scaladsl.Source
+import akka.{Done, NotUsed}
 import models.WebJarType
+import play.api.Configuration
 import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.libs.concurrent.Futures
-import play.api.libs.json.JsValue
-import play.api.Configuration
 
+import scala.annotation.tailrec
 import scala.concurrent.{ExecutionContext, Future}
 import scala.io.StdIn
-import scala.util.Try
+import scala.util.{Failure, Success, Try}
 
 
 class DeployWebJar @Inject()(git: Git, binTray: BinTray, maven: Maven, mavenCentral: MavenCentral, licenseDetector: LicenseDetector, sourceLocator: SourceLocator, configuration: Configuration, heroku: Heroku)(implicit ec: ExecutionContext, futures: Futures, materializer: Materializer, actorSystem: ActorSystem) {
@@ -24,13 +27,55 @@ class DeployWebJar @Inject()(git: Git, binTray: BinTray, maven: Maven, mavenCent
   val binTraySubject = "webjars"
   val binTrayRepo = "maven"
 
-  def forkDeploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, deployDependencies: Boolean)(attach: Boolean, preventFork: Boolean): Source[String, Future[Option[JsValue]]] = {
+  def forkDeploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, deployDependencies: Boolean, preventFork: Boolean): Source[String, Future[NotUsed]] = {
     val app = configuration.get[String]("deploy.herokuapp")
     val cmd = s"deploy ${WebJarType.toString(deployable)} $nameOrUrlish $upstreamVersion $deployDependencies $preventFork"
-    heroku.dynoCreate(app, attach, cmd, "Standard-2X")
+    heroku.dynoCreate(app, cmd, "Standard-2X")
   }
 
-  def localDeploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, deployDependencies: Boolean, maybeReleaseVersion: Option[String] = None, maybeSourceUri: Option[URI] = None, maybeLicense: Option[String] = None)(preventFork: Boolean): Source[String, Future[Option[JsValue]]] = {
+  def localDeploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, deployDependencies: Boolean, preventFork: Boolean, maybeReleaseVersion: Option[String] = None, maybeSourceUri: Option[URI] = None, maybeLicense: Option[String] = None): Source[String, Future[NotUsed]] = {
+
+    class ChannelActor extends ActorPublisher[String] {
+
+      val MaxBufferSize = 100
+      var buf = Vector.empty[String]
+
+      def receive = {
+        case message: String =>
+          if (buf.isEmpty && totalDemand > 0)
+            onNext(message)
+          else {
+            buf :+= message
+            deliverBuf()
+          }
+        case Request(_) =>
+          deliverBuf()
+
+        case Success(_) =>
+          onCompleteThenStop()
+        case Failure(e) =>
+          onError(e)
+      }
+
+      @tailrec final def deliverBuf(): Unit =
+        if (totalDemand > 0) {
+          if (totalDemand <= Int.MaxValue) {
+            val (use, keep) = buf.splitAt(totalDemand.toInt)
+            buf = keep
+            use foreach onNext
+          } else {
+            val (use, keep) = buf.splitAt(Int.MaxValue)
+            buf = keep
+            use foreach onNext
+            deliverBuf()
+          }
+        }
+    }
+
+    val actorRef = actorSystem.actorOf(Props(new ChannelActor))
+    val actorPublisher = ActorPublisher[String](actorRef)
+    val source = Source.fromPublisher(actorPublisher)
+
     def licenses(packageInfo: PackageInfo, version: String): Future[Set[String]] = {
       maybeLicense.fold {
         licenseDetector.resolveLicenses(deployable, packageInfo, Some(version))
@@ -48,44 +93,39 @@ class DeployWebJar @Inject()(git: Git, binTray: BinTray, maven: Maven, mavenCent
       }
     }
 
-    Source.queue[String](256, OverflowStrategy.fail).mapMaterializedValue { queue =>
+    def doDeployDependencies(packageInfo: PackageInfo): Future[Iterable[Done]] = {
+      if (deployDependencies) {
+        actorRef ! "Determining dependency graph"
 
-      def doDeployDependencies(packageInfo: PackageInfo): Source[String, Future[Seq[JsValue]]] = {
-        def emptySource = Source.empty[String].mapMaterializedValue(_ => Future.successful(Seq.empty[JsValue]))
+        deployable.depGraph(packageInfo).flatMap { depGraph =>
 
-        if (deployDependencies) {
-          val deployFuture = for {
-            _ <- queue.offer("Determining dependency graph")
-
-            depGraph <- deployable.depGraph(packageInfo)
-
-            deployDepGraphMessage = if (depGraph.isEmpty) {
-              "No dependencies. We are done here!"
-            }
-            else {
-              "Deploying these dependencies: " + depGraph.map(dep => dep._1 + "#" + dep._2).mkString(",")
-            }
-            _ <- queue.offer(deployDepGraphMessage)
-          } yield depGraph.map { case (nameish, version) =>
-            deploy(deployable, nameish, version, false)(false, preventFork)
-          }.foldLeft(emptySource) { (s1, s2) =>
-            s1.mergeMat(s2) { (fm1, fm2) =>
-              for {
-                m1 <- fm1
-                m2 <- fm2
-              } yield m1 ++ m2
-            }
+          val deployDepGraphMessage = if (depGraph.isEmpty) {
+            "No dependencies. We are done here!"
+          }
+          else {
+            "Deploying these dependencies: " + depGraph.map(dep => dep._1 + "#" + dep._2).mkString(" ")
           }
 
-          Source.fromFutureSource(deployFuture).mapMaterializedValue(_.flatten)
-        }
-        else {
-          emptySource
+          actorRef ! deployDepGraphMessage
+
+          Future.sequence {
+            depGraph.map { case (nameish, version) =>
+              deploy(deployable, nameish, version, false, false).runForeach(actorRef ! _).recover {
+                // ignore failures
+                case e =>
+                  actorRef ! e.getMessage
+                  Done
+              }
+            }
+          }
         }
       }
+      else {
+        Future.successful(Iterable.empty[Done])
+      }
+    }
 
-      val deployFuture = for {
-
+    val future = for {
         packageInfo <- deployable.info(nameOrUrlish, Some(upstreamVersion), maybeSourceUri)
         groupId <- deployable.groupId(nameOrUrlish)
         artifactId <- deployable.artifactId(nameOrUrlish)
@@ -93,25 +133,29 @@ class DeployWebJar @Inject()(git: Git, binTray: BinTray, maven: Maven, mavenCent
 
         releaseVersion = deployable.releaseVersion(maybeReleaseVersion, packageInfo)
 
-        _ <- queue.offer(s"Got package info for $groupId $artifactId $releaseVersion")
+        _ = actorRef ! s"Got package info for $groupId $artifactId $releaseVersion"
 
-        _ <- doDeployDependencies(packageInfo).to(Sink.foreach(queue.offer)).run().recover { case _ => () } // ignore failures
+        _ <- doDeployDependencies(packageInfo)
 
         _ <- webJarNotYetDeployed(groupId, artifactId, releaseVersion)
 
         licenses <- licenses(packageInfo, upstreamVersion)
+        _ = actorRef ! s"Resolved Licenses: ${licenses.mkString(",")}"
 
-        _ <- queue.offer(s"Resolved Licenses: $licenses")
         mavenDependencies <- deployable.mavenDependencies(packageInfo.dependencies)
-        _ <- queue.offer("Converted dependencies to Maven")
+        _ = actorRef ! "Converted dependencies to Maven"
+
         optionalMavenDependencies <- deployable.mavenDependencies(packageInfo.optionalDependencies)
-        _ <- queue.offer("Converted optional dependencies to Maven")
+        _ = actorRef ! "Converted optional dependencies to Maven"
+
         sourceUrl <- sourceLocator.sourceUrl(packageInfo.sourceConnectionUri)
-        _ <- queue.offer(s"Got the source URL: $sourceUrl")
+        _ = actorRef ! s"Got the source URL: $sourceUrl"
+
         pom = templates.xml.pom(groupId, artifactId, releaseVersion, packageInfo, sourceUrl, mavenDependencies, optionalMavenDependencies, licenses).toString()
-        _ <- queue.offer("Generated POM")
+        _ = actorRef ! "Generated POM"
+
         zip <- deployable.archive(nameOrUrlish, upstreamVersion)
-        _ <- queue.offer(s"Fetched ${deployable.name} zip")
+        _ = actorRef ! s"Fetched ${deployable.name} zip"
 
         excludes <- deployable.excludes(nameOrUrlish, upstreamVersion)
 
@@ -119,51 +163,53 @@ class DeployWebJar @Inject()(git: Git, binTray: BinTray, maven: Maven, mavenCent
 
         jar = WebJarCreator.createWebJar(zip, deployable.contentsInSubdir, excludes, pom, groupId, artifactId, releaseVersion, pathPrefix)
 
-        _ <- queue.offer(s"Created ${deployable.name} WebJar")
+        _ = actorRef ! s"Created ${deployable.name} WebJar"
 
         packageName = s"$groupId:$artifactId"
 
         createPackage <- binTray.getOrCreatePackage(binTraySubject, binTrayRepo, packageName, s"WebJar for $artifactId", Seq("webjar", artifactId), licenses, packageInfo.sourceConnectionUri, packageInfo.maybeHomepageUrl, packageInfo.maybeIssuesUrl, packageInfo.maybeGitHubOrgRepo)
-        _ <- queue.offer("Created BinTray Package")
+        _ = actorRef ! "Created BinTray Package"
 
         createVersion <- binTray.createOrOverwriteVersion(binTraySubject, binTrayRepo, packageName, releaseVersion, s"$artifactId WebJar release $releaseVersion", Some(s"v$releaseVersion"))
-        _ <- queue.offer("Created BinTray Version")
+        _ = actorRef ! "Created BinTray Version"
+
         publishPom <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/$releaseVersion/$artifactId-$releaseVersion.pom", pom.getBytes)
         publishJar <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/$releaseVersion/$artifactId-$releaseVersion.jar", jar)
         emptyJar = WebJarCreator.emptyJar()
         publishSourceJar <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/$releaseVersion/$artifactId-$releaseVersion-sources.jar", emptyJar)
         publishJavadocJar <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/$releaseVersion/$artifactId-$releaseVersion-javadoc.jar", emptyJar)
-        _ <- queue.offer("Published BinTray Assets")
+        _ = actorRef ! "Published BinTray Assets"
+
         signVersion <- binTray.signVersion(binTraySubject, binTrayRepo, packageName, releaseVersion)
-        _ <- queue.offer("Signed BinTray Assets")
+        _ = actorRef ! "Signed BinTray Assets"
+
         publishVersion <- binTray.publishVersion(binTraySubject, binTrayRepo, packageName, releaseVersion)
-        _ <- queue.offer("Published BinTray Version")
+        _ = actorRef ! "Published BinTray Version"
+
+        _ = actorRef ! "Syncing to Maven Central (this could take a while)"
 
         syncToMavenCentral <- binTray.syncToMavenCentral(binTraySubject, binTrayRepo, packageName, releaseVersion)
-        _ <- queue.offer("Synced With Maven Central")
-        _ <- queue.offer(s"""Deployed!
+        _ = actorRef ! "Synced With Maven Central"
+
+        _ = actorRef ! s"""Deployed!
              |It will take a few hours for the Maven Central index to update but you should be able to start using the ${deployable.name} WebJar shortly.
              |GroupID = $groupId
              |ArtifactID = $artifactId
              |Version = $releaseVersion
-            """.stripMargin)
-        _ = queue.complete()
-      } yield None
+            """.stripMargin
+      } yield NotUsed
 
-      deployFuture.failed.foreach { e =>
-        queue.offer(e.getMessage).foreach(_ => queue.complete())
-      }
+    future.onComplete(actorRef ! _)
 
-      deployFuture
-    }
+    source.mapMaterializedValue(_ => future)
   }
 
-  def deploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, deployDependencies: Boolean, maybeReleaseVersion: Option[String] = None, maybeSourceUri: Option[URI] = None, maybeLicense: Option[String] = None)(attach: Boolean, preventFork: Boolean): Source[String, Future[Option[JsValue]]] = {
+  def deploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, deployDependencies: Boolean, preventFork: Boolean, maybeReleaseVersion: Option[String] = None, maybeSourceUri: Option[URI] = None, maybeLicense: Option[String] = None): Source[String, Future[NotUsed]] = {
     if (fork && !preventFork) {
-      forkDeploy(deployable, nameOrUrlish, upstreamVersion, deployDependencies)(attach, true)
+      forkDeploy(deployable, nameOrUrlish, upstreamVersion, deployDependencies, true)
     }
     else {
-      localDeploy(deployable, nameOrUrlish, upstreamVersion, deployDependencies, maybeReleaseVersion, maybeSourceUri, maybeLicense)(preventFork)
+      localDeploy(deployable, nameOrUrlish, upstreamVersion, deployDependencies, preventFork, maybeReleaseVersion, maybeSourceUri, maybeLicense)
     }
   }
 
@@ -215,11 +261,11 @@ object DeployWebJar extends App {
 
     val allDeployables = Set(npm, bower, bowerGitHub)
 
-    val deployFuture = WebJarType.fromString(webJarType, allDeployables).fold[Future[_]] {
+
+    val deployFuture = WebJarType.fromString(webJarType, allDeployables).fold[Future[Done]] {
       Future.failed(new Exception(s"Specified WebJar type '$webJarType' can not be deployed"))
     } { deployable =>
-      val source = deployWebJar.deploy(deployable, nameOrUrlish, upstreamVersion, deployDependencies, maybeReleaseVersion, maybeSourceUri, maybeLicense)(true, preventFork)
-      source.runForeach(println)
+      deployWebJar.deploy(deployable, nameOrUrlish, upstreamVersion, deployDependencies, preventFork, maybeReleaseVersion, maybeSourceUri, maybeLicense).runForeach(println)
     }
 
     deployFuture.failed.foreach(e => println(e.getMessage))

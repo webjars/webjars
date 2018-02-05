@@ -7,12 +7,12 @@ import javax.net.ssl.SSLContext
 import akka.NotUsed
 import akka.actor.ActorSystem
 import akka.stream.TLSProtocol.NegotiateNewSession
-import akka.stream.scaladsl.{BidiFlow, Flow, Framing, Sink, Source, TLS, Tcp}
+import akka.stream.scaladsl.{BidiFlow, Flow, Framing, Source, TLS, Tcp}
 import akka.stream.{Materializer, TLSProtocol, TLSRole}
 import akka.util.ByteString
 import play.api.Configuration
 import play.api.http.{HeaderNames, Status}
-import play.api.libs.json.{JsObject, JsValue, Json}
+import play.api.libs.json.Json
 import play.api.libs.ws.{WSClient, WSRequest}
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -62,28 +62,28 @@ class Heroku @Inject() (ws: WSClient, config: Configuration) (implicit ec: Execu
     maybeUri.fold(Source.failed, connect)
   }
 
-  def dynoCreate(app: String, attach: Boolean, command: String, size: String): Source[String, Future[Option[JsValue]]] = {
+  def dynoCreate(app: String, command: String, size: String): Source[String, Future[NotUsed]] = {
     val json = Json.obj(
-      "attach" -> attach,
+      "attach" -> true,
       "command" -> command,
       "size" -> size
     )
 
-    val maybeAttachUrlFuture = ws(s"/apps/$app/dynos").post(json).flatMap { response =>
+    val sourceFuture = ws(s"/apps/$app/dynos").post(json).flatMap { response =>
       response.status match {
         case Status.CREATED =>
           Future.successful {
-            (response.json \ "attach_url").asOpt[String].fold[Source[String, Option[JsValue]]] {
-              Source.empty[String].mapMaterializedValue(_ => Some(response.json))
+            (response.json \ "attach_url").asOpt[String].fold[Source[String, NotUsed]] {
+              Source.failed[String](new Exception(response.body))
             } { attachUrl =>
-              rendezvous(attachUrl).mapMaterializedValue(_ => None)
+              rendezvous(attachUrl)
             }
           }
         case _ => Future.failed(new Exception(response.body))
       }
     }
 
-    Source.fromFutureSource(maybeAttachUrlFuture)
+    Source.fromFutureSource(sourceFuture)
   }
 
 }
