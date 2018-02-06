@@ -50,7 +50,7 @@ class Heroku @Inject() (ws: WSClient, config: Configuration) (implicit ec: Execu
       )
 
       val byteStringToString = BidiFlow.fromFlows(
-        Flow[ByteString].via(Framing.delimiter(ByteString("\r\n"), maximumFrameLength = 1024, allowTruncation = true)).map(_.utf8String),
+        Flow[ByteString].via(Framing.delimiter(ByteString("\r\n"), maximumFrameLength = 8192, allowTruncation = true)).map(_.utf8String),
         Flow[String].map(ByteString(_))
       )
 
