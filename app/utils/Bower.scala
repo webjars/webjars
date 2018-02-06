@@ -16,6 +16,8 @@ import scala.util.Try
 
 class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, gitHub: GitHub, maven: Maven) (implicit ec: ExecutionContext) extends Deployable {
 
+  import Bower._
+
   val BASE_URL = "https://bower-as-a-service.herokuapp.com"
 
   override val name: String = "Bower"
@@ -82,14 +84,14 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
 
           val jsonWithCorrectVersion = (json \ "version").asOpt[String].fold {
             // the version was not in the json so add the specified version
-            json + ("version" -> JsString(version))
+            json + ("version" -> JsString(version.vless))
           } { _ =>
             // todo: resolve conflicts?
             // for now just use the version from the json
             json
           }
 
-          jsonWithCorrectVersion.as[PackageInfo](Bower.jsonReads)
+          jsonWithCorrectVersion.as[PackageInfo].copy(version = version.vless) // ignore the version in the bower.json
         }
       }
     }
@@ -103,7 +105,7 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
         ws.url(s"$BASE_URL/info/$packageNameOrGitRepo/$version").get().flatMap { versionResponse =>
           versionResponse.status match {
             case Status.OK =>
-              Future.successful(versionResponse.json.as[PackageInfo](Bower.jsonReads).copy(name = name))
+              Future.successful(versionResponse.json.as[PackageInfo].copy(name = name, version = version.vless))
             case _ =>
               Future.failed(new Exception(versionResponse.body))
           }
@@ -217,5 +219,8 @@ object Bower {
     Reads.pure(Map.empty[String, String])
   )(PackageInfo.apply _)
 
+  implicit class RichString(val s: String) extends AnyVal {
+    def vless = s.stripPrefix("v").replaceAllLiterally("^v", "^").replaceAllLiterally("~v", "v")
+  }
 }
 

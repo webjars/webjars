@@ -233,7 +233,7 @@ class BowerGitHubSpec extends PlaySpecification with GlobalApplication {
   "excludes" should {
     "contain contents of the ignore section from bower.json" in {
       val excludes = await(bowerGitHub.excludes("vaadin-grid", "4.0.0-alpha5"))
-      excludes must contain ("**/.*")
+      excludes must contain ("**" + "/.*")
     }
   }
 
@@ -248,6 +248,10 @@ class BowerGitHubSpec extends PlaySpecification with GlobalApplication {
     }
     "fallback to the packageInfo when no version is specified" in {
       bowerGitHub.releaseVersion(None, packageInfo) must beEqualTo ("3.2.1")
+    }
+    "use the specified version instead of the package verison" in {
+      val packageInfo = await(bowerGitHub.info("polymerelements/paper-ripple", Some("v1.0.10")))
+      bowerGitHub.releaseVersion(None, packageInfo) must beEqualTo ("1.0.10")
     }
   }
 
