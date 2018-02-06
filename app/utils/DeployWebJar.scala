@@ -113,7 +113,7 @@ class DeployWebJar @Inject()(git: Git, binTray: BinTray, maven: Maven, mavenCent
               Future.successful(Done)
             }
             else {
-              val (nameish, version) = depGraph.head
+              val (nameish, version) = deps.head
               deploy(deployable, nameish, version, false, false).runForeach(actorRef ! _).recover {
                 // ignore failures
                 case e =>
