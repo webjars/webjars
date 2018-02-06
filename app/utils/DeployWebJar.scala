@@ -93,7 +93,7 @@ class DeployWebJar @Inject()(git: Git, binTray: BinTray, maven: Maven, mavenCent
       }
     }
 
-    def doDeployDependencies(packageInfo: PackageInfo): Future[Iterable[Done]] = {
+    def doDeployDependencies(packageInfo: PackageInfo): Future[Done] = {
       if (deployDependencies) {
         actorRef ! "Determining dependency graph"
 
@@ -108,20 +108,28 @@ class DeployWebJar @Inject()(git: Git, binTray: BinTray, maven: Maven, mavenCent
 
           actorRef ! deployDepGraphMessage
 
-          Future.sequence {
-            depGraph.map { case (nameish, version) =>
+          def deployDep(deps: Map[String, String]): Future[Done] = {
+            if (deps.isEmpty) {
+              Future.successful(Done)
+            }
+            else {
+              val (nameish, version) = depGraph.head
               deploy(deployable, nameish, version, false, false).runForeach(actorRef ! _).recover {
                 // ignore failures
                 case e =>
                   actorRef ! e.getMessage
                   Done
+              } flatMap { _ =>
+                deployDep(deps.tail)
               }
             }
           }
+
+          deployDep(depGraph)
         }
       }
       else {
-        Future.successful(Iterable.empty[Done])
+        Future.successful(Done)
       }
     }
 
