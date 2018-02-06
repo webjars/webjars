@@ -224,7 +224,7 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
             case Status.OK =>
               Future.fromTry(Try((response.json \ "url").as[URL]).flatMap(GitHub.gitHubUrl))
             case _ =>
-              Future.failed(new Exception(response.body))
+              Future.failed(new Exception(s"Could not find package: $packageNameOrGitRepo"))
           }
         }
     }
