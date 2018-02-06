@@ -14,7 +14,7 @@ object ArchiveCreator {
     Try {
       val files = Files
         .walk(dir.toPath).iterator().asScala
-        .filterNot(_.toFile.isDirectory) // tars do not need dir entries
+        .filter(_.toFile.isFile)
         .map(_.toFile)
         .filterNot(file => excludes.exists(exclude => file.getPath.startsWith(exclude.getPath)))
 

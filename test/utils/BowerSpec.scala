@@ -186,4 +186,14 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
     }
   }
 
+  "github.com/uwdata/vega-lite" should {
+    "download" in {
+      val is = new BufferedInputStream(await(bower.archive("uwdata/vega-lite", "v2.1.2")))
+      val zis = new ArchiveStreamFactory().createArchiveInputStream(is)
+      val files = Stream.continually(zis.getNextEntry).takeWhile(_ != null).map(_.getName)
+      files must not contain "examples/compiled/data"
+    }
+  }
+
+
 }
