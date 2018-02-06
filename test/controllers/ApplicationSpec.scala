@@ -1,6 +1,6 @@
 package controllers
 
-import models.{WebJar, WebJarVersion}
+import models.{WebJar, WebJarType, WebJarVersion}
 import play.api.Configuration
 import play.api.http.{ContentTypes, HeaderNames, Status}
 import play.api.inject.guice.GuiceApplicationBuilder
@@ -94,6 +94,19 @@ class ApplicationSpec extends PlaySpecification {
       val resultFuture = applicationController.searchWebJars("openui5", List("org.webjars"))(request)
 
       contentAsJson(resultFuture).as[Seq[WebJar]] must containTheSameElementsAs(possibleMatches)
+    }
+  }
+
+  "create" should {
+    "work" in new WithApplication {
+      val applicationController = app.injector.instanceOf[Application]
+
+      val request = FakeRequest()
+
+      val result = applicationController.create("bowergithub", "jquery", "3.3.0")(request)
+
+      status(result) must beEqualTo (Status.OK)
+      contentAsBytes(result).length must beEqualTo (460313)
     }
   }
 

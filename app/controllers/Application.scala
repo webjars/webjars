@@ -5,16 +5,19 @@ import java.util.concurrent.TimeoutException
 import javax.inject.Inject
 
 import akka.actor.ActorSystem
-import akka.stream.scaladsl.Flow
+import akka.stream.scaladsl.{Flow, Source}
 import akka.util.ByteString
 import models.{WebJar, WebJarType}
 import org.joda.time.DateTime
 import play.api.data.Forms._
 import play.api.data._
+import play.api.http.HeaderNames.CONTENT_DISPOSITION
+import play.api.http.HttpEntity
 import play.api.libs.concurrent.Futures
 import play.api.libs.json.Json
 import play.api.mvc._
 import play.api.{Configuration, Environment, Logger, Mode}
+import play.core.utils.HttpHeaderParameterEncoding
 import utils.MavenCentral.ExistingWebJarRequestException
 import utils._
 
@@ -335,6 +338,27 @@ class Application @Inject() (git: Git, gitHub: GitHub, heroku: Heroku, cache: Ca
         } via {
           Flow[ByteString].keepAlive(25.seconds, () => ByteString.fromString(" "))
         }
+      }
+    }
+  }
+
+  def create(webJarType: String, nameOrUrlish: String, version: String): Action[AnyContent] = Action.async {
+    WebJarType.fromString(webJarType, allDeployables).fold {
+      Future.successful(BadRequest(s"Specified WebJar type '$webJarType' can not be deployed"))
+    } { deployable =>
+      deployWebJar.create(deployable, nameOrUrlish, version).map { case (name, bytes) =>
+        // taken from private method: play.api.mvc.Results.streamFile
+        Result(
+          ResponseHeader(
+            OK,
+            Map(CONTENT_DISPOSITION -> s"""attachment; filename="$name"""")
+          ),
+          HttpEntity.Streamed(
+            Source.single(ByteString(bytes)),
+            Some(bytes.length),
+            fileMimeTypes.forFileName(name).orElse(Some(play.api.http.ContentTypes.BINARY))
+          )
+        )
       }
     }
   }

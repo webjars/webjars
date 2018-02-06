@@ -221,6 +221,35 @@ class DeployWebJar @Inject()(git: Git, binTray: BinTray, maven: Maven, mavenCent
     }
   }
 
+  def create(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String): Future[(String, Array[Byte])] = {
+    import deployable._
+
+    for {
+      packageInfo <- deployable.info(nameOrUrlish, Some(upstreamVersion))
+      groupId <- deployable.groupId(nameOrUrlish)
+      artifactId <- deployable.artifactId(nameOrUrlish)
+      mavenBaseDir = groupId.replaceAllLiterally(".", "/")
+
+      releaseVersion = upstreamVersion.vless
+
+      licenses <- licenseDetector.resolveLicenses(deployable, packageInfo, Some(upstreamVersion))
+
+      mavenDependencies <- deployable.mavenDependencies(packageInfo.dependencies)
+
+      optionalMavenDependencies <- deployable.mavenDependencies(packageInfo.optionalDependencies)
+
+      sourceUrl <- sourceLocator.sourceUrl(packageInfo.sourceConnectionUri)
+
+      pom = templates.xml.pom(groupId, artifactId, releaseVersion, packageInfo, sourceUrl, mavenDependencies, optionalMavenDependencies, licenses).toString()
+
+      zip <- deployable.archive(nameOrUrlish, upstreamVersion)
+
+      excludes <- deployable.excludes(nameOrUrlish, upstreamVersion)
+
+      pathPrefix <- deployable.pathPrefix(nameOrUrlish, releaseVersion, packageInfo)
+    } yield artifactId -> WebJarCreator.createWebJar(zip, deployable.contentsInSubdir, excludes, pom, groupId, artifactId, releaseVersion, pathPrefix)
+  }
+
 }
 
 object DeployWebJar extends App {
