@@ -132,8 +132,6 @@ class Application @Inject() (git: Git, gitHub: GitHub, heroku: Heroku, cache: Ca
         case e: Exception => Seq.empty[(String, String, Int)]
       }
 
-
-
       webJarStatsFuture.map { webJarStats =>
         val matchingWebJars = allWebJars.filter { webJar =>
           groupId.contains(webJar.groupId) &&
