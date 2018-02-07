@@ -239,8 +239,8 @@ $(function() {
 
     var deployLog = $("#deployLog");
     function log(message) {
-      var t = deployLog.text();
-      deployLog.text(message + t);
+      deployLog.append(message);
+      deployLog.animate({scrollTop: deployLog.prop("scrollHeight")}, 350);
     }
 
     $("#deployButton").attr("disabled", true);
@@ -250,7 +250,7 @@ $(function() {
     var artifactId = packageOrRepoName.packageOrRepo;
     var version = $("#newWebJarVersion").select2("val");
 
-    deployLog.text("Starting Deploy");
+    deployLog.text("Starting Deploy\n");
 
     var deployUrl = "/deploy?webJarType=" + webJarType() + "&nameOrUrlish=" + encodeURIComponent(artifactId) + "&version=" + encodeURIComponent(version);
 
