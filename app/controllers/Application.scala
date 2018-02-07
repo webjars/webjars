@@ -345,16 +345,17 @@ class Application @Inject() (git: Git, gitHub: GitHub, heroku: Heroku, cache: Ca
       Future.successful(BadRequest(s"Specified WebJar type '$webJarType' can not be deployed"))
     } { deployable =>
       deployWebJar.create(deployable, nameOrUrlish, version).map { case (name, bytes) =>
+        val filename = name + ".jar"
         // taken from private method: play.api.mvc.Results.streamFile
         Result(
           ResponseHeader(
             OK,
-            Map(CONTENT_DISPOSITION -> s"""attachment; filename="$name"""")
+            Map(CONTENT_DISPOSITION -> s"""attachment; filename="$filename"""")
           ),
           HttpEntity.Streamed(
             Source.single(ByteString(bytes)),
             Some(bytes.length),
-            fileMimeTypes.forFileName(name).orElse(Some(play.api.http.ContentTypes.BINARY))
+            fileMimeTypes.forFileName(filename).orElse(Some(play.api.http.ContentTypes.BINARY))
           )
         )
       }
