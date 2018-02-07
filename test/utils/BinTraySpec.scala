@@ -21,6 +21,8 @@ class BinTraySpec extends PlaySpecification with GlobalApplication {
     if (application.configuration.getOptional[String]("bintray.username").isEmpty)
       "BinTray Auth" in skipped("skipped due to missing config")
     else {
+      // todo: should work when run multiple times in parallel
+
       "get packages" in {
         await(binTray.getPackages("webjars", "test")).value must beEmpty
       }
