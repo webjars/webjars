@@ -27,7 +27,7 @@ class MavenSpec extends PlaySpecification with GlobalApplication {
       )
       val mavenDeps = await(maven.convertNpmBowerDependenciesToMaven(deps))
       mavenDeps.get("github-com-btford-route-recognizer") must beSome ("0.1.1")
-      mavenDeps.get("github-com-ttsvetko-html5-desktop-notifications") must beSome ("v0.2.0")
+      mavenDeps.get("github-com-ttsvetko-html5-desktop-notifications") must beSome ("3.0.0")
     }
     "work with versioned git npm deps" in {
       val deps = Map(

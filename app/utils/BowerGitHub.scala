@@ -4,15 +4,14 @@ import java.io.InputStream
 import javax.inject.Inject
 
 import org.eclipse.jgit.api.errors.RefNotFoundException
+import play.api.libs.concurrent.Futures
 import play.api.libs.json.Json
 import play.api.libs.ws._
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class BowerGitHub @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, gitHub: GitHub, maven: Maven)(implicit ec: ExecutionContext)
-  extends Bower(ws, git, licenseDetector, gitHub, maven)(ec) {
-
-  import Bower._
+class BowerGitHub @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, gitHub: GitHub, maven: Maven)(implicit ec: ExecutionContext, futures: Futures)
+  extends Bower(ws, git, licenseDetector, gitHub, maven)(ec, futures) {
 
   override val name: String = "BowerGitHub"
 
@@ -42,33 +41,6 @@ class BowerGitHub @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDet
         }
       }
     })
-  }
-
-  def bowerToMaven(keyValue: (String, String)): Future[(String, String, String)] = {
-    val (key, value) = keyValue
-
-    def convertSemVerToMaven(version: String): Future[String] = {
-      SemVer.convertSemVerToMaven(version).fold {
-        Future.failed[String](new Exception(s"Could not convert version '$version' to Maven form"))
-      } (Future.successful)
-    }
-
-    if (value.contains("/")) {
-      val urlish = value.takeWhile(_ != '#')
-      val version = value.stripPrefix(urlish).stripPrefix("#").vless
-      for {
-        groupId <- groupId(urlish)
-        artifactId <- artifactId(urlish)
-        version <- convertSemVerToMaven(version)
-      } yield (groupId, artifactId, version)
-    }
-    else {
-      for {
-        groupId <- groupId(key)
-        artifactId <- artifactId(key)
-        version <- convertSemVerToMaven(value.vless)
-      } yield (groupId, artifactId, version)
-    }
   }
 
   override def mavenDependencies(dependencies: Map[String, String]): Future[Set[(String, String, String)]] = {

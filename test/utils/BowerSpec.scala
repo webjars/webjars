@@ -5,8 +5,10 @@ import java.net.{URI, URL}
 
 import akka.util.Timeout
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
+import play.api.libs.concurrent.Futures
 import play.api.test._
 
+import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
 class BowerSpec extends PlaySpecification with GlobalApplication {
@@ -14,6 +16,9 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
   override implicit def defaultAwaitTimeout: Timeout = 300.seconds
 
   lazy val bower: Bower = application.injector.instanceOf[Bower]
+
+  lazy implicit val ec: ExecutionContext = application.injector.instanceOf[ExecutionContext]
+  lazy implicit val futures: Futures = application.injector.instanceOf[Futures]
 
   "jquery info" should {
     "work with a correct version" in {
@@ -46,7 +51,7 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
   "valid git short url" should {
     "have versions" in {
       val versions = await(bower.versions("PolymerElements/iron-elements"))
-      versions.length must beGreaterThan (0)
+      versions must not be empty
       versions.contains("v1.0.0") must beTrue
     }
   }
@@ -116,12 +121,6 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
     }
   }
 
-  "git repo with branch" should {
-    "fetch the versions" in {
-      await(bower.versionsOnBranch("git://github.com/mdedetrich/requirejs-plugins", "jsonSecurityVulnerability")) must contain ("d9c103e7a0")
-    }
-  }
-
   "long file names" should {
     "work" in {
       val is = new BufferedInputStream(await(bower.archive("highcharts/highcharts", "v4.2.5")))
@@ -162,5 +161,39 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
       pathPrefix must beEqualTo ("foobar/1.2.3/")
     }
   }
+
+  "info" should {
+    "work even when a package.json doesn't exist" in {
+      await(bower.info("https://github.com/Polymer/polymer-analyzer.git", Some("v2.7.0"))).name must equalTo("polymer-analyzer")
+    }
+  }
+
+  "depGraph" should {
+    "work with bootstrap" in {
+      val packageInfo = await(bower.info("bootstrap", Some("3.3.7")))
+      val depGraph = await(bower.depGraph(packageInfo))
+      depGraph must beEqualTo(Map("jquery" -> "3.3.1"))
+    }
+    "work with " in {
+      val packageInfo = await(bower.info("ng-bootstrap-select", Some("0.5.0")))
+      val depGraph = await(bower.depGraph(packageInfo))
+      depGraph.keySet must beEqualTo(Set("angular", "bootstrap-select", "jquery"))
+    }
+    "work with PolymerElements/iron-behaviors" in {
+      val packageInfo = await(bower.info("PolymerElements/iron-behaviors", Some("v2.0.0")))
+      val depGraph = await(bower.depGraph(packageInfo))
+      depGraph.keySet must beEqualTo(Set("Polymer/polymer", "polymerelements/iron-a11y-keys-behavior", "webcomponents/shadycss", "webcomponents/webcomponentsjs"))
+    }
+  }
+
+  "github.com/uwdata/vega-lite" should {
+    "download" in {
+      val is = new BufferedInputStream(await(bower.archive("uwdata/vega-lite", "v2.1.2")))
+      val zis = new ArchiveStreamFactory().createArchiveInputStream(is)
+      val files = Stream.continually(zis.getNextEntry).takeWhile(_ != null).map(_.getName)
+      files must not contain "examples/compiled/data"
+    }
+  }
+
 
 }

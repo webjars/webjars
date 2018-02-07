@@ -101,7 +101,7 @@ class GitHub @Inject() (configuration: Configuration, wsClient: WSClient) (impli
       Future.fromTry(newUrlsTry)
     }
 
-    wsClient.url(url.toString).withFollowRedirects(false).get().flatMap { response =>
+    wsClient.url(url.toString).withFollowRedirects(false).head().flatMap { response =>
       response.status match {
         case Status.MOVED_PERMANENTLY =>
           response.header(HeaderNames.LOCATION).fold {
@@ -117,6 +117,15 @@ class GitHub @Inject() (configuration: Configuration, wsClient: WSClient) (impli
           urls(url.toString)
         case _ =>
           Future.failed(ServerError(s"Could not get the current URL for $url because status was ${response.statusText}", response.status))
+      }
+    }
+  }
+
+  def raw(gitHubUrl: URL, version: String, fileName: String): Future[String] = {
+    wsClient.url(gitHubUrl + s"/raw/$version/$fileName").get().flatMap { response =>
+      response.status match {
+        case Status.OK => Future.successful(response.body)
+        case _ => Future.failed(new Exception(response.body))
       }
     }
   }

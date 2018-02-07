@@ -5,6 +5,7 @@ import java.net.{URI, URL, URLEncoder}
 import javax.inject.Inject
 
 import play.api.http.Status
+import play.api.libs.concurrent.Futures
 import play.api.libs.functional.syntax._
 import play.api.libs.json.Reads._
 import play.api.libs.json._
@@ -14,7 +15,7 @@ import utils.PackageInfo._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
-class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, gitHub: GitHub, maven: Maven) (implicit ec: ExecutionContext) extends Deployable {
+class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, gitHub: GitHub, maven: Maven) (implicit ec: ExecutionContext, futures: Futures) extends Deployable {
 
   import Bower._
 
@@ -45,7 +46,23 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
     }
   }
 
-  def versions(packageNameOrGitRepo: String): Future[Seq[String]] = {
+  def bowerToMaven(keyValue: (String, String)): Future[(String, String, String)] = {
+    val (name, version) = parseDep(keyValue)
+
+    def convertSemVerToMaven(version: String): Future[String] = {
+      SemVer.convertSemVerToMaven(version).fold {
+        Future.failed[String](new Exception(s"Could not convert version '$version' to Maven form"))
+      } (Future.successful)
+    }
+
+    for {
+      groupId <- groupId(name)
+      artifactId <- artifactId(name)
+      version <- convertSemVerToMaven(version)
+    } yield (groupId, artifactId, version)
+  }
+
+  override def versions(packageNameOrGitRepo: String): Future[Set[String]] = {
     if (git.isGit(packageNameOrGitRepo)) {
       git.gitUrl(packageNameOrGitRepo).flatMap(git.versions)
     }
@@ -54,7 +71,7 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
         URLEncoder.encode(packageNameOrGitRepo, "UTF-8")
       }
 
-      maybeName.toOption.fold[Future[Seq[String]]] {
+      maybeName.toOption.fold[Future[Set[String]]] {
         Future.failed(new Exception("Could not encode the URL for the specified package"))
       } { name =>
         ws.url(s"$BASE_URL/info/$name").get().flatMap { response =>
@@ -62,7 +79,7 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
             case Status.OK =>
               val versions = (response.json \ "versions").as[Seq[String]]
               val cleanVersions = versions.filterNot(_.contains("sha"))
-              Future.successful(cleanVersions)
+              Future.successful(cleanVersions.toSet)
             case _ =>
               Future.failed(new Exception(response.body))
           }
@@ -71,28 +88,52 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
     }
   }
 
-  def versionsOnBranch(gitRepo: String, branch: String): Future[Seq[String]] = {
-    git.gitUrl(gitRepo).flatMap(git.versionsOnBranch(_, branch))
-  }
-
   def rawInfo(packageNameOrGitRepo: String, version: String): Future[PackageInfo] = {
     if (git.isGit(packageNameOrGitRepo)) {
       git.gitUrl(packageNameOrGitRepo).flatMap { gitUrl =>
-        git.file(gitUrl, Some(version), "bower.json").map { bowerJson =>
-          // add the gitUrl into the json since it is not in the file, just the json served by the Bower index
-          val json = Json.parse(bowerJson).as[JsObject] + ("_source" -> JsString(gitUrl))
 
-          val jsonWithCorrectVersion = (json \ "version").asOpt[String].fold {
-            // the version was not in the json so add the specified version
-            json + ("version" -> JsString(version.vless))
-          } { _ =>
-            // todo: resolve conflicts?
-            // for now just use the version from the json
-            json
+        def parseBowerJson(bowerJson: String): Future[PackageInfo] = {
+          Future.fromTry {
+            Try {
+              // add the gitUrl into the json since it is not in the file, just the json served by the Bower index
+              val json = Json.parse(bowerJson).as[JsObject] + ("_source" -> JsString(gitUrl))
+
+              val jsonWithCorrectVersion = (json \ "version").asOpt[String].fold {
+                // the version was not in the json so add the specified version
+                json + ("version" -> JsString(version.vless))
+              } { _ =>
+                // todo: resolve conflicts?
+                // for now just use the version from the json
+                json
+              }
+
+              jsonWithCorrectVersion.as[PackageInfo].copy(version = version.vless) // ignore the version in the bower.json
+            }
           }
-
-          jsonWithCorrectVersion.as[PackageInfo].copy(version = version.vless) // ignore the version in the bower.json
         }
+
+        GitHub.gitHubUrl(gitUrl).fold({ _ =>
+          git.file(gitUrl, Some(version), "bower.json").flatMap(parseBowerJson)
+        }, { gitHubUrl =>
+          gitHub.currentUrls(gitHubUrl).flatMap { case (homepage, sourceConnectionUri, issuesUrl) =>
+            gitHub.raw(homepage, version, "bower.json").flatMap(parseBowerJson).map { packageInfo =>
+              packageInfo.copy(
+                maybeHomepageUrl = Some(homepage),
+                sourceConnectionUri = sourceConnectionUri,
+                maybeIssuesUrl = Some(issuesUrl)
+              )
+            } recoverWith {
+              case e =>
+                GitHub.maybeGitHubRepo(Some(gitHubUrl)).fold {
+                  Future.failed[PackageInfo](new Exception(s"Could not determine GitHub repo name: $gitHubUrl"))
+                } { repo =>
+                  Future.successful {
+                    PackageInfo(repo, version.vless, Some(homepage), sourceConnectionUri, Some(issuesUrl), Seq.empty[String], Map.empty[String, String], Map.empty[String, String])
+                  }
+                }
+            }
+          }
+        })
       }
     }
     else {
@@ -125,6 +166,7 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
 
     versionFuture.flatMap { version =>
       rawInfo(packageNameOrGitRepo, version).flatMap { initialInfo =>
+
         initialInfo.maybeGitHubUrl.fold(Future.successful(initialInfo)) { gitHubUrl =>
           gitHub.currentUrls(gitHubUrl).map {
             case (homepage, sourceConnectionUri, issuesUrl) =>
@@ -182,11 +224,12 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
             case Status.OK =>
               Future.fromTry(Try((response.json \ "url").as[URL]).flatMap(GitHub.gitHubUrl))
             case _ =>
-              Future.failed(new Exception(response.body))
+              Future.failed(new Exception(s"Could not find package: $packageNameOrGitRepo"))
           }
         }
     }
   }
+
 }
 
 object Bower {
@@ -219,8 +262,5 @@ object Bower {
     Reads.pure(Map.empty[String, String])
   )(PackageInfo.apply _)
 
-  implicit class RichString(val s: String) extends AnyVal {
-    def vless = s.stripPrefix("v").replaceAllLiterally("^v", "^").replaceAllLiterally("~v", "v")
-  }
 }
 

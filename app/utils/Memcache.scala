@@ -19,9 +19,11 @@ class Memcache @Inject() (configuration: Configuration, lifecycle: ApplicationLi
       password <- configuration.getOptional[String]("memcached.password")
     } yield AuthConfiguration(username, password)
 
-    Memcached(shade.memcached.Configuration(addresses = configuration.get[String]("memcached.servers"), authentication = maybeAuthConfig, operationTimeout = 30.seconds))
-  }
+    val memcached = Memcached(shade.memcached.Configuration(addresses = configuration.get[String]("memcached.servers"), authentication = maybeAuthConfig, operationTimeout = 30.seconds))
 
-  lifecycle.addStopHook(() => Future.fromTry(Try(instance.close())))
+    lifecycle.addStopHook(() => Future.fromTry(Try(memcached.close())))
+
+    memcached
+  }
 
 }

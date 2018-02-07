@@ -3,7 +3,6 @@ package utils
 import akka.actor.ActorSystem
 import akka.stream.Materializer
 import play.api.Configuration
-import play.api.libs.json.JsValue
 import play.api.test._
 
 import scala.util.Try
@@ -19,13 +18,8 @@ class HerokuSpec extends PlaySpecification with GlobalApplication {
 
   "dynoCreate" should {
     if (Try(heroku.apikey).isSuccess) {
-      "return json when attach is false" in {
-        await(heroku.dynoCreate(app, false, "echo test", "Standard-2X")) must beLeft[JsValue]
-      }
       "return a stream when attach is true" in {
-        val deploy = await(heroku.dynoCreate(app, true, "echo test", "Standard-2X"))
-        deploy must beRight
-        val source = deploy.toOption.get
+        val source = heroku.dynoCreate(app, "echo test", "Standard-2X")
         val output = await(source.runReduce(_ + _))
         output must beEqualTo("test")
       }

@@ -4,17 +4,20 @@ import java.io.FileNotFoundException
 import java.util.concurrent.TimeoutException
 import javax.inject.Inject
 
-import akka.NotUsed
 import akka.actor.ActorSystem
-import akka.stream.scaladsl.Source
+import akka.stream.scaladsl.{Flow, Source}
+import akka.util.ByteString
 import models.{WebJar, WebJarType}
 import org.joda.time.DateTime
 import play.api.data.Forms._
 import play.api.data._
+import play.api.http.HeaderNames.CONTENT_DISPOSITION
+import play.api.http.HttpEntity
 import play.api.libs.concurrent.Futures
-import play.api.libs.json.{JsValue, Json}
+import play.api.libs.json.Json
 import play.api.mvc._
 import play.api.{Configuration, Environment, Logger, Mode}
+import play.core.utils.HttpHeaderParameterEncoding
 import utils.MavenCentral.ExistingWebJarRequestException
 import utils._
 
@@ -23,7 +26,7 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Failure
 import scala.util.hashing.MurmurHash3
 
-class Application @Inject() (gitHub: GitHub, heroku: Heroku, pusher: Pusher, cache: Cache, mavenCentral: MavenCentral, deployWebJar: DeployWebJar, webJarsFileService: WebJarsFileService, actorSystem: ActorSystem, configuration: Configuration, environment: Environment, futures: Futures)
+class Application @Inject() (git: Git, gitHub: GitHub, heroku: Heroku, cache: Cache, mavenCentral: MavenCentral, deployWebJar: DeployWebJar, webJarsFileService: WebJarsFileService, actorSystem: ActorSystem, configuration: Configuration, environment: Environment, futures: Futures)
                             (classic: Classic, bower: Bower, npm: NPM, bowerGitHub: BowerGitHub)
                             (mainView: views.html.main, allView: views.html.all, indexView: views.html.index, webJarRequestView: views.html.webJarRequest, contributingView: views.html.contributing, documentationView: views.html.documentation)
                             (implicit ec: ExecutionContext) extends InjectedController {
@@ -53,6 +56,8 @@ class Application @Inject() (gitHub: GitHub, heroku: Heroku, pusher: Pusher, cac
   }
 
   private val defaultTimeout = 25.seconds
+
+  private val allDeployables = Set(npm, bower, bowerGitHub)
 
   private def webJarsWithTimeout(maybeWebJarType: Option[WebJarType] = None): Future[List[WebJar]] = {
     val fetcher = maybeWebJarType.fold(mavenCentral.webJars)(mavenCentral.webJars)
@@ -173,55 +178,37 @@ class Application @Inject() (gitHub: GitHub, heroku: Heroku, pusher: Pusher, cac
     Redirect(routes.Application.index())
   }
 
-  def bowerPackageExists(packageNameOrGitRepo: String) = Action.async {
-    bower.versions(packageNameOrGitRepo).map(_ => Ok).recover {
-      case e: Exception =>
+  def packageExists(webJarType: String, packageNameOrGitRepo: String) = Action.async {
+    WebJarType.fromString(webJarType, allDeployables).fold {
+      Future.successful(BadRequest(s"Specified WebJar type '$webJarType' can not be deployed"))
+    } { deployable =>
+      deployable.versions(packageNameOrGitRepo).map(_ => Ok).recover { case e: Exception =>
         InternalServerError(e.getMessage)
+      }
     }
   }
 
-  def bowerPackageVersions(packageNameOrGitRepo: String, maybeBranch: Option[String]) = Action.async { request =>
+  def packageVersions(webJarType: String, packageNameOrGitRepo: String, maybeBranch: Option[String]) = Action.async {
+    WebJarType.fromString(webJarType, allDeployables).fold {
+      Future.successful(BadRequest(s"Specified WebJar type '$webJarType' can not be deployed"))
+    } { deployable =>
 
-    val packageVersionsFuture = maybeBranch.fold {
-      cache.get[Seq[String]](s"bower-versions-$packageNameOrGitRepo", 1.hour) {
-        bower.versions(packageNameOrGitRepo)
+      val packageVersionsFuture = maybeBranch.fold {
+        cache.get[Set[String]](s"$webJarType-versions-$packageNameOrGitRepo", 1.hour) {
+          deployable.versions(packageNameOrGitRepo)
+        }
+      } { branch =>
+        cache.get[Set[String]](s"$webJarType-versions-$packageNameOrGitRepo-$branch", 1.hour) {
+          git.versionsOnBranch(packageNameOrGitRepo, branch)
+        }
       }
-    } { branch =>
-      cache.get[Seq[String]](s"bower-versions-$packageNameOrGitRepo-$branch", 1.hour) {
-        bower.versionsOnBranch(packageNameOrGitRepo, branch)
+
+      packageVersionsFuture.map { versions =>
+        Ok(Json.toJson(versions.toSeq.sorted(VersionStringOrdering).reverse))
+      } recover {
+        case e: Exception =>
+          InternalServerError
       }
-    }
-
-    packageVersionsFuture.map { json =>
-      Ok(Json.toJson(json))
-    } recover {
-      case e: Exception =>
-        InternalServerError
-    }
-  }
-
-  def npmPackageExists(packageNameOrGitRepo: String) = Action.async {
-    npm.versions(packageNameOrGitRepo).map(_ => Ok).recover { case e: Exception =>
-      InternalServerError(e.getMessage)
-    }
-  }
-
-  def npmPackageVersions(packageNameOrGitRepo: String, maybeBranch: Option[String]) = Action.async {
-    val packageVersionsFuture = maybeBranch.fold {
-      cache.get[Seq[String]](s"npm-versions-$packageNameOrGitRepo", 1.hour) {
-        npm.versions(packageNameOrGitRepo)
-      }
-    } { branch =>
-      cache.get[Seq[String]](s"npm-versions-$packageNameOrGitRepo-$branch", 1.hour) {
-        npm.versionsOnBranch(packageNameOrGitRepo, branch)
-      }
-    }
-
-    packageVersionsFuture.map { versions =>
-      Ok(Json.toJson(versions))
-    } recover {
-      case e: Exception =>
-        InternalServerError
     }
   }
 
@@ -336,49 +323,44 @@ class Application @Inject() (gitHub: GitHub, heroku: Heroku, pusher: Pusher, cac
     )
   }
 
-  private def deploy(deployable: Deployable, nameOrUrlish: String, version: String, maybeChannelId: Option[String]): Future[Either[JsValue, Source[String, NotUsed]]] = {
-    val fork = configuration.getOptional[Boolean]("deploy.fork").getOrElse(false)
-
-    if (fork) {
-      val app = configuration.get[String]("deploy.herokuapp")
-      val channelIdParam = maybeChannelId.getOrElse("")
-      val cmd = s"deploy ${WebJarType.toString(deployable)} $nameOrUrlish $version " + channelIdParam
-      heroku.dynoCreate(app, maybeChannelId.isEmpty, cmd, "Standard-2X")
-    }
-    else {
-      deployWebJar.deploy(deployable, nameOrUrlish, version, None, maybeChannelId).map { packageInfo =>
-        Left(Json.toJson(packageInfo))
+  def deploy(webJarType: String, nameOrUrlish: String, version: String): Action[AnyContent] = Action {
+    WebJarType.fromString(webJarType, allDeployables).fold {
+      BadRequest(s"Specified WebJar type '$webJarType' can not be deployed")
+    } { deployable =>
+      val source = deployWebJar.deploy(deployable, nameOrUrlish, version, true, false)
+      Ok.chunked {
+        source.recover {
+          case e => e.getMessage
+        } via {
+          Flow[String].map { s =>
+            ByteString.fromString(s + "\n")
+          }
+        } via {
+          Flow[ByteString].keepAlive(25.seconds, () => ByteString.fromString(" "))
+        }
       }
     }
   }
 
-  implicit class DeployConverters(deploy: Future[Either[JsValue, Source[String, NotUsed]]]) {
-    def toResult: Future[Result] = {
-      deploy.map {
-        case Left(jsValue) => Ok(jsValue)
-        case Right(source) => Ok.chunked(source)
-      } recover {
-        case e: Exception => InternalServerError(e.getMessage)
-      }
-    }
-  }
-
-  def deploy(webJarType: String, nameOrUrlish: String, version: String): Action[AnyContent] = Action.async {
-    val allDeployables = Set(npm, bower, bowerGitHub)
-
+  def create(webJarType: String, nameOrUrlish: String, version: String): Action[AnyContent] = Action.async {
     WebJarType.fromString(webJarType, allDeployables).fold {
       Future.successful(BadRequest(s"Specified WebJar type '$webJarType' can not be deployed"))
     } { deployable =>
-      deploy(deployable, nameOrUrlish, version, None).toResult
+      deployWebJar.create(deployable, nameOrUrlish, version).map { case (name, bytes) =>
+        // taken from private method: play.api.mvc.Results.streamFile
+        Result(
+          ResponseHeader(
+            OK,
+            Map(CONTENT_DISPOSITION -> s"""attachment; filename="$name"""")
+          ),
+          HttpEntity.Streamed(
+            Source.single(ByteString(bytes)),
+            Some(bytes.length),
+            fileMimeTypes.forFileName(name).orElse(Some(play.api.http.ContentTypes.BINARY))
+          )
+        )
+      }
     }
-  }
-
-  def deployBower(nameOrUrlish: String, version: String, maybeChannelId: Option[String]) = Action.async {
-    deploy(bower, nameOrUrlish, version, maybeChannelId).toResult
-  }
-
-  def deployNPM(nameOrUrlish: String, version: String, maybeChannelId: Option[String]) = Action.async {
-    deploy(npm, nameOrUrlish, version, maybeChannelId).toResult
   }
 
   def gitHubAuthorize = Action { implicit request =>

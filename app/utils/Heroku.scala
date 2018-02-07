@@ -6,17 +6,16 @@ import javax.net.ssl.SSLContext
 
 import akka.NotUsed
 import akka.actor.ActorSystem
-import akka.stream.{Materializer, OverflowStrategy, TLSProtocol, TLSRole}
 import akka.stream.TLSProtocol.NegotiateNewSession
-import akka.stream.scaladsl.{BidiFlow, BroadcastHub, Flow, Framing, MergeHub, Sink, Source, TLS, Tcp}
+import akka.stream.scaladsl.{BidiFlow, Flow, Framing, Source, TLS, Tcp}
+import akka.stream.{Materializer, TLSProtocol, TLSRole}
 import akka.util.ByteString
 import play.api.Configuration
 import play.api.http.{HeaderNames, Status}
-import play.api.libs.json.{JsValue, Json}
+import play.api.libs.json.Json
 import play.api.libs.ws.{WSClient, WSRequest}
 
-import scala.concurrent.duration._
-import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
 class Heroku @Inject() (ws: WSClient, config: Configuration) (implicit ec: ExecutionContext, actorSystem: ActorSystem, materializer: Materializer) {
@@ -51,7 +50,7 @@ class Heroku @Inject() (ws: WSClient, config: Configuration) (implicit ec: Execu
       )
 
       val byteStringToString = BidiFlow.fromFlows(
-        Flow[ByteString].via(Framing.delimiter(ByteString("\r\n"), maximumFrameLength = 1024, allowTruncation = true)).map(_.utf8String),
+        Flow[ByteString].via(Framing.delimiter(ByteString("\r\n"), maximumFrameLength = 8192, allowTruncation = true)).map(_.utf8String),
         Flow[String].map(ByteString(_))
       )
 
@@ -63,25 +62,28 @@ class Heroku @Inject() (ws: WSClient, config: Configuration) (implicit ec: Execu
     maybeUri.fold(Source.failed, connect)
   }
 
-  def dynoCreate(app: String, attach: Boolean, command: String, size: String): Future[Either[JsValue, Source[String, NotUsed]]] = {
+  def dynoCreate(app: String, command: String, size: String): Source[String, Future[NotUsed]] = {
     val json = Json.obj(
-      "attach" -> attach,
+      "attach" -> true,
       "command" -> command,
       "size" -> size
     )
 
-    ws(s"/apps/$app/dynos").post(json).flatMap { response =>
+    val sourceFuture = ws(s"/apps/$app/dynos").post(json).flatMap { response =>
       response.status match {
         case Status.CREATED =>
-          (response.json \ "attach_url").asOpt[String].fold {
-            Future.successful[Either[JsValue, Source[String, NotUsed]]](Left(response.json))
-          } { attachUrl =>
-            Future.successful(Right(rendezvous(attachUrl)))
+          Future.successful {
+            (response.json \ "attach_url").asOpt[String].fold[Source[String, NotUsed]] {
+              Source.failed[String](new Exception(response.body))
+            } { attachUrl =>
+              rendezvous(attachUrl)
+            }
           }
-        case _ =>
-          Future.failed(new Exception(response.body))
+        case _ => Future.failed(new Exception(response.body))
       }
     }
+
+    Source.fromFutureSource(sourceFuture)
   }
 
 }

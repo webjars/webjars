@@ -94,7 +94,7 @@ class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
     }
   }
 
-  def versions(gitRepo: String): Future[Seq[String]] = {
+  def versions(gitRepo: String): Future[Set[String]] = {
     gitUrl(gitRepo).flatMap { url =>
       Future.fromTry {
         Try {
@@ -103,19 +103,19 @@ class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
             .setTags(true)
             .call()
 
-          tags.asScala.map(_.getName.stripPrefix("refs/tags/")).toSeq.sorted(VersionStringOrdering).reverse
+          tags.asScala.map(_.getName.stripPrefix("refs/tags/")).toSet
         }
       }
     }
   }
 
-  def versionsOnBranch(gitRepo: String, branch: String): Future[Seq[String]] = {
+  def versionsOnBranch(gitRepo: String, branch: String): Future[Set[String]] = {
     gitUrl(gitRepo).flatMap { _ =>
       cloneOrCheckout(gitRepo, Some(s"origin/$branch")).flatMap { baseDir =>
         Future.fromTry {
           Try {
             val commits = GitApi.open(baseDir).log().call()
-            commits.asScala.map(_.getId.abbreviate(10).name()).toSeq
+            commits.asScala.map(_.getId.abbreviate(10).name()).toSet
           }
         }
       }
