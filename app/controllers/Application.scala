@@ -358,6 +358,8 @@ class Application @Inject() (git: Git, gitHub: GitHub, heroku: Heroku, cache: Ca
             fileMimeTypes.forFileName(filename).orElse(Some(play.api.http.ContentTypes.BINARY))
           )
         )
+      } recover {
+        case e => BadRequest(e.getMessage)
       }
     }
   }
