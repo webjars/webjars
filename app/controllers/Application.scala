@@ -14,7 +14,7 @@ import play.api.data._
 import play.api.http.HeaderNames.CONTENT_DISPOSITION
 import play.api.http.HttpEntity
 import play.api.libs.concurrent.Futures
-import play.api.libs.json.Json
+import play.api.libs.json.{JsObject, Json}
 import play.api.mvc._
 import play.api.{Configuration, Environment, Logger, Mode}
 import play.core.utils.HttpHeaderParameterEncoding
@@ -340,11 +340,16 @@ class Application @Inject() (git: Git, gitHub: GitHub, heroku: Heroku, cache: Ca
     }
   }
 
-  def create(webJarType: String, nameOrUrlish: String, version: String): Action[AnyContent] = Action.async {
+  def create(webJarType: String, nameOrUrlish: String, version: String) = Action.async { request =>
+
+    val licenseOverride = request.body.asJson.flatMap { json =>
+      (json \ "license").asOpt[Map[String, String]]
+    }
+
     WebJarType.fromString(webJarType, allDeployables).fold {
       Future.successful(BadRequest(s"Specified WebJar type '$webJarType' can not be deployed"))
     } { deployable =>
-      deployWebJar.create(deployable, nameOrUrlish, version).map { case (name, bytes) =>
+      deployWebJar.create(deployable, nameOrUrlish, version, licenseOverride).map { case (name, bytes) =>
         val filename = name + ".jar"
         // taken from private method: play.api.mvc.Results.streamFile
         Result(

@@ -148,7 +148,7 @@ class LicenseDetector @Inject() (ws: WSClient, git: Git, messages: MessagesApi, 
     seq.flatMap(failIfEmpty)
   }
 
-  def resolveLicenses(deployable: Deployable, packageInfo: PackageInfo, maybeVersion: Option[String] = None): Future[Set[String]] = {
+  def resolveLicenses(deployable: Deployable, packageInfo: PackageInfo, maybeVersion: Option[String] = None): Future[Map[String, String]] = {
     // first check just the specified licenses including synonyms
     failIfEmpty(validLicenses(packageInfo.metadataLicenses)).recoverWith {
       case _: NoValidLicenses =>
@@ -162,14 +162,22 @@ class LicenseDetector @Inject() (ws: WSClient, git: Git, messages: MessagesApi, 
                 tryToGetLicenseFromVariousFiles(packageInfo, maybeVersion)
             } map (Set(_))
         }
-    } recoverWith {
+    }.map(LicenseDetector.defaultUrls).recoverWith {
       case e: Exception =>
         val errorMessage = messages("licensenotfound", deployable.metadataFile, packageInfo.sourceConnectionUri, packageInfo.metadataLicenses.mkString)
         Future.failed(LicenseNotFoundException(errorMessage, e))
-    } map(_.toSet)
+    }
   }
 
 }
 
 case class LicenseNotFoundException(message: String, cause: Exception = null) extends Exception(message, cause)
 case class NoValidLicenses() extends Exception()
+
+object LicenseDetector {
+  def defaultUrls(licenses: Iterable[String]): Map[String, String] = {
+    licenses.map { name =>
+      name -> s"https://spdx.org/licenses/$name#licenseText"
+    }.toMap
+  }
+}

@@ -76,11 +76,11 @@ class DeployWebJar @Inject()(git: Git, binTray: BinTray, maven: Maven, mavenCent
     val actorPublisher = ActorPublisher[String](actorRef)
     val source = Source.fromPublisher(actorPublisher)
 
-    def licenses(packageInfo: PackageInfo, version: String): Future[Set[String]] = {
+    def licenses(packageInfo: PackageInfo, version: String): Future[Map[String, String]] = {
       maybeLicense.fold {
         licenseDetector.resolveLicenses(deployable, packageInfo, Some(version))
       } { license =>
-        Future.successful(license.split(",").toSet)
+        Future.successful(LicenseDetector.defaultUrls(license.split(",")))
       }
     }
 
@@ -175,7 +175,7 @@ class DeployWebJar @Inject()(git: Git, binTray: BinTray, maven: Maven, mavenCent
 
         packageName = s"$groupId:$artifactId"
 
-        createPackage <- binTray.getOrCreatePackage(binTraySubject, binTrayRepo, packageName, s"WebJar for $artifactId", Seq("webjar", artifactId), licenses, packageInfo.sourceConnectionUri, packageInfo.maybeHomepageUrl, packageInfo.maybeIssuesUrl, packageInfo.maybeGitHubOrgRepo)
+        createPackage <- binTray.getOrCreatePackage(binTraySubject, binTrayRepo, packageName, s"WebJar for $artifactId", Seq("webjar", artifactId), licenses.keySet, packageInfo.sourceConnectionUri, packageInfo.maybeHomepageUrl, packageInfo.maybeIssuesUrl, packageInfo.maybeGitHubOrgRepo)
         _ = actorRef ! "Created BinTray Package"
 
         createVersion <- binTray.createOrOverwriteVersion(binTraySubject, binTrayRepo, packageName, releaseVersion, s"$artifactId WebJar release $releaseVersion", Some(s"v$releaseVersion"))
@@ -221,7 +221,7 @@ class DeployWebJar @Inject()(git: Git, binTray: BinTray, maven: Maven, mavenCent
     }
   }
 
-  def create(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String): Future[(String, Array[Byte])] = {
+  def create(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, licenseOverride: Option[Map[String, String]]): Future[(String, Array[Byte])] = {
     import deployable._
 
     for {
@@ -232,7 +232,7 @@ class DeployWebJar @Inject()(git: Git, binTray: BinTray, maven: Maven, mavenCent
 
       releaseVersion = upstreamVersion.vless
 
-      licenses <- licenseDetector.resolveLicenses(deployable, packageInfo, Some(upstreamVersion))
+      licenses <- licenseOverride.map(Future.successful).getOrElse(licenseDetector.resolveLicenses(deployable, packageInfo, Some(upstreamVersion)))
 
       mavenDependencies <- deployable.mavenDependencies(packageInfo.dependencies)
 
