@@ -80,8 +80,8 @@ class DeployWebJar @Inject()(git: Git, binTray: BinTray, maven: Maven, mavenCent
       maybeLicense.fold {
         licenseDetector.resolveLicenses(deployable, packageInfo, Some(version))
       } { license =>
-        Future.successful(LicenseDetector.defaultUrls(license.split(",")))
-      }
+        Future.successful(license.split(",")).map(_.toSet)
+      } map LicenseDetector.defaultUrls
     }
 
     def webJarNotYetDeployed(groupId: String, artifactId: String, version: String): Future[Unit] = {
@@ -232,7 +232,7 @@ class DeployWebJar @Inject()(git: Git, binTray: BinTray, maven: Maven, mavenCent
 
       releaseVersion = upstreamVersion.vless
 
-      licenses <- licenseOverride.map(Future.successful).getOrElse(licenseDetector.resolveLicenses(deployable, packageInfo, Some(upstreamVersion)))
+      licenses <- licenseOverride.map(Future.successful).getOrElse(licenseDetector.resolveLicenses(deployable, packageInfo, Some(upstreamVersion)).map(LicenseDetector.defaultUrls))
 
       mavenDependencies <- deployable.mavenDependencies(packageInfo.dependencies)
 

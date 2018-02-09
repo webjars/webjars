@@ -112,7 +112,7 @@ class LicenseDetectorSpec extends PlaySpecification with GlobalApplication {
   "angular-equalizer" should {
     "have an MIT license" in {
       val packageInfo = await(bower.info("angular-equalizer", Some("2.0.1")))
-      await(licenseDetector.resolveLicenses(bower, packageInfo))must contain("MIT")
+      await(licenseDetector.resolveLicenses(bower, packageInfo)) must contain("MIT")
     }
   }
 
@@ -149,7 +149,7 @@ class LicenseDetectorSpec extends PlaySpecification with GlobalApplication {
   "async-validator" should {
     "have an MIT license" in {
       val packageInfo = await(npm.info("async-validator", Some("1.0.0")))
-      await(licenseDetector.resolveLicenses(npm, packageInfo))must contain("MIT")
+      await(licenseDetector.resolveLicenses(npm, packageInfo)) must contain("MIT")
     }
   }
 
