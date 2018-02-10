@@ -93,7 +93,7 @@ class DeployWebJar @Inject()(git: Git, binTray: BinTray, maven: Maven, mavenCent
       }
     }
 
-    def doDeployDependencies(packageInfo: PackageInfo): Future[Done] = {
+    def doDeployDependencies(packageInfo: PackageInfo): Future[Iterable[Done]] = {
       if (deployDependencies) {
         actorRef ! "Determining dependency graph"
 
@@ -108,28 +108,15 @@ class DeployWebJar @Inject()(git: Git, binTray: BinTray, maven: Maven, mavenCent
 
           actorRef ! deployDepGraphMessage
 
-          def deployDep(deps: Map[String, String]): Future[Done] = {
-            if (deps.isEmpty) {
-              Future.successful(Done)
-            }
-            else {
-              val (nameish, version) = deps.head
-              deploy(deployable, nameish, version, false, false).runForeach(actorRef ! _).recover {
-                // ignore failures
-                case e =>
-                  actorRef ! e.getMessage
-                  Done
-              } flatMap { _ =>
-                deployDep(deps.tail)
-              }
+          Future.sequence {
+            depGraph.map { case (nameish, version) =>
+                deploy(deployable, nameish, version, false, false).runForeach(actorRef ! _)
             }
           }
-
-          deployDep(depGraph)
         }
       }
       else {
-        Future.successful(Done)
+        Future.successful(Iterable.empty[Done])
       }
     }
 
@@ -145,7 +132,7 @@ class DeployWebJar @Inject()(git: Git, binTray: BinTray, maven: Maven, mavenCent
 
         _ <- doDeployDependencies(packageInfo)
 
-        _ <- webJarNotYetDeployed(groupId, artifactId, releaseVersion)
+        //_ <- webJarNotYetDeployed(groupId, artifactId, releaseVersion)
 
         licenses <- licenses(packageInfo, upstreamVersion)
         _ = actorRef ! s"Resolved Licenses: ${licenses.mkString(",")}"
