@@ -277,6 +277,7 @@ object DeployWebJar extends App {
     (webJarType, nameOrUrlish, upstreamVersion, deployDependencies, preventFork, maybeReleaseVersion, maybeSourceUri, maybeLicense)
   }
   else {
+    // todo: come up with a way to handle the optional params because if we fork then we lose them
     (args(0), args(1), args(2), args(3).toBoolean, args(4).toBoolean, None, None, None)
   }
 
@@ -319,7 +320,7 @@ trait Deployable extends WebJarType {
 
   def groupId(nameOrUrlish: String): Future[String]
   def artifactId(nameOrUrlish: String): Future[String]
-  def releaseVersion(maybeVersion: Option[String], packageInfo: PackageInfo): String = maybeVersion.getOrElse(packageInfo.version).stripPrefix("v")
+  def releaseVersion(maybeVersion: Option[String], packageInfo: PackageInfo): String = maybeVersion.getOrElse(packageInfo.version).vless
   def excludes(nameOrUrlish: String, version: String): Future[Set[String]]
   val metadataFile: String
   val contentsInSubdir: Boolean
