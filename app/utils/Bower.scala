@@ -95,6 +95,7 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
         def parseBowerJson(bowerJson: String): Future[PackageInfo] = {
           Future.fromTry {
             Try {
+
               // add the gitUrl into the json since it is not in the file, just the json served by the Bower index
               val json = Json.parse(bowerJson).as[JsObject] + ("_source" -> JsString(gitUrl))
 
@@ -257,7 +258,7 @@ object Bower {
     (__ \ "homepage").read[URL].orElse(sourceToGitHubReads).map(Some(_)) ~
     sourceReads ~
     sourceToGitHubIssuesReads.map(Some(_)) ~
-    (__ \ "license").read[Seq[String]].orElse((__ \ "license").read[String].map(Seq(_))).orElse(Reads.pure(Seq.empty[String])) ~
+    (__ \ "license").read[Seq[String]].orElse((__ \ "license").read[String].map(Seq(_))).orElse((__ \ "licenses").read[Seq[String]]).orElse(Reads.pure(Seq.empty[String])) ~
     (__ \ "dependencies").read[Map[String, String]].orElse(Reads.pure(Map.empty[String, String])) ~
     Reads.pure(Map.empty[String, String])
   )(PackageInfo.apply _)

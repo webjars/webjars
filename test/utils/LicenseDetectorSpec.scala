@@ -160,6 +160,13 @@ class LicenseDetectorSpec extends PlaySpecification with GlobalApplication {
     }
   }
 
+  "dojox" should {
+    "have the right licenses" in {
+      val packageInfo = await(bower.info("dojox", Some("1.13.0")))
+      await(licenseDetector.resolveLicenses(bower, packageInfo)) must beEqualTo (Set("BSD 3-Clause", "AFL-2.1"))
+    }
+  }
+
   /*
   // This is broken due to upstream: https://github.com/webjars/webjars/issues/1265
 

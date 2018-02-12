@@ -195,5 +195,11 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
     }
   }
 
+  "dojox" should {
+    "have the right licenses" in {
+      val packageInfo = await(bower.info("dojox", Some("1.13.0")))
+      packageInfo.metadataLicenses must beEqualTo (Seq("BSD-3-Clause", "AFL-2.1"))
+    }
+  }
 
 }
