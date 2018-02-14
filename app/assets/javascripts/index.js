@@ -240,7 +240,7 @@ $(function() {
     var deployLog = $("#deployLog");
     function log(message) {
       deployLog.append(message);
-      deployLog.animate({scrollTop: deployLog.prop("scrollHeight")}, 350);
+      deployLog.animate({scrollTop: deployLog.prop("scrollHeight")}, 0);
     }
 
     $("#deployButton").attr("disabled", true);
