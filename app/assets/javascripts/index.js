@@ -232,7 +232,9 @@ $(function() {
     }
   }).on("change", function(event) {
     $("#deployButton").attr("disabled", false);
-  });
+  }).val("");
+
+  $("#deployButton").attr("disabled", true);
 
   $("#deployButton").click(function(event) {
     event.preventDefault();
@@ -254,31 +256,36 @@ $(function() {
 
     var deployUrl = "/deploy?webJarType=" + webJarType() + "&nameOrUrlish=" + encodeURIComponent(artifactId) + "&version=" + encodeURIComponent(version);
 
-    fetch(deployUrl, {method: 'POST'})
-      .then(response => {
-        var reader = response.body.getReader();
-        var decoder = new TextDecoder();
+    fetch(deployUrl, {method: 'POST'}).then(response => {
+      // todo: response.body is undefined in Firefox
+      var reader = response.body.getReader();
+      var decoder = new TextDecoder();
 
-        function readChunk() {
-          return reader.read().then(result => {
-            var chunk = decoder.decode(result.value || new Uint8Array, {stream: !result.done});
-            if (result.done) {
-              $("#deployButton").attr("disabled", false);
-            }
-            else {
-              log(chunk);
-              readChunk();
-            }
-          });
-        }
+      function readChunk() {
+        return reader.read().then(result => {
+          var chunk = decoder.decode(result.value || new Uint8Array, {stream: !result.done});
+          if (result.done) {
+            $("#deployButton").attr("disabled", false);
+          }
+          else {
+            log(chunk);
+            readChunk();
+          }
+        });
+      }
 
-        return readChunk();
-      })
-      .catch(error => $("#deployButton").attr("disabled", false));
+      return readChunk();
+    })
+    .catch(error => {
+      console.error(error);
+      $("#deployButton").attr("disabled", false);
+    });
 
   });
 
   $("#newWebJarModal").on("show.bs.modal", function (event) {
+    $("input[type=radio][name=new_webjar_catalog]:checked").trigger("change");
+
     var artifactId = $(event.relatedTarget).data("artifact-id");
     var webJarType = $(event.relatedTarget).data("webjar-type");
     if (webJarType !== undefined) {

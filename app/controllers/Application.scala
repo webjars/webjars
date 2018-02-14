@@ -18,6 +18,7 @@ import play.api.libs.json.{JsObject, Json}
 import play.api.mvc._
 import play.api.{Configuration, Environment, Logger, Mode}
 import play.core.utils.HttpHeaderParameterEncoding
+import play.twirl.api.Xml
 import utils.MavenCentral.ExistingWebJarRequestException
 import utils._
 
@@ -180,7 +181,9 @@ class Application @Inject() (git: Git, gitHub: GitHub, heroku: Heroku, cache: Ca
     WebJarType.fromString(webJarType, allDeployables).fold {
       Future.successful(BadRequest(s"Specified WebJar type '$webJarType' can not be deployed"))
     } { deployable =>
-      deployable.versions(packageNameOrGitRepo).map(_ => Ok).recover { case e: Exception =>
+      deployable.versions(packageNameOrGitRepo).map { _ =>
+        Ok(<root></root>)
+      } recover { case e: Exception =>
         InternalServerError(e.getMessage)
       }
     }
