@@ -14,6 +14,7 @@ import models.WebJarType
 import play.api.Configuration
 import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.libs.concurrent.Futures
+import play.api.libs.json.Json
 
 import scala.annotation.tailrec
 import scala.concurrent.{ExecutionContext, Future}
@@ -165,7 +166,8 @@ class DeployWebJar @Inject()(git: Git, binTray: BinTray, maven: Maven, mavenCent
         createPackage <- binTray.getOrCreatePackage(binTraySubject, binTrayRepo, packageName, s"WebJar for $artifactId", Seq("webjar", artifactId), licenses.keySet, packageInfo.sourceConnectionUri, packageInfo.maybeHomepageUrl, packageInfo.maybeIssuesUrl, packageInfo.maybeGitHubOrgRepo)
         _ = actorRef ! "Created BinTray Package"
 
-        createVersion <- binTray.createOrOverwriteVersion(binTraySubject, binTrayRepo, packageName, releaseVersion, s"$artifactId WebJar release $releaseVersion", Some(s"v$releaseVersion"))
+        //createVersion <- binTray.createOrOverwriteVersion(binTraySubject, binTrayRepo, packageName, releaseVersion, s"$artifactId WebJar release $releaseVersion", Some(s"v$releaseVersion"))
+        _ <- binTray.createVersion(binTraySubject, binTrayRepo, packageName, releaseVersion, s"$artifactId WebJar release $releaseVersion", Some(s"v$releaseVersion")).recover { case _ => Json.obj()}
         _ = actorRef ! "Created BinTray Version"
 
         publishPom <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/$releaseVersion/$artifactId-$releaseVersion.pom", pom.getBytes)
