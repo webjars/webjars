@@ -163,29 +163,32 @@ class DeployWebJar @Inject()(git: Git, binTray: BinTray, maven: Maven, mavenCent
 
         packageName = s"$groupId:$artifactId"
 
-        createPackage <- binTray.getOrCreatePackage(binTraySubject, binTrayRepo, packageName, s"WebJar for $artifactId", Seq("webjar", artifactId), licenses.keySet, packageInfo.sourceConnectionUri, packageInfo.maybeHomepageUrl, packageInfo.maybeIssuesUrl, packageInfo.maybeGitHubOrgRepo)
+        _ <- binTray.getOrCreatePackage(binTraySubject, binTrayRepo, packageName, s"WebJar for $artifactId", Seq("webjar", artifactId), licenses.keySet, packageInfo.sourceConnectionUri, packageInfo.maybeHomepageUrl, packageInfo.maybeIssuesUrl, packageInfo.maybeGitHubOrgRepo)
         _ = actorRef ! "Created BinTray Package"
 
-        //createVersion <- binTray.createOrOverwriteVersion(binTraySubject, binTrayRepo, packageName, releaseVersion, s"$artifactId WebJar release $releaseVersion", Some(s"v$releaseVersion"))
-        _ <- binTray.createVersion(binTraySubject, binTrayRepo, packageName, releaseVersion, s"$artifactId WebJar release $releaseVersion", Some(s"v$releaseVersion")).recover { case _ => Json.obj()}
-        _ = actorRef ! "Created BinTray Version"
+        publishFuture = for {
+          _ <- binTray.createVersion(binTraySubject, binTrayRepo, packageName, releaseVersion, s"$artifactId WebJar release $releaseVersion", Some(s"v$releaseVersion"))
+          _ = actorRef ! "Created BinTray Version"
 
-        publishPom <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/$releaseVersion/$artifactId-$releaseVersion.pom", pom.getBytes)
-        publishJar <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/$releaseVersion/$artifactId-$releaseVersion.jar", jar)
-        emptyJar = WebJarCreator.emptyJar()
-        publishSourceJar <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/$releaseVersion/$artifactId-$releaseVersion-sources.jar", emptyJar)
-        publishJavadocJar <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/$releaseVersion/$artifactId-$releaseVersion-javadoc.jar", emptyJar)
-        _ = actorRef ! "Published BinTray Assets"
+          _ <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/$releaseVersion/$artifactId-$releaseVersion.pom", pom.getBytes)
+          _ <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/$releaseVersion/$artifactId-$releaseVersion.jar", jar)
+          emptyJar = WebJarCreator.emptyJar()
+          _ <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/$releaseVersion/$artifactId-$releaseVersion-sources.jar", emptyJar)
+          _ <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/$releaseVersion/$artifactId-$releaseVersion-javadoc.jar", emptyJar)
+          _ = actorRef ! "Published BinTray Assets"
 
-        signVersion <- binTray.signVersion(binTraySubject, binTrayRepo, packageName, releaseVersion)
-        _ = actorRef ! "Signed BinTray Assets"
+          _ <- binTray.signVersion(binTraySubject, binTrayRepo, packageName, releaseVersion)
+          _ = actorRef ! "Signed BinTray Assets"
 
-        publishVersion <- binTray.publishVersion(binTraySubject, binTrayRepo, packageName, releaseVersion)
-        _ = actorRef ! "Published BinTray Version"
+          _ <- binTray.publishVersion(binTraySubject, binTrayRepo, packageName, releaseVersion)
+          _ = actorRef ! "Published BinTray Version"
+        } yield ()
+
+        _ <- publishFuture.recover { case _ => Json.obj()}
 
         _ = actorRef ! "Syncing to Maven Central (this could take a while)"
 
-        syncToMavenCentral <- binTray.syncToMavenCentral(binTraySubject, binTrayRepo, packageName, releaseVersion)
+        _ <- binTray.syncToMavenCentral(binTraySubject, binTrayRepo, packageName, releaseVersion)
         _ = actorRef ! "Synced With Maven Central"
 
         _ = actorRef ! s"""Deployed!
