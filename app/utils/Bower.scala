@@ -137,18 +137,23 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
     }
     else {
       ws.url(s"$BASE_URL/info/$packageNameOrGitRepo").get().flatMap { versionlessResponse =>
-        // todo: we do this because this is not correct: https://bower-as-a-service.herokuapp.com/info/jQuery/3.2.1
-        // but it should probably be fixed in the bower-as-a-service
-        // since the name returned on `bower info jQuery#3.2.1` is "jQuery"
-        val name = (versionlessResponse.json \ "name").as[String]
+        versionlessResponse.status match {
+          case Status.OK =>
+            // todo: we do this because this is not correct: https://bower-as-a-service.herokuapp.com/info/jQuery/3.2.1
+            // but it should probably be fixed in the bower-as-a-service
+            // since the name returned on `bower info jQuery#3.2.1` is "jQuery"
+            val name = (versionlessResponse.json \ "name").as[String]
 
-        ws.url(s"$BASE_URL/info/$packageNameOrGitRepo/$version").get().flatMap { versionResponse =>
-          versionResponse.status match {
-            case Status.OK =>
-              Future.successful(versionResponse.json.as[PackageInfo].copy(name = name, version = version.vless))
-            case _ =>
-              Future.failed(new Exception(versionResponse.body))
-          }
+            ws.url(s"$BASE_URL/info/$packageNameOrGitRepo/$version").get().flatMap { versionResponse =>
+              versionResponse.status match {
+                case Status.OK =>
+                  Future.successful(versionResponse.json.as[PackageInfo].copy(name = name, version = version.vless))
+                case _ =>
+                  Future.failed(new Exception(versionResponse.body))
+              }
+            }
+          case _ =>
+            Future.failed(new Exception(versionlessResponse.body))
         }
       }
     }

@@ -15,6 +15,7 @@ class SemVerSpec extends Specification {
       SemVer.convertSemVerToMaven("=1.2.3")      must beASuccessfulTry ("[1.2.3]")
       SemVer.convertSemVerToMaven("1.2.3-alpha") must beASuccessfulTry ("[1.2.3-alpha]")
       SemVer.convertSemVerToMaven("1.2.3-dev-r") must beASuccessfulTry ("[1.2.3-dev-r]")
+      SemVer.convertSemVerToMaven("5.0.0-alpha.7") must beASuccessfulTry ("[5.0.0-alpha.7]")
     }
     "work with basic ranges" in {
       SemVer.convertSemVerToMaven(">1")           must beASuccessfulTry ("(1,)")

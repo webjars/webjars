@@ -56,7 +56,7 @@ class BinTraySpec extends PlaySpecification with GlobalApplication {
           inputStream.close()
           fileBytes
         }.get
-        val result = await(binTray.uploadMavenArtifact("webjars", "test", repo, "org/webjars/bower/foo/0.0.1/foo-0.0.1.jar", bytes))
+        val result = await(binTray.uploadMavenArtifact("webjars", "test", repo, "org/webjars/bower/" + repo + "/0.0.1/" + repo + "-0.0.1.jar", bytes))
         (result \ "message").asOpt[String] must beSome("success")
       }
       "sign an artifact" in {

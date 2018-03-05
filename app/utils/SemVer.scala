@@ -282,7 +282,7 @@ object SemVer {
         Success(Set(leftVersionRange, rightVersionRange))
 
       // 1.2.3 | 1.2.3-alpha | =1.2.3 | =1.2.3-alpha
-      case r"^=?(\d+)${SomeInt(major)}\.(\d+)${SomeInt(minor)}\.(\d+)${SomeInt(patch)}([-\w]+)?${SomeString(tag)}$$" =>
+      case r"^=?(\d+)${SomeInt(major)}\.(\d+)${SomeInt(minor)}\.(\d+)${SomeInt(patch)}([\w-.]+)?${SomeString(tag)}$$" =>
         Success(Set(Comparator(Operator.EQ, Version(major, minor, patch, tag))))
 
       // >1.0 <2.0
