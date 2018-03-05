@@ -3,132 +3,138 @@ package utils
 import org.specs2.mutable._
 import utils.SemVer._
 
+import scala.util.Success
+
 class SemVerSpec extends Specification {
 
   // SemVer Docs: https://github.com/npm/node-semver
 
   "SemVerUtil.convertSemVerToMaven" should {
     "work with static versions" in {
-      SemVer.convertSemVerToMaven("1.2.3")       must be equalTo Some("1.2.3")
-      SemVer.convertSemVerToMaven("=1.2.3")      must be equalTo Some("1.2.3")
-      SemVer.convertSemVerToMaven("1.2.3-alpha") must be equalTo Some("1.2.3-alpha")
-      SemVer.convertSemVerToMaven("1.2.3-dev-r") must be equalTo Some("1.2.3-dev-r")
+      SemVer.convertSemVerToMaven("1.2.3")       must beASuccessfulTry ("[1.2.3]")
+      SemVer.convertSemVerToMaven("=1.2.3")      must beASuccessfulTry ("[1.2.3]")
+      SemVer.convertSemVerToMaven("1.2.3-alpha") must beASuccessfulTry ("[1.2.3-alpha]")
+      SemVer.convertSemVerToMaven("1.2.3-dev-r") must beASuccessfulTry ("[1.2.3-dev-r]")
     }
     "work with basic ranges" in {
-      SemVer.convertSemVerToMaven(">1")           must be equalTo Some("(1,)")
-      SemVer.convertSemVerToMaven("> 1")          must be equalTo Some("(1,)")
-      SemVer.convertSemVerToMaven(">1.2")         must be equalTo Some("(1.2,)")
-      SemVer.convertSemVerToMaven(">1.2.3")       must be equalTo Some("(1.2.3,)")
-      SemVer.convertSemVerToMaven(">1.2.3-alpha") must be equalTo Some("(1.2.3-alpha,)")
-      SemVer.convertSemVerToMaven(">1.2.3-dev-r") must be equalTo Some("(1.2.3-dev-r,)")
+      SemVer.convertSemVerToMaven(">1")           must beASuccessfulTry ("(1,)")
+      SemVer.convertSemVerToMaven("> 1")          must beASuccessfulTry ("(1,)")
+      SemVer.convertSemVerToMaven(">1.2")         must beASuccessfulTry ("(1.2,)")
+      SemVer.convertSemVerToMaven(">1.2.3")       must beASuccessfulTry ("(1.2.3,)")
+      SemVer.convertSemVerToMaven(">1.2.3-alpha") must beASuccessfulTry ("(1.2.3-alpha,)")
+      SemVer.convertSemVerToMaven(">1.2.3-dev-r") must beASuccessfulTry ("(1.2.3-dev-r,)")
 
-      SemVer.convertSemVerToMaven(">=1")           must be equalTo Some("[1,)")
-      SemVer.convertSemVerToMaven(">= 1")          must be equalTo Some("[1,)")
-      SemVer.convertSemVerToMaven(">=1.2")         must be equalTo Some("[1.2,)")
-      SemVer.convertSemVerToMaven(">=1.2.3")       must be equalTo Some("[1.2.3,)")
-      SemVer.convertSemVerToMaven(">=1.2.3-alpha") must be equalTo Some("[1.2.3-alpha,)")
-      SemVer.convertSemVerToMaven(">=1.2.3-dev-r") must be equalTo Some("[1.2.3-dev-r,)")
-      SemVer.convertSemVerToMaven(">=1.9.x")       must be equalTo Some("[1.9,)")
+      SemVer.convertSemVerToMaven(">=1")           must beASuccessfulTry ("[1,)")
+      SemVer.convertSemVerToMaven(">= 1")          must beASuccessfulTry ("[1,)")
+      SemVer.convertSemVerToMaven(">=1.2")         must beASuccessfulTry ("[1.2,)")
+      SemVer.convertSemVerToMaven(">=1.2.3")       must beASuccessfulTry ("[1.2.3,)")
+      SemVer.convertSemVerToMaven(">=1.2.3-alpha") must beASuccessfulTry ("[1.2.3-alpha,)")
+      SemVer.convertSemVerToMaven(">=1.2.3-dev-r") must beASuccessfulTry ("[1.2.3-dev-r,)")
+      SemVer.convertSemVerToMaven(">=1.9.x")       must beASuccessfulTry ("[1.9,)")
 
-      SemVer.convertSemVerToMaven("<1")           must be equalTo Some("(,1)")
-      SemVer.convertSemVerToMaven("< 1")          must be equalTo Some("(,1)")
-      SemVer.convertSemVerToMaven("<1.2")         must be equalTo Some("(,1.2)")
-      SemVer.convertSemVerToMaven("<1.2.3")       must be equalTo Some("(,1.2.3)")
-      SemVer.convertSemVerToMaven("<1.2.3-alpha") must be equalTo Some("(,1.2.3-alpha)")
-      SemVer.convertSemVerToMaven("<1.2.3-dev-r") must be equalTo Some("(,1.2.3-dev-r)")
+      SemVer.convertSemVerToMaven("<1")           must beASuccessfulTry ("(,1)")
+      SemVer.convertSemVerToMaven("< 1")          must beASuccessfulTry ("(,1)")
+      SemVer.convertSemVerToMaven("<1.2")         must beASuccessfulTry ("(,1.2)")
+      SemVer.convertSemVerToMaven("<1.2.3")       must beASuccessfulTry ("(,1.2.3)")
+      SemVer.convertSemVerToMaven("<1.2.3-alpha") must beASuccessfulTry ("(,1.2.3-alpha)")
+      SemVer.convertSemVerToMaven("<1.2.3-dev-r") must beASuccessfulTry ("(,1.2.3-dev-r)")
 
-      SemVer.convertSemVerToMaven("<=1")           must be equalTo Some("(,1]")
-      SemVer.convertSemVerToMaven("<= 1")          must be equalTo Some("(,1]")
-      SemVer.convertSemVerToMaven("<=1.2")         must be equalTo Some("(,1.2]")
-      SemVer.convertSemVerToMaven("<=1.2.3")       must be equalTo Some("(,1.2.3]")
-      SemVer.convertSemVerToMaven("<=1.2.3-alpha") must be equalTo Some("(,1.2.3-alpha]")
-      SemVer.convertSemVerToMaven("<=1.2.3-dev-r") must be equalTo Some("(,1.2.3-dev-r]")
+      SemVer.convertSemVerToMaven("<=1")           must beASuccessfulTry ("(,1]")
+      SemVer.convertSemVerToMaven("<= 1")          must beASuccessfulTry ("(,1]")
+      SemVer.convertSemVerToMaven("<=1.2")         must beASuccessfulTry ("(,1.2]")
+      SemVer.convertSemVerToMaven("<=1.2.3")       must beASuccessfulTry ("(,1.2.3]")
+      SemVer.convertSemVerToMaven("<=1.2.3-alpha") must beASuccessfulTry ("(,1.2.3-alpha]")
+      SemVer.convertSemVerToMaven("<=1.2.3-dev-r") must beASuccessfulTry ("(,1.2.3-dev-r]")
     }
     "work with range sets" in {
-      SemVer.convertSemVerToMaven(">=1.0.0 <1.4.0")      must be equalTo Some("[1.0.0,1.4.0)")
-      SemVer.convertSemVerToMaven(">= 0.10.1 < 0.12.0")  must be equalTo Some("[0.10.1,0.12.0)")
-      SemVer.convertSemVerToMaven(">=1.2.x <=1.4.x")     must be equalTo Some("[1.2,1.4]")
-      SemVer.convertSemVerToMaven(">=1.2.16 1.4.x")      must be equalTo Some("[1.2.16,),[1.4,1.5)")
-      SemVer.convertSemVerToMaven(">=1.2.16 1.4.0")      must be equalTo Some("[1.2.16,),1.4.0")
+      SemVer.convertSemVerToMaven(">=1.0.0 <1.4.0")      must beASuccessfulTry ("[1.0.0,1.4.0)")
+      SemVer.convertSemVerToMaven(">= 0.10.1 < 0.12.0")  must beASuccessfulTry ("[0.10.1,0.12.0)")
+      SemVer.convertSemVerToMaven(">=1.2.x <=1.4.x")     must beASuccessfulTry ("[1.2,1.4]")
+      SemVer.convertSemVerToMaven(">=1.2.16 1.4.x")      must beASuccessfulTry ("[1.4,1.5)")
+      SemVer.convertSemVerToMaven(">=1.2.16 1.4.0")      must beASuccessfulTry ("[1.4.0]")
+      SemVer.convertSemVerToMaven("1.2.x <1.3.0")        must beASuccessfulTry ("[1.2,1.3)")
+      SemVer.convertSemVerToMaven("<1.2.16 >1.4.0")      must beAFailedTry
+      SemVer.convertSemVerToMaven("2 >=2.2.1")           must beASuccessfulTry ("[2.2.1,3)")
     }
     "work with hyphen ranges" in {
-      SemVer.convertSemVerToMaven("1 - 2")           must be equalTo Some("[1,3)")
-      SemVer.convertSemVerToMaven("1 - 2.4")         must be equalTo Some("[1,2.5)")
-      SemVer.convertSemVerToMaven("1 - 2.3.4")       must be equalTo Some("[1,2.3.4]")
-      SemVer.convertSemVerToMaven("1 - 2.3.4-alpha") must be equalTo Some("[1,2.3.4-alpha]")
-      SemVer.convertSemVerToMaven("1 - 2.3.4-dev-r") must be equalTo Some("[1,2.3.4-dev-r]")
+      SemVer.convertSemVerToMaven("1 - 2")           must beASuccessfulTry ("[1.0.0,3)")
+      SemVer.convertSemVerToMaven("1 - 2.4")         must beASuccessfulTry ("[1.0.0,2.5)")
+      SemVer.convertSemVerToMaven("1 - 2.3.4")       must beASuccessfulTry ("[1.0.0,2.3.4]")
+      SemVer.convertSemVerToMaven("1 - 2.3.4-alpha") must beASuccessfulTry ("[1.0.0,2.3.4-alpha]")
+      SemVer.convertSemVerToMaven("1 - 2.3.4-dev-r") must beASuccessfulTry ("[1.0.0,2.3.4-dev-r]")
 
-      SemVer.convertSemVerToMaven("1.2 - 2")           must be equalTo Some("[1.2,3)")
-      SemVer.convertSemVerToMaven("1.2 - 1.4")         must be equalTo Some("[1.2,1.5)")
-      SemVer.convertSemVerToMaven("1.2 - 1.2.3")       must be equalTo Some("[1.2,1.2.3]")
-      SemVer.convertSemVerToMaven("1.2 - 1.2.3-alpha") must be equalTo Some("[1.2,1.2.3-alpha]")
-      SemVer.convertSemVerToMaven("1.2 - 1.2.3-dev-r") must be equalTo Some("[1.2,1.2.3-dev-r]")
+      SemVer.convertSemVerToMaven("1.2 - 2")           must beASuccessfulTry ("[1.2.0,3)")
+      SemVer.convertSemVerToMaven("1.2 - 1.4")         must beASuccessfulTry ("[1.2.0,1.5)")
+      SemVer.convertSemVerToMaven("1.2 - 1.2.3")       must beASuccessfulTry ("[1.2.0,1.2.3]")
+      SemVer.convertSemVerToMaven("1.2 - 1.2.3-alpha") must beASuccessfulTry ("[1.2.0,1.2.3-alpha]")
+      SemVer.convertSemVerToMaven("1.2 - 1.2.3-dev-r") must beASuccessfulTry ("[1.2.0,1.2.3-dev-r]")
 
-      SemVer.convertSemVerToMaven("1.2.3 - 2")           must be equalTo Some("[1.2.3,3)")
-      SemVer.convertSemVerToMaven("1.2.3 - 1.4")         must be equalTo Some("[1.2.3,1.5)")
-      SemVer.convertSemVerToMaven("1.2.3 - 1.3.4")       must be equalTo Some("[1.2.3,1.3.4]")
-      SemVer.convertSemVerToMaven("1.2.3 - 1.3.4-alpha") must be equalTo Some("[1.2.3,1.3.4-alpha]")
-      SemVer.convertSemVerToMaven("1.2.3 - 1.3.4-dev-r") must be equalTo Some("[1.2.3,1.3.4-dev-r]")
+      SemVer.convertSemVerToMaven("1.2.3 - 2")           must beASuccessfulTry ("[1.2.3,3)")
+      SemVer.convertSemVerToMaven("1.2.3 - 1.4")         must beASuccessfulTry ("[1.2.3,1.5)")
+      SemVer.convertSemVerToMaven("1.2.3 - 1.3.4")       must beASuccessfulTry ("[1.2.3,1.3.4]")
+      SemVer.convertSemVerToMaven("1.2.3 - 1.3.4-alpha") must beASuccessfulTry ("[1.2.3,1.3.4-alpha]")
+      SemVer.convertSemVerToMaven("1.2.3 - 1.3.4-dev-r") must beASuccessfulTry ("[1.2.3,1.3.4-dev-r]")
 
-      SemVer.convertSemVerToMaven("1.2.3-alpha - 2")           must be equalTo Some("[1.2.3-alpha,3)")
-      SemVer.convertSemVerToMaven("1.2.3-dev-r - 2")           must be equalTo Some("[1.2.3-dev-r,3)")
-      SemVer.convertSemVerToMaven("1.2.3-alpha - 1.4")         must be equalTo Some("[1.2.3-alpha,1.5)")
-      SemVer.convertSemVerToMaven("1.2.3-dev-r - 1.4")         must be equalTo Some("[1.2.3-dev-r,1.5)")
-      SemVer.convertSemVerToMaven("1.2.3-alpha - 1.3.4")       must be equalTo Some("[1.2.3-alpha,1.3.4]")
-      SemVer.convertSemVerToMaven("1.2.3-dev-r - 1.3.4")       must be equalTo Some("[1.2.3-dev-r,1.3.4]")
-      SemVer.convertSemVerToMaven("1.2.3-alpha - 1.3.4-alpha") must be equalTo Some("[1.2.3-alpha,1.3.4-alpha]")
-      SemVer.convertSemVerToMaven("1.2.3-dev-r - 1.3.4-dev-r") must be equalTo Some("[1.2.3-dev-r,1.3.4-dev-r]")
+      SemVer.convertSemVerToMaven("1.2.3-alpha - 2")           must beASuccessfulTry ("[1.2.3-alpha,3)")
+      SemVer.convertSemVerToMaven("1.2.3-dev-r - 2")           must beASuccessfulTry ("[1.2.3-dev-r,3)")
+      SemVer.convertSemVerToMaven("1.2.3-alpha - 1.4")         must beASuccessfulTry ("[1.2.3-alpha,1.5)")
+      SemVer.convertSemVerToMaven("1.2.3-dev-r - 1.4")         must beASuccessfulTry ("[1.2.3-dev-r,1.5)")
+      SemVer.convertSemVerToMaven("1.2.3-alpha - 1.3.4")       must beASuccessfulTry ("[1.2.3-alpha,1.3.4]")
+      SemVer.convertSemVerToMaven("1.2.3-dev-r - 1.3.4")       must beASuccessfulTry ("[1.2.3-dev-r,1.3.4]")
+      SemVer.convertSemVerToMaven("1.2.3-alpha - 1.3.4-alpha") must beASuccessfulTry ("[1.2.3-alpha,1.3.4-alpha]")
+      SemVer.convertSemVerToMaven("1.2.3-dev-r - 1.3.4-dev-r") must beASuccessfulTry ("[1.2.3-dev-r,1.3.4-dev-r]")
     }
     "work with X ranges" in {
-      SemVer.convertSemVerToMaven("")      must be equalTo Some("[0,)")
-      SemVer.convertSemVerToMaven("*")     must be equalTo Some("[0,)")
-      SemVer.convertSemVerToMaven("1")     must be equalTo Some("[1,2)")
-      SemVer.convertSemVerToMaven("1.x")   must be equalTo Some("[1,2)")
-      SemVer.convertSemVerToMaven("1.x.x") must be equalTo Some("[1,2)")
-      SemVer.convertSemVerToMaven("1.X")   must be equalTo Some("[1,2)")
-      SemVer.convertSemVerToMaven("1.X.X") must be equalTo Some("[1,2)")
-      SemVer.convertSemVerToMaven("1.*")   must be equalTo Some("[1,2)")
-      SemVer.convertSemVerToMaven("1.*.*") must be equalTo Some("[1,2)")
-      SemVer.convertSemVerToMaven("1-alpha") must be equalTo Some("[1-alpha,2)")
+      SemVer.convertSemVerToMaven("")      must beASuccessfulTry ("[0,)")
+      SemVer.convertSemVerToMaven("*")     must beASuccessfulTry ("[0,)")
+      SemVer.convertSemVerToMaven("1")     must beASuccessfulTry ("[1,2)")
+      SemVer.convertSemVerToMaven("1.x")   must beASuccessfulTry ("[1,2)")
+      SemVer.convertSemVerToMaven("1.x.x") must beASuccessfulTry ("[1,2)")
+      SemVer.convertSemVerToMaven("1.X")   must beASuccessfulTry ("[1,2)")
+      SemVer.convertSemVerToMaven("1.X.X") must beASuccessfulTry ("[1,2)")
+      SemVer.convertSemVerToMaven("1.*")   must beASuccessfulTry ("[1,2)")
+      SemVer.convertSemVerToMaven("1.*.*") must beASuccessfulTry ("[1,2)")
+      SemVer.convertSemVerToMaven("1-alpha") must beASuccessfulTry ("[1-alpha,2)")
 
-      SemVer.convertSemVerToMaven("1.2")       must be equalTo Some("[1.2,1.3)")
-      SemVer.convertSemVerToMaven("1.2.x")     must be equalTo Some("[1.2,1.3)")
-      SemVer.convertSemVerToMaven("1.2.X")     must be equalTo Some("[1.2,1.3)")
-      SemVer.convertSemVerToMaven("1.2.*")     must be equalTo Some("[1.2,1.3)")
-      SemVer.convertSemVerToMaven("1.2-alpha") must be equalTo Some("[1.2-alpha,1.3)")
+      SemVer.convertSemVerToMaven("1.2")       must beASuccessfulTry ("[1.2,1.3)")
+      SemVer.convertSemVerToMaven("1.2.x")     must beASuccessfulTry ("[1.2,1.3)")
+      SemVer.convertSemVerToMaven("1.2.X")     must beASuccessfulTry ("[1.2,1.3)")
+      SemVer.convertSemVerToMaven("1.2.*")     must beASuccessfulTry ("[1.2,1.3)")
+      SemVer.convertSemVerToMaven("1.2-alpha") must beASuccessfulTry ("[1.2-alpha,1.3)")
     }
     "work with tilde ranges" in {
-      SemVer.convertSemVerToMaven("~1")           must be equalTo Some("[1,2)")
-      SemVer.convertSemVerToMaven("~1.2")         must be equalTo Some("[1.2,1.3)")
-      SemVer.convertSemVerToMaven("~1.2.3")       must be equalTo Some("[1.2.3,1.3)")
-      SemVer.convertSemVerToMaven("~1.2.3-alpha") must be equalTo Some("[1.2.3-alpha,1.3)")
-      SemVer.convertSemVerToMaven("~1.2.3-dev-r") must be equalTo Some("[1.2.3-dev-r,1.3)")
-      SemVer.convertSemVerToMaven("~1.x")         must be equalTo Some("[1,2)")
-      SemVer.convertSemVerToMaven("~ 0.1.11")     must be equalTo Some("[0.1.11,0.2)")
+      SemVer.convertSemVerToMaven("~1")           must beASuccessfulTry ("[1,2)")
+      SemVer.convertSemVerToMaven("~1.2")         must beASuccessfulTry ("[1.2,1.3)")
+      SemVer.convertSemVerToMaven("~1.2.3")       must beASuccessfulTry ("[1.2.3,1.3)")
+      SemVer.convertSemVerToMaven("~1.2.3-alpha") must beASuccessfulTry ("[1.2.3-alpha,1.3)")
+      SemVer.convertSemVerToMaven("~1.2.3-dev-r") must beASuccessfulTry ("[1.2.3-dev-r,1.3)")
+      SemVer.convertSemVerToMaven("~1.x")         must beASuccessfulTry ("[1,2)")
+      SemVer.convertSemVerToMaven("~ 0.1.11")     must beASuccessfulTry ("[0.1.11,0.2)")
     }
     "work with caret ranges" in {
-      SemVer.convertSemVerToMaven("^1.2.3")        must be equalTo Some("[1.2.3,2)")
-      SemVer.convertSemVerToMaven("^1.2.3-beta.2") must be equalTo Some("[1.2.3-beta.2,2)")
+      SemVer.convertSemVerToMaven("^1.2.3")        must beASuccessfulTry ("[1.2.3,2)")
+      SemVer.convertSemVerToMaven("^1.2.3-beta.2") must beASuccessfulTry ("[1.2.3-beta.2,2)")
 
-      SemVer.convertSemVerToMaven("^0.2.3")        must be equalTo Some("[0.2.3,0.3)")
-      SemVer.convertSemVerToMaven("^0.0.3")        must be equalTo Some("[0.0.3,0.0.4)")
-      SemVer.convertSemVerToMaven("^0.0.3-beta")   must be equalTo Some("[0.0.3-beta,0.0.4)")
+      SemVer.convertSemVerToMaven("^0.2.3")        must beASuccessfulTry ("[0.2.3,0.3)")
+      SemVer.convertSemVerToMaven("^0.0.3")        must beASuccessfulTry ("[0.0.3,0.0.4)")
+      SemVer.convertSemVerToMaven("^0.0.3-beta")   must beASuccessfulTry ("[0.0.3-beta,0.0.4)")
 
-      SemVer.convertSemVerToMaven("^1.2.x") must be equalTo Some("[1.2.0,2)")
-      SemVer.convertSemVerToMaven("^0.0.x") must be equalTo Some("[0.0.0,0.1)")
-      SemVer.convertSemVerToMaven("^0.0")   must be equalTo Some("[0.0.0,0.1)")
+      SemVer.convertSemVerToMaven("^1.2.x") must beASuccessfulTry ("[1.2.0,2)")
+      SemVer.convertSemVerToMaven("^0.0.x") must beASuccessfulTry ("[0.0.0,0.1)")
+      SemVer.convertSemVerToMaven("^0.0")   must beASuccessfulTry ("[0.0.0,0.1)")
 
-      SemVer.convertSemVerToMaven("^1.x") must be equalTo Some("[1.0.0,2)")
-      SemVer.convertSemVerToMaven("^0.x") must be equalTo Some("[0.0.0,1)")
+      SemVer.convertSemVerToMaven("^1.x") must beASuccessfulTry ("[1.0.0,2)")
+      SemVer.convertSemVerToMaven("^0.x") must beASuccessfulTry ("[0.0.0,1)")
     }
     "work with crazy stuff" in {
-      SemVer.convertSemVerToMaven("latest") must be equalTo Some("[0,)")
-      SemVer.convertSemVerToMaven("b4e74e38e43ac53af8acd62c78c9213be0194245") must be equalTo Some("b4e74e38e43ac53af8acd62c78c9213be0194245")
-      SemVer.convertSemVerToMaven("2432d39a1693ccd728cbe7eb55810063737d3403") must be equalTo Some("2432d39a1693ccd728cbe7eb55810063737d3403")
+      SemVer.convertSemVerToMaven("latest") must beASuccessfulTry ("[0,)")
+      SemVer.convertSemVerToMaven("b4e74e38e43ac53af8acd62c78c9213be0194245") must beASuccessfulTry ("[b4e74e38e43ac53af8acd62c78c9213be0194245]")
+      SemVer.convertSemVerToMaven("2432d39a1693ccd728cbe7eb55810063737d3403") must beASuccessfulTry ("[2432d39a1693ccd728cbe7eb55810063737d3403]")
     }
     "work with || syntax" in {
-      SemVer.convertSemVerToMaven("^1.3.0 || >1.4.0-beta.0")  must be equalTo Some("[1.3.0,2),(1.4.0-beta.0,)")
-      SemVer.convertSemVerToMaven("2 || 3 || 4")              must be equalTo Some("[2,3),[3,4),[4,5)")
+      SemVer.convertSemVerToMaven("^1.3.0 || >1.4.0-beta.0")     must be equalTo Success("[1.3.0,2),(1.4.0-beta.0,)")
+      SemVer.convertSemVerToMaven("2 || 3 || 4")                 must be equalTo Success("[2,3),[3,4),[4,5)")
+      SemVer.convertSemVerToMaven("2 >=2.2.1 || 3.x || 4")  must be equalTo Success("[2.2.1,3),[3,4),[4,5)")
     }
   }
 
@@ -194,7 +200,6 @@ class SemVerSpec extends Specification {
       Version("1.1.1-alpha") must beLessThan (Version("1.1.1-beta"))
     }
   }
-
 
   "Comparator.includesVersion" should {
     "work with GT" in {
@@ -311,26 +316,39 @@ class SemVerSpec extends Specification {
     }
   }
 
-  "VersionRange.includesVersion" should {
+  "ComparatorSet.includesVersion" should {
     "work" in {
-      val range = VersionRange(Some(Comparator(Operator.GT, Version("0"))), Some(Comparator(Operator.LT, Version("1"))))
+      val range = Set(Comparator(Operator.GT, Version("0")), Comparator(Operator.LT, Version("1")))
       range.includesVersion(Version("0")) must beFalse
       range.includesVersion(Version("0.1")) must beTrue
       range.includesVersion(Version("1.0")) must beFalse
     }
   }
 
+  "VersionRange.includesVersion" should {
+    "work" in {
+      val set1 = Set(Comparator(Operator.GT, Version("0")), Comparator(Operator.LT, Version("1")))
+      val set2 = Set(Comparator(Operator.GT, Version("2")), Comparator(Operator.LT, Version("3")))
+
+      val range = Seq(set1, set2)
+      range.includesVersion(Version("0")) must beFalse
+      range.includesVersion(Version("0.1")) must beTrue
+      range.includesVersion(Version("1.0")) must beFalse
+      range.includesVersion(Version("2.1")) must beTrue
+    }
+  }
+
   "latestInRange" should {
     "work" in {
-      val latest = latestInRange(VersionRange(Some(Comparator(Operator.GT, Version("0.1"))), None), Set("0", "0.1", "0.2", "1.0"))
+      val latest = latestInRange(Seq(Set(Comparator(Operator.GT, Version("0.1")))), Set("0", "0.1", "0.2", "1.0"))
       latest must beSome("1.0")
     }
     "deal with a v prefix" in {
-      val latest = latestInRange(VersionRange(Some(Comparator(Operator.GT, Version("0.1"))), None), Set("v0", "v0.1", "v0.2", "v1.0"))
+      val latest = latestInRange(Seq(Set(Comparator(Operator.GT, Version("0.1")))), Set("v0", "v0.1", "v0.2", "v1.0"))
       latest must beSome("v1.0")
     }
     "be empty if no version is in the range" in {
-      val latest = latestInRange(VersionRange(Some(Comparator(Operator.GT, Version("1"))), None), Set("0", "0.1", "0.2", "1.0"))
+      val latest = latestInRange(Seq(Set(Comparator(Operator.GT, Version("1")))), Set("0", "0.1", "0.2", "1.0"))
       latest must beEmpty
     }
   }

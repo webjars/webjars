@@ -50,9 +50,7 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
     val (name, version) = parseDep(keyValue)
 
     def convertSemVerToMaven(version: String): Future[String] = {
-      SemVer.convertSemVerToMaven(version).fold {
-        Future.failed[String](new Exception(s"Could not convert version '$version' to Maven form"))
-      } (Future.successful)
+      Future.fromTry(SemVer.convertSemVerToMaven(version))
     }
 
     for {

@@ -346,11 +346,13 @@ trait Deployable extends WebJarType {
 
   def latestDep(nameOrUrlish: String, version: String)(implicit ec: ExecutionContext): Future[String] = {
     versions(nameOrUrlish).flatMap { availableVersions =>
-      val versionRange = SemVer.parseSemVerRange(version)
-      SemVer.latestInRange(versionRange, availableVersions).fold {
-        Future.failed[String](new Exception("Could not find a valid version in the provided range"))
-      } { version =>
-        Future.successful(version)
+      val maybeVersionRange = SemVer.parseSemVer(version)
+      Future.fromTry {
+        maybeVersionRange.flatMap { versionRange =>
+          SemVer.latestInRange(versionRange, availableVersions).fold[Try[String]] {
+            Failure(new Exception("Could not find a valid version in the provided range"))
+          } (Success(_))
+        }
       }
     }
   }

@@ -68,12 +68,8 @@ class Maven @Inject() (git: Git) (implicit ec: ExecutionContext) {
           Future.failed(new Exception(s"Invalid version specified in dependency: $name $versionOrUrl"))
         }
         else {
-          val maybeMavenVersion = SemVer.convertSemVerToMaven(version)
-          maybeMavenVersion.fold {
-            Future.failed[(String, String)](new Exception(s"Could not convert NPM / Bower version to Maven for: $name $versionOrUrl"))
-          } { mavenVersion =>
-            Future.successful(artifactId -> mavenVersion)
-          }
+          val maybeMavenVersion = SemVer.convertSemVerToMaven(version).map(artifactId -> _)
+          Future.fromTry(maybeMavenVersion)
         }
       }
     }
