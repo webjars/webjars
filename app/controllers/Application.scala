@@ -32,7 +32,7 @@ class Application @Inject() (git: Git, gitHub: GitHub, heroku: Heroku, cache: Ca
                             (mainView: views.html.main, allView: views.html.all, indexView: views.html.index, webJarRequestView: views.html.webJarRequest, contributingView: views.html.contributing, documentationView: views.html.documentation)
                             (implicit ec: ExecutionContext) extends InjectedController {
 
-  private val allWebJarTypes = Set(classic, bower, npm)
+  private val allWebJarTypes = Set(classic, bowerGitHub, bower, npm)
 
   private val X_GITHUB_ACCESS_TOKEN = "X-GITHUB-ACCESS-TOKEN"
 
@@ -120,7 +120,7 @@ class Application @Inject() (git: Git, gitHub: GitHub, heroku: Heroku, cache: Ca
     }
   }
 
-  def searchWebJars(query: String, groupId: List[String]) = Action.async { implicit request =>
+  def searchWebJars(query: String, groupIds: List[String]) = Action.async { implicit request =>
     webJarsWithTimeout().flatMap { allWebJars =>
 
       val webJarStatsFuture = cache.get[Seq[(String, String, Int)]]("stats", 1.day) {
@@ -134,8 +134,9 @@ class Application @Inject() (git: Git, gitHub: GitHub, heroku: Heroku, cache: Ca
       }
 
       webJarStatsFuture.map { webJarStats =>
+        val webJarTypes = groupIds.flatMap(WebJarType.fromGroupId(_, allWebJarTypes))
         val matchingWebJars = allWebJars.filter { webJar =>
-          groupId.contains(webJar.groupId) &&
+          webJarTypes.exists(_.includesGroupId(webJar.groupId)) &&
             (webJar.name.toLowerCase.contains(query.toLowerCase) || webJar.artifactId.toLowerCase.contains(query.toLowerCase))
         }
 

@@ -23,47 +23,63 @@
     </div>
 
     <div style="padding-left: 15px; padding-right: 15px;">
-        <h2>WebJars come in three flavors:</h2>
+        <h2>WebJars come in four flavors:</h2>
 
         <div class="row">
-            <div class="col-md-4">
+            <div class="col-md-6">
                 <div class="panel panel-default">
                     <div class="panel-heading">
                         <h3 class="panel-title">NPM WebJars</h3>
                     </div>
                     <div class="panel-body">
                         <ul>
-                            <li>Instant creation & deployment</li>
-                            <li>On-demand releases by anyone</li>
-                            <li>Artifact contents mirror NPM package</li>
+                            <li>Contents mirror NPM package</li>
+                            <li>GroupId: <code>org.webjars.npm</code></li>
+                            <li>ArtifactId: NPM Package or URL-based Name</li>
                         </ul>
                     </div>
                 </div>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-6">
                 <div class="panel panel-default">
                     <div class="panel-heading">
-                        <h3 class="panel-title">Bower WebJars</h3>
+                        <h3 class="panel-title">Bower GitHub WebJars</h3>
                     </div>
                     <div class="panel-body">
                         <ul>
-                            <li>Instant creation & deployment</li>
-                            <li>On-demand releases by anyone</li>
-                            <li>Artifact contents mirror Bower package</li>
+                            <li>Contents mirror Bower package</li>
+                            <li>GroupId: <code>org.webjars.bowergithub.[GITHUB_ORG]</code></li>
+                            <li>ArtifactId: GitHub Repo Name</li>
                         </ul>
                     </div>
                 </div>
             </div>
-            <div class="col-md-4">
+        </div>
+        <div class="row">
+            <div class="col-md-6">
                 <div class="panel panel-default">
                     <div class="panel-heading">
                         <h3 class="panel-title">Classic WebJars</h3>
                     </div>
                     <div class="panel-body">
                         <ul>
-                            <li>Manual packaging & deployment</li>
-                            <li>On-demand by the WebJars team</li>
-                            <li>Human-created RequireJS config</li>
+                            <li>Custom Built and Manually Deployed</li>
+                            <li>GroupId: <code>org.webjars</code></li>
+                            <li>ArtifactId: Varies</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="panel panel-default">
+                    <div class="panel-heading">
+                        <h3 class="panel-title">Bower Original WebJars</h3>
+                    </div>
+                    <div class="panel-body">
+                        <ul>
+                            <li><strong>Deprecated</strong> Use Bower GitHub WebJars instead</li>
+                            <li>GroupId: <code>org.webjars.bower</code></li>
+                            <li>ArtifactId: Bower Package or URL-based Name</li>
                         </ul>
                     </div>
                 </div>
@@ -81,7 +97,10 @@
                         <input type="checkbox" name="search_catalog[]" value="org.webjars.npm" checked> NPM
                     </label>
                     <label class="checkbox-inline">
-                        <input type="checkbox" name="search_catalog[]" value="org.webjars.bower" checked> Bower
+                        <input type="checkbox" name="search_catalog[]" value="org.webjars.bowergithub.*" checked> Bower GitHub
+                    </label>
+                    <label class="checkbox-inline">
+                        <input type="checkbox" name="search_catalog[]" value="org.webjars.bower" checked> Bower Original
                     </label>
                     <label class="checkbox-inline">
                         <input type="checkbox" name="search_catalog[]" value="org.webjars" checked> Classic
@@ -133,7 +152,10 @@
                                 <input type="radio" name="new_webjar_catalog" value="npm"> NPM
                             </label>
                             <label class="radio-inline">
-                                <input type="radio" name="new_webjar_catalog" value="bower"> Bower
+                                <input type="radio" name="new_webjar_catalog" value="bowergithub"> Bower GitHub
+                            </label>
+                            <label class="radio-inline">
+                                <input type="radio" name="new_webjar_catalog" value="bower"> Bower Original
                             </label>
                             <label class="radio-inline">
                                 <input type="radio" name="new_webjar_catalog" value="classic"> Classic

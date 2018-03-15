@@ -5,6 +5,7 @@ import play.api.Configuration
 import play.api.http.{ContentTypes, HeaderNames, Status}
 import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.test.{FakeRequest, PlaySpecification, WithApplication}
+import utils.BowerGitHub
 
 import scala.util.Random
 
@@ -62,7 +63,7 @@ class ApplicationSpec extends PlaySpecification {
   }
 
   "searchWebJars" should {
-    "work" in new WithApplication {
+    "work with a classic webjar" in new WithApplication {
       if (app.configuration.getOptional[String]("oss.username").isEmpty) {
         skipped("skipped due to missing config")
       }
@@ -76,6 +77,27 @@ class ApplicationSpec extends PlaySpecification {
         val possibleMatches = webJars.filter(_.artifactId.toLowerCase.contains("openui5"))
 
         val resultFuture = applicationController.searchWebJars("openui5", List("org.webjars"))(request)
+
+        status(resultFuture) must beEqualTo(Status.OK)
+
+        contentAsJson(resultFuture).as[Seq[WebJar]] must containTheSameElementsAs(possibleMatches)
+      }
+    }
+    "work with a bowergithub webjar" in new WithApplication {
+      if (app.configuration.getOptional[String]("oss.username").isEmpty) {
+        skipped("skipped due to missing config")
+      }
+      else {
+        val applicationController = app.injector.instanceOf[Application]
+        val bowerGitHub = app.injector.instanceOf[BowerGitHub]
+
+        val request = FakeRequest().withHeaders(HeaderNames.ACCEPT -> ContentTypes.JSON)
+
+        val webJars = contentAsJson(applicationController.webJarList(bowerGitHub.groupIdQuery)(request)).as[Seq[WebJar]]
+
+        val possibleMatches = webJars.filter(_.artifactId.toLowerCase.contains("iron-list"))
+
+        val resultFuture = applicationController.searchWebJars("iron-list", List(bowerGitHub.groupIdQuery))(request)
 
         status(resultFuture) must beEqualTo(Status.OK)
 
