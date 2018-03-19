@@ -167,6 +167,14 @@ class LicenseDetectorSpec extends PlaySpecification with GlobalApplication {
     }
   }
 
+  "swagger-ui" should {
+    "have the right license" in {
+      val packageInfo = await(bower.info("swagger-ui", Some("3.13.0")))
+      await(licenseDetector.resolveLicenses(bower, packageInfo)) must beEqualTo (Set("Apache-2.0"))
+    }
+  }
+
+
   /*
   // This is broken due to upstream: https://github.com/webjars/webjars/issues/1265
 
