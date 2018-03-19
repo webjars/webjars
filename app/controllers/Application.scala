@@ -137,7 +137,11 @@ class Application @Inject() (git: Git, gitHub: GitHub, heroku: Heroku, cache: Ca
         val webJarTypes = groupIds.flatMap(WebJarType.fromGroupId(_, allWebJarTypes))
         val matchingWebJars = allWebJars.filter { webJar =>
           webJarTypes.exists(_.includesGroupId(webJar.groupId)) &&
-            (webJar.name.toLowerCase.contains(query.toLowerCase) || webJar.artifactId.toLowerCase.contains(query.toLowerCase))
+            (
+              webJar.name.toLowerCase.contains(query.toLowerCase) ||
+              webJar.groupId.toLowerCase.contains(query.toLowerCase) ||
+              webJar.artifactId.toLowerCase.contains(query.toLowerCase)
+            )
         }
 
         val sortedMatchingWebJars = sortedWebJars(webJarStats, matchingWebJars)

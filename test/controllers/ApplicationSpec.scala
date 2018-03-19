@@ -81,6 +81,8 @@ class ApplicationSpec extends PlaySpecification {
         status(resultFuture) must beEqualTo(Status.OK)
 
         contentAsJson(resultFuture).as[Seq[WebJar]] must containTheSameElementsAs(possibleMatches)
+
+        // todo: verify that the ordering was correct (i.e. the stats worked)
       }
     }
     "work with a bowergithub webjar" in new WithApplication {
@@ -95,13 +97,21 @@ class ApplicationSpec extends PlaySpecification {
 
         val webJars = contentAsJson(applicationController.webJarList(bowerGitHub.groupIdQuery)(request)).as[Seq[WebJar]]
 
-        val possibleMatches = webJars.filter(_.artifactId.toLowerCase.contains("iron-list"))
+        val possibleMatchesOnArtifact = webJars.filter(_.artifactId.toLowerCase.contains("iron-list"))
 
-        val resultFuture = applicationController.searchWebJars("iron-list", List(bowerGitHub.groupIdQuery))(request)
+        val resultOnArtifactFuture = applicationController.searchWebJars("iron-list", List(bowerGitHub.groupIdQuery))(request)
 
-        status(resultFuture) must beEqualTo(Status.OK)
+        status(resultOnArtifactFuture) must beEqualTo(Status.OK)
 
-        contentAsJson(resultFuture).as[Seq[WebJar]] must containTheSameElementsAs(possibleMatches)
+        contentAsJson(resultOnArtifactFuture).as[Seq[WebJar]] must containTheSameElementsAs(possibleMatchesOnArtifact)
+
+        val possibleMatchesOnGroup = webJars.filter(_.groupId.toLowerCase.contains("polymer"))
+
+        val resultOnGroupFuture = applicationController.searchWebJars("polymer", List(bowerGitHub.groupIdQuery))(request)
+
+        status(resultOnGroupFuture) must beEqualTo(Status.OK)
+
+        contentAsJson(resultOnGroupFuture).as[Seq[WebJar]] must containTheSameElementsAs(possibleMatchesOnGroup)
       }
     }
     "work when stats can't be fetched" in new WithApplication(app = GuiceApplicationBuilder(configuration = Configuration("oss.username" -> "asdf", "oss.password" -> "asdf")).build()) {

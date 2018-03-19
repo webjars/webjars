@@ -1,13 +1,14 @@
 package utils
 
 import java.io.FileNotFoundException
-import javax.inject.Inject
 
+import javax.inject.Inject
 import actors.{FetchWebJars, WebJarFetcher}
 import akka.actor._
 import akka.pattern.ask
 import akka.util.Timeout
 import models.{WebJar, WebJarType, WebJarVersion}
+import org.apache.commons.codec.binary.Base64
 import org.joda.time.DateTime
 import play.api.http.{HeaderNames, MimeTypes, Status}
 import play.api.libs.json._
@@ -261,9 +262,13 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
       "nom" -> "1"
     )
 
+    val creds = Base64.encodeBase64String((ossUsername + ":" + ossPassword).getBytes)
+
     val statsFuture = wsClient.url("https://oss.sonatype.org/service/local/stats/slices")
-      .withAuth(ossUsername, ossPassword, WSAuthScheme.BASIC)
-      .withHttpHeaders(HeaderNames.ACCEPT -> MimeTypes.JSON)
+      .withHttpHeaders(
+        HeaderNames.ACCEPT -> MimeTypes.JSON,
+        HeaderNames.AUTHORIZATION -> ("Basic " + creds)
+      )
       .withQueryStringParameters(queryString: _*)
       .get()
 
