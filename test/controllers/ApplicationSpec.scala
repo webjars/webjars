@@ -5,6 +5,7 @@ import play.api.Configuration
 import play.api.http.{ContentTypes, HeaderNames, Status}
 import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.test.{FakeRequest, PlaySpecification, WithApplication}
+import utils.BowerGitHub
 
 import scala.util.Random
 
@@ -62,7 +63,7 @@ class ApplicationSpec extends PlaySpecification {
   }
 
   "searchWebJars" should {
-    "work" in new WithApplication {
+    "work with a classic webjar" in new WithApplication {
       if (app.configuration.getOptional[String]("oss.username").isEmpty) {
         skipped("skipped due to missing config")
       }
@@ -80,6 +81,37 @@ class ApplicationSpec extends PlaySpecification {
         status(resultFuture) must beEqualTo(Status.OK)
 
         contentAsJson(resultFuture).as[Seq[WebJar]] must containTheSameElementsAs(possibleMatches)
+
+        // todo: verify that the ordering was correct (i.e. the stats worked)
+      }
+    }
+    "work with a bowergithub webjar" in new WithApplication {
+      if (app.configuration.getOptional[String]("oss.username").isEmpty) {
+        skipped("skipped due to missing config")
+      }
+      else {
+        val applicationController = app.injector.instanceOf[Application]
+        val bowerGitHub = app.injector.instanceOf[BowerGitHub]
+
+        val request = FakeRequest().withHeaders(HeaderNames.ACCEPT -> ContentTypes.JSON)
+
+        val webJars = contentAsJson(applicationController.webJarList(bowerGitHub.groupIdQuery)(request)).as[Seq[WebJar]]
+
+        val possibleMatchesOnArtifact = webJars.filter(_.artifactId.toLowerCase.contains("iron-list"))
+
+        val resultOnArtifactFuture = applicationController.searchWebJars("iron-list", List(bowerGitHub.groupIdQuery))(request)
+
+        status(resultOnArtifactFuture) must beEqualTo(Status.OK)
+
+        contentAsJson(resultOnArtifactFuture).as[Seq[WebJar]] must containTheSameElementsAs(possibleMatchesOnArtifact)
+
+        val possibleMatchesOnGroup = webJars.filter(_.groupId.toLowerCase.contains("polymer"))
+
+        val resultOnGroupFuture = applicationController.searchWebJars("polymer", List(bowerGitHub.groupIdQuery))(request)
+
+        status(resultOnGroupFuture) must beEqualTo(Status.OK)
+
+        contentAsJson(resultOnGroupFuture).as[Seq[WebJar]] must containTheSameElementsAs(possibleMatchesOnGroup)
       }
     }
     "work when stats can't be fetched" in new WithApplication(app = GuiceApplicationBuilder(configuration = Configuration("oss.username" -> "asdf", "oss.password" -> "asdf")).build()) {

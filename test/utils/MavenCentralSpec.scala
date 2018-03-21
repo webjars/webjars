@@ -9,7 +9,7 @@ import utils.MavenCentral.UnavailableException
 class MavenCentralSpec extends PlaySpecification {
 
   "fetchWebJars" should {
-    "fail when the searchGroupUrl does not return JSON" in new WithServer(port = testServerPort, app = GuiceApplicationBuilder(configuration = Configuration("webjars.searchGroupUrl" -> s"http://localhost:$testServerPort/asdf")).build()) {
+    "fail when the search-url does not return JSON" in new WithServer(port = testServerPort, app = GuiceApplicationBuilder(configuration = Configuration("mavencentral.search-url" -> s"http://localhost:$testServerPort/asdf")).build()) {
       val mavenCentral = app.injector.instanceOf[MavenCentral]
       val classic = app.injector.instanceOf[Classic]
       await(mavenCentral.fetchWebJars(classic)) should throwA[UnavailableException]
@@ -30,8 +30,12 @@ class MavenCentralSpec extends PlaySpecification {
       else {
         val mavenCentral = app.injector.instanceOf[MavenCentral]
         val classic = app.injector.instanceOf[Classic]
-        val stats = await(mavenCentral.getStats(classic, new DateTime(2016, 1, 1, 1, 1)))
-        stats.head should beEqualTo("org.webjars", "jquery", 45947)
+        val statsClassic = await(mavenCentral.getStats(classic, new DateTime(2016, 1, 1, 1, 1)))
+        statsClassic.head should beEqualTo("org.webjars", "jquery", 45947)
+
+        val bowerWebJars = app.injector.instanceOf[BowerGitHub]
+        val statsBowerWebJars = await(mavenCentral.getStats(bowerWebJars, new DateTime(2018, 1, 1, 1, 1)))
+        statsBowerWebJars should contain(("org.webjars.bowergithub.polymerelements", "gold-zip-input", 10))
       }
     }
   }

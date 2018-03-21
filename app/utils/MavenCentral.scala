@@ -1,16 +1,18 @@
 package utils
 
 import java.io.FileNotFoundException
-import javax.inject.Inject
 
+import javax.inject.Inject
 import actors.{FetchWebJars, WebJarFetcher}
 import akka.actor._
 import akka.pattern.ask
 import akka.util.Timeout
 import models.{WebJar, WebJarType, WebJarVersion}
+import org.apache.commons.codec.binary.Base64
 import org.joda.time.DateTime
 import play.api.http.{HeaderNames, MimeTypes, Status}
 import play.api.libs.json._
+import play.api.libs.ws.ahc.AhcWSResponse
 import play.api.libs.ws.{WSAuthScheme, WSClient}
 import play.api.{Configuration, Logger}
 import shade.memcached.MemcachedCodecs._
@@ -20,11 +22,11 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 import scala.xml.Elem
 
-class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClient, actorSystem: ActorSystem, configuration: Configuration, webJarsFileService: WebJarsFileService)(classic: Classic, bower: Bower, npm: NPM) (implicit ec: ExecutionContext) {
+class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClient, actorSystem: ActorSystem, configuration: Configuration, webJarsFileService: WebJarsFileService)(classic: Classic, bower: Bower, bowerGitHub: BowerGitHub, npm: NPM) (implicit ec: ExecutionContext) {
 
   lazy val webJarFetcher: ActorRef = actorSystem.actorOf(Props[WebJarFetcher])
 
-  val allWebJarTypes = Set(classic, bower, npm)
+  val allWebJarTypes = Set(classic, bower, bowerGitHub, npm)
 
   implicit val webJarVersionReads = Json.reads[WebJarVersion]
   implicit val webJarVersionWrites = Json.writes[WebJarVersion]
@@ -36,6 +38,9 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
   lazy val ossPassword = configuration.get[String]("oss.password")
   lazy val ossProject = configuration.get[String]("oss.project")
   lazy val disableDeploy = configuration.getOptional[Boolean]("oss.disable-deploy").getOrElse(false)
+
+  lazy val rowLimit = configuration.get[Int]("mavencentral.row-limit")
+  lazy val searchUrl = configuration.get[String]("mavencentral.search-url")
 
   def fetchWebJarNameAndUrl(groupId: String, artifactId: String, version: String): Future[(String, String)] = {
     getPom(groupId, artifactId, version).flatMap { xml =>
@@ -161,9 +166,14 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
 
     Logger.info(s"Getting ${webJarType.name} WebJars")
 
-    val searchUrl = configuration.get[String]("webjars.searchGroupUrl").format(webJarType.groupIdQuery)
+    val params = Map(
+      "q" -> s"""g:${webJarType.groupIdQuery} AND p:jar""",
+      "core" -> "gav",
+      "rows" -> rowLimit.toString,
+      "wt" -> "json"
+    )
 
-    wsClient.url(searchUrl).get().flatMap { response =>
+    wsClient.url(searchUrl).withQueryStringParameters(params.toSeq: _*).get().flatMap { response =>
       Try(response.json).map(webJarsFromJson(webJarType)).getOrElse(Future.failed(new MavenCentral.UnavailableException(response.body)))
     }
 
@@ -227,18 +237,38 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
     }
   }
 
-  def getStats(webJarType: WebJarType, dateTime: DateTime): Future[Seq[(String, String, Int)]] = {
+  def groupIds(webJarType: WebJarType): Future[Set[String]] = {
+    val params = Map(
+      "q" -> s"""g:${webJarType.groupIdQuery} AND p:jar""",
+      "core" -> "gav",
+      "rows" -> rowLimit.toString,
+      "wt" -> "json"
+    )
+
+    wsClient.url(searchUrl).withQueryStringParameters(params.toSeq: _*).get().flatMap { response =>
+      Try(response.json).map { json =>
+        val allGroupIds = (json \ "response" \ "docs").as[Seq[JsObject]].map(_.\("g").as[String])
+        Future.successful(allGroupIds.distinct.toSet)
+      }.getOrElse(Future.failed(new MavenCentral.UnavailableException(response.body)))
+    }
+  }
+
+  def getStats(groupIdQuery: String, dateTime: DateTime): Future[Seq[(String, String, Int)]] = {
     val queryString = Seq(
       "p" -> ossProject,
-      "g" -> webJarType.groupIdQuery,
+      "g" -> groupIdQuery,
       "t" -> "raw",
       "from" -> dateTime.toString("yyyyMM"),
       "nom" -> "1"
     )
 
+    val creds = Base64.encodeBase64String((ossUsername + ":" + ossPassword).getBytes)
+
     val statsFuture = wsClient.url("https://oss.sonatype.org/service/local/stats/slices")
-      .withAuth(ossUsername, ossPassword, WSAuthScheme.BASIC)
-      .withHttpHeaders(HeaderNames.ACCEPT -> MimeTypes.JSON)
+      .withHttpHeaders(
+        HeaderNames.ACCEPT -> MimeTypes.JSON,
+        HeaderNames.AUTHORIZATION -> ("Basic " + creds)
+      )
       .withQueryStringParameters(queryString: _*)
       .get()
 
@@ -263,11 +293,27 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
             Future.successful(sorted)
           }
           else {
-            Future.failed(new Exception("Stats were empty"))
+            Future.failed(new MavenCentral.EmptyStatsException("Stats were empty"))
           }
         case _ =>
           Future.failed(new Exception(response.body))
       }
+    }
+  }
+
+  def getStats(webJarType: WebJarType, dateTime: DateTime): Future[Seq[(String, String, Int)]] = {
+    if (webJarType.groupIdQuery.endsWith("*")) {
+      groupIds(webJarType).flatMap { groupIds =>
+        val futures = groupIds.map { groupId =>
+          getStats(groupId, dateTime).recover {
+            case e: MavenCentral.EmptyStatsException => Seq.empty[(String, String, Int)]
+          }
+        }
+        Future.reduceLeft(futures)(_ ++ _)
+      }
+    }
+    else {
+      getStats(webJarType.groupIdQuery, dateTime)
     }
   }
 
@@ -291,4 +337,5 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
 object MavenCentral {
   class UnavailableException(msg: String) extends RuntimeException(msg)
   class ExistingWebJarRequestException(groupId: String) extends RuntimeException(s"There is an existing WebJar request for $groupId")
+  class EmptyStatsException(msg: String) extends RuntimeException(msg)
 }
