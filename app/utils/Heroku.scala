@@ -36,9 +36,9 @@ class Heroku @Inject() (ws: WSClient, config: Configuration) (implicit ec: Execu
     val maybeUri = Try(new URI(url))
 
     def connect(uri: URI): Source[String, NotUsed] = {
-      val connection = Tcp().outgoingConnection(uri.getHost, uri.getPort)
-
       val secret = uri.getPath.stripPrefix("/")
+
+      val connection = Tcp().outgoingConnection(uri.getHost, uri.getPort)
 
       val tls = TLS(SSLContext.getDefault, NegotiateNewSession.withDefaults, TLSRole.client)
 
