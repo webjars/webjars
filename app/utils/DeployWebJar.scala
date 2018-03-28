@@ -221,12 +221,12 @@ class DeployWebJar @Inject()(git: Git, binTray: BinTray, maven: Maven, mavenCent
     }
   }
 
-  def create(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, licenseOverride: Option[Map[String, String]]): Future[(String, Array[Byte])] = {
+  def create(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, licenseOverride: Option[Map[String, String]], groupIdOverride: Option[String]): Future[(String, Array[Byte])] = {
     import deployable._
 
     for {
       packageInfo <- deployable.info(nameOrUrlish, Some(upstreamVersion))
-      groupId <- deployable.groupId(nameOrUrlish)
+      groupId <- groupIdOverride.map(Future.successful).getOrElse(deployable.groupId(nameOrUrlish))
       artifactId <- deployable.artifactId(nameOrUrlish)
       mavenBaseDir = groupId.replaceAllLiterally(".", "/")
 
