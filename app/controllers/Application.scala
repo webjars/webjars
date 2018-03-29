@@ -350,14 +350,18 @@ class Application @Inject() (git: Git, gitHub: GitHub, heroku: Heroku, cache: Ca
 
   def create(webJarType: String, nameOrUrlish: String, version: String) = Action.async { request =>
 
-    val licenseOverride = request.body.asJson.flatMap { json =>
+    val bodyAsJson = request.body.asJson
+    val licenseOverride = bodyAsJson.flatMap { json =>
       (json \ "license").asOpt[Map[String, String]]
+    }
+    val groupIdOverride = bodyAsJson.flatMap { json =>
+      (json \ "groupId").asOpt[String]
     }
 
     WebJarType.fromString(webJarType, allDeployables).fold {
       Future.successful(BadRequest(s"Specified WebJar type '$webJarType' can not be deployed"))
     } { deployable =>
-      deployWebJar.create(deployable, nameOrUrlish, version, licenseOverride).map { case (name, bytes) =>
+      deployWebJar.create(deployable, nameOrUrlish, version, licenseOverride, groupIdOverride).map { case (name, bytes) =>
         val filename = name + ".jar"
         // taken from private method: play.api.mvc.Results.streamFile
         Result(
