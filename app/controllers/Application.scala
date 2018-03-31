@@ -2,8 +2,8 @@ package controllers
 
 import java.io.FileNotFoundException
 import java.util.concurrent.TimeoutException
-import javax.inject.Inject
 
+import javax.inject.Inject
 import akka.actor.ActorSystem
 import akka.stream.scaladsl.{Flow, Source}
 import akka.util.ByteString
@@ -12,7 +12,8 @@ import org.joda.time.DateTime
 import play.api.data.Forms._
 import play.api.data._
 import play.api.http.HeaderNames.CONTENT_DISPOSITION
-import play.api.http.HttpEntity
+import play.api.http.{ContentTypes, HttpEntity, MimeTypes}
+import play.api.libs.EventSource
 import play.api.libs.concurrent.Futures
 import play.api.libs.json.{JsObject, Json}
 import play.api.mvc._
@@ -329,22 +330,32 @@ class Application @Inject() (git: Git, gitHub: GitHub, heroku: Heroku, cache: Ca
     )
   }
 
-  def deploy(webJarType: String, nameOrUrlish: String, version: String): Action[AnyContent] = Action {
+  def deploy(webJarType: String, nameOrUrlish: String, version: String): Action[AnyContent] = Action { implicit request =>
     WebJarType.fromString(webJarType, allDeployables).fold {
       BadRequest(s"Specified WebJar type '$webJarType' can not be deployed")
     } { deployable =>
-      val source = deployWebJar.deploy(deployable, nameOrUrlish, version, true, false)
-      Ok.chunked {
-        source.recover {
-          case e => e.getMessage
-        } via {
-          Flow[String].map { s =>
-            ByteString.fromString(s + "\n")
-          }
-        } via {
-          Flow[ByteString].keepAlive(25.seconds, () => ByteString.fromString(" "))
-        }
+      val source = deployWebJar.deploy(deployable, nameOrUrlish, version, true, false).recover {
+        case e => e.getMessage
+      } via {
+        Flow[String].map(_ + "\n")
+      } via {
+        Flow[String].keepAlive(25.seconds, () => " ")
       }
+
+      val acceptsText = Accepting(MimeTypes.TEXT)
+      val acceptsEventStream = Accepting(MimeTypes.EVENT_STREAM)
+
+      render {
+        case acceptsText() =>
+          Ok.chunked(source)
+        case acceptsEventStream() =>
+          Ok.chunked {
+            source.via(EventSource.flow)
+          } as ContentTypes.EVENT_STREAM
+        case _ =>
+          BadRequest("Could not determine content type")
+      }
+
     }
   }
 

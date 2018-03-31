@@ -19,6 +19,7 @@ POST           /request                                                   contro
 GET            /exists                                                    controllers.Application.packageExists(webJarType, name)
 GET            /versions                                                  controllers.Application.packageVersions(webJarType, name, branch: Option[String])
 POST           /deploy                                                    controllers.Application.deploy(webJarType, nameOrUrlish, version)
+GET            /deploy                                                    controllers.Application.deploy(webJarType, nameOrUrlish, version)
 POST           /create                                                    controllers.Application.create(webJarType, nameOrUrlish, version)
 
 GET            /mockcentral/searchgroup                                   controllers.MockCentral.searchGroup()

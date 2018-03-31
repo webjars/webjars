@@ -256,28 +256,14 @@ $(function() {
 
     var deployUrl = "/deploy?webJarType=" + webJarType() + "&nameOrUrlish=" + encodeURIComponent(artifactId) + "&version=" + encodeURIComponent(version);
 
-    fetch(deployUrl, {method: 'POST'}).then(response => {
-      // todo: response.body is undefined in Firefox
-      var reader = response.body.getReader();
-      var decoder = new TextDecoder();
+    var source = new EventSource(deployUrl);
 
-      function readChunk() {
-        return reader.read().then(result => {
-          var chunk = decoder.decode(result.value || new Uint8Array, {stream: !result.done});
-          if (result.done) {
-            $("#deployButton").attr("disabled", false);
-          }
-          else {
-            log(chunk);
-            readChunk();
-          }
-        });
-      }
-
-      return readChunk();
-    })
-    .catch(error => {
-      console.error(error);
+    source.addEventListener('message', function(e) {
+      var message = e.data + "\n";
+      log(message);
+    });
+    source.addEventListener('error', function(e) {
+      source.close();
       $("#deployButton").attr("disabled", false);
     });
 

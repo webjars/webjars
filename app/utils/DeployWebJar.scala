@@ -100,7 +100,7 @@ class DeployWebJar @Inject()(git: Git, binTray: BinTray, maven: Maven, mavenCent
         deployable.depGraph(packageInfo).flatMap { depGraph =>
 
           val deployDepGraphMessage = if (depGraph.isEmpty) {
-            "No dependencies. We are done here!"
+            "No dependencies."
           }
           else {
             "Deploying these dependencies: " + depGraph.map(dep => dep._1 + "#" + dep._2).mkString(" ")
