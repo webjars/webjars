@@ -316,6 +316,7 @@ trait Deployable extends WebJarType {
 
   implicit class RichString(val s: String) {
     def vless: String = s.stripPrefix("v").replaceAllLiterally("^v", "^").replaceAllLiterally("~v", "v")
+    def vwith: String = if (s.startsWith("v")) s else "v" + s
   }
 
   def groupId(nameOrUrlish: String): Future[String]

@@ -255,4 +255,11 @@ class BowerGitHubSpec extends PlaySpecification with GlobalApplication {
     }
   }
 
+  "polymer/polymer 2.5.0" should {
+    "have dependencies" in {
+      val info = await(bowerGitHub.info("polymer/polymer", Some("2.5.0")))
+      info.dependencies.head._1 must beEqualTo ("shadycss")
+    }
+  }
+
 }

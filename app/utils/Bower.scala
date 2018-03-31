@@ -89,50 +89,54 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
   def rawInfo(packageNameOrGitRepo: String, version: String): Future[PackageInfo] = {
     if (git.isGit(packageNameOrGitRepo)) {
       git.gitUrl(packageNameOrGitRepo).flatMap { gitUrl =>
+        git.versions(gitUrl).flatMap { versions =>
 
-        def parseBowerJson(bowerJson: String): Future[PackageInfo] = {
-          Future.fromTry {
-            Try {
+          def parseBowerJson(bowerJson: String): Future[PackageInfo] = {
+            Future.fromTry {
+              Try {
 
-              // add the gitUrl into the json since it is not in the file, just the json served by the Bower index
-              val json = Json.parse(bowerJson).as[JsObject] + ("_source" -> JsString(gitUrl))
+                // add the gitUrl into the json since it is not in the file, just the json served by the Bower index
+                val json = Json.parse(bowerJson).as[JsObject] + ("_source" -> JsString(gitUrl))
 
-              val jsonWithCorrectVersion = (json \ "version").asOpt[String].fold {
-                // the version was not in the json so add the specified version
-                json + ("version" -> JsString(version.vless))
-              } { _ =>
-                // todo: resolve conflicts?
-                // for now just use the version from the json
-                json
-              }
-
-              jsonWithCorrectVersion.as[PackageInfo].copy(version = version.vless) // ignore the version in the bower.json
-            }
-          }
-        }
-
-        GitHub.gitHubUrl(gitUrl).fold({ _ =>
-          git.file(gitUrl, Some(version), "bower.json").flatMap(parseBowerJson)
-        }, { gitHubUrl =>
-          gitHub.currentUrls(gitHubUrl).flatMap { case (homepage, sourceConnectionUri, issuesUrl) =>
-            gitHub.raw(homepage, version, "bower.json").flatMap(parseBowerJson).map { packageInfo =>
-              packageInfo.copy(
-                maybeHomepageUrl = Some(homepage),
-                sourceConnectionUri = sourceConnectionUri,
-                maybeIssuesUrl = Some(issuesUrl)
-              )
-            } recoverWith {
-              case e =>
-                GitHub.maybeGitHubRepo(Some(gitHubUrl)).fold {
-                  Future.failed[PackageInfo](new Exception(s"Could not determine GitHub repo name: $gitHubUrl"))
-                } { repo =>
-                  Future.successful {
-                    PackageInfo(repo, version.vless, Some(homepage), sourceConnectionUri, Some(issuesUrl), Seq.empty[String], Map.empty[String, String], Map.empty[String, String])
-                  }
+                val jsonWithCorrectVersion = (json \ "version").asOpt[String].fold {
+                  // the version was not in the json so add the specified version
+                  json + ("version" -> JsString(version.vless))
+                } { _ =>
+                  // todo: resolve conflicts?
+                  // for now just use the version from the json
+                  json
                 }
+
+                jsonWithCorrectVersion.as[PackageInfo].copy(version = version.vless) // ignore the version in the bower.json
+              }
             }
           }
-        })
+
+          val tagCommitOrBranch = if (versions.contains(version.vless)) {
+            version.vless
+          }
+          else if (versions.contains(version.vwith)) {
+            version.vwith
+          }
+          else {
+            // assume this is a commit or branch
+            version
+          }
+
+          GitHub.gitHubUrl(gitUrl).fold({ _ =>
+            git.file(gitUrl, Some(tagCommitOrBranch), "bower.json").fallbackTo(git.file(gitUrl, Some(tagCommitOrBranch), "package.json")).flatMap(parseBowerJson)
+          }, { gitHubUrl =>
+            gitHub.currentUrls(gitHubUrl).flatMap { case (homepage, sourceConnectionUri, issuesUrl) =>
+              gitHub.raw(homepage, tagCommitOrBranch, "bower.json").fallbackTo(gitHub.raw(homepage, tagCommitOrBranch, "package.json")).flatMap(parseBowerJson).map { packageInfo =>
+                packageInfo.copy(
+                  maybeHomepageUrl = Some(homepage),
+                  sourceConnectionUri = sourceConnectionUri,
+                  maybeIssuesUrl = Some(issuesUrl)
+                )
+              }
+            }
+          })
+        }
       }
     }
     else {
@@ -170,7 +174,6 @@ class Bower @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector,
 
     versionFuture.flatMap { version =>
       rawInfo(packageNameOrGitRepo, version).flatMap { initialInfo =>
-
         initialInfo.maybeGitHubUrl.fold(Future.successful(initialInfo)) { gitHubUrl =>
           gitHub.currentUrls(gitHubUrl).map {
             case (homepage, sourceConnectionUri, issuesUrl) =>

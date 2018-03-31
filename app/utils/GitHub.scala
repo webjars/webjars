@@ -121,8 +121,9 @@ class GitHub @Inject() (configuration: Configuration, wsClient: WSClient) (impli
     }
   }
 
-  def raw(gitHubUrl: URL, version: String, fileName: String): Future[String] = {
-    wsClient.url(gitHubUrl + s"/raw/$version/$fileName").get().flatMap { response =>
+  def raw(gitHubUrl: URL, tagCommitOrBranch: String, fileName: String): Future[String] = {
+    val url = gitHubUrl + s"/raw/$tagCommitOrBranch/$fileName"
+    wsClient.url(url).get().flatMap { response =>
       response.status match {
         case Status.OK => Future.successful(response.body)
         case _ => Future.failed(new Exception(response.body))
