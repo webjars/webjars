@@ -259,8 +259,10 @@ $(function() {
     var source = new EventSource(deployUrl);
 
     source.addEventListener('message', function(e) {
-      var message = e.data + "\n";
-      log(message);
+      if (e.data.length > 0) {
+        var message = e.data + "\n";
+        log(message);
+      }
     });
     source.addEventListener('error', function(e) {
       source.close();
