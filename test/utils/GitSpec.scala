@@ -6,8 +6,10 @@ import java.net.URI
 
 import akka.util.Timeout
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
+import org.eclipse.jgit.api.{Git => GitApi}
 import play.api.test._
 
+import scala.collection.JavaConverters._
 import scala.concurrent.duration._
 
 class GitSpec extends PlaySpecification with GlobalApplication {
@@ -118,6 +120,22 @@ class GitSpec extends PlaySpecification with GlobalApplication {
     }
     "fetch the versions" in {
       await(git.versionsOnBranch("git://github.com/mdedetrich/requirejs-plugins", "jsonSecurityVulnerability")) must contain ("d9c103e7a0")
+    }
+  }
+
+  "cloneOrCheckout" should {
+    "update the cache when run again" in {
+      val dir = await(git.cloneOrCheckout("https://github.com/vaadin/vaadin-board.git", None))
+
+      val deletedTags = GitApi.open(dir).tagDelete().setTags("refs/tags/v2.0.0-beta2").call()
+
+      deletedTags.asScala must contain ("refs/tags/v2.0.0-beta2")
+
+      await(git.cloneOrCheckout("https://github.com/vaadin/vaadin-board.git", None))
+
+      val tags = GitApi.open(dir).tagList().call()
+
+      tags.asScala.map(_.getName) must contain ("refs/tags/v2.0.0-beta2")
     }
   }
 

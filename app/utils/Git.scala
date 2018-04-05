@@ -4,8 +4,8 @@ import java.io.{File, InputStream}
 import java.net.{URI, URL}
 import java.nio.charset.CodingErrorAction
 import java.nio.file.Files
-import javax.inject.Inject
 
+import javax.inject.Inject
 import org.apache.commons.io.FileUtils
 import org.eclipse.jgit.api.{Git => GitApi}
 import play.api.http.{HeaderNames, Status}
@@ -128,32 +128,34 @@ class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
     val baseDirFuture = if (!baseDir.exists()) {
       // clone the repo
       gitUrl(gitRepo).flatMap { url =>
-        val cloneFuture = Future.fromTry {
+        Future.fromTry {
           Try {
             val clone = GitApi.cloneRepository()
               .setURI(url)
               .setDirectory(baseDir)
               .setCloneAllBranches(true)
+              .setNoCheckout(true)
 
             clone.call()
 
             baseDir
           }
         }
-
-        cloneFuture.onComplete {
-          case _: Failure[File] => FileUtils.deleteDirectory(baseDir)
-          case _: Success[File] => Unit
-        }
-
-        cloneFuture
       }
     }
     else {
-      Future.successful(baseDir)
+      gitUrl(gitRepo).flatMap { url =>
+        Future.fromTry {
+          Try {
+            val pull = GitApi.open(baseDir).fetch().setRemote("origin")
+            pull.call()
+            baseDir
+          }
+        }
+      }
     }
 
-    baseDirFuture.flatMap { baseDir =>
+    val checkoutFuture = baseDirFuture.flatMap { baseDir =>
       Future.fromTry {
         Try {
           // checkout the version
@@ -168,6 +170,12 @@ class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
       }
     }
 
+    checkoutFuture.onComplete {
+      case _: Failure[File] => FileUtils.deleteDirectory(baseDir)
+      case _: Success[File] => Unit
+    }
+
+    checkoutFuture
   }
 
   def file(uri: URI, version: Option[String], fileName: String): Future[String] = file(uri.toString, version, fileName)
