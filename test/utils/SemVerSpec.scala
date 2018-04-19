@@ -131,6 +131,7 @@ class SemVerSpec extends Specification {
       SemVer.convertSemVerToMaven("latest") must beASuccessfulTry ("[0,)")
       SemVer.convertSemVerToMaven("b4e74e38e43ac53af8acd62c78c9213be0194245") must beASuccessfulTry ("[b4e74e38e43ac53af8acd62c78c9213be0194245]")
       SemVer.convertSemVerToMaven("2432d39a1693ccd728cbe7eb55810063737d3403") must beASuccessfulTry ("[2432d39a1693ccd728cbe7eb55810063737d3403]")
+      SemVer.convertSemVerToMaven("#1.9 - 2") must beASuccessfulTry ("[1.9.0,3)")
     }
     "work with || syntax" in {
       SemVer.convertSemVerToMaven("^1.3.0 || >1.4.0-beta.0")     must be equalTo Success("[1.3.0,2),(1.4.0-beta.0,)")
