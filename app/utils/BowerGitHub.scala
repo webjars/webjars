@@ -10,8 +10,8 @@ import play.api.libs.ws._
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class BowerGitHub @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, gitHub: GitHub, maven: Maven)(implicit ec: ExecutionContext, futures: Futures)
-  extends Bower(ws, git, licenseDetector, gitHub, maven)(ec, futures) {
+class BowerGitHub @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Maven)(implicit ec: ExecutionContext, futures: Futures)
+  extends Bower(ws, git, gitHub, maven)(ec, futures) {
 
   override val name: String = "BowerGitHub"
 
