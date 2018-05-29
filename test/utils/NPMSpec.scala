@@ -318,7 +318,7 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
   "@types/escodegen 0.0.2" should {
     "have a valid archive" in {
       val is = await(npm.archive("@types/escodegen", "0.0.2"))
-      is.available() must beGreaterThan (0)
+      is.read() must beGreaterThan(Int.MinValue)
     }
   }
 

@@ -11,7 +11,7 @@ class WebJarCreatorSpec extends PlaySpecification {
 
   "WebJarUtils" should {
     "create a WebJar from a tgz" in {
-      val url = new URL(s"http://registry.npmjs.org/npm/-/npm-2.10.0.tgz")
+      val url = new URL(s"https://registry.npmjs.org/npm/-/npm-2.10.0.tgz")
       val inputStream = url.openConnection().getInputStream
       val gzipInputStream = new GZIPInputStream(inputStream)
 
@@ -19,7 +19,7 @@ class WebJarCreatorSpec extends PlaySpecification {
       webJar.length must beGreaterThan(0)
     }
     "deal with different tgz base dirs" in {
-      val url = new URL(s"http://registry.npmjs.org/@types/react-redux/-/react-redux-4.4.32.tgz")
+      val url = new URL(s"https://registry.npmjs.org/@types/react-redux/-/react-redux-4.4.32.tgz")
       val inputStream = url.openConnection().getInputStream
       val gzipInputStream = new GZIPInputStream(inputStream)
 
@@ -31,7 +31,7 @@ class WebJarCreatorSpec extends PlaySpecification {
       allNames must contain("META-INF/resources/webjars/react-redux/4.4.32/package.json")
     }
     "handle packages where the contents are in the base dir" in {
-      val url = new URL(s"http://registry.npmjs.org/@types/react-redux/-/react-redux-4.4.32.tgz")
+      val url = new URL(s"https://registry.npmjs.org/@types/react-redux/-/react-redux-4.4.32.tgz")
       val inputStream = url.openConnection().getInputStream
       val gzipInputStream = new GZIPInputStream(inputStream)
 
@@ -43,7 +43,7 @@ class WebJarCreatorSpec extends PlaySpecification {
       allNames must contain("META-INF/resources/webjars/react-redux/4.4.32/react-redux/package.json")
     }
     "handle packages where the contents are in the base dir" in {
-      val url = new URL(s"http://registry.npmjs.org/@types/react-router/-/react-router-2.0.41.tgz")
+      val url = new URL(s"https://registry.npmjs.org/@types/react-router/-/react-router-2.0.41.tgz")
       val inputStream = url.openConnection().getInputStream
       val gzipInputStream = new GZIPInputStream(inputStream)
 
@@ -55,7 +55,7 @@ class WebJarCreatorSpec extends PlaySpecification {
       maybeLib.exists(_.isDirectory) must beTrue
     }
     "handle non gzip tgzs" in {
-      val url = new URL(s"http://registry.npmjs.org/@types/escodegen/-/escodegen-0.0.2.tgz")
+      val url = new URL(s"https://registry.npmjs.org/@types/escodegen/-/escodegen-0.0.2.tgz")
       val inputStream = url.openConnection().getInputStream
 
       val webJar = WebJarCreator.createWebJar(inputStream, true, Set("node_modules"), "", "org.webjars.npm", "escodegen", "0.0.2", "escodegen/0.0.2/")

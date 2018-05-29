@@ -16,7 +16,7 @@ import scala.util.Try
 
 class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, gitHub: GitHub, maven: Maven)(implicit ec: ExecutionContext) extends Deployable {
 
-  val BASE_URL = "http://registry.npmjs.org"
+  val BASE_URL = "https://registry.npmjs.org"
 
   override val name: String = "NPM"
 
