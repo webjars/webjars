@@ -135,8 +135,8 @@ class DeployWebJar @Inject()(git: Git, binTray: BinTray, maven: Maven, mavenCent
 
     val future = for {
         packageInfo <- deployable.info(nameOrUrlish, Some(upstreamVersion), maybeSourceUri)
-        groupId <- deployable.groupId(nameOrUrlish)
-        artifactId <- deployable.artifactId(nameOrUrlish)
+        groupId <- deployable.groupId(nameOrUrlish, upstreamVersion)
+        artifactId <- deployable.artifactId(nameOrUrlish, upstreamVersion)
         mavenBaseDir = groupId.replaceAllLiterally(".", "/")
 
         releaseVersion = deployable.releaseVersion(maybeReleaseVersion, packageInfo)
@@ -226,8 +226,8 @@ class DeployWebJar @Inject()(git: Git, binTray: BinTray, maven: Maven, mavenCent
 
     for {
       packageInfo <- deployable.info(nameOrUrlish, Some(upstreamVersion))
-      groupId <- groupIdOverride.map(Future.successful).getOrElse(deployable.groupId(nameOrUrlish))
-      artifactId <- deployable.artifactId(nameOrUrlish)
+      groupId <- groupIdOverride.map(Future.successful).getOrElse(deployable.groupId(nameOrUrlish, upstreamVersion))
+      artifactId <- deployable.artifactId(nameOrUrlish, upstreamVersion)
       mavenBaseDir = groupId.replaceAllLiterally(".", "/")
 
       releaseVersion = upstreamVersion.vless
@@ -258,8 +258,8 @@ object DeployWebJar extends App {
     val webJarType = StdIn.readLine("WebJar Type: ")
     val nameOrUrlish = StdIn.readLine("Name or URL: ")
     val upstreamVersion = StdIn.readLine("Upstream Version: ")
-    val deployDependenciesIn = StdIn.readLine("Deploy dependencies (true|false): ")
-    val preventForkIn = StdIn.readLine("Prevent Fork (true|false): ")
+    val deployDependenciesIn = StdIn.readLine("Deploy dependencies (false|true): ")
+    val preventForkIn = StdIn.readLine("Prevent Fork (false|true): ")
     val releaseVersionIn = StdIn.readLine("Release Version (override): ")
     val sourceUriIn = StdIn.readLine("Source URI (override): ")
     val licenseIn = StdIn.readLine("License (override): ")
@@ -319,8 +319,8 @@ trait Deployable extends WebJarType {
     def vwith: String = if (s.startsWith("v")) s else "v" + s
   }
 
-  def groupId(nameOrUrlish: String): Future[String]
-  def artifactId(nameOrUrlish: String): Future[String]
+  def groupId(nameOrUrlish: String, version: String): Future[String]
+  def artifactId(nameOrUrlish: String, version: String): Future[String]
   def releaseVersion(maybeVersion: Option[String], packageInfo: PackageInfo): String = maybeVersion.getOrElse(packageInfo.version).vless
   def excludes(nameOrUrlish: String, version: String): Future[Set[String]]
   val metadataFile: String

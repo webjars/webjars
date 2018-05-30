@@ -325,7 +325,7 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
   "artifactId" should {
     "deal with orgs" in {
       val packageInfo = await(npm.info("@types/react"))
-      await(npm.artifactId("@types/react")) must beEqualTo ("types__react")
+      await(npm.artifactId("@types/react", packageInfo.version)) must beEqualTo ("types__react")
     }
   }
 

@@ -15,7 +15,7 @@ import utils.PackageInfo._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
-class Bower @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Maven) (implicit ec: ExecutionContext, futures: Futures) extends Deployable {
+class Bower @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Maven, npm: NPM) (implicit ec: ExecutionContext, futures: Futures) extends Deployable {
 
   import Bower._
 
@@ -27,9 +27,9 @@ class Bower @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Maven) (im
 
   override def includesGroupId(groupId: String): Boolean = groupId.equalsIgnoreCase(groupIdQuery)
 
-  override def groupId(nameOrUrlish: String): Future[String] = Future.successful(groupIdQuery)
+  override def groupId(nameOrUrlish: String, version: String): Future[String] = Future.successful(groupIdQuery)
 
-  override def artifactId(nameOrUrlish: String): Future[String] = git.artifactId(nameOrUrlish)
+  override def artifactId(nameOrUrlish: String, version: String): Future[String] = git.artifactId(nameOrUrlish)
 
   override def excludes(nameOrUrlish: String, version: String): Future[Set[String]] = {
     // todo: apply bower ignore in case of git repo
@@ -41,7 +41,7 @@ class Bower @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Maven) (im
   override val contentsInSubdir: Boolean = false
 
   override def pathPrefix(nameOrUrlish: String, releaseVersion: String, packageInfo: PackageInfo): Future[String] = {
-    artifactId(nameOrUrlish).map { artifactId =>
+    artifactId(nameOrUrlish, releaseVersion).map { artifactId =>
       s"$artifactId/$releaseVersion/"
     }
   }
@@ -49,14 +49,11 @@ class Bower @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Maven) (im
   def bowerToMaven(keyValue: (String, String)): Future[(String, String, String)] = {
     val (name, version) = parseDep(keyValue)
 
-    def convertSemVerToMaven(version: String): Future[String] = {
-      Future.fromTry(SemVer.convertSemVerToMaven(version))
-    }
-
     for {
-      groupId <- groupId(name)
-      artifactId <- artifactId(name)
-      version <- convertSemVerToMaven(version)
+      latestVersionInRange <- latestDep(name, version)
+      groupId <- groupId(name, latestVersionInRange)
+      artifactId <- artifactId(name, latestVersionInRange)
+      version <- Future.fromTry(SemVer.convertSemVerToMaven(version))
     } yield (groupId, artifactId, version)
   }
 
@@ -83,6 +80,8 @@ class Bower @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Maven) (im
           }
         }
       }
+    } recoverWith {
+      case _ => npm.versions(packageNameOrGitRepo)
     }
   }
 
@@ -160,6 +159,9 @@ class Bower @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Maven) (im
             Future.failed(new Exception(versionlessResponse.body))
         }
       }
+    } recoverWith {
+      case _ =>
+        npm.info(packageNameOrGitRepo, Some(version))
     }
   }
 
@@ -213,7 +215,7 @@ class Bower @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Maven) (im
     }
   }
 
-  def lookup(packageNameOrGitRepo: String): Future[URL] = {
+  def lookup(packageNameOrGitRepo: String, version: String): Future[URL] = {
     val urlTry = Try {
       val maybeUrl = if (packageNameOrGitRepo.contains("/") && !packageNameOrGitRepo.contains(":")) {
         s"https://github.com/$packageNameOrGitRepo"
@@ -234,6 +236,9 @@ class Bower @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Maven) (im
               Future.failed(new Exception(s"Could not find package: $packageNameOrGitRepo"))
           }
         }
+    } recoverWith {
+      case _ =>
+        npm.info(packageNameOrGitRepo, Some(version)).map(_.sourceConnectionUri.toURL)
     }
   }
 

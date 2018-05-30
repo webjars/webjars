@@ -139,18 +139,18 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
 
   "lookup" should {
     "work with a name" in {
-      val url = await(bower.lookup("jquery"))
+      val url = await(bower.lookup("jquery", "3.0.0"))
       url.toString must beEqualTo ("https://github.com/jquery/jquery-dist")
     }
     "fail with an invalid name" in {
-      await(bower.lookup("asdfqwer1234")) must throwA[Exception]
+      await(bower.lookup("asdfqwer1234", "1.2.3")) must throwA[Exception]
     }
     "work with a valid github git url" in {
-      val url = await(bower.lookup("https://github.com/jquery/jquery-dist.git"))
+      val url = await(bower.lookup("https://github.com/jquery/jquery-dist.git", "3.0.0"))
       url.toString must beEqualTo ("https://github.com/jquery/jquery-dist")
     }
     "fail with an invalid url" in {
-      await(bower.lookup("https://asdf.com/")) must throwA[Exception]
+      await(bower.lookup("https://asdf.com/", "1.2.3")) must throwA[Exception]
     }
   }
 
@@ -199,6 +199,13 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
     "have the right licenses" in {
       val packageInfo = await(bower.info("dojox", Some("1.13.0")))
       packageInfo.metadataLicenses must beEqualTo (Seq("BSD-3-Clause", "AFL-2.1"))
+    }
+  }
+
+  "lookup NPM packages" should {
+    "work" in {
+      val url = await(bower.lookup("dom-matches", "2.0.0"))
+      url.toString must beEqualTo ("https://github.com/necolas/dom-matches.git")
     }
   }
 

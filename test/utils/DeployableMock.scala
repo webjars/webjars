@@ -6,9 +6,9 @@ import java.net.URI
 import scala.concurrent.Future
 
 case class DeployableMock() extends Deployable {
-  override def groupId(nameOrUrlish: String): Future[String] = ???
+  override def groupId(nameOrUrlish: String, version: String): Future[String] = ???
   override def archive(nameOrUrlish: String, version: String): Future[InputStream] = ???
-  override def artifactId(nameOrUrlish: String): Future[String] = ???
+  override def artifactId(nameOrUrlish: String, version: String): Future[String] = ???
   override def info(nameOrUrlish: String, maybeVersion: Option[String], maybeSourceUri: Option[URI]): Future[PackageInfo] = ???
   override def excludes(nameOrUrlish: String, version: String): Future[Set[String]] = ???
   override lazy val metadataFile: String = "foo.json"

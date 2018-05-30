@@ -10,8 +10,8 @@ import play.api.libs.ws._
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class BowerGitHub @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Maven)(implicit ec: ExecutionContext, futures: Futures)
-  extends Bower(ws, git, gitHub, maven)(ec, futures) {
+class BowerGitHub @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Maven, npm: NPM)(implicit ec: ExecutionContext, futures: Futures)
+  extends Bower(ws, git, gitHub, maven, npm)(ec, futures) {
 
   override val name: String = "BowerGitHub"
 
@@ -19,7 +19,7 @@ class BowerGitHub @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Mave
 
   override def includesGroupId(groupId: String): Boolean = groupId.startsWith("org.webjars.bowergithub.")
 
-  override def groupId(nameOrUrlish: String): Future[String] = lookup(nameOrUrlish).flatMap { url =>
+  override def groupId(nameOrUrlish: String, version: String): Future[String] = lookup(nameOrUrlish, version).flatMap { url =>
     GitHub.gitHubUrl(url).fold(Future.failed[String], { gitHubUrl =>
       gitHub.currentUrls(gitHubUrl).flatMap { case (currentGitHubUrl, _, _) =>
           GitHub.maybeGitHubOrg(Some(currentGitHubUrl)).fold {
@@ -31,7 +31,7 @@ class BowerGitHub @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Mave
     })
   }
 
-  override def artifactId(nameOrUrlish: String): Future[String] = lookup(nameOrUrlish).flatMap { url =>
+  override def artifactId(nameOrUrlish: String, version: String): Future[String] = lookup(nameOrUrlish, version).flatMap { url =>
     GitHub.gitHubUrl(url).fold(Future.failed[String], { gitHubUrl =>
       gitHub.currentUrls(gitHubUrl).flatMap { case (currentGitHubUrl, _, _) =>
         GitHub.maybeGitHubRepo(Some(currentGitHubUrl)).fold {
@@ -54,7 +54,7 @@ class BowerGitHub @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Mave
   }
 
   override def excludes(nameOrUrlish: String, version: String): Future[Set[String]] = {
-    lookup(nameOrUrlish).flatMap { url =>
+    lookup(nameOrUrlish, version).flatMap { url =>
       val bowerJsonFuture = git.file(url.toURI, Some(version), "bower.json").recoverWith {
         // try with a "v" version prefix
         case _: RefNotFoundException if !version.startsWith("v") => git.file(url.toURI, Some("v" + version), "bower.json")
@@ -64,11 +64,13 @@ class BowerGitHub @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Mave
         val json = Json.parse(bowerJson)
         (json \ "ignore").asOpt[Set[String]].getOrElse(Set.empty[String])
       }
+    } recoverWith {
+      case _ => npm.excludes(nameOrUrlish, version)
     }
   }
 
   override def archive(packageNameOrGitRepo: String, version: String): Future[InputStream] = {
-    lookup(packageNameOrGitRepo).flatMap { url =>
+    lookup(packageNameOrGitRepo, version).flatMap { url =>
       super.archive(url.toString, version).recoverWith {
         // try with a "v" version prefix
         case _: RefNotFoundException if !version.startsWith("v") => super.archive(url.toString, "v" + version)

@@ -24,9 +24,9 @@ class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, g
 
   override def includesGroupId(groupId: String): Boolean = groupId.equalsIgnoreCase(groupIdQuery)
 
-  override def groupId(nameOrUrlish: String): Future[String] = Future.successful(groupIdQuery)
+  override def groupId(nameOrUrlish: String, version: String): Future[String] = Future.successful(groupIdQuery)
 
-  override def artifactId(nameOrUrlish: String): Future[String] = git.artifactId(nameOrUrlish)
+  override def artifactId(nameOrUrlish: String, version: String): Future[String] = git.artifactId(nameOrUrlish)
 
   override def excludes(nameOrUrlish: String, version: String): Future[Set[String]] = {
     // todo: apply npm ignore in case of git repo
@@ -38,7 +38,7 @@ class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, g
   override val contentsInSubdir: Boolean = true
 
   override def pathPrefix(nameOrUrlish: String, releaseVersion: String, packageInfo: PackageInfo): Future[String] = {
-    artifactId(nameOrUrlish).map { artifactId =>
+    artifactId(nameOrUrlish, releaseVersion).map { artifactId =>
       s"$artifactId/$releaseVersion/"
     }
   }

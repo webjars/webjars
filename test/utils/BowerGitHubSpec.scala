@@ -18,45 +18,45 @@ class BowerGitHubSpec extends PlaySpecification with GlobalApplication {
 
   "groupId" should {
     "contain the org when given a Bower package name" in {
-      await(bowerGitHub.groupId("jQuery")) must beEqualTo ("org.webjars.bowergithub.jquery")
+      await(bowerGitHub.groupId("jQuery", "3.0.0")) must beEqualTo ("org.webjars.bowergithub.jquery")
     }
     "be lowercase" in {
-      await(bowerGitHub.groupId("https://github.com/PolymerElements/iron-elements")) must beEqualTo ("org.webjars.bowergithub.polymerelements")
+      await(bowerGitHub.groupId("https://github.com/PolymerElements/iron-elements", "1.0.10")) must beEqualTo ("org.webjars.bowergithub.polymerelements")
     }
     "work with forks" in {
-      await(bowerGitHub.groupId("https://github.com/jamesward/iron-elements")) must beEqualTo ("org.webjars.bowergithub.jamesward")
+      await(bowerGitHub.groupId("https://github.com/jamesward/iron-elements", "1.0.10")) must beEqualTo ("org.webjars.bowergithub.jamesward")
     }
     "work with moved repos when given a name" in {
-      await(bowerGitHub.groupId("webcomponentsjs")) must beEqualTo ("org.webjars.bowergithub.webcomponents")
+      await(bowerGitHub.groupId("webcomponentsjs", "1.1.0")) must beEqualTo ("org.webjars.bowergithub.webcomponents")
     }
     "work with moved repos when given a url" in {
-      await(bowerGitHub.groupId("https://github.com/polymer/webcomponentsjs")) must beEqualTo ("org.webjars.bowergithub.webcomponents")
-      await(bowerGitHub.groupId("https://github.com/polymer/webcomponentsjs.git")) must beEqualTo ("org.webjars.bowergithub.webcomponents")
+      await(bowerGitHub.groupId("https://github.com/polymer/webcomponentsjs", "1.1.0")) must beEqualTo ("org.webjars.bowergithub.webcomponents")
+      await(bowerGitHub.groupId("https://github.com/polymer/webcomponentsjs.git", "1.1.0")) must beEqualTo ("org.webjars.bowergithub.webcomponents")
     }
   }
 
   "artifactId" should {
     "be the repo name" in {
       val url = "https://github.com/PolymerElements/iron-elements"
-      await(bowerGitHub.artifactId(url)) must beEqualTo ("iron-elements")
+      await(bowerGitHub.artifactId(url, "1.0.10")) must beEqualTo ("iron-elements")
     }
     "be lowercase" in {
-      await(bowerGitHub.artifactId("jQuery")) must beEqualTo ("jquery")
+      await(bowerGitHub.artifactId("jQuery", "3.0.0")) must beEqualTo ("jquery")
     }
     "not contain a .git" in {
       val url = "https://github.com/PolymerElements/iron-elements.git"
-      await(bowerGitHub.artifactId(url)) must beEqualTo ("iron-elements")
+      await(bowerGitHub.artifactId(url, "1.0.10")) must beEqualTo ("iron-elements")
     }
     "work with forks" in {
       val url = "https://github.com/jamesward/test-iron-elements"
-      await(bowerGitHub.artifactId(url)) must beEqualTo ("test-iron-elements")
+      await(bowerGitHub.artifactId(url, "1.0.10")) must beEqualTo ("test-iron-elements")
     }
     "work with moved repos when given a name" in {
-      await(bowerGitHub.artifactId("webcomponentsjs")) must beEqualTo ("webcomponentsjs")
+      await(bowerGitHub.artifactId("webcomponentsjs", "1.1.0")) must beEqualTo ("webcomponentsjs")
     }
     "work with moved repos when given a url" in {
-      await(bowerGitHub.artifactId("https://github.com/jamesward/iron-elements")) must beEqualTo ("test-iron-elements")
-      await(bowerGitHub.artifactId("https://github.com/jamesward/iron-elements.git")) must beEqualTo ("test-iron-elements")
+      await(bowerGitHub.artifactId("https://github.com/jamesward/iron-elements", "1.0.10")) must beEqualTo ("test-iron-elements")
+      await(bowerGitHub.artifactId("https://github.com/jamesward/iron-elements.git", "1.0.10")) must beEqualTo ("test-iron-elements")
     }
   }
 
@@ -73,10 +73,10 @@ class BowerGitHubSpec extends PlaySpecification with GlobalApplication {
 
   "bowerToMaven" should {
     "work with a plain name and version" in {
-      val (group, artifact, version) = await(bowerGitHub.bowerToMaven("jQuery" -> "1.0.0"))
+      val (group, artifact, version) = await(bowerGitHub.bowerToMaven("jQuery" -> "1.12.4"))
       group must beEqualTo ("org.webjars.bowergithub.jquery")
       artifact must beEqualTo ("jquery")
-      version must beEqualTo ("[1.0.0]")
+      version must beEqualTo ("[1.12.4]")
     }
     "work with a plain name and semver range" in {
       val (group, artifact, version) = await(bowerGitHub.bowerToMaven("jQuery" -> "^1.0.0"))
@@ -149,6 +149,10 @@ class BowerGitHubSpec extends PlaySpecification with GlobalApplication {
       group must beEqualTo ("org.webjars.bowergithub.webcomponents")
       artifact must beEqualTo ("webcomponentsjs")
       version must beEqualTo ("[1.0.22]")
+    }
+    "work for an NPM package" in {
+      await(bowerGitHub.bowerToMaven("dom-matches", "^2.0.0")) must beEqualTo (("org.webjars.bowergithub.necolas", "dom-matches", "[2.0.0,3)"))
+      await(bowerGitHub.bowerToMaven("dom-matches", "2.0.0")) must beEqualTo (("org.webjars.bowergithub.necolas", "dom-matches", "[2.0.0]"))
     }
   }
 
