@@ -97,17 +97,17 @@ class ApplicationSpec extends PlaySpecification {
 
         val webJars = contentAsJson(applicationController.webJarList(bowerGitHub.groupIdQuery)(request)).as[Seq[WebJar]]
 
-        val possibleMatchesOnArtifact = webJars.filter(_.artifactId.toLowerCase.contains("iron-list"))
+        val possibleMatchesOnArtifact = webJars.filter(_.artifactId.toLowerCase.contains("polymer-tinymce"))
 
-        val resultOnArtifactFuture = applicationController.searchWebJars("iron-list", List(bowerGitHub.groupIdQuery))(request)
+        val resultOnArtifactFuture = applicationController.searchWebJars("polymer-tinymce", List(bowerGitHub.groupIdQuery))(request)
 
         status(resultOnArtifactFuture) must beEqualTo(Status.OK)
 
         contentAsJson(resultOnArtifactFuture).as[Seq[WebJar]] must containTheSameElementsAs(possibleMatchesOnArtifact)
 
-        val possibleMatchesOnGroup = webJars.filter(_.groupId.toLowerCase.contains("polymer"))
+        val possibleMatchesOnGroup = webJars.filter(_.groupId.toLowerCase.contains("org.webjars.bowergithub.pagekit"))
 
-        val resultOnGroupFuture = applicationController.searchWebJars("polymer", List(bowerGitHub.groupIdQuery))(request)
+        val resultOnGroupFuture = applicationController.searchWebJars("pagekit", List(bowerGitHub.groupIdQuery))(request)
 
         status(resultOnGroupFuture) must beEqualTo(Status.OK)
 

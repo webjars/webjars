@@ -20,7 +20,7 @@ import play.api.mvc._
 import play.api.{Configuration, Environment, Logger, Mode}
 import play.core.utils.HttpHeaderParameterEncoding
 import play.twirl.api.Xml
-import utils.MavenCentral.ExistingWebJarRequestException
+import utils.MavenCentral.{EmptyStatsException, ExistingWebJarRequestException}
 import utils._
 
 import scala.concurrent.duration._
@@ -127,7 +127,7 @@ class Application @Inject() (git: Git, gitHub: GitHub, heroku: Heroku, cache: Ca
       val webJarStatsFuture = cache.get[Seq[(String, String, Int)]]("stats", 1.day) {
         val lastMonth = DateTime.now().minusMonths(1)
         mavenCentral.getStats(lastMonth).recoverWith {
-          case e: Exception => mavenCentral.getStats(lastMonth.minusMonths(1))
+          case _: EmptyStatsException => mavenCentral.getStats(lastMonth.minusMonths(1))
         }
       } recover {
         // if the stats can't be fetched, continue without them

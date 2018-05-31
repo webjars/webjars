@@ -295,6 +295,8 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
           else {
             Future.failed(new MavenCentral.EmptyStatsException("Stats were empty"))
           }
+        case Status.UNAUTHORIZED =>
+          Future.failed(UnauthorizedError("Invalid credentials"))
         case _ =>
           Future.failed(new Exception(response.body))
       }
@@ -306,7 +308,8 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
       groupIds(webJarType).flatMap { groupIds =>
         val futures = groupIds.map { groupId =>
           getStats(groupId, dateTime).recover {
-            case e: MavenCentral.EmptyStatsException => Seq.empty[(String, String, Int)]
+            case _: MavenCentral.EmptyStatsException => Seq.empty[(String, String, Int)]
+            case _: UnauthorizedError => Seq.empty[(String, String, Int)]
           }
         }
         Future.reduceLeft(futures)(_ ++ _)
@@ -319,7 +322,7 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
 
   def getStats(dateTime: DateTime): Future[Seq[(String, String, Int)]] = {
     val allStatsFutures = allWebJarTypes.map { webJarType => getStats(webJarType, dateTime) }
-    Future.foldLeft(allStatsFutures)(Seq.empty[(String, String, Int)])(_ ++ _)
+    Future.reduceLeft(allStatsFutures)(_ ++ _)
   }
 
   def mostDownloaded(webJarType: WebJarType, dateTime: DateTime, num: Int): Future[Seq[(String, String, Int)]] = {
