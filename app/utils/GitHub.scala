@@ -10,11 +10,12 @@ import play.api.libs.json.{JsValue, Json}
 import play.api.libs.ws.{WSClient, WSRequest}
 import play.api.mvc.RequestHeader
 
+import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.language.implicitConversions
 import scala.util.{Failure, Success, Try}
 
-class GitHub @Inject() (configuration: Configuration, wsClient: WSClient) (implicit ec: ExecutionContext) {
+class GitHub @Inject() (configuration: Configuration, wsClient: WSClient, cache: Cache) (implicit ec: ExecutionContext) {
 
   lazy val clientId = configuration.get[String]("github.oauth.client-id")
   lazy val clientSecret = configuration.get[String]("github.oauth.client-secret")
@@ -90,33 +91,35 @@ class GitHub @Inject() (configuration: Configuration, wsClient: WSClient) (impli
 
   // todo: max redirects?
   def currentUrls(url: URL): Future[(URL, URI, URL)] = {
+    cache.get[(URL, URI, URL)](url.toString, 1.day) {
 
-    def urls(location: String) = {
-      val newUrlsTry = for {
-        gitHubUrl <- GitHub.gitHubUrl(location)
-        sourceConnectionUri <- GitHub.gitHubGitUri(gitHubUrl)
-        issuesUrl <- GitHub.gitHubIssuesUrl(gitHubUrl)
-      } yield (gitHubUrl, sourceConnectionUri, issuesUrl)
+      def urls(location: String) = {
+        val newUrlsTry = for {
+          gitHubUrl <- GitHub.gitHubUrl(location)
+          sourceConnectionUri <- GitHub.gitHubGitUri(gitHubUrl)
+          issuesUrl <- GitHub.gitHubIssuesUrl(gitHubUrl)
+        } yield (gitHubUrl, sourceConnectionUri, issuesUrl)
 
-      Future.fromTry(newUrlsTry)
-    }
+        Future.fromTry(newUrlsTry)
+      }
 
-    wsClient.url(url.toString).withFollowRedirects(false).head().flatMap { response =>
-      response.status match {
-        case Status.MOVED_PERMANENTLY =>
-          response.header(HeaderNames.LOCATION).fold {
-            Future.failed[(URL, URI, URL)](ServerError(s"GitHub said that $url was moved but did not provide a new location", response.status))
-          } { locationString =>
-            val urlTry = Try(new URL(locationString))
-            urlTry match {
-              case Success(locationUrl) => currentUrls(locationUrl)
-              case Failure(error) => Future.failed(error)
+      wsClient.url(url.toString).withFollowRedirects(false).head().flatMap { response =>
+        response.status match {
+          case Status.MOVED_PERMANENTLY =>
+            response.header(HeaderNames.LOCATION).fold {
+              Future.failed[(URL, URI, URL)](ServerError(s"GitHub said that $url was moved but did not provide a new location", response.status))
+            } { locationString =>
+              val urlTry = Try(new URL(locationString))
+              urlTry match {
+                case Success(locationUrl) => currentUrls(locationUrl)
+                case Failure(error) => Future.failed(error)
+              }
             }
-          }
-        case Status.OK =>
-          urls(url.toString)
-        case _ =>
-          Future.failed(ServerError(s"Could not get the current URL for $url because status was ${response.statusText}", response.status))
+          case Status.OK =>
+            urls(url.toString)
+          case _ =>
+            Future.failed(ServerError(s"Could not get the current URL for $url because status was ${response.statusText}", response.status))
+        }
       }
     }
   }
