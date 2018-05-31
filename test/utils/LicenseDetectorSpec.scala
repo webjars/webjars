@@ -11,7 +11,7 @@ import scala.concurrent.duration._
 
 class LicenseDetectorSpec extends PlaySpecification with GlobalApplication {
 
-  override implicit def defaultAwaitTimeout: Timeout = 30.seconds
+  override implicit def defaultAwaitTimeout: Timeout = 60.seconds
 
   lazy val licenseDetector: LicenseDetector = application.injector.instanceOf[LicenseDetector]
   lazy val messages: MessagesApi = application.injector.instanceOf[MessagesApi]
