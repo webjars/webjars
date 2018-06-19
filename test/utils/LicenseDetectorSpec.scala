@@ -64,8 +64,8 @@ class LicenseDetectorSpec extends PlaySpecification with GlobalApplication {
       licenses must be equalTo Set("MIT")
     }
     "work with SPDX OR expressions" in {
-      val licenses = await(licenseDetector.resolveLicenses(DeployableMock(), emptyPackageInfo(Seq("(Apache-2.0 OR MIT)"))))
-      licenses must be equalTo Set("Apache-2.0", "MIT")
+      await(licenseDetector.resolveLicenses(DeployableMock(), emptyPackageInfo(Seq("(Apache-2.0 OR MIT)")))) must be equalTo Set("Apache-2.0", "MIT")
+      await(licenseDetector.resolveLicenses(DeployableMock(), emptyPackageInfo(Seq("(Apache-2.0 or MIT)")))) must be equalTo Set("Apache-2.0", "MIT")
     }
     "work with SPDX 'SEE LICENSE IN LICENSE' expressions" in {
       val testPackageInfo = emptyPackageInfo(Seq("SEE LICENSE IN LICENSE")).copy(sourceConnectionUri = new URI("git://github.com/stacktracejs/error-stack-parser.git"))

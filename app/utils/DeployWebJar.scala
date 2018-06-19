@@ -27,6 +27,14 @@ class DeployWebJar @Inject()(git: Git, binTray: BinTray, maven: Maven, mavenCent
   val binTraySubject = "webjars"
   val binTrayRepo = "maven"
 
+  def licenses(packageInfo: PackageInfo, version: String, maybeLicense: Option[String], deployable: Deployable): Future[Map[String, String]] = {
+    maybeLicense.fold {
+      licenseDetector.resolveLicenses(deployable, packageInfo, Some(version))
+    } { license =>
+      Future.successful(license.split(",")).map(_.toSet)
+    } map LicenseDetector.defaultUrls
+  }
+
   def forkDeploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, deployDependencies: Boolean, preventFork: Boolean): Source[String, Future[NotUsed]] = {
     val app = configuration.get[String]("deploy.herokuapp")
     val cmd = s"deploy ${WebJarType.toString(deployable)} $nameOrUrlish $upstreamVersion $deployDependencies $preventFork"
@@ -75,14 +83,6 @@ class DeployWebJar @Inject()(git: Git, binTray: BinTray, maven: Maven, mavenCent
     val actorRef = actorSystem.actorOf(Props(new ChannelActor))
     val actorPublisher = ActorPublisher[String](actorRef)
     val source = Source.fromPublisher(actorPublisher)
-
-    def licenses(packageInfo: PackageInfo, version: String): Future[Map[String, String]] = {
-      maybeLicense.fold {
-        licenseDetector.resolveLicenses(deployable, packageInfo, Some(version))
-      } { license =>
-        Future.successful(license.split(",")).map(_.toSet)
-      } map LicenseDetector.defaultUrls
-    }
 
     def webJarNotYetDeployed(groupId: String, artifactId: String, version: String): Future[Unit] = {
       mavenCentral.fetchPom(groupId, artifactId, version, Some("https://oss.sonatype.org/content/repositories/releases")).flatMap { elem =>
@@ -147,7 +147,7 @@ class DeployWebJar @Inject()(git: Git, binTray: BinTray, maven: Maven, mavenCent
 
         _ <- webJarNotYetDeployed(groupId, artifactId, releaseVersion)
 
-        licenses <- licenses(packageInfo, upstreamVersion)
+        licenses <- licenses(packageInfo, upstreamVersion, maybeLicense, deployable)
         _ = actorRef ! s"Resolved Licenses: ${licenses.mkString(",")}"
 
         mavenDependencies <- deployable.mavenDependencies(packageInfo.dependencies)
@@ -232,7 +232,7 @@ class DeployWebJar @Inject()(git: Git, binTray: BinTray, maven: Maven, mavenCent
 
       releaseVersion = upstreamVersion.vless
 
-      licenses <- licenseOverride.map(Future.successful).getOrElse(licenseDetector.resolveLicenses(deployable, packageInfo, Some(upstreamVersion)).map(LicenseDetector.defaultUrls))
+      licenses <- licenseOverride.fold(licenses(packageInfo, upstreamVersion, None, deployable))(Future.successful)
 
       mavenDependencies <- deployable.mavenDependencies(packageInfo.dependencies)
 

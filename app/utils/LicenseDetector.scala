@@ -128,7 +128,7 @@ class LicenseDetector @Inject() (ws: WSClient, git: Git, messages: MessagesApi, 
     }
     else if (maybeRef.startsWith("(") && maybeRef.endsWith(")") && !maybeRef.contains("AND")) {
       // SPDX license expression
-      maybeRef.stripPrefix("(").stripSuffix(")").split(" OR ").toSeq.map(Future.successful)
+      maybeRef.stripPrefix("(").stripSuffix(")").split(" OR ").flatMap(_.split(" or ")).map(Future.successful)
     }
     else {
       Seq(Future.successful(maybeRef))
