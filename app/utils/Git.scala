@@ -109,13 +109,13 @@ class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
     }
   }
 
-  def versionsOnBranch(gitRepo: String, branch: String): Future[Set[String]] = {
+  def versionsOnBranch(gitRepo: String, branch: String): Future[Seq[String]] = {
     gitUrl(gitRepo).flatMap { _ =>
       cloneOrCheckout(gitRepo, Some(s"origin/$branch")).flatMap { baseDir =>
         Future.fromTry {
           Try {
             val commits = GitApi.open(baseDir).log().call()
-            commits.asScala.map(_.getId.abbreviate(10).name()).toSet
+            commits.asScala.toSeq.map(_.getId.abbreviate(10).name())
           }
         }
       }

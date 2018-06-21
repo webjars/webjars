@@ -142,4 +142,17 @@ class ApplicationSpec extends PlaySpecification {
     }
   }
 
+  "versions" should {
+    "be sorted correctly" in new WithApplication {
+      val applicationController = app.injector.instanceOf[Application]
+
+      val request = FakeRequest()
+
+      val result = applicationController.packageVersions("npm", "https://github.com/jindw/xmldom.git", Some("master"))(request)
+
+      val shas = contentAsJson(result).as[Seq[String]]
+      shas.dropWhile(_ != "366159a76a").drop(1).head must beEqualTo ("0be2ae910a")
+    }
+  }
+
 }

@@ -11,15 +11,12 @@ import models.{WebJar, WebJarType}
 import org.joda.time.DateTime
 import play.api.data.Forms._
 import play.api.data._
-import play.api.http.HeaderNames.CONTENT_DISPOSITION
 import play.api.http.{ContentTypes, HttpEntity, MimeTypes}
 import play.api.libs.EventSource
 import play.api.libs.concurrent.Futures
-import play.api.libs.json.{JsObject, Json}
+import play.api.libs.json.Json
 import play.api.mvc._
 import play.api.{Configuration, Environment, Logger, Mode}
-import play.core.utils.HttpHeaderParameterEncoding
-import play.twirl.api.Xml
 import utils.MavenCentral.{EmptyStatsException, ExistingWebJarRequestException}
 import utils._
 
@@ -201,17 +198,17 @@ class Application @Inject() (git: Git, gitHub: GitHub, heroku: Heroku, cache: Ca
     } { deployable =>
 
       val packageVersionsFuture = maybeBranch.fold {
-        cache.get[Set[String]](s"$webJarType-versions-$packageNameOrGitRepo", 1.hour) {
-          deployable.versions(packageNameOrGitRepo)
+        cache.get[Seq[String]](s"$webJarType-versions-$packageNameOrGitRepo", 1.hour) {
+          deployable.versions(packageNameOrGitRepo).map(_.toSeq.sorted(VersionStringOrdering).reverse)
         }
       } { branch =>
-        cache.get[Set[String]](s"$webJarType-versions-$packageNameOrGitRepo-$branch", 1.hour) {
+        cache.get[Seq[String]](s"$webJarType-versions-$packageNameOrGitRepo-$branch", 1.hour) {
           git.versionsOnBranch(packageNameOrGitRepo, branch)
         }
       }
 
       packageVersionsFuture.map { versions =>
-        Ok(Json.toJson(versions.toSeq.sorted(VersionStringOrdering).reverse))
+        Ok(Json.toJson(versions))
       } recover {
         case e: Exception =>
           InternalServerError
