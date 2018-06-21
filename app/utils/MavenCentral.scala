@@ -262,14 +262,10 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
       "nom" -> "1"
     )
 
-    val creds = Base64.encodeBase64String((ossUsername + ":" + ossPassword).getBytes)
-
     val statsFuture = wsClient.url("https://oss.sonatype.org/service/local/stats/slices")
-      .withHttpHeaders(
-        HeaderNames.ACCEPT -> MimeTypes.JSON,
-        HeaderNames.AUTHORIZATION -> ("Basic " + creds)
-      )
+      .withHttpHeaders(HeaderNames.ACCEPT -> MimeTypes.JSON)
       .withQueryStringParameters(queryString: _*)
+      .withAuth(ossUsername, ossPassword, WSAuthScheme.BASIC)
       .get()
 
     statsFuture.flatMap { response =>
