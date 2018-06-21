@@ -155,6 +155,15 @@ class Bower @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Maven, npm
                   Future.failed(new Exception(versionResponse.body))
               }
             }
+
+          case Status.SERVICE_UNAVAILABLE =>
+            ws.url(s"$BASE_URL/info/$packageNameOrGitRepo/$version").get().flatMap { versionResponse =>
+              versionResponse.status match {
+                case Status.OK =>
+                  Future.successful(versionResponse.json.as[PackageInfo].copy(version = version.vless))
+              }
+            }
+
           case _ =>
             Future.failed(new Exception(versionlessResponse.body))
         }
