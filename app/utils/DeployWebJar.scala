@@ -56,11 +56,13 @@ class DeployWebJar @Inject()(git: Git, binTray: BinTray, maven: Maven, mavenCent
             buf :+= message
             deliverBuf()
           }
+
         case Request(_) =>
           deliverBuf()
 
         case Success(_) =>
           onCompleteThenStop()
+
         case Failure(e) =>
           onError(e)
       }
@@ -147,8 +149,10 @@ class DeployWebJar @Inject()(git: Git, binTray: BinTray, maven: Maven, mavenCent
 
         _ <- webJarNotYetDeployed(groupId, artifactId, releaseVersion)
 
+        _ = actorRef ! s"Resolving licenses & dependencies for $groupId $artifactId $releaseVersion"
+
         licenses <- licenses(packageInfo, upstreamVersion, maybeLicense, deployable)
-        _ = actorRef ! s"Resolved Licenses: ${licenses.mkString(",")}"
+        _ = actorRef ! s"Resolved Licenses: ${licenses.keySet.mkString(",")}"
 
         mavenDependencies <- deployable.mavenDependencies(packageInfo.dependencies)
         _ = actorRef ! "Converted dependencies to Maven"
@@ -351,7 +355,7 @@ trait Deployable extends WebJarType {
       Future.fromTry {
         maybeVersionRange.flatMap { versionRange =>
           SemVer.latestInRange(versionRange, availableVersions).fold[Try[String]] {
-            Failure(new Exception("Could not find a valid version in the provided range"))
+            Failure(new Exception(s"Could not find a valid version for $nameOrUrlish in range $version given these available versions: ${availableVersions.mkString(" ")}"))
           } (Success(_))
         }
       }
