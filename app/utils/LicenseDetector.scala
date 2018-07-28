@@ -74,7 +74,8 @@ class LicenseDetector @Inject() (ws: WSClient, git: Git, messages: MessagesApi, 
     "GPLv2" -> "GPL-2.0",
     "GPLv3" -> "GPL-3.0",
     "MIT/X11" -> "MIT",
-    "AGPL-3.0" -> "AGPL-V3"
+    "AGPL-3.0" -> "AGPL-V3",
+    "PSF" -> "PythonSoftFoundation"
   ) map {
     case (key, value) => normalize(key) -> value
   }
