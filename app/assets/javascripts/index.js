@@ -172,7 +172,7 @@ $(function() {
     }
   });
 
-  $("input[name='search_catalog[]'").change(function() {
+  $("input[name='search_catalog[]']").change(function() {
     handleSearch();
   });
 
