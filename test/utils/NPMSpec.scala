@@ -350,4 +350,11 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
     }
   }
 
+  "babel crap" should {
+    "work" in {
+      val info = await(npm.info("@babel/runtime", None))
+      info.sourceConnectionUri.toString must beEqualTo ("https://github.com/babel/babel.git")
+    }
+  }
+
 }

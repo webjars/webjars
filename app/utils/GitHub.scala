@@ -145,7 +145,12 @@ object GitHub {
   def gitHubUrl(s: String): Try[URL] = Try(new URI(s)).flatMap(gitHubUrl)
 
   def gitHubGitUri(url: URL): Try[URI] = gitHubUrl(url).flatMap { gitHubUrl =>
-    Try(new URI(gitHubUrl.getProtocol, gitHubUrl.getHost, gitHubUrl.getPath + ".git", null))
+    val maybeOrgRepo = for {
+      org <- maybeGitHubOrg(Some(url))
+      repo <- maybeGitHubRepo(Some(url))
+    } yield org + "/" + repo
+
+    Try(new URI(gitHubUrl.getProtocol, gitHubUrl.getHost, "/" + maybeOrgRepo.get + ".git", null))
   }
 
   def gitHubIssuesUrl(url: URL): Try[URL] = gitHubUrl(url).flatMap { gitHubUrl =>
