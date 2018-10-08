@@ -10,7 +10,7 @@ libraryDependencies ++= Seq(
   guice,
   filters,
   "io.monix" %% "shade" % "1.10.0",
-  "org.apache.commons" % "commons-compress" % "1.15",
+  "org.apache.commons" % "commons-compress" % "1.18",
   "org.apache.commons" % "commons-io" % "1.3.2",
   "org.eclipse.jgit" % "org.eclipse.jgit" % "4.11.0.201803080745-r",
   "org.webjars" %% "webjars-play" % "2.6.3",
