@@ -2,7 +2,7 @@ lazy val root = (project in file(".")).enablePlugins(PlayScala)
 
 name := "webjars"
 
-scalaVersion := "2.12.6"
+scalaVersion := "2.12.7"
 
 libraryDependencies ++= Seq(
   ws,
