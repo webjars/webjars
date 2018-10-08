@@ -349,47 +349,6 @@ trait Deployable extends WebJarType {
     }
   }
 
-  def latestDep(nameOrUrlish: String, version: String)(implicit ec: ExecutionContext): Future[String] = {
-    versions(nameOrUrlish).flatMap { availableVersions =>
-      val maybeVersionRange = SemVer.parseSemVer(version)
-      Future.fromTry {
-        maybeVersionRange.flatMap { versionRange =>
-          SemVer.latestInRange(versionRange, availableVersions).fold[Try[String]] {
-            Failure(new Exception(s"Could not find a valid version for $nameOrUrlish in range $version given these available versions: ${availableVersions.mkString(" ")}"))
-          } (Success(_))
-        }
-      }
-    }
-  }
-
-  def depGraph(packageInfo: PackageInfo, deps: Map[String, String] = Map.empty[String, String])(implicit ec: ExecutionContext, futures: Futures): Future[Map[String, String]] = {
-    import play.api.libs.concurrent.Futures._
-
-    import scala.concurrent.duration._
-
-    def depResolver(unresolvedDeps: Map[String, String], resolvedDeps: Map[String, String]): Future[(Map[String, String], Map[String, String])] = {
-
-      val packagesToResolve = unresolvedDeps.filterKeys(!resolvedDeps.contains(_))
-
-      packagesToResolve.headOption.fold {
-        Future.successful(packagesToResolve -> resolvedDeps)
-      } { dep =>
-        val (nameOrUrlish, versionish) = parseDep(dep)
-        latestDep(nameOrUrlish, versionish).flatMap { version =>
-          val newResolvedDeps = resolvedDeps + (nameOrUrlish -> version)
-          info(nameOrUrlish, Some(version)).flatMap { newPackageInfo =>
-            val newUnresolvedDeps = packagesToResolve.tail ++ newPackageInfo.dependencies.map(parseDep)
-
-            depResolver(newUnresolvedDeps, newResolvedDeps)
-          }
-        } recoverWith {
-          // just skip deps that can't be resolved
-          case _ => depResolver(packagesToResolve.tail, resolvedDeps)
-        }
-      }
-    }
-
-    depResolver(packageInfo.dependencies.map(parseDep), Map.empty[String, String]).map(_._2).withTimeout(10.minutes)
-  }
+  def depGraph(packageInfo: PackageInfo, deps: Map[String, String] = Map.empty[String, String])(implicit ec: ExecutionContext, futures: Futures): Future[Map[String, String]]
 
 }

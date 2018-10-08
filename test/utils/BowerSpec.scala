@@ -52,7 +52,7 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
     "have versions" in {
       val versions = await(bower.versions("PolymerElements/iron-elements"))
       versions must not be empty
-      versions.contains("v1.0.0") must beTrue
+      versions must contain ("1.0.0")
     }
   }
   "invalid git url" should {
@@ -81,8 +81,7 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
       val zip = await(bower.archive("PolymerElements/iron-elements", "v1.0.0"))
       val bufferedInputStream = new BufferedInputStream(zip)
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(bufferedInputStream)
-
-      bufferedInputStream.available() must beEqualTo (7680)
+      archiveStream.getNextEntry.getName must beEqualTo (".bower.json")
     }
   }
   "git fork - github short url" should {
@@ -118,15 +117,6 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
   "homepage" should {
     "be have a default" in {
       await(bower.info("git://github.com/millermedeiros/requirejs-plugins")).maybeHomepageUrl must beSome (new URL("https://github.com/millermedeiros/requirejs-plugins"))
-    }
-  }
-
-  "long file names" should {
-    "work" in {
-      val is = new BufferedInputStream(await(bower.archive("highcharts/highcharts", "v4.2.5")))
-      val zis = new ArchiveStreamFactory().createArchiveInputStream(is)
-      val files = Stream.continually(zis.getNextEntry).takeWhile(_ != null).map(_.getName)
-      files must contain ("tools/ant-contrib-0.6-bin/docs/api/net/sf/antcontrib/perf/AntPerformanceListener.StopWatchComparator.html")
     }
   }
 
@@ -177,7 +167,7 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
     "work with " in {
       val packageInfo = await(bower.info("ng-bootstrap-select", Some("0.5.0")))
       val depGraph = await(bower.depGraph(packageInfo))
-      depGraph.keySet must beEqualTo(Set("angular", "bootstrap-select", "jquery"))
+      depGraph.keySet must beEqualTo(Set("angular", "bootstrap", "bootstrap-select", "jquery"))
     }
     "work with PolymerElements/iron-behaviors" in {
       val packageInfo = await(bower.info("PolymerElements/iron-behaviors", Some("v2.0.0")))
@@ -199,13 +189,6 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
     "have the right licenses" in {
       val packageInfo = await(bower.info("dojox", Some("1.13.0")))
       packageInfo.metadataLicenses must beEqualTo (Seq("BSD-3-Clause", "AFL-2.1"))
-    }
-  }
-
-  "lookup NPM packages" should {
-    "work" in {
-      val url = await(bower.lookup("dom-matches", "2.0.0"))
-      url.toString must beEqualTo ("https://github.com/necolas/dom-matches.git")
     }
   }
 

@@ -10,8 +10,8 @@ import play.api.libs.ws._
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class BowerGitHub @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Maven, npm: NPM)(implicit ec: ExecutionContext, futures: Futures)
-  extends Bower(ws, git, gitHub, maven, npm)(ec, futures) {
+class BowerGitHub @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Maven)(implicit ec: ExecutionContext, futures: Futures)
+  extends Bower(ws, git, gitHub, maven)(ec, futures) {
 
   override val name: String = "BowerGitHub"
 
@@ -64,8 +64,6 @@ class BowerGitHub @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Mave
         val json = Json.parse(bowerJson)
         (json \ "ignore").asOpt[Set[String]].getOrElse(Set.empty[String])
       }
-    } recoverWith {
-      case _ => npm.excludes(nameOrUrlish, version)
     }
   }
 

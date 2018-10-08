@@ -88,10 +88,16 @@ class LicenseDetector @Inject() (ws: WSClient, git: Git, messages: MessagesApi, 
   //val normalizedAvailableLicenses = availableLicenses.map(license => normalize(license) -> license).toMap
 
   def validLicenses(licenses: Seq[String]): Seq[String] = {
-    licenses.map { license =>
+    val licensesWithSynonyms = licenses.map { license =>
       // deal with synonyms and normalization
       licenseSynonyms.getOrElse(normalize(license), license)
-    } intersect availableLicenses.toSeq
+    }
+
+    availableLicenses.filter { availableLicense =>
+      licensesWithSynonyms.exists { license =>
+        license.equalsIgnoreCase(availableLicense)
+      }
+    }.toSeq
   }
 
   def licenseReference(packageInfo: PackageInfo)(maybeRef: String): Seq[Future[String]] = {

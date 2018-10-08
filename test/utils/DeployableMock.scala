@@ -3,7 +3,9 @@ package utils
 import java.io.InputStream
 import java.net.URI
 
-import scala.concurrent.Future
+import play.api.libs.concurrent.Futures
+
+import scala.concurrent.{ExecutionContext, Future}
 
 case class DeployableMock() extends Deployable {
   override def groupId(nameOrUrlish: String, version: String): Future[String] = ???
@@ -20,4 +22,5 @@ case class DeployableMock() extends Deployable {
   override def pathPrefix(nameOrUrlish: String, releaseVersion: String, packageInfo: PackageInfo): Future[String] = ???
   override def versions(nameOrUrlish: String): Future[Set[String]] = ???
   override def parseDep(dep: (String, String)): (String, String) = ???
+  override def depGraph(packageInfo: PackageInfo, deps: Map[String, String])(implicit ec: ExecutionContext, futures: Futures) = ???
 }

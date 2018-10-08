@@ -138,7 +138,7 @@ class ApplicationSpec extends PlaySpecification {
       val result = applicationController.create("bowergithub", "jquery", "3.3.0")(request)
 
       status(result) must beEqualTo (Status.OK)
-      contentAsBytes(result).length must beEqualTo (460313)
+      contentAsBytes(result).length must beEqualTo (465248)
     }
   }
 

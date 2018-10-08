@@ -91,10 +91,10 @@ class BowerGitHubSpec extends PlaySpecification with GlobalApplication {
       version must beEqualTo ("[1.0.0,2)")
     }
     "work with a github short reference" in {
-      val (group, artifact, version) = await(bowerGitHub.bowerToMaven("jquery/jquery" -> "1.0.0"))
+      val (group, artifact, version) = await(bowerGitHub.bowerToMaven("jquery/jquery" -> "1.0.1"))
       group must beEqualTo ("org.webjars.bowergithub.jquery")
       artifact must beEqualTo ("jquery")
-      version must beEqualTo ("[1.0.0]")
+      version must beEqualTo ("[1.0.1]")
     }
     "work with a github short reference" in {
       val (group, artifact, version) = await(bowerGitHub.bowerToMaven("jquery" -> "jquery/jquery"))
@@ -103,16 +103,16 @@ class BowerGitHubSpec extends PlaySpecification with GlobalApplication {
       version must beEqualTo ("[0,)")
     }
     "work with a github short reference and version" in {
-      val (group, artifact, version) = await(bowerGitHub.bowerToMaven("jquery" -> "jquery/jquery#1.0.0"))
+      val (group, artifact, version) = await(bowerGitHub.bowerToMaven("jquery" -> "jquery/jquery#1.0.1"))
       group must beEqualTo ("org.webjars.bowergithub.jquery")
       artifact must beEqualTo ("jquery")
-      version must beEqualTo ("[1.0.0]")
+      version must beEqualTo ("[1.0.1]")
     }
     "work with a github short reference and version with a v" in {
-      val (group, artifact, version) = await(bowerGitHub.bowerToMaven("jquery" -> "jquery/jquery#v1.0.0"))
+      val (group, artifact, version) = await(bowerGitHub.bowerToMaven("jquery" -> "jquery/jquery#v1.0.1"))
       group must beEqualTo ("org.webjars.bowergithub.jquery")
       artifact must beEqualTo ("jquery")
-      version must beEqualTo ("[1.0.0]")
+      version must beEqualTo ("[1.0.1]")
     }
     "work with a github url" in {
       val (group, artifact, version) = await(bowerGitHub.bowerToMaven("jquery" -> "https://github.com/jquery/jquery"))
@@ -121,16 +121,16 @@ class BowerGitHubSpec extends PlaySpecification with GlobalApplication {
       version must beEqualTo ("[0,)")
     }
     "work with a github url and version" in {
-      val (group, artifact, version) = await(bowerGitHub.bowerToMaven("jquery" -> "https://github.com/jquery/jquery#1.0.0"))
+      val (group, artifact, version) = await(bowerGitHub.bowerToMaven("jquery" -> "https://github.com/jquery/jquery#1.0.1"))
       group must beEqualTo ("org.webjars.bowergithub.jquery")
       artifact must beEqualTo ("jquery")
-      version must beEqualTo ("[1.0.0]")
+      version must beEqualTo ("[1.0.1]")
     }
     "work with a github url and version with a v" in {
-      val (group, artifact, version) = await(bowerGitHub.bowerToMaven("jquery" -> "https://github.com/jquery/jquery#v1.0.0"))
+      val (group, artifact, version) = await(bowerGitHub.bowerToMaven("jquery" -> "https://github.com/jquery/jquery#v1.0.1"))
       group must beEqualTo ("org.webjars.bowergithub.jquery")
       artifact must beEqualTo ("jquery")
-      version must beEqualTo ("[1.0.0]")
+      version must beEqualTo ("[1.0.1]")
     }
     "work with semver ranges and a v prefix" in {
       val (group, artifact, version) = await(bowerGitHub.bowerToMaven("shadycss" -> "webcomponents/shadycss#^v1.1.0"))
@@ -149,10 +149,6 @@ class BowerGitHubSpec extends PlaySpecification with GlobalApplication {
       group must beEqualTo ("org.webjars.bowergithub.webcomponents")
       artifact must beEqualTo ("webcomponentsjs")
       version must beEqualTo ("[1.0.22]")
-    }
-    "work for an NPM package" in {
-      await(bowerGitHub.bowerToMaven("dom-matches", "^2.0.0")) must beEqualTo (("org.webjars.bowergithub.necolas", "dom-matches", "[2.0.0,3)"))
-      await(bowerGitHub.bowerToMaven("dom-matches", "2.0.0")) must beEqualTo (("org.webjars.bowergithub.necolas", "dom-matches", "[2.0.0]"))
     }
   }
 
@@ -218,19 +214,19 @@ class BowerGitHubSpec extends PlaySpecification with GlobalApplication {
       val inputStream = await(bowerGitHub.archive("vaadin-grid", "v4.0.0-alpha5"))
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(new BufferedInputStream(inputStream))
 
-      Stream.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName) must contain (".npmignore")
+      Stream.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName) must contain ("bower.json")
     }
     "work when using a bower name" in {
       val inputStream = await(bowerGitHub.archive("vaadin-grid", "4.0.0-alpha5"))
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(new BufferedInputStream(inputStream))
 
-      Stream.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName) must contain (".npmignore")
+      Stream.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName) must contain ("bower.json")
     }
     "work when using a github short url" in {
       val inputStream = await(bowerGitHub.archive("vaadin/vaadin-grid", "4.0.0-alpha5"))
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(new BufferedInputStream(inputStream))
 
-      Stream.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName) must contain (".npmignore")
+      Stream.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName) must contain ("bower.json")
     }
   }
 

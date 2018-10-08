@@ -80,6 +80,11 @@ class LicenseDetectorSpec extends PlaySpecification with GlobalApplication {
       val packageInfo = await(bower.info("git://github.com/mdedetrich/requirejs-plugins", Some("d9c103e7a0")))
       await(licenseDetector.resolveLicenses(bower, packageInfo, Some("d9c103e7a0"))) must beEqualTo(Set("MIT"))
     }
+    "use a case insensitive match" in {
+      val licenses = Seq("UNLICENSE")
+      val result = await(licenseDetector.resolveLicenses(DeployableMock(), emptyPackageInfo(licenses)))
+      result must be equalTo Set("Unlicense")
+    }
   }
 
   "chokidar 1.0.1" should {

@@ -36,7 +36,7 @@ class MavenCentralSpec extends PlaySpecification {
         // this test is flappy because we get the a limited number of group ids from maven central
         val bowerWebJars = app.injector.instanceOf[BowerGitHub]
         val statsBowerWebJars = await(mavenCentral.getStats(bowerWebJars, new DateTime(2018, 1, 1, 1, 1)))
-        statsBowerWebJars should contain(("org.webjars.bowergithub.webcomponents", "webcomponentsjs", 5))
+        statsBowerWebJars should contain(("org.webjars.bowergithub.jquery", "jquery-dist", 38))
       }
     }
   }
