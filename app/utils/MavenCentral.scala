@@ -8,11 +8,9 @@ import akka.actor._
 import akka.pattern.ask
 import akka.util.Timeout
 import models.{WebJar, WebJarType, WebJarVersion}
-import org.apache.commons.codec.binary.Base64
 import org.joda.time.DateTime
 import play.api.http.{HeaderNames, MimeTypes, Status}
 import play.api.libs.json._
-import play.api.libs.ws.ahc.AhcWSResponse
 import play.api.libs.ws.{WSAuthScheme, WSClient}
 import play.api.{Configuration, Logger}
 import shade.memcached.MemcachedCodecs._
@@ -162,10 +160,7 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
     webJarsFuture
   }
 
-  def fetchWebJars(webJarType: WebJarType): Future[List[WebJar]] = {
-
-    Logger.info(s"Getting ${webJarType.name} WebJars")
-
+  def fetchWebJarsJson(webJarType: WebJarType): Future[JsValue] = {
     val params = Map(
       "q" -> s"""g:${webJarType.groupIdQuery} AND p:jar""",
       "core" -> "gav",
@@ -174,9 +169,16 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
     )
 
     wsClient.url(searchUrl).withQueryStringParameters(params.toSeq: _*).get().flatMap { response =>
-      Try(response.json).map(webJarsFromJson(webJarType)).getOrElse(Future.failed(new MavenCentral.UnavailableException(response.body)))
+      Future.fromTry(Try(response.json)).recoverWith {
+        case _ => Future.failed(new MavenCentral.UnavailableException(response.body))
+      }
     }
+  }
 
+  def fetchWebJars(webJarType: WebJarType): Future[List[WebJar]] = {
+    Logger.info(s"Getting ${webJarType.name} WebJars")
+
+    fetchWebJarsJson(webJarType).flatMap(webJarsFromJson(webJarType))
   }
 
   def webJars(webJarType: WebJarType): Future[List[WebJar]] = {
@@ -238,18 +240,8 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
   }
 
   def groupIds(webJarType: WebJarType): Future[Set[String]] = {
-    val params = Map(
-      "q" -> s"""g:${webJarType.groupIdQuery} AND p:jar""",
-      "core" -> "gav",
-      "rows" -> rowLimit.toString,
-      "wt" -> "json"
-    )
-
-    wsClient.url(searchUrl).withQueryStringParameters(params.toSeq: _*).get().flatMap { response =>
-      Try(response.json).map { json =>
-        val allGroupIds = (json \ "response" \ "docs").as[Seq[JsObject]].map(_.\("g").as[String])
-        Future.successful(allGroupIds.distinct.toSet)
-      }.getOrElse(Future.failed(new MavenCentral.UnavailableException(response.body)))
+    fetchWebJarsJson(webJarType).map { json =>
+      (json \ "response" \ "docs").as[Seq[JsObject]].map(_.\("g").as[String]).toSet
     }
   }
 
