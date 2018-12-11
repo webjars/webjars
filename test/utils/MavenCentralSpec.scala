@@ -1,5 +1,6 @@
 package utils
 
+import models.{WebJar, WebJarType}
 import org.joda.time.DateTime
 import play.api.Configuration
 import play.api.inject.guice.GuiceApplicationBuilder
@@ -33,10 +34,16 @@ class MavenCentralSpec extends PlaySpecification {
         val statsClassic = await(mavenCentral.getStats(classic, new DateTime(2016, 1, 1, 1, 1)))
         statsClassic.head should beEqualTo("org.webjars", "jquery", 45947)
 
-        // this test is flappy because we get the a limited number of group ids from maven central
-        val bowerWebJars = app.injector.instanceOf[BowerGitHub]
-        val statsBowerWebJars = await(mavenCentral.getStats(bowerWebJars, new DateTime(2018, 1, 1, 1, 1)))
-        statsBowerWebJars should contain(("org.webjars.bowergithub.jquery", "jquery-dist", 38))
+        val bowerGitHub = app.injector.instanceOf[BowerGitHub]
+        val bowerWebJars = await(mavenCentral.webJars(bowerGitHub))
+        val statsBowerWebJars = await(mavenCentral.getStats(bowerGitHub, new DateTime(2018, 1, 1, 1, 1)))
+        val (groupId, artifactId, downloads) = statsBowerWebJars.head
+
+        bowerWebJars.find { webJar =>
+          webJar.groupId == groupId && webJar.artifactId == artifactId
+        } should beSome
+
+        downloads should be > 0
       }
     }
   }
