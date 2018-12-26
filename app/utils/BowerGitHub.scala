@@ -1,11 +1,9 @@
 package utils
 
 import java.io.InputStream
-import javax.inject.Inject
 
-import org.eclipse.jgit.api.errors.RefNotFoundException
+import javax.inject.Inject
 import play.api.libs.concurrent.Futures
-import play.api.libs.json.Json
 import play.api.libs.ws._
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -55,13 +53,7 @@ class BowerGitHub @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Mave
 
   override def excludes(nameOrUrlish: String, version: String): Future[Set[String]] = {
     lookup(nameOrUrlish, version).flatMap { url =>
-      val bowerJsonFuture = git.file(url.toURI, Some(version), "bower.json").recoverWith {
-        // try with a "v" version prefix
-        case _: RefNotFoundException if !version.startsWith("v") => git.file(url.toURI, Some("v" + version), "bower.json")
-      }
-
-      bowerJsonFuture.map { bowerJson =>
-        val json = Json.parse(bowerJson)
+      rawJson(url.toString, version).map { json =>
         (json \ "ignore").asOpt[Set[String]].getOrElse(Set.empty[String])
       }
     }
@@ -69,10 +61,7 @@ class BowerGitHub @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Mave
 
   override def archive(packageNameOrGitRepo: String, version: String): Future[InputStream] = {
     lookup(packageNameOrGitRepo, version).flatMap { url =>
-      super.archive(url.toString, version).recoverWith {
-        // try with a "v" version prefix
-        case _: RefNotFoundException if !version.startsWith("v") => super.archive(url.toString, "v" + version)
-      }
+      super.archive(url.toString, version)
     }
   }
 

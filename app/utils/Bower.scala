@@ -1,21 +1,21 @@
 package utils
 
 import java.io.InputStream
-import java.net.{URI, URL, URLEncoder}
-import javax.inject.Inject
+import java.net.{URI, URL}
 
+import javax.inject.Inject
 import play.api.http.Status
 import play.api.libs.concurrent.Futures
+import play.api.libs.concurrent.Futures._
 import play.api.libs.functional.syntax._
 import play.api.libs.json.Reads._
 import play.api.libs.json._
 import play.api.libs.ws._
-import play.api.libs.concurrent.Futures._
 import utils.PackageInfo._
 
+import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
-import scala.concurrent.duration._
 
 class Bower @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Maven) (implicit ec: ExecutionContext, futures: Futures) extends Deployable {
 
@@ -73,15 +73,19 @@ class Bower @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Maven) (im
     }
   }
 
-  def rawInfo(packageNameOrGitRepo: String, version: String): Future[PackageInfo] = {
+  def rawJson(packageNameOrGitRepo: String, version: String): Future[JsValue] = {
     ws.url(s"$BASE_URL/info").withQueryStringParameters("package" -> packageNameOrGitRepo, "version" -> version).get().flatMap { versionResponse =>
       versionResponse.status match {
         case Status.OK =>
-          Future.successful(versionResponse.json.as[PackageInfo])
+          Future.successful(versionResponse.json)
         case _ =>
           Future.failed(new Exception(versionResponse.body))
       }
     }
+  }
+
+  def rawInfo(packageNameOrGitRepo: String, version: String): Future[PackageInfo] = {
+    rawJson(packageNameOrGitRepo, version).map(_.as[PackageInfo])
   }
 
   override def info(packageNameOrGitRepo: String, maybeVersion: Option[String] = None, maybeSourceUri: Option[URI] = None): Future[PackageInfo] = {
