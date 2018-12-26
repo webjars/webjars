@@ -6,11 +6,11 @@ import java.nio.charset.CodingErrorAction
 import java.nio.file.Files
 
 import javax.inject.Inject
-import org.apache.commons.io.FileUtils
 import org.eclipse.jgit.api.{Git => GitApi}
 import play.api.http.{HeaderNames, Status}
 import play.api.libs.ws.WSClient
 
+import scala.reflect.io.Directory
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.io.{Codec, Source}
@@ -171,7 +171,7 @@ class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
     }
 
     checkoutFuture.onComplete {
-      case _: Failure[File] => FileUtils.deleteDirectory(baseDir)
+      case _: Failure[File] => new Directory(baseDir).deleteRecursively()
       case _: Success[File] => Unit
     }
 

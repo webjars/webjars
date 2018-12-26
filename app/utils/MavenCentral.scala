@@ -108,16 +108,14 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
               numFilesFuture.foreach(numFiles => memcache.instance.set(cacheKey, numFiles, Duration.Inf))
               numFilesFuture
             } (Future.successful) map { numFiles =>
-              WebJarVersion(version, numFiles)
+              Some(WebJarVersion(version, numFiles))
+            } recover {
+              case _: FileNotFoundException => None
             }
-          } recover {
-            case e: Exception =>
-              Logger.error(s"Error fetching file list for $groupId $artifactId $version", e)
-              WebJarVersion(version)
           }
         }
       } map { webJarVersions =>
-        webJarVersions.sorted.reverse
+        webJarVersions.flatten.sorted.reverse
       }
 
       (groupId -> artifactId) -> versionsFuture
