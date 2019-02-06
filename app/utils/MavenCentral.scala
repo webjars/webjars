@@ -2,7 +2,7 @@ package utils
 
 import java.io.FileNotFoundException
 
-import javax.inject.Inject
+import javax.inject.{Inject, Singleton}
 import actors.{FetchWebJars, WebJarFetcher}
 import akka.actor._
 import akka.pattern.ask
@@ -12,7 +12,7 @@ import org.joda.time.DateTime
 import play.api.http.{HeaderNames, MimeTypes, Status}
 import play.api.libs.json._
 import play.api.libs.ws.{WSAuthScheme, WSClient}
-import play.api.{Configuration, Logger}
+import play.api.{Configuration, Logging}
 import shade.memcached.MemcachedCodecs._
 
 import scala.concurrent.duration._
@@ -20,7 +20,8 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 import scala.xml.Elem
 
-class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClient, actorSystem: ActorSystem, configuration: Configuration, webJarsFileService: WebJarsFileService)(classic: Classic, bower: Bower, bowerGitHub: BowerGitHub, npm: NPM) (implicit ec: ExecutionContext) {
+@Singleton
+class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClient, actorSystem: ActorSystem, configuration: Configuration, webJarsFileService: WebJarsFileService)(classic: Classic, bower: Bower, bowerGitHub: BowerGitHub, npm: NPM) (implicit ec: ExecutionContext) extends Logging {
 
   lazy val webJarFetcher: ActorRef = actorSystem.actorOf(Props[WebJarFetcher])
 
@@ -174,7 +175,7 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
   }
 
   def fetchWebJars(webJarType: WebJarType): Future[List[WebJar]] = {
-    Logger.info(s"Getting ${webJarType.name} WebJars")
+    logger.info(s"Getting ${webJarType.name} WebJars")
 
     fetchWebJarsJson(webJarType).flatMap(webJarsFromJson(webJarType))
   }

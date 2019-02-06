@@ -16,7 +16,7 @@ import play.api.libs.EventSource
 import play.api.libs.concurrent.Futures
 import play.api.libs.json.Json
 import play.api.mvc._
-import play.api.{Configuration, Environment, Logger, Mode}
+import play.api.{Configuration, Environment, Logging, Mode}
 import utils.MavenCentral.{EmptyStatsException, ExistingWebJarRequestException}
 import utils._
 
@@ -28,7 +28,7 @@ import scala.util.hashing.MurmurHash3
 class Application @Inject() (git: Git, gitHub: GitHub, heroku: Heroku, cache: Cache, mavenCentral: MavenCentral, deployWebJar: DeployWebJar, webJarsFileService: WebJarsFileService, actorSystem: ActorSystem, configuration: Configuration, environment: Environment, futures: Futures)
                             (classic: Classic, bower: Bower, npm: NPM, bowerGitHub: BowerGitHub)
                             (mainView: views.html.main, allView: views.html.all, indexView: views.html.index, webJarRequestView: views.html.webJarRequest, contributingView: views.html.contributing, documentationView: views.html.documentation)
-                            (implicit ec: ExecutionContext) extends InjectedController {
+                            (implicit ec: ExecutionContext) extends InjectedController with Logging {
 
   private val allWebJarTypes = Set(classic, bowerGitHub, bower, npm)
 
@@ -62,9 +62,9 @@ class Application @Inject() (git: Git, gitHub: GitHub, heroku: Heroku, cache: Ca
     val fetcher = maybeWebJarType.fold(mavenCentral.webJars)(mavenCentral.webJars)
     val future = TimeoutFuture(defaultTimeout)(fetcher)
     future.onComplete {
-      case Failure(e: TimeoutException) => Logger.debug("Timeout fetching WebJars", e)
-      case Failure(e: MavenCentral.ExistingWebJarRequestException) => Logger.debug("Existing WebJar Request", e)
-      case Failure(e) => Logger.error("Error loading WebJars", e)
+      case Failure(e: TimeoutException) => logger.debug("Timeout fetching WebJars", e)
+      case Failure(e: MavenCentral.ExistingWebJarRequestException) => logger.debug("Existing WebJar Request", e)
+      case Failure(e) => logger.error("Error loading WebJars", e)
       case _ => Unit
     }
     future
@@ -106,7 +106,7 @@ class Application @Inject() (git: Git, gitHub: GitHub, heroku: Heroku, cache: Ca
       case e: ExistingWebJarRequestException =>
         futures.delay(defaultTimeout).map(_ => Redirect(routes.Application.index()))
       case e: Exception =>
-        Logger.error("index WebJar fetch failed", e)
+        logger.error("index WebJar fetch failed", e)
         Future.successful(InternalServerError(indexView(Right(WEBJAR_FETCH_ERROR))))
     }
   }
@@ -151,7 +151,7 @@ class Application @Inject() (git: Git, gitHub: GitHub, heroku: Heroku, cache: Ca
       }
     } recover {
       case e: Exception =>
-        Logger.error("searchWebJars failed", e)
+        logger.error("searchWebJars failed", e)
         render {
           case Accepts.Html() => InternalServerError(views.html.webJarList(Right(WEBJAR_FETCH_ERROR)))
           case Accepts.Json() => InternalServerError(Json.toJson(Seq.empty[WebJar]))
@@ -227,7 +227,7 @@ class Application @Inject() (git: Git, gitHub: GitHub, heroku: Heroku, cache: Ca
         })
       } recover {
         case e: Exception =>
-          Logger.error("allWebJars fetch error", e)
+          logger.error("allWebJars fetch error", e)
           render {
             case Accepts.Html() => InternalServerError(allView(Right(WEBJAR_FETCH_ERROR)))
             case Accepts.Json() => InternalServerError(Json.arr())

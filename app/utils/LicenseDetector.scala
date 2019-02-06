@@ -3,14 +3,14 @@ package utils
 import java.net.URL
 import javax.inject.Inject
 
-import play.api.Logger
+import play.api.Logging
 import play.api.http.{HeaderNames, MimeTypes, Status}
 import play.api.i18n.{Lang, Langs, MessagesApi}
 import play.api.libs.ws.WSClient
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class LicenseDetector @Inject() (ws: WSClient, git: Git, messages: MessagesApi, langs: Langs) (implicit ec: ExecutionContext) {
+class LicenseDetector @Inject() (ws: WSClient, git: Git, messages: MessagesApi, langs: Langs) (implicit ec: ExecutionContext) extends Logging{
 
   implicit lazy val lang: Lang = langs.availables.head
 
@@ -38,7 +38,7 @@ class LicenseDetector @Inject() (ws: WSClient, git: Git, messages: MessagesApi, 
         case Status.OK =>
           Future.successful(licenseResponse.body)
         case _ =>
-          Logger.error("License fetch error:\n" + contents + "\n" + licenseResponse.body)
+          logger.error("License fetch error:\n" + contents + "\n" + licenseResponse.body)
           Future.failed(new Exception(licenseResponse.body))
       }
     }

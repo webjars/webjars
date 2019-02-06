@@ -12,7 +12,7 @@ libraryDependencies ++= Seq(
   "io.monix" %% "shade" % "1.10.0",
   "org.apache.commons" % "commons-compress" % "1.18",
   "org.eclipse.jgit" % "org.eclipse.jgit" % "4.11.0.201803080745-r",
-  "org.webjars" %% "webjars-play" % "2.6.3",
+  "org.webjars" %% "webjars-play" % "2.7.0",
   "org.webjars.bower" % "bootstrap" % "3.3.4",
   "org.webjars.bower" % "select2" % "3.5.2",
   "org.webjars.bower" % "highlightjs" % "9.10.0",
