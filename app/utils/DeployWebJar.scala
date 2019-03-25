@@ -278,6 +278,7 @@ object DeployWebJar extends App {
 
     val maybeLicense = if (licenseIn.isEmpty) None else Some(licenseIn)
 
+    println(webJarType, nameOrUrlish, upstreamVersion, deployDependencies, preventFork, maybeReleaseVersion, maybeSourceUri, maybeLicense)
     (webJarType, nameOrUrlish, upstreamVersion, deployDependencies, preventFork, maybeReleaseVersion, maybeSourceUri, maybeLicense)
   }
   else {
