@@ -55,6 +55,7 @@
                 <li><a href="#pippo" data-toggle="tab">Pippo</a></li>
                 <li><a href="#ring" data-toggle="tab">Ring (Clojure)</a></li>
                 <li><a href="#dandelion" data-toggle="tab">Dandelion</a></li>
+                <li><a href="#vertx" data-toggle="tab">Vert.x Web</a></li>
             </ul>
         </div>
 
@@ -729,6 +730,32 @@ public class AjaxApplication extends Application {
                 <br>
                 A sample application is available <a href="https://github.com/dandelion/dandelion-core-samples/tree/master/core-thymeleaf-webjars">here</a>.
             </div>
+
+          <!-- Vert.x Web -->
+          <div class="tab-pane" id="vertx">
+            <h3>Instructions for Vert.x Web</h3>
+
+            The Vert.x Web <span class="label label-info"><a href="https://vertx.io/docs/vertx-web/java/#_serving_static_resources">StaticHandler</a></span> can resolve file paths from both the filesystem and the classpath.
+            Therefore, it requires very little configuration to serve assets packaged in a WebJar.
+
+            <h4>Maven Example</h4>
+
+            First add a WebJar as a dependency of your application in the <span class="label label-info">pom.xml</span> file, like:
+            <pre><code>&lt;dependencies&gt;
+    &lt;dependency&gt;
+        &lt;groupId&gt;org.webjars&lt;/groupId&gt;
+        &lt;artifactId&gt;bootstrap&lt;/artifactId&gt;
+        &lt;version&gt;3.1.0&lt;/version&gt;
+    &lt;/dependency&gt;
+&lt;/dependencies&gt;</code></pre>
+            <br>
+            In your code, create a <span class="label label-info">StaticHandler</span> and assign it to a <span class="label label-info">Route</span>:
+            <pre><code>Router router = Router.router(vertx);
+router.route("/assets/lib/*").handler(StaticHandler.create("META-INF/resources/webjars"));</code></pre>
+            <br>
+            Then simply reference the resource like:
+            <pre><code>&lt;link rel='stylesheet' href='assets/lib/bootstrap/3.1.0/css/bootstrap.min.css'&gt;</code></pre>
+          </div>
         </div>
     </div>
     </div>
