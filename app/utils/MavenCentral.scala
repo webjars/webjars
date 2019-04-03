@@ -142,13 +142,13 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
 
     val webJarsFuture: Future[List[WebJar]] = artifactsWithWebJarVersionsFuture.flatMap { artifactsWithWebJarVersions =>
       Future.sequence {
-        artifactsWithWebJarVersions.map {
+        artifactsWithWebJarVersions.flatMap {
           case ((groupId, artifactId), webJarVersions) =>
-            val latestVersion = webJarVersions.map(_.number).head
-
-            fetchWebJarNameAndUrl(groupId, artifactId, latestVersion).map {
-              case (name, url) =>
-                WebJar(WebJarType.toString(webJarType), groupId, artifactId, name, url, webJarVersions)
+            webJarVersions.map(_.number).headOption.map { latestVersion =>
+              fetchWebJarNameAndUrl(groupId, artifactId, latestVersion).map {
+                case (name, url) =>
+                  WebJar(WebJarType.toString(webJarType), groupId, artifactId, name, url, webJarVersions)
+              }
             }
         }
       }
