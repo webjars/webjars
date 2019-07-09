@@ -65,7 +65,7 @@ class Application @Inject() (git: Git, gitHub: GitHub, heroku: Heroku, cache: Ca
       case Failure(e: TimeoutException) => logger.debug("Timeout fetching WebJars", e)
       case Failure(e: MavenCentral.ExistingWebJarRequestException) => logger.debug("Existing WebJar Request", e)
       case Failure(e) => logger.error("Error loading WebJars", e)
-      case _ => Unit
+      case _ => ()
     }
     future
   }

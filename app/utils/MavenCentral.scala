@@ -8,13 +8,14 @@ import akka.actor._
 import akka.pattern.ask
 import akka.util.Timeout
 import models.{WebJar, WebJarType, WebJarVersion}
+import net.spy.memcached.transcoders.{IntegerTranscoder, SerializingTranscoder, Transcoder}
 import org.joda.time.DateTime
 import play.api.http.{HeaderNames, MimeTypes, Status}
 import play.api.libs.json._
 import play.api.libs.ws.{WSAuthScheme, WSClient}
 import play.api.{Configuration, Logging}
-import shade.memcached.MemcachedCodecs._
 
+import scala.collection.MapView
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
@@ -32,6 +33,9 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
 
   implicit val webJarReads = Json.reads[WebJar]
   implicit val webJarWrites = Json.writes[WebJar]
+
+  implicit val transcoderInt = new IntegerTranscoder().asInstanceOf[Transcoder[Int]]
+  implicit val transcoderElem = new SerializingTranscoder().asInstanceOf[Transcoder[Elem]]
 
   lazy val ossUsername = configuration.get[String]("oss.username")
   lazy val ossPassword = configuration.get[String]("oss.password")
@@ -88,7 +92,7 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
     // group by the artifactId
     val artifactsAndVersions = allVersions.groupBy {
       case (groupId, artifactId, _) => groupId -> artifactId
-    } filterKeys {
+    }.view.filterKeys {
       case (_, artifactId) => !artifactId.startsWith("webjars-")
     } mapValues { versions =>
       versions.map {
@@ -103,16 +107,12 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
       val versionsFuture = Future.sequence {
         versions.map { version =>
           val cacheKey = s"numfiles-$groupId-$artifactId-$version"
-          memcache.instance.get[Int](cacheKey).flatMap { maybeNumFiles =>
-            maybeNumFiles.fold {
-              val numFilesFuture = webJarsFileService.getNumFiles(groupId, artifactId, version)
-              numFilesFuture.foreach(numFiles => memcache.instance.set(cacheKey, numFiles, Duration.Inf))
-              numFilesFuture
-            } (Future.successful) map { numFiles =>
-              Some(WebJarVersion(version, numFiles))
-            } recover {
-              case _: FileNotFoundException => None
-            }
+          memcache.getWithMiss[Int](cacheKey) {
+            webJarsFileService.getNumFiles(groupId, artifactId, version)
+          } map { numFiles =>
+            Some(WebJarVersion(version, numFiles))
+          } recover {
+            case _: FileNotFoundException => None
           }
         }
       } map { webJarVersions =>
@@ -126,9 +126,9 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
       resultsFuture.flatMap { results =>
         val batchFutures: Map[(String, String), Future[List[WebJarVersion]]] = batch.map(fetchWebJarVersions)
 
-        val batchFuture: Future[Map[(String, String), List[WebJarVersion]]] = Future.traverse(batchFutures) {
+        val batchFuture: Future[Map[(String, String), List[WebJarVersion]]] = Future.traverse(batchFutures.iterator) {
           case ((groupId, artifactId), futureVersions) =>
-            futureVersions.map((groupId -> artifactId) -> _)
+            futureVersions.map(((groupId, artifactId), _))
         }.map(_.toMap)
 
         batchFuture.map { batchResult =>
@@ -138,7 +138,7 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
     }
 
     // batch size = 100
-    val artifactsWithWebJarVersionsFuture: Future[Map[(String, String), List[WebJarVersion]]] = artifactsAndVersions.grouped(100).foldLeft(Future.successful(Map.empty[(String, String), List[WebJarVersion]]))(processBatch)
+    val artifactsWithWebJarVersionsFuture: Future[Map[(String, String), List[WebJarVersion]]] = artifactsAndVersions.toMap.grouped(100).foldLeft(Future.successful(Map.empty[(String, String), List[WebJarVersion]]))(processBatch)
 
     val webJarsFuture: Future[List[WebJar]] = artifactsWithWebJarVersionsFuture.flatMap { artifactsWithWebJarVersions =>
       Future.sequence {
@@ -228,13 +228,8 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
 
   def getPom(groupId: String, artifactId: String, version: String): Future[Elem] = {
     val cacheKey = s"pom-$groupId-$artifactId-$version"
-    memcache.instance.get[Elem](cacheKey).flatMap { maybeElem =>
-      maybeElem.map(Future.successful).getOrElse {
-        val pomFuture = fetchPom(groupId, artifactId, version)
-        pomFuture.flatMap { pom =>
-          memcache.instance.set(cacheKey, pom, Duration.Inf).map(_ => pom)
-        }
-      }
+    memcache.getWithMiss[Elem](cacheKey) {
+      fetchPom(groupId, artifactId, version)
     }
   }
 

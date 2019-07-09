@@ -14,7 +14,7 @@
     </appender>
 
     <logger name="play" level="INFO" />
-    <logger name="net.spy.memcached" level="WARN" />
+    <logger name="net.spy.memcached.MemcachedConnection" level="WARN" />
     <logger name="akka.event.slf4j" level="WARN" />
     <logger name="application" level="DEBUG" />
 

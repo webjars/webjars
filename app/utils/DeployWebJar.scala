@@ -91,7 +91,7 @@ class DeployWebJar @Inject()(git: Git, binTray: BinTray, maven: Maven, mavenCent
         Future.failed(new IllegalStateException(s"WebJar $groupId $artifactId $version has already been deployed"))
       } recoverWith {
         case _: FileNotFoundException =>
-          Future.successful(Unit)
+          Future.unit
       }
     }
 

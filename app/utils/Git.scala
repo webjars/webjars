@@ -172,7 +172,7 @@ class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
 
     checkoutFuture.onComplete {
       case _: Failure[File] => new Directory(baseDir).deleteRecursively()
-      case _: Success[File] => Unit
+      case _: Success[File] => ()
     }
 
     checkoutFuture

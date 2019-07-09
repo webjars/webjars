@@ -62,7 +62,7 @@ object PackageInfo {
 
 }
 
-case class MissingMetadataException(json: JsValue, errors: Seq[(JsPath, Seq[JsonValidationError])]) extends Exception {
+case class MissingMetadataException(json: JsValue, errors: collection.Seq[(JsPath, collection.Seq[JsonValidationError])]) extends Exception {
   override def getMessage: String = {
     if (errors.length == 1) {
       "The metadata was missing a required field: " + errors.head._1.path.mkString

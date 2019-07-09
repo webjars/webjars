@@ -43,7 +43,7 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
     "download" in {
       val is = new BufferedInputStream(await(bower.archive("sjcl", "1.0.2")))
       val zis = new ArchiveStreamFactory().createArchiveInputStream(is)
-      val files = Stream.continually(zis.getNextEntry).takeWhile(_ != null).map(_.getName)
+      val files = LazyList.continually(zis.getNextEntry).takeWhile(_ != null).map(_.getName)
       files must contain ("sjcl.js")
     }
   }
@@ -162,7 +162,7 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
     "work with bootstrap" in {
       val packageInfo = await(bower.info("bootstrap", Some("3.3.7")))
       val depGraph = await(bower.depGraph(packageInfo))
-      depGraph must beEqualTo(Map("jquery" -> "3.3.1"))
+      depGraph must beEqualTo(Map("jquery" -> "3.4.1"))
     }
     "work with " in {
       val packageInfo = await(bower.info("ng-bootstrap-select", Some("0.5.0")))
@@ -180,7 +180,7 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
     "download" in {
       val is = new BufferedInputStream(await(bower.archive("uwdata/vega-lite", "v2.1.2")))
       val zis = new ArchiveStreamFactory().createArchiveInputStream(is)
-      val files = Stream.continually(zis.getNextEntry).takeWhile(_ != null).map(_.getName)
+      val files = LazyList.continually(zis.getNextEntry).takeWhile(_ != null).map(_.getName)
       files must not contain "examples/compiled/data"
     }
   }

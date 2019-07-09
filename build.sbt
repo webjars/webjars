@@ -2,17 +2,18 @@ lazy val root = (project in file(".")).enablePlugins(PlayScala)
 
 name := "webjars"
 
-scalaVersion := "2.12.8"
+scalaVersion := "2.13.0"
 
 libraryDependencies ++= Seq(
   ws,
   ehcache,
   guice,
   filters,
-  "io.monix" %% "shade" % "1.10.0",
+  "net.spy" % "spymemcached" % "2.12.3",
+  "com.lihaoyi" %% "fastparse" % "2.1.3",
   "org.apache.commons" % "commons-compress" % "1.18",
   "org.eclipse.jgit" % "org.eclipse.jgit" % "4.11.0.201803080745-r",
-  "org.webjars" %% "webjars-play" % "2.7.0",
+  "org.webjars" %% "webjars-play" % "2.7.3",
   "org.webjars.bower" % "bootstrap" % "3.3.4",
   "org.webjars.bower" % "select2" % "3.5.2",
   "org.webjars.bower" % "highlightjs" % "9.10.0",
