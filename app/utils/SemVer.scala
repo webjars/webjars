@@ -252,7 +252,7 @@ object SemVer {
       .replaceAllLiterally("~ ", "~")
       .replaceAllLiterally("#", "")
 
-    trySequence(normalizedVersion.split(" \\|\\| ").map(parseSemVerRange))
+    trySequence(normalizedVersion.split(" \\|\\| ").toIndexedSeq.map(parseSemVerRange))
   }
 
   def parseSemVerRange(versionString: String): Try[ComparatorSet] = {
@@ -362,7 +362,7 @@ object SemVer {
       Success(Set(Comparator(Operator.GTE, Version(Some(0)))))
     }
     else {
-      parse(versionString, all(_)).fold({ case (label, _, extra) =>
+      parse(versionString, all(_)).fold({ case (_, _, _) =>
         Failure(new Exception(s"Could not convert version $versionString to SemVer"))
       }, { case (comparatorSet, _) =>
         Success(comparatorSet)

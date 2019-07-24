@@ -23,6 +23,17 @@ class MemcacheSpec extends PlaySpecification with GlobalApplication {
       await(memcache.set(cacheKey, "foo"))
       await(memcache.get[String](cacheKey)) must be equalTo "foo"
     }
+    "work with expiration less than a second" in {
+      val cacheKey = UUID.randomUUID().toString
+      await(memcache.set(cacheKey, "foo", Memcache.Expiration.In(50.millis))) must throwAn[Exception]
+    }
+    "work with expiration more than a second" in {
+      val cacheKey = UUID.randomUUID().toString
+      await(memcache.set(cacheKey, "foo", Memcache.Expiration.In(2.seconds)))
+      await(memcache.get[String](cacheKey)) must be equalTo "foo"
+      Thread.sleep(2500)
+      await(memcache.get[String](cacheKey)) must throwA[Memcache.Miss.type]
+    }
   }
 
   "getWithMiss" should {

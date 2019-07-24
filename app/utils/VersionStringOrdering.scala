@@ -76,7 +76,7 @@ object VersionStringOrdering extends Ordering[String] {
             aV.toLong compare bV.toLong
           }
           catch {
-            case e: NumberFormatException => aV compare bV
+            case _: NumberFormatException => aV compare bV
           }
         }
 

@@ -18,7 +18,7 @@ import play.api.libs.ws.{WSClient, WSRequest}
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
-class Heroku @Inject() (ws: WSClient, config: Configuration) (implicit ec: ExecutionContext, actorSystem: ActorSystem, materializer: Materializer) {
+class Heroku @Inject() (ws: WSClient, config: Configuration) (implicit ec: ExecutionContext, actorSystem: ActorSystem) {
 
   lazy val apikey = config.get[String]("heroku.apikey")
 

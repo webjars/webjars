@@ -37,4 +37,4 @@ GET            /_github_oauth_callback                                    contro
 
 GET            /assets/*file                                              controllers.Assets.versioned(path="/public", file)
 
-OPTIONS        /*path                                                     controllers.Application.corsPreflight(path: String)
+OPTIONS        /*file                                                     controllers.Application.corsPreflight(file: String)

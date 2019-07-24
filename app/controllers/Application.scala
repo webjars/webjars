@@ -83,7 +83,7 @@ class Application @Inject() (git: Git, gitHub: GitHub, heroku: Heroku, cache: Ca
       val mostDownloadedFuture = cache.get[Seq[(String, String, Int)]]("mostDownloaded", 1.day) {
         val lastMonth = DateTime.now().minusMonths(1)
         mavenCentral.mostDownloaded(lastMonth, MAX_POPULAR_WEBJARS).recoverWith {
-          case e: Exception => mavenCentral.mostDownloaded(lastMonth.minusMonths(1), MAX_POPULAR_WEBJARS)
+          case _: Exception => mavenCentral.mostDownloaded(lastMonth.minusMonths(1), MAX_POPULAR_WEBJARS)
         }
       }
 
@@ -101,9 +101,9 @@ class Application @Inject() (git: Git, gitHub: GitHub, heroku: Heroku, cache: Ca
 
   def index = Action.async { request =>
     sortedMostPopularWebJars.map(maybeCached(request, webJars => Ok(indexView(Left(webJars))))).recoverWith {
-      case e: TimeoutException =>
+      case _: TimeoutException =>
         Future.successful(Redirect(routes.Application.index()))
-      case e: ExistingWebJarRequestException =>
+      case _: ExistingWebJarRequestException =>
         futures.delay(defaultTimeout).map(_ => Redirect(routes.Application.index()))
       case e: Exception =>
         logger.error("index WebJar fetch failed", e)
@@ -113,7 +113,7 @@ class Application @Inject() (git: Git, gitHub: GitHub, heroku: Heroku, cache: Ca
 
   def popularWebJars = Action.async { request =>
     sortedMostPopularWebJars.map(maybeCached(request, webJars => Ok(views.html.webJarList(Left(webJars))))).recover {
-      case e: Exception =>
+      case _: Exception =>
         InternalServerError(views.html.webJarList(Right(WEBJAR_FETCH_ERROR)))
     }
   }
@@ -128,7 +128,7 @@ class Application @Inject() (git: Git, gitHub: GitHub, heroku: Heroku, cache: Ca
         }
       } recover {
         // if the stats can't be fetched, continue without them
-        case e: Exception => Seq.empty[(String, String, Int)]
+        case _: Exception => Seq.empty[(String, String, Int)]
       }
 
       webJarStatsFuture.map { webJarStats =>
@@ -163,20 +163,20 @@ class Application @Inject() (git: Git, gitHub: GitHub, heroku: Heroku, cache: Ca
     webJarsWithTimeout(WebJarType.fromGroupId(groupId, allWebJarTypes)).map {
       maybeCached(request, webJars => Ok(Json.toJson(webJars)))
     } recover {
-      case e: Exception =>
+      case _: Exception =>
         InternalServerError(Json.toJson(Seq.empty[WebJar]))
     }
   }
 
-  def classicList = Action { request =>
+  def classicList = Action {
     Redirect(routes.Application.index())
   }
 
-  def bowerList = Action { request =>
+  def bowerList = Action {
     Redirect(routes.Application.index())
   }
 
-  def npmList = Action { request =>
+  def npmList = Action {
     Redirect(routes.Application.index())
   }
 
@@ -210,7 +210,7 @@ class Application @Inject() (git: Git, gitHub: GitHub, heroku: Heroku, cache: Ca
       packageVersionsFuture.map { versions =>
         Ok(Json.toJson(versions))
       } recover {
-        case e: Exception =>
+        case _: Exception =>
           InternalServerError
       }
     }
@@ -244,7 +244,7 @@ class Application @Inject() (git: Git, gitHub: GitHub, heroku: Heroku, cache: Ca
           case Accepts.Json() => Ok(Json.toJson(fileList))
         }
       } recover {
-        case nf: FileNotFoundException =>
+        case _: FileNotFoundException =>
           NotFound(s"WebJar Not Found $groupId : $artifactId : $version")
         case e: Exception =>
           InternalServerError(s"Problems retrieving WebJar ($groupId : $artifactId : $version) - ${e.getMessage}")
@@ -257,7 +257,7 @@ class Application @Inject() (git: Git, gitHub: GitHub, heroku: Heroku, cache: Ca
   }
 
   def fileOptions(file: String) = CorsAction {
-    Action { request =>
+    Action {
       Ok.withHeaders(ACCESS_CONTROL_ALLOW_HEADERS -> Seq(CONTENT_TYPE).mkString(","))
     }
   }
@@ -379,7 +379,7 @@ class Application @Inject() (git: Git, gitHub: GitHub, heroku: Heroku, cache: Ca
           ),
           HttpEntity.Streamed(
             Source.single(ByteString(bytes)),
-            Some(bytes.length),
+            Some(bytes.length.toLong),
             fileMimeTypes.forFileName(filename).orElse(Some(play.api.http.ContentTypes.BINARY))
           )
         )
@@ -393,7 +393,7 @@ class Application @Inject() (git: Git, gitHub: GitHub, heroku: Heroku, cache: Ca
     Redirect(gitHub.authUrl)
   }
 
-  def gitHubOauthCallback(code: String) = Action.async { implicit request =>
+  def gitHubOauthCallback(code: String) = Action.async {
     gitHub.accessToken(code).map { accessToken =>
       Redirect(routes.Application.webJarRequest()).flashing(X_GITHUB_ACCESS_TOKEN -> accessToken)
     }
@@ -409,7 +409,7 @@ class Application @Inject() (git: Git, gitHub: GitHub, heroku: Heroku, cache: Ca
     override def executionContext = action.executionContext
   }
 
-  def corsPreflight(path: String) = Action {
+  def corsPreflight(file: String) = Action {
     Ok.withHeaders(
       ACCESS_CONTROL_ALLOW_ORIGIN -> "*",
       ACCESS_CONTROL_ALLOW_METHODS -> "GET"

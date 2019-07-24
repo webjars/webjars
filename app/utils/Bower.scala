@@ -17,7 +17,7 @@ import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
-class Bower @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Maven) (implicit ec: ExecutionContext, futures: Futures) extends Deployable {
+class Bower @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Maven) (implicit ec: ExecutionContext) extends Deployable {
 
   import Bower._
 
@@ -131,7 +131,7 @@ class Bower @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Maven) (im
     }
   }
 
-  def lookup(packageNameOrGitRepo: String, version: String): Future[URL] = {
+  def lookup(packageNameOrGitRepo: String): Future[URL] = {
     val urlTry = Try {
       val maybeUrl = if (packageNameOrGitRepo.contains("/") && !packageNameOrGitRepo.contains(":")) {
         s"https://github.com/$packageNameOrGitRepo"

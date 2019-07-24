@@ -155,15 +155,15 @@ class BowerGitHubSpec extends PlaySpecification with GlobalApplication {
   "dependencies" should {
     "be converted from bower package names" in {
       val dependencies = await(bowerGitHub.mavenDependencies(Map("jQuery" -> "3.2.1")))
-      dependencies.head must beEqualTo ("org.webjars.bowergithub.jquery", "jquery", "[3.2.1]")
+      dependencies.head must beEqualTo (("org.webjars.bowergithub.jquery", "jquery", "[3.2.1]"))
     }
     "be converted from github short syntax package names" in {
       val dependencies = await(bowerGitHub.mavenDependencies(Map("iron-validator-behavior" -> "PolymerElements/iron-validator-behavior#^1.0.0")))
-      dependencies.head must beEqualTo ("org.webjars.bowergithub.polymerelements", "iron-validator-behavior", "[1.0.0,2)")
+      dependencies.head must beEqualTo (("org.webjars.bowergithub.polymerelements", "iron-validator-behavior", "[1.0.0,2)"))
     }
     "not have a prepended v in the version" in {
       val dependencies = await(bowerGitHub.mavenDependencies(Map("jQuery" -> "v3.2.1")))
-      dependencies.head must beEqualTo ("org.webjars.bowergithub.jquery", "jquery", "[3.2.1]")
+      dependencies.head must beEqualTo (("org.webjars.bowergithub.jquery", "jquery", "[3.2.1]"))
     }
   }
 

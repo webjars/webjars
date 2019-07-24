@@ -1,5 +1,8 @@
 package utils
 
+import java.time.{LocalDateTime, ZoneOffset}
+import java.util.concurrent.TimeUnit
+
 import javax.inject.{Inject, Singleton}
 import net.spy.memcached.{AddrUtil, ConnectionFactoryBuilder, MemcachedClient}
 import net.spy.memcached.auth.AuthDescriptor
@@ -9,14 +12,18 @@ import net.spy.memcached.transcoders.Transcoder
 import play.api.Configuration
 import play.api.inject.ApplicationLifecycle
 
-import scala.concurrent.duration.Duration
+import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.util.Try
 
 @Singleton
 class Memcache @Inject() (configuration: Configuration, lifecycle: ApplicationLifecycle) (implicit ec: ExecutionContext) {
 
+  import Memcache._
+
   private lazy val instance: MemcachedClient = {
+    System.setProperty("net.spy.log.LoggerImpl", "net.spy.memcached.compat.log.SLF4JLogger")
+
     val maybeUsername = configuration.getOptional[String]("memcached.username")
     val maybePassword = configuration.getOptional[String]("memcached.password")
 
@@ -65,7 +72,7 @@ class Memcache @Inject() (configuration: Configuration, lifecycle: ApplicationLi
         promise.complete(Try(gettableFuture.get().asInstanceOf[A]))
       else
         if (gettableFuture.getStatus.getStatusCode == StatusCode.ERR_NOT_FOUND)
-          promise.failure(Memcache.Miss)
+          promise.failure(Miss)
         else
           promise.failure(new Throwable(gettableFuture.getStatus.getMessage))
     }
@@ -79,7 +86,7 @@ class Memcache @Inject() (configuration: Configuration, lifecycle: ApplicationLi
 
   def getWithMiss[A](cacheKey: String)(miss: => Future[A])(implicit transcoder: Transcoder[A]): Future[A] = {
     get(cacheKey).recoverWith {
-      case Memcache.Miss =>
+      case Miss =>
         for {
           value <- miss
           _ <- set(cacheKey, value)
@@ -87,13 +94,41 @@ class Memcache @Inject() (configuration: Configuration, lifecycle: ApplicationLi
     }
   }
 
-  def set[A](cacheKey: String, value: A, duration: Duration = Duration.Inf)(implicit transcoder: Transcoder[A]): Future[Unit] = {
-    // todo: duration
-    operationFutureToScalaFuture(instance.set(cacheKey, 0, value, transcoder)).filter(_ == true).map(_ => ())
+  def set[A](cacheKey: String, value: A, expiration: Expiration = Expiration.Inf)(implicit transcoder: Transcoder[A]): Future[Unit] = {
+    Expiration.toMemcache(expiration).flatMap { exp =>
+      operationFutureToScalaFuture(instance.set(cacheKey, exp, value, transcoder)).filter(_ == true).map(_ => ())
+    }
   }
 
 }
 
 object Memcache {
   case object Miss extends Exception
+
+  sealed trait Expiration
+  object Expiration {
+    case object Inf extends Expiration
+    case class In(duration: Duration) extends Expiration
+    case class On(dateTime: LocalDateTime) extends Expiration
+
+    @scala.annotation.tailrec
+    def toMemcache(expiration: Expiration): Future[Int] = {
+      expiration match {
+        case Expiration.Inf =>
+          Future.successful(0)
+        case Expiration.In(duration) =>
+          if (duration.gt(30.days))
+            toMemcache(On(LocalDateTime.now().plusSeconds(duration.toSeconds)))
+          else if (duration.lt(1.second))
+            Future.failed(new Exception("Expiration can't be less than 1 second"))
+          else
+            Future.successful(duration.toSeconds.toInt)
+        case Expiration.On(dateTime) =>
+          if (dateTime.isBefore(LocalDateTime.now().plusDays(30)))
+            toMemcache(In(Duration(java.time.Duration.between(LocalDateTime.now(), dateTime).getSeconds, TimeUnit.SECONDS)))
+          else
+            Future.successful(dateTime.toEpochSecond(ZoneOffset.UTC).toInt)
+      }
+    }
+  }
 }

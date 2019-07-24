@@ -9,7 +9,7 @@ import org.apache.commons.compress.archivers.ArchiveStreamFactory
 import org.eclipse.jgit.api.{Git => GitApi}
 import play.api.test._
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.concurrent.duration._
 
 class GitSpec extends PlaySpecification with GlobalApplication {
@@ -83,7 +83,7 @@ class GitSpec extends PlaySpecification with GlobalApplication {
 
       bufferedInputStream.available() must beEqualTo (640512)
 
-      val files = Stream.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName)
+      val files = LazyList.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName)
       files.size must beEqualTo (178)
       files.exists(_.contains("node_modules")) must beFalse
       files.exists(_.contains(".git")) must beFalse
@@ -136,6 +136,10 @@ class GitSpec extends PlaySpecification with GlobalApplication {
       val tags = GitApi.open(dir).tagList().call()
 
       tags.asScala.map(_.getName) must contain ("refs/tags/v2.0.0-beta2")
+    }
+    "be able to checkout master, then a version" in {
+      await(git.cloneOrCheckout("mochajs/mocha", None, false))
+      await(git.cloneOrCheckout("mochajs/mocha", Some("2.2.4"), false)) must not(throwAn[Exception])
     }
   }
 

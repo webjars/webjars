@@ -11,10 +11,10 @@ import play.api.http.{HeaderNames, Status}
 import play.api.libs.ws.WSClient
 
 import scala.reflect.io.Directory
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.io.{Codec, Source}
-import scala.util.{Failure, Success, Try}
+import scala.util.Try
 
 class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
 
@@ -122,12 +122,12 @@ class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
     }
   }
 
-  def cloneOrCheckout(gitRepo: String, version: Option[String]): Future[File] = {
-    val baseDir = new File(cacheDir.toFile, gitRepo)
+  def cloneOrCheckout(gitRepo: String, version: Option[String], retry: Boolean = true): Future[File] = {
+    gitUrl(gitRepo).flatMap { url =>
+      val baseDir = new File(cacheDir.toFile, url)
 
-    val baseDirFuture = if (!baseDir.exists()) {
-      // clone the repo
-      gitUrl(gitRepo).flatMap { url =>
+      val cloneOrPullFuture = if (!baseDir.exists()) {
+        // clone the repo
         Future.fromTry {
           Try {
             val clone = GitApi.cloneRepository()
@@ -142,9 +142,7 @@ class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
           }
         }
       }
-    }
-    else {
-      gitUrl(gitRepo).flatMap { url =>
+      else {
         Future.fromTry {
           Try {
             val pull = GitApi.open(baseDir).fetch().setRemote("origin")
@@ -153,29 +151,34 @@ class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
           }
         }
       }
-    }
 
-    val checkoutFuture = baseDirFuture.flatMap { baseDir =>
-      Future.fromTry {
-        Try {
-          // checkout the version
-          val checkout = GitApi.open(baseDir).checkout()
+      val checkoutFuture = cloneOrPullFuture.flatMap { _ =>
+        Future.fromTry {
+          Try {
+            // checkout the version
+            val checkout = GitApi.open(baseDir).checkout()
 
-          version.fold(checkout.setName("origin/master"))(checkout.setName)
+            version.fold(checkout.setName("origin/master"))(checkout.setName)
+            checkout.setForced(true)
 
-          checkout.call()
+            checkout.call()
 
-          baseDir
+            baseDir
+          }
         }
       }
-    }
 
-    checkoutFuture.onComplete {
-      case _: Failure[File] => new Directory(baseDir).deleteRecursively()
-      case _: Success[File] => ()
+      checkoutFuture.recoverWith {
+        case t: Throwable =>
+          new Directory(baseDir).deleteRecursively()
+          if (retry) {
+            cloneOrCheckout(gitRepo, version, false)
+          }
+          else {
+            Future.failed(t)
+          }
+      }
     }
-
-    checkoutFuture
   }
 
   def file(uri: URI, version: Option[String], fileName: String): Future[String] = file(uri.toString, version, fileName)
