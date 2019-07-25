@@ -5,7 +5,7 @@ import java.util.concurrent.TimeUnit
 
 import javax.inject.{Inject, Singleton}
 import net.spy.memcached.{AddrUtil, ConnectionFactoryBuilder, MemcachedClient}
-import net.spy.memcached.auth.AuthDescriptor
+import net.spy.memcached.auth.{AuthDescriptor, PlainCallbackHandler}
 import net.spy.memcached.internal.{GetFuture, OperationFuture}
 import net.spy.memcached.ops.StatusCode
 import net.spy.memcached.transcoders.Transcoder
@@ -29,10 +29,9 @@ class Memcache @Inject() (configuration: Configuration, lifecycle: ApplicationLi
 
     val baseConnectionFactoryBuilder = new ConnectionFactoryBuilder().setProtocol(ConnectionFactoryBuilder.Protocol.BINARY)
 
-
     val connectionFactoryBuilder = (maybeUsername, maybePassword) match {
       case (Some(username), Some(password)) =>
-        val authDescriptor = AuthDescriptor.typical(username, password)
+        val authDescriptor = new AuthDescriptor(Array("PLAIN"), new PlainCallbackHandler(username, password))
         baseConnectionFactoryBuilder.setAuthDescriptor(authDescriptor)
       case _ =>
         baseConnectionFactoryBuilder
