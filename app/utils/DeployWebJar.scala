@@ -21,7 +21,7 @@ import scala.io.StdIn
 import scala.util.{Failure, Success, Try}
 
 
-class DeployWebJar @Inject()(git: Git, binTray: BinTray, maven: Maven, mavenCentral: MavenCentral, licenseDetector: LicenseDetector, sourceLocator: SourceLocator, configuration: Configuration, heroku: Heroku)(implicit ec: ExecutionContext, futures: Futures, materializer: Materializer, actorSystem: ActorSystem) {
+class DeployWebJar @Inject()(binTray: BinTray, mavenCentral: MavenCentral, licenseDetector: LicenseDetector, sourceLocator: SourceLocator, configuration: Configuration, heroku: Heroku)(implicit ec: ExecutionContext, futures: Futures, materializer: Materializer, actorSystem: ActorSystem) {
 
   val fork = configuration.getOptional[Boolean]("deploy.fork").getOrElse(false)
   val binTraySubject = "webjars"
@@ -41,7 +41,7 @@ class DeployWebJar @Inject()(git: Git, binTray: BinTray, maven: Maven, mavenCent
     heroku.dynoCreate(app, cmd, "Standard-2X")
   }
 
-  def localDeploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, deployDependencies: Boolean, preventFork: Boolean, maybeReleaseVersion: Option[String] = None, maybeSourceUri: Option[URI] = None, maybeLicense: Option[String] = None): Source[String, Future[NotUsed]] = {
+  def localDeploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, deployDependencies: Boolean, maybeReleaseVersion: Option[String] = None, maybeSourceUri: Option[URI] = None, maybeLicense: Option[String] = None): Source[String, Future[NotUsed]] = {
 
     class ChannelActor extends ActorPublisher[String] {
 
@@ -87,11 +87,11 @@ class DeployWebJar @Inject()(git: Git, binTray: BinTray, maven: Maven, mavenCent
     val source = Source.fromPublisher(actorPublisher)
 
     def webJarNotYetDeployed(groupId: String, artifactId: String, version: String): Future[Unit] = {
-      mavenCentral.fetchPom(groupId, artifactId, version, Some("https://oss.sonatype.org/content/repositories/releases")).flatMap { elem =>
+      mavenCentral.fetchPom(groupId, artifactId, version, Some("https://oss.sonatype.org/content/repositories/releases")).flatMap { _ =>
         Future.failed(new IllegalStateException(s"WebJar $groupId $artifactId $version has already been deployed"))
       } recoverWith {
         case _: FileNotFoundException =>
-          Future.successful(Unit)
+          Future.unit
       }
     }
 
@@ -179,28 +179,28 @@ class DeployWebJar @Inject()(git: Git, binTray: BinTray, maven: Maven, mavenCent
 
         packageName = s"$groupId:$artifactId"
 
-        createPackage <- binTray.getOrCreatePackage(binTraySubject, binTrayRepo, packageName, s"WebJar for $artifactId", Seq("webjar", artifactId), licenses.keySet, packageInfo.sourceConnectionUri, packageInfo.maybeHomepageUrl, packageInfo.maybeIssuesUrl, packageInfo.maybeGitHubOrgRepo)
+        _ <- binTray.getOrCreatePackage(binTraySubject, binTrayRepo, packageName, s"WebJar for $artifactId", Seq("webjar", artifactId), licenses.keySet, packageInfo.sourceConnectionUri, packageInfo.maybeHomepageUrl, packageInfo.maybeIssuesUrl, packageInfo.maybeGitHubOrgRepo)
         _ = actorRef ! "Created BinTray Package"
 
-        createVersion <- binTray.createOrOverwriteVersion(binTraySubject, binTrayRepo, packageName, releaseVersion, s"$artifactId WebJar release $releaseVersion", Some(s"v$releaseVersion"))
+        _ <- binTray.createOrOverwriteVersion(binTraySubject, binTrayRepo, packageName, releaseVersion, s"$artifactId WebJar release $releaseVersion", Some(s"v$releaseVersion"))
         _ = actorRef ! "Created BinTray Version"
 
-        publishPom <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/$releaseVersion/$artifactId-$releaseVersion.pom", pom.getBytes)
-        publishJar <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/$releaseVersion/$artifactId-$releaseVersion.jar", jar)
+        _ <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/$releaseVersion/$artifactId-$releaseVersion.pom", pom.getBytes)
+        _ <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/$releaseVersion/$artifactId-$releaseVersion.jar", jar)
         emptyJar = WebJarCreator.emptyJar()
-        publishSourceJar <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/$releaseVersion/$artifactId-$releaseVersion-sources.jar", emptyJar)
-        publishJavadocJar <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/$releaseVersion/$artifactId-$releaseVersion-javadoc.jar", emptyJar)
+        _ <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/$releaseVersion/$artifactId-$releaseVersion-sources.jar", emptyJar)
+        _ <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/$releaseVersion/$artifactId-$releaseVersion-javadoc.jar", emptyJar)
         _ = actorRef ! "Published BinTray Assets"
 
-        signVersion <- binTray.signVersion(binTraySubject, binTrayRepo, packageName, releaseVersion)
+        _ <- binTray.signVersion(binTraySubject, binTrayRepo, packageName, releaseVersion)
         _ = actorRef ! "Signed BinTray Assets"
 
-        publishVersion <- binTray.publishVersion(binTraySubject, binTrayRepo, packageName, releaseVersion)
+        _ <- binTray.publishVersion(binTraySubject, binTrayRepo, packageName, releaseVersion)
         _ = actorRef ! "Published BinTray Version"
 
         _ = actorRef ! "Syncing to Maven Central (this could take a while)"
 
-        syncToMavenCentral <- binTray.syncToMavenCentral(binTraySubject, binTrayRepo, packageName, releaseVersion)
+        _ <- binTray.syncToMavenCentral(binTraySubject, binTrayRepo, packageName, releaseVersion)
         _ = actorRef ! "Synced With Maven Central"
 
         _ = actorRef ! s"""Deployed!
@@ -221,7 +221,7 @@ class DeployWebJar @Inject()(git: Git, binTray: BinTray, maven: Maven, mavenCent
       forkDeploy(deployable, nameOrUrlish, upstreamVersion, deployDependencies, true)
     }
     else {
-      localDeploy(deployable, nameOrUrlish, upstreamVersion, deployDependencies, preventFork, maybeReleaseVersion, maybeSourceUri, maybeLicense)
+      localDeploy(deployable, nameOrUrlish, upstreamVersion, deployDependencies, maybeReleaseVersion, maybeSourceUri, maybeLicense)
     }
   }
 
@@ -232,7 +232,6 @@ class DeployWebJar @Inject()(git: Git, binTray: BinTray, maven: Maven, mavenCent
       packageInfo <- deployable.info(nameOrUrlish, Some(upstreamVersion))
       groupId <- groupIdOverride.map(Future.successful).getOrElse(deployable.groupId(nameOrUrlish, upstreamVersion))
       artifactId <- deployable.artifactId(nameOrUrlish, upstreamVersion)
-      mavenBaseDir = groupId.replaceAllLiterally(".", "/")
 
       releaseVersion = upstreamVersion.vless
 

@@ -19,7 +19,6 @@ class Maven @Inject() (git: Git) (implicit ec: ExecutionContext) {
 
         if (url.getPath.contains("/tarball/")) {
           val host = url.getHost.replaceAll("[^\\w\\d]", "-")
-          val startOfVersion = url.getPath.indexOf("/tarball/")
           val parts = url.getPath.split("\\/tarball\\/")
           val path = parts(0).replaceAll("[^\\w\\d]", "-")
           val artifactId = host + path

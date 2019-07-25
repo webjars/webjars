@@ -17,12 +17,7 @@ object WebJarCreator {
   }
 
   private def createDirs(dir: String, jar: ArchiveOutputStream): Unit = {
-    dir.split("/").foldLeft(Seq.empty[String]) {
-      case (full, current) =>
-        val newFull = full :+ current
-        createDir(newFull.mkString("", "/", "/"), jar)
-        newFull
-    }
+    dir.split("/").foldLeft(Seq.empty[String])(_ :+ _).foreach(createDir(_, jar))
   }
 
   private def createFileEntry(path: String, jar: ArchiveOutputStream, contents: String): Unit = {
@@ -78,7 +73,7 @@ object WebJarCreator {
     createDirs(webJarPrefix, jar)
 
     // copy zip to jar
-    Stream.continually(archive.getNextEntry).takeWhile(_ != null).foreach { ze =>
+    LazyList.continually(archive.getNextEntry).takeWhile(_ != null).foreach { ze =>
       val name = if (contentsInSubdir) {
         val baseName = ze.getName.split("/").tail.mkString("/")
         if (ze.isDirectory) {

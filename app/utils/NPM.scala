@@ -15,7 +15,7 @@ import utils.PackageInfo._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success, Try}
 
-class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, gitHub: GitHub, maven: Maven)(implicit ec: ExecutionContext) extends Deployable {
+class NPM @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Maven)(implicit ec: ExecutionContext) extends Deployable {
 
   val BASE_URL = "https://registry.npmjs.org"
 
@@ -120,7 +120,7 @@ class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, g
 
           case JsSuccess(initialInfo, _) =>
 
-            val dependenciesSansOptionals = initialInfo.dependencies.filterKeys(initialInfo.optionalDependencies.get(_).isEmpty)
+            val dependenciesSansOptionals = initialInfo.dependencies.view.filterKeys(initialInfo.optionalDependencies.get(_).isEmpty).toMap
 
             val infoWithResolvedOptionalDependencies = initialInfo.copy(dependencies = dependenciesSansOptionals)
 
@@ -241,7 +241,7 @@ class NPM @Inject() (ws: WSClient, git: Git, licenseDetector: LicenseDetector, g
 
     def depResolver(unresolvedDeps: Map[String, String], resolvedDeps: Map[String, String]): Future[(Map[String, String], Map[String, String])] = {
 
-      val packagesToResolve = unresolvedDeps.filterKeys(!resolvedDeps.contains(_))
+      val packagesToResolve = unresolvedDeps.view.filterKeys(!resolvedDeps.contains(_)).toMap
 
       packagesToResolve.headOption.fold {
         Future.successful(packagesToResolve -> resolvedDeps)

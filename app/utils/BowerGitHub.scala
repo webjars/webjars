@@ -8,8 +8,8 @@ import play.api.libs.ws._
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class BowerGitHub @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Maven)(implicit ec: ExecutionContext, futures: Futures)
-  extends Bower(ws, git, gitHub, maven)(ec, futures) {
+class BowerGitHub @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Maven)(implicit ec: ExecutionContext)
+  extends Bower(ws, git, gitHub, maven)(ec) {
 
   override val name: String = "BowerGitHub"
 
@@ -17,7 +17,7 @@ class BowerGitHub @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Mave
 
   override def includesGroupId(groupId: String): Boolean = groupId.startsWith("org.webjars.bowergithub.")
 
-  override def groupId(nameOrUrlish: String, version: String): Future[String] = lookup(nameOrUrlish, version).flatMap { url =>
+  override def groupId(nameOrUrlish: String, version: String): Future[String] = lookup(nameOrUrlish).flatMap { url =>
     GitHub.gitHubUrl(url).fold(Future.failed[String], { gitHubUrl =>
       gitHub.currentUrls(gitHubUrl).flatMap { case (currentGitHubUrl, _, _) =>
           GitHub.maybeGitHubOrg(Some(currentGitHubUrl)).fold {
@@ -29,7 +29,7 @@ class BowerGitHub @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Mave
     })
   }
 
-  override def artifactId(nameOrUrlish: String, version: String): Future[String] = lookup(nameOrUrlish, version).flatMap { url =>
+  override def artifactId(nameOrUrlish: String, version: String): Future[String] = lookup(nameOrUrlish).flatMap { url =>
     GitHub.gitHubUrl(url).fold(Future.failed[String], { gitHubUrl =>
       gitHub.currentUrls(gitHubUrl).flatMap { case (currentGitHubUrl, _, _) =>
         GitHub.maybeGitHubRepo(Some(currentGitHubUrl)).fold {
@@ -52,7 +52,7 @@ class BowerGitHub @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Mave
   }
 
   override def excludes(nameOrUrlish: String, version: String): Future[Set[String]] = {
-    lookup(nameOrUrlish, version).flatMap { url =>
+    lookup(nameOrUrlish).flatMap { url =>
       rawJson(url.toString, version).map { json =>
         (json \ "ignore").asOpt[Set[String]].getOrElse(Set.empty[String])
       }
@@ -60,7 +60,7 @@ class BowerGitHub @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Mave
   }
 
   override def archive(packageNameOrGitRepo: String, version: String): Future[InputStream] = {
-    lookup(packageNameOrGitRepo, version).flatMap { url =>
+    lookup(packageNameOrGitRepo).flatMap { url =>
       super.archive(url.toString, version)
     }
   }

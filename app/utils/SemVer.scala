@@ -2,6 +2,7 @@ package utils
 
 import scala.util.{Failure, Success, Try}
 
+import fastparse._, NoWhitespace._
 
 object SemVer {
 
@@ -32,16 +33,15 @@ object SemVer {
       val symbol = "="
     }
 
-    def parse(s: String): Option[Operator] = {
-      s match {
-        case LT.symbol => Some(LT)
-        case LTE.symbol => Some(LTE)
-        case GT.symbol => Some(GT)
-        case GTE.symbol => Some(GTE)
-        case EQ.symbol => Some(EQ)
-        case _ => None
-      }
+    // note: ordering matters cause we don't want < to match on <=
+    def parse[_: P] = P(Operator.GTE.symbol | Operator.GT.symbol | Operator.LTE.symbol | Operator.LT.symbol | Operator.EQ.symbol).!.map {
+      case LT.symbol => LT
+      case LTE.symbol => LTE
+      case GT.symbol => GT
+      case GTE.symbol => GTE
+      case EQ.symbol => EQ
     }
+
   }
 
   // todo: some impossible states possible, e.g. major & patch
@@ -67,14 +67,28 @@ object SemVer {
   }
 
   object Version {
+    def single[_: P] = P(CharIn("0-9").rep(1).!.map(_.toInt))
+
+    def tag[_: P] = P("-" ~ (CharIn("a-z0-9").rep(1) ~ ("-" | ".").? ~ CharIn("a-z0-9").rep(1).?).!)
+
+    def full[_: P] = P("v".? ~ single.? ~ ".".? ~ single.? ~ ".".? ~ single.? ~ tag.? ~ (" " | End))
+
+    // todo: cleaner apply
+    def version[_: P] = full.map { case (maybeMajor, maybeMinor, maybePatch, maybeTag) =>
+      Version.apply(maybeMajor, maybeMinor, maybePatch, maybeTag)
+    }
+
     def apply(version: String): Version = {
-      version match {
-        case r"^(\d+[a-z0-9]+)?${SomeString(maybeTag)}$$" =>
-          Version(None, None, None, maybeTag)
-        case r"^v?(\d+)?${SomeInt(maybeMajor)}\.?(\d+)?${SomeInt(maybeMinor)}\.?(\d+)?${SomeInt(maybePatch)}-?(.+)?${SomeString(maybeTag)}$$" =>
-          Version(maybeMajor, maybeMinor, maybePatch, maybeTag)
-        case _ =>
-          Version()
+      if (version.isEmpty) {
+        Version()
+      }
+      else {
+        parse(version, full(_)) match {
+          case Parsed.Success((maybeMajor, maybeMinor, maybePatch, maybeTag), _) =>
+            Version(maybeMajor, maybeMinor, maybePatch, maybeTag)
+          case Parsed.Failure(_, _, _) =>
+            Version().copy(maybeTag = Some(version))
+        }
       }
     }
   }
@@ -129,22 +143,6 @@ object SemVer {
     def includesVersion(version: Version): Boolean = {
       versionRange.map(_.includesVersion(version)).reduce(_ || _)
     }
-  }
-
-  object SomeInt {
-    def unapply(s: String): Option[Option[Int]] = Some(Try(s.toInt).toOption)
-  }
-
-  object SomeString {
-    def unapply(s: String): Option[Option[String]] = Some(Option(s).filter(_.nonEmpty).map(_.stripPrefix("-")))
-  }
-
-  object SomeOperator {
-    def unapply(s: String): Option[Operator] = Operator.parse(s)
-  }
-
-  object MaybeOperator {
-    def unapply(s: String): Option[Option[Operator]] = Some(Operator.parse(s))
   }
 
   // this is imperative crap
@@ -239,10 +237,6 @@ object SemVer {
     trySequence(versionRange.map(comparatorSetToMaven)).map(_.mkString(","))
   }
 
-  implicit class Regex(sc: StringContext) {
-    def r = new util.matching.Regex(sc.parts.mkString, sc.parts.tail.map(_ => "x"): _*)
-  }
-
   def convertSemVerToMaven(versionString: String): Try[String] = {
     parseSemVer(versionString).flatMap(versionRangeToMaven)
   }
@@ -254,95 +248,125 @@ object SemVer {
       .replaceAllLiterally("> ", ">")
       .replaceAllLiterally("< ", "<")
       .replaceAllLiterally("= ", "=")
-      .replaceAllLiterally(" || ", "||")
       .replaceAllLiterally(".*", "")
       .replaceAllLiterally("~ ", "~")
       .replaceAllLiterally("#", "")
 
-    val parseTrys = normalizedVersion.split("\\|\\|").map(parseSemVerRange).toSeq
-
-    trySequence(parseTrys)
+    trySequence(normalizedVersion.split(" \\|\\| ").toIndexedSeq.map(parseSemVerRange))
   }
 
-  def parseSemVerRange(version: String): Try[ComparatorSet] = {
-    version match {
-      // No version or *
-      case "" | "*" | "latest" =>
-        Success(Set(Comparator(Operator.GTE, Version(Some(0)))))
+  def parseSemVerRange(versionString: String): Try[ComparatorSet] = {
 
-      // 1 | 1-alpha
-      case r"^=?(\d+)${SomeInt(major)}(-\w+)?${SomeString(tag)}$$" =>
-        val leftVersionRange = Comparator(Operator.GTE, Version(major, None, None, tag))
-        val rightVersionRange = Comparator(Operator.LT, Version(major.map(_ + 1), None, None, None))
-        Success(Set(leftVersionRange, rightVersionRange))
+    // 1 | 1-alpha
+    def major[_: P] = Version.version.filter { version =>
+      version.maybeMajor.isDefined && version.maybeMinor.isEmpty && version.maybePatch.isEmpty
+    } map { version =>
+      val leftVersionRange = Comparator(Operator.GTE, version)
+      val rightVersionRange = Comparator(Operator.LT, version.copy(maybeMajor = version.maybeMajor.map(_ + 1), maybeMinor = None, maybePatch = None, maybeTag = None))
+      Set(leftVersionRange, rightVersionRange)
+    }
 
-      // 1.1 | 1.1-alpha
-      case r"^=?(\d+)${SomeInt(major)}\.(\d+)${SomeInt(minor)}(-\w+)?${SomeString(tag)}$$" =>
-        val leftVersionRange = Comparator(Operator.GTE, Version(major, minor, None, tag))
-        val rightVersionRange = Comparator(Operator.LT, Version(major, minor.map(_ + 1), None, None))
-        Success(Set(leftVersionRange, rightVersionRange))
+    // 1.1 | 1.1-alpha
+    def minor[_: P] = Version.version.filter { version =>
+      version.maybeMajor.isDefined && version.maybeMinor.isDefined && version.maybePatch.isEmpty
+    } map { version =>
+      val leftVersionRange = Comparator(Operator.GTE, version)
+      val rightVersionRange = Comparator(Operator.LT, version.copy(maybeMinor = version.maybeMinor.map(_ + 1), maybePatch = None, maybeTag = None))
+      Set(leftVersionRange, rightVersionRange)
+    }
 
-      // 1.2.3 | 1.2.3-alpha | =1.2.3 | =1.2.3-alpha
-      case r"^=?(\d+)${SomeInt(major)}\.(\d+)${SomeInt(minor)}\.(\d+)${SomeInt(patch)}([\w-.]+)?${SomeString(tag)}$$" =>
-        Success(Set(Comparator(Operator.EQ, Version(major, minor, patch, tag))))
+    // 1.2.3 | 1.2.3-alpha | =1.2.3 | =1.2.3-alpha
+    def patch[_: P] = (Operator.EQ.symbol.? ~ Version.version).filter { version =>
+      version.maybeMajor.isDefined && version.maybeMinor.isDefined && version.maybePatch.isDefined
+    } map { version =>
+      Set(Comparator(Operator.EQ, version))
+    }
 
-      // >1.0 <2.0
-      case r"^([^\s]+)$leftVersion\s([^\s]+)$rightVersion$$" =>
-        val maybeLeftRange = parseSemVerRange(leftVersion)
-        val maybeRightRange = parseSemVerRange(rightVersion)
+    def version[_: P] = Version.version.filter { version =>
+      version.maybeMajor.isDefined || version.maybeMinor.isDefined || version.maybePatch.isDefined
+    }
 
-        for {
-          leftRange <- maybeLeftRange
-          rightRange <- maybeRightRange
-        } yield leftRange ++ rightRange
+    // <1 | >1.0 | <=1.0.0
+    def operator[_: P] = (Operator.parse ~ version).map { case (operator, version) =>
+      Set(Comparator(operator, version))
+    }
 
-      // 1 - 2 | 1 - 2.3 | 1 - 2.3.1 | 1 - 2.3.1-alpha
-      case r"^(\d+)${SomeInt(leftMajor)}\.?(\d*)${SomeInt(leftMinor)}\.?(\d*)${SomeInt(leftPatch)}-?([\w.-]*)${SomeString(leftTag)} - (\d+)${SomeInt(rightMajor)}\.?(\d*)${SomeInt(rightMinor)}\.?(\d*)${SomeInt(rightPatch)}-?([\w.-]*)${SomeString(rightTag)}$$" =>
-        val leftVersionRange = Comparator(Operator.GTE, Version(Some(leftMajor.getOrElse(0)), Some(leftMinor.getOrElse(0)), Some(leftPatch.getOrElse(0)), leftTag))
-        val rightVersionRange = Comparator(rightMinor.flatMap(_ => rightPatch).fold[Operator](Operator.LT)(_ => Operator.LTE) , Version(rightMajor.map(a => if (rightMinor.isEmpty) a + 1 else a), rightMinor.map(a => if (rightPatch.isEmpty) a + 1 else a), rightPatch, rightTag))
-        Success(Set(leftVersionRange, rightVersionRange))
+    def range[_: P] = major | minor | patch | operator
 
-      // >=1.2.3 | <=1.2.3 | >1.2.3 | <1.2.3 | >=1.0.x
-      case r"^(>=|<=|>|<)${SomeOperator(operator)} ?(\d+)${SomeInt(major)}\.?(\d*|\*)${SomeInt(minor)}\.?(\d*|\*)${SomeInt(patch)}-?([\w.-]*)${SomeString(tag)}$$" =>
-        Success(Set(Comparator(operator, Version(major, minor, patch, tag))))
+    // >1.0 <2.0
+    def rangeSet[_: P] = (range ~ range).map { case (left, right) =>
+      left ++ right
+    }
 
-      // ~1
-      case r"^~\s?(\d+)${SomeInt(major)}$$" =>
-        val leftVersionRange = Comparator(Operator.GTE, Version(major))
-        val rightVersionRange = Comparator(Operator.LT, Version(major.map(_ + 1)))
-        Success(Set(leftVersionRange, rightVersionRange))
+    // todo: some duplicate logic
+    // 1 - 2 | 1 - 2.3 | 1 - 2.3.1 | 1 - 2.3.1-alpha
+    def hyphenRange[_: P] = (version ~ "- " ~ version).map { case (left, right) =>
+      val normalizedLeft = left.copy(
+        maybeMajor = Some(left.maybeMajor.getOrElse(0)),
+        maybeMinor = Some(left.maybeMinor.getOrElse(0)),
+        maybePatch = Some(left.maybePatch.getOrElse(0)),
+      )
+      val leftVersionRange = Comparator(Operator.GTE, normalizedLeft)
 
-      // ~1.2 | ~1.2.3
-      case r"^~\s?(\d+)${SomeInt(major)}\.(\d+)${SomeInt(minor)}\.?(\d*)${SomeInt(patch)}-?([\w.-]*)${SomeString(tag)}$$" =>
-        val leftVersionRange = Comparator(Operator.GTE, Version(major, minor, patch, tag))
-        val rightVersionRange = Comparator(Operator.LT, Version(major, minor.map(_ + 1)))
-        Success(Set(leftVersionRange, rightVersionRange))
+      val rightOperator = right.maybeMinor.flatMap(_ => right.maybePatch).fold[Operator](Operator.LT)(_ => Operator.LTE)
+      val normalizedRight = right.copy(
+        maybeMajor = right.maybeMajor.map { major => right.maybeMinor.fold(major + 1)(_ => major) }, // if the minor is empty, bump the major
+        maybeMinor = right.maybeMinor.map { minor => right.maybePatch.fold(minor + 1)(_ => minor) }, // if the patch is empty, bump the minor
+      )
+      val rightVersionRange = Comparator(rightOperator, normalizedRight)
 
-      // ^1.2.3 | ^0.0 | ^0 | ^1.2.x | ^1.x | ^0.0.x | ^0.x | ~1.x
-      case r"^[\^~](\d+)${SomeInt(major)}\.?(\d*|\*)${SomeInt(minor)}\.?(\d*|\*)${SomeInt(patch)}-?([\w.-]*)${SomeString(tag)}$$" =>
-        val desugaredMinor = minor.orElse(Some(0))
-        val desugaredPatch = patch.orElse(Some(0))
+      Set(leftVersionRange, rightVersionRange)
+    }
 
-        val leftVersionRange = Comparator(Operator.GTE, Version(major, desugaredMinor, desugaredPatch, tag))
-        val rightVersionRange = if (major.contains(0) && minor.contains(0) && patch.isDefined) {
-          Comparator(Operator.LT, Version(major, minor, patch.map(_ + 1)))
-        }
-        else if (major.contains(0) && minor.isDefined) {
-          Comparator(Operator.LT, Version(major, minor.map(_ + 1)))
-        }
-        else {
-          Comparator(Operator.LT, Version(major.map(_ + 1)))
-        }
-        Success(Set(leftVersionRange, rightVersionRange))
+    // todo: some duplicate logic
+    // ^1.2.3 | ^0.0 | ^0 | ^1.2.x | ^1.x | ^0.0.x | ^0.x
+    def carrot[_: P] = ("^" ~ version).map { version =>
+      val desugaredMinor = version.maybeMinor.orElse(Some(0))
+      val desugaredPatch = version.maybePatch.orElse(Some(0))
 
-      // non-semver things like git hashes
-      case r"^([\w\d]+)${SomeString(maybeVersion)}$$" =>
-        maybeVersion.fold[Try[ComparatorSet]](Failure(new Exception("sCould not convert version $version to SemVer"))) { version =>
-          Success(Set(Comparator(Operator.EQ, Version(version))))
-        }
+      val leftVersion = version.copy(maybeMinor = desugaredMinor, maybePatch = desugaredPatch)
 
-      case _ =>
-        Failure(new Exception(s"Could not convert version $version to SemVer"))
+      val rightVersion = if (version.maybeMajor.contains(0) && version.maybeMinor.contains(0) && version.maybePatch.isDefined) {
+        version.copy(maybePatch = version.maybePatch.map(_ + 1), maybeTag = None)
+      }
+      else if (version.maybeMajor.contains(0) && version.maybeMinor.isDefined) {
+        version.copy(maybeMinor = version.maybeMinor.map(_ + 1), maybePatch = None, maybeTag = None)
+      }
+      else {
+        version.copy(maybeMajor = version.maybeMajor.map(_ + 1), maybeMinor = None, maybePatch = None, maybeTag = None)
+      }
+
+      Set(Comparator(Operator.GTE, leftVersion), Comparator(Operator.LT, rightVersion))
+    }
+
+    // todo: some duplicate logic
+    // ~1.2.3 | ~0.0 | ~0 | ~1.2.x | ~1.x | ~0.0.x | ~0.x
+    def tilde[_: P] = ("~" ~ version).map { version =>
+      val rightVersion = if (version.maybePatch.isDefined || version.maybeMinor.isDefined) {
+        version.copy(maybeMinor = version.maybeMinor.map(_ + 1), maybePatch = None, maybeTag = None)
+      }
+      else {
+        version.copy(maybeMajor = version.maybeMajor.map(_ + 1), maybeMinor = None, maybePatch = None, maybeTag = None)
+      }
+
+      Set(Comparator(Operator.GTE, version), Comparator(Operator.LT, rightVersion))
+    }
+
+    def string[_: P] = CharIn("a-z0-9").rep(1).!.map { s =>
+      Set(Comparator(Operator.EQ, Version(None, None, None, Some(s))))
+    }
+
+    def all[_:P] = P(Start ~ (rangeSet | hyphenRange | range | carrot | tilde | string ~ End))
+
+    if (versionString.isEmpty || versionString == "*" || versionString == "latest") {
+      Success(Set(Comparator(Operator.GTE, Version(Some(0)))))
+    }
+    else {
+      parse(versionString, all(_)).fold({ case (_, _, _) =>
+        Failure(new Exception(s"Could not convert version $versionString to SemVer"))
+      }, { case (comparatorSet, _) =>
+        Success(comparatorSet)
+      })
     }
   }
 

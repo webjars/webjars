@@ -1,9 +1,9 @@
 package utils
 
 import java.net.{URI, URL}
-import javax.inject.Inject
 
-import org.apache.commons.codec.binary.Base64
+import javax.inject.Inject
+import org.eclipse.jgit.util.Base64
 import play.api.Configuration
 import play.api.http.{HeaderNames, HttpVerbs, MimeTypes, Status}
 import play.api.libs.json.{JsValue, Json}
@@ -40,7 +40,7 @@ class GitHub @Inject() (configuration: Configuration, wsClient: WSClient, cache:
       )
   }
 
-  def accessToken(code: String)(implicit request: RequestHeader): Future[String] = {
+  def accessToken(code: String): Future[String] = {
     val wsFuture = wsClient.url("https://github.com/login/oauth/access_token").withQueryStringParameters(
       "client_id" -> clientId,
       "client_secret" -> clientSecret,
@@ -70,7 +70,7 @@ class GitHub @Inject() (configuration: Configuration, wsClient: WSClient, cache:
       response.status match {
         case Status.OK =>
           val base64Contents = (response.json \ "content").as[String]
-          Future.successful(new String(Base64.decodeBase64(base64Contents)))
+          Future.successful(new String(Base64.decode(base64Contents)))
         case _ => Future.failed(ServerError(response.body, response.status))
       }
     }
@@ -125,7 +125,7 @@ class GitHub @Inject() (configuration: Configuration, wsClient: WSClient, cache:
   }
 
   def raw(gitHubUrl: URL, tagCommitOrBranch: String, fileName: String): Future[String] = {
-    val url = gitHubUrl + s"/raw/$tagCommitOrBranch/$fileName"
+    val url = gitHubUrl.toString + s"/raw/$tagCommitOrBranch/$fileName"
     wsClient.url(url).get().flatMap { response =>
       response.status match {
         case Status.OK => Future.successful(response.body)

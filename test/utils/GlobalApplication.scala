@@ -7,7 +7,7 @@ trait GlobalApplication extends AfterAll {
 
   lazy val application = new GuiceApplicationBuilder().build
 
-  override def afterAll {
+  override def afterAll: Unit = {
     application.stop()
   }
 
