@@ -190,7 +190,7 @@ class BowerGitHubSpec extends PlaySpecification with GlobalApplication {
 
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(new ByteArrayInputStream(webJar))
 
-      val names = Stream.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName).toSet
+      val names = LazyList.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName).toSet
       names must contain ("META-INF/resources/webjars/jQuery/dist/jquery.js")
     }
     "must exclude ignored files" in {
@@ -203,7 +203,7 @@ class BowerGitHubSpec extends PlaySpecification with GlobalApplication {
 
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(new ByteArrayInputStream(webJar))
 
-      val names = Stream.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName).toSet
+      val names = LazyList.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName).toSet
       names must contain ("META-INF/resources/webjars/vaadin-grid/index.html")
       names must not contain "META-INF/resources/webjars/vaadin-grid/.npmignore"
     }
@@ -214,19 +214,19 @@ class BowerGitHubSpec extends PlaySpecification with GlobalApplication {
       val inputStream = await(bowerGitHub.archive("vaadin-grid", "v4.0.0-alpha5"))
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(new BufferedInputStream(inputStream))
 
-      Stream.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName) must contain ("bower.json")
+      LazyList.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName) must contain ("bower.json")
     }
     "work when using a bower name" in {
       val inputStream = await(bowerGitHub.archive("vaadin-grid", "4.0.0-alpha5"))
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(new BufferedInputStream(inputStream))
 
-      Stream.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName) must contain ("bower.json")
+      LazyList.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName) must contain ("bower.json")
     }
     "work when using a github short url" in {
       val inputStream = await(bowerGitHub.archive("vaadin/vaadin-grid", "4.0.0-alpha5"))
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(new BufferedInputStream(inputStream))
 
-      Stream.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName) must contain ("bower.json")
+      LazyList.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName) must contain ("bower.json")
     }
   }
 

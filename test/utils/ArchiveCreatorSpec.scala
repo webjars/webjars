@@ -31,7 +31,7 @@ class ArchiveCreatorSpec extends Specification {
       val bufferedInputStream = new BufferedInputStream(tarTry.get)
 
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(bufferedInputStream)
-      val entryNames = Stream.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName)
+      val entryNames = LazyList.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName)
       entryNames.size must beEqualTo (2)
       entryNames must contain ("a.txt")
       entryNames must contain ("b/c.txt")

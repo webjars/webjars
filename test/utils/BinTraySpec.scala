@@ -5,10 +5,12 @@ import java.util.Date
 
 import akka.util.Timeout
 import org.apache.commons.io.IOUtils
-import play.api.Environment
+import play.api.{Configuration, Environment}
 import play.api.libs.json.JsArray
+import play.api.libs.ws.WSClient
 import play.api.test._
 
+import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.util.Random
 
@@ -16,8 +18,12 @@ class BinTraySpec extends PlaySpecification with GlobalApplication {
 
   override implicit def defaultAwaitTimeout: Timeout = 60.seconds
 
-  lazy val binTray: BinTray = application.injector.instanceOf[BinTray]
   lazy val environment: Environment = application.injector.instanceOf[Environment]
+  lazy val ws: WSClient = application.injector.instanceOf[WSClient]
+  lazy val config: Configuration = application.injector.instanceOf[Configuration]
+  lazy val mavenCentral: MavenCentral = application.injector.instanceOf[MavenCentral]
+  lazy val ec: ExecutionContext = application.injector.instanceOf[ExecutionContext]
+  lazy val binTray: BinTray = new BinTrayLive(ws, config, mavenCentral)(ec)
 
   "BinTray with auth" should {
     if (application.configuration.getOptional[String]("bintray.username").isEmpty)

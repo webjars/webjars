@@ -32,7 +32,7 @@ class MavenCentralSpec extends PlaySpecification {
         val mavenCentral = app.injector.instanceOf[MavenCentral]
         val classic = app.injector.instanceOf[Classic]
         val statsClassic = await(mavenCentral.getStats(classic, new DateTime(2016, 1, 1, 1, 1)))
-        statsClassic.head should beEqualTo("org.webjars", "jquery", 45947)
+        statsClassic.head should beEqualTo(("org.webjars", "jquery", 45947))
 
         val bowerGitHub = app.injector.instanceOf[BowerGitHub]
         val bowerWebJars = await(mavenCentral.webJars(bowerGitHub))
@@ -56,7 +56,7 @@ class MavenCentralSpec extends PlaySpecification {
         val mavenCentral = app.injector.instanceOf[MavenCentral]
         val mostDownloaded = await(mavenCentral.mostDownloaded(new DateTime(2016, 1, 1, 1, 1), 20))
         mostDownloaded.size should beEqualTo(60)
-        mostDownloaded.head should beEqualTo("org.webjars", "jquery", 45947)
+        mostDownloaded.head should beEqualTo(("org.webjars", "jquery", 45947))
       }
     }
   }

@@ -74,7 +74,7 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
     "work" in {
       val tgz = await(npm.archive("mochajs/mocha", "2.2.5"))
       val bufferedInputStream = new BufferedInputStream(tgz)
-      val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(bufferedInputStream)
+      new ArchiveStreamFactory().createArchiveInputStream(bufferedInputStream)
       bufferedInputStream.available() must beEqualTo (640512)
     }
   }

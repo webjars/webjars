@@ -27,7 +27,7 @@ class WebJarCreatorSpec extends PlaySpecification {
 
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(new ByteArrayInputStream(webJar))
 
-      val allNames = Stream.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName)
+      val allNames = LazyList.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName)
       allNames must contain("META-INF/resources/webjars/react-redux/4.4.32/package.json")
     }
     "handle packages where the contents are in the base dir" in {
@@ -39,7 +39,7 @@ class WebJarCreatorSpec extends PlaySpecification {
 
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(new ByteArrayInputStream(webJar))
 
-      val allNames = Stream.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName)
+      val allNames = LazyList.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName)
       allNames must contain("META-INF/resources/webjars/react-redux/4.4.32/react-redux/package.json")
     }
     "handle packages where the contents are in the base dir" in {
@@ -51,7 +51,7 @@ class WebJarCreatorSpec extends PlaySpecification {
 
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(new ByteArrayInputStream(webJar))
 
-      val maybeLib = Stream.continually(archiveStream.getNextEntry).find(_.getName == "META-INF/resources/webjars/react-router/2.0.41/lib/")
+      val maybeLib = LazyList.continually(archiveStream.getNextEntry).find(_.getName == "META-INF/resources/webjars/react-router/2.0.41/lib/")
       maybeLib.exists(_.isDirectory) must beTrue
     }
     "handle non gzip tgzs" in {
@@ -62,7 +62,7 @@ class WebJarCreatorSpec extends PlaySpecification {
 
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(new ByteArrayInputStream(webJar))
 
-      val allNames = Stream.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName)
+      val allNames = LazyList.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName)
       allNames must contain("META-INF/resources/webjars/escodegen/0.0.2/package.json")
     }
 
@@ -102,7 +102,7 @@ class WebJarCreatorSpec extends PlaySpecification {
 
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(new ByteArrayInputStream(webJar))
 
-      val allNames = Stream.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName).toSet
+      val allNames = LazyList.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName).toSet
       allNames must contain ("META-INF/resources/webjars/vaadin-grid/test/visual/sorting.html")
       allNames must not contain "META-INF/resources/webjars/vaadin-grid/test/visual/test.js"
     }
@@ -116,7 +116,7 @@ class WebJarCreatorSpec extends PlaySpecification {
 
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(new ByteArrayInputStream(webJar))
 
-      val allNames = Stream.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName).toSet
+      val allNames = LazyList.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName).toSet
       allNames must contain ("META-INF/resources/webjars/vaadin-grid/test/visual/sorting.html")
       allNames must not contain "META-INF/resources/webjars/vaadin-grid/test/visual/test.js"
     }
@@ -130,7 +130,7 @@ class WebJarCreatorSpec extends PlaySpecification {
 
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(new ByteArrayInputStream(webJar))
 
-      val allNames = Stream.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName).toSet
+      val allNames = LazyList.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName).toSet
       allNames must contain ("META-INF/resources/webjars/vaadin-grid/test/visual/sorting.html")
       allNames must not contain "META-INF/resources/webjars/vaadin-grid/.eslintrc.json"
       allNames must not contain "META-INF/resources/webjars/vaadin-grid/test/.eslintrc.json"
@@ -146,7 +146,7 @@ class WebJarCreatorSpec extends PlaySpecification {
 
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(new ByteArrayInputStream(webJar))
 
-      val allNames = Stream.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName)
+      val allNames = LazyList.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName)
       allNames must contain("META-INF/resources/webjars/vaadin-ordered-layout/1.0.0-alpha3/bower.json")
     }
   }

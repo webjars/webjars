@@ -1,8 +1,9 @@
 package utils
 
 import java.net.{URI, URL}
-import javax.inject.Inject
 
+import com.google.inject.ImplementedBy
+import javax.inject.Inject
 import play.api.Configuration
 import play.api.http.Status
 import play.api.libs.json.{JsArray, JsValue, Json}
@@ -13,7 +14,21 @@ import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
-class BinTray @Inject() (ws: WSClient, config: Configuration, mavenCentral: MavenCentral) (implicit ec: ExecutionContext) {
+@ImplementedBy(classOf[BinTrayLive])
+trait BinTray {
+  def createPackage(subject: String, repo: String, name: String, desc: String, labels: Seq[String], licenses: Set[String], vcsUri: URI, websiteUrl: Option[URL], issueTrackerUrl: Option[URL], githubRepo: Option[String]): Future[JsValue]
+  def getPackages(subject: String, repo: String): Future[JsArray]
+  def getOrCreatePackage(subject: String, repo: String, name: String, desc: String, labels: Seq[String], licenses: Set[String], vcsUri: URI, websiteUrl: Option[URL], issueTrackerUrl: Option[URL], githubRepo: Option[String]): Future[JsValue]
+  def createVersion(subject: String, repo: String, packageName: String, version: String, description: String, vcsTag: Option[String] = None): Future[JsValue]
+  def createOrOverwriteVersion(subject: String, repo: String, packageName: String, version: String, description: String, vcsTag: Option[String] = None): Future[JsValue]
+  def deletePackage(subject: String, repo: String, name: String): Future[JsValue]
+  def uploadMavenArtifact(subject: String, repo: String, packageName: String, path: String, jarBytes: Array[Byte]): Future[JsValue]
+  def signVersion(subject: String, repo: String, packageName: String, version: String): Future[JsValue]
+  def publishVersion(subject: String, repo: String, packageName: String, version: String): Future[JsValue]
+  def syncToMavenCentral(subject: String, repo: String, packageName: String, version:String): Future[JsValue]
+}
+
+class BinTrayLive @Inject() (ws: WSClient, config: Configuration, mavenCentral: MavenCentral) (implicit ec: ExecutionContext) extends BinTray {
 
   val BASE_URL = "https://bintray.com/api/v1"
 
@@ -29,7 +44,7 @@ class BinTray @Inject() (ws: WSClient, config: Configuration, mavenCentral: Mave
     Try((response.json \ "message").as[String]).getOrElse(response.body)
   }
 
-  def createPackage(subject: String, repo: String, name: String, desc: String, labels: Seq[String], licenses: Set[String], vcsUri: URI, websiteUrl: Option[URL], issueTrackerUrl: Option[URL], githubRepo: Option[String]): Future[JsValue] = {
+  override def createPackage(subject: String, repo: String, name: String, desc: String, labels: Seq[String], licenses: Set[String], vcsUri: URI, websiteUrl: Option[URL], issueTrackerUrl: Option[URL], githubRepo: Option[String]): Future[JsValue] = {
 
     val json = Json.obj(
       "name" -> name,
@@ -52,7 +67,7 @@ class BinTray @Inject() (ws: WSClient, config: Configuration, mavenCentral: Mave
     }
   }
 
-  def getPackages(subject: String, repo: String): Future[JsArray] = {
+  override def getPackages(subject: String, repo: String): Future[JsArray] = {
     ws(s"/repos/$subject/$repo/packages").get().flatMap { response =>
       response.status match {
         case Status.OK => Future.successful(response.json.as[JsArray])
@@ -70,14 +85,14 @@ class BinTray @Inject() (ws: WSClient, config: Configuration, mavenCentral: Mave
     }
   }
 
-  def getOrCreatePackage(subject: String, repo: String, name: String, desc: String, labels: Seq[String], licenses: Set[String], vcsUri: URI, websiteUrl: Option[URL], issueTrackerUrl: Option[URL], githubRepo: Option[String]): Future[JsValue] = {
+  override def getOrCreatePackage(subject: String, repo: String, name: String, desc: String, labels: Seq[String], licenses: Set[String], vcsUri: URI, websiteUrl: Option[URL], issueTrackerUrl: Option[URL], githubRepo: Option[String]): Future[JsValue] = {
     getPackage(subject, repo, name).recoverWith {
       case _: Exception =>
         createPackage(subject, repo, name, desc, labels, licenses, vcsUri, websiteUrl, issueTrackerUrl, githubRepo)
     }
   }
 
-  def deletePackage(subject: String, repo: String, name: String): Future[JsValue] = {
+  override def deletePackage(subject: String, repo: String, name: String): Future[JsValue] = {
     ws(s"/packages/$subject/$repo/$name").delete().flatMap { response =>
       response.status match {
         case Status.OK => Future.successful(response.json)
@@ -86,7 +101,7 @@ class BinTray @Inject() (ws: WSClient, config: Configuration, mavenCentral: Mave
     }
   }
 
-  def createVersion(subject: String, repo: String, packageName: String, version: String, description: String, vcsTag: Option[String] = None): Future[JsValue] = {
+  override def createVersion(subject: String, repo: String, packageName: String, version: String, description: String, vcsTag: Option[String] = None): Future[JsValue] = {
     val json = Json.obj(
       "name" -> version,
       "desc" -> description,
@@ -116,7 +131,7 @@ class BinTray @Inject() (ws: WSClient, config: Configuration, mavenCentral: Mave
     }
   }
 
-  def createOrOverwriteVersion(subject: String, repo: String, packageName: String, version: String, description: String, vcsTag: Option[String] = None): Future[JsValue] = {
+  override def createOrOverwriteVersion(subject: String, repo: String, packageName: String, version: String, description: String, vcsTag: Option[String] = None): Future[JsValue] = {
     createVersion(subject, repo, packageName, version, description, vcsTag).recoverWith {
       case _: BinTray.VersionExists =>
         deleteVersion(subject, repo, packageName, version).flatMap { _ =>
@@ -125,7 +140,7 @@ class BinTray @Inject() (ws: WSClient, config: Configuration, mavenCentral: Mave
     }
   }
 
-  def uploadMavenArtifact(subject: String, repo: String, packageName: String, path: String, jarBytes: Array[Byte]): Future[JsValue] = {
+  override def uploadMavenArtifact(subject: String, repo: String, packageName: String, path: String, jarBytes: Array[Byte]): Future[JsValue] = {
     ws(s"/maven/$subject/$repo/$packageName/$path").withHttpHeaders("X-GPG-PASSPHRASE" -> gpgPassphrase).put(jarBytes).flatMap { response =>
       response.status match {
         case Status.CREATED => Future.successful(response.json)
@@ -134,7 +149,7 @@ class BinTray @Inject() (ws: WSClient, config: Configuration, mavenCentral: Mave
     }
   }
 
-  def publishVersion(subject: String, repo: String, packageName: String, version: String): Future[JsValue] = {
+  override def publishVersion(subject: String, repo: String, packageName: String, version: String): Future[JsValue] = {
     val json = Json.obj("publish_wait_for_secs" -> -1)
     ws(s"/content/$subject/$repo/$packageName/$version/publish").post(json).flatMap { response =>
       response.status match {
@@ -144,7 +159,7 @@ class BinTray @Inject() (ws: WSClient, config: Configuration, mavenCentral: Mave
     }
   }
 
-  def signVersion(subject: String, repo: String, packageName: String, version: String): Future[JsValue] = {
+  override def signVersion(subject: String, repo: String, packageName: String, version: String): Future[JsValue] = {
     ws(s"/gpg/$subject/$repo/$packageName/versions/$version").withHttpHeaders("X-GPG-PASSPHRASE" -> gpgPassphrase).execute(HttpVerbs.POST).flatMap { response =>
       response.status match {
         case Status.OK => Future.successful(response.json)
@@ -153,7 +168,7 @@ class BinTray @Inject() (ws: WSClient, config: Configuration, mavenCentral: Mave
     }
   }
 
-  def syncToMavenCentral(subject: String, repo: String, packageName: String, version:String): Future[JsValue] = {
+  override def syncToMavenCentral(subject: String, repo: String, packageName: String, version:String): Future[JsValue] = {
 
     if (mavenCentral.disableDeploy) {
       Future.failed(new Exception("Deployment to Maven Central Disabled"))

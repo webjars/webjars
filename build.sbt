@@ -29,7 +29,7 @@ scalacOptions ++= Seq(
   "-explaintypes",
   "-feature",
   "-Xcheckinit",
-  //"-Xfatal-warnings", // disabled because DeployWebJar::ActorPublisher
+  "-Xfatal-warnings",
   "-Xlint:adapted-args",
   "-Xlint:constant",
   "-Xlint:delayedinit-select",
