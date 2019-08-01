@@ -42,7 +42,7 @@ class WebJarCreatorSpec extends PlaySpecification {
       val allNames = LazyList.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName)
       allNames must contain("META-INF/resources/webjars/react-redux/4.4.32/react-redux/package.json")
     }
-    "handle packages where the contents are in the base dir" in {
+    "create subdirectories for contents" in {
       val url = new URL(s"https://registry.npmjs.org/@types/react-router/-/react-router-2.0.41.tgz")
       val inputStream = url.openConnection().getInputStream
       val gzipInputStream = new GZIPInputStream(inputStream)
@@ -148,6 +148,22 @@ class WebJarCreatorSpec extends PlaySpecification {
 
       val allNames = LazyList.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName)
       allNames must contain("META-INF/resources/webjars/vaadin-ordered-layout/1.0.0-alpha3/bower.json")
+    }
+  }
+
+  "Created WebJar" should {
+    "not have files in the root that are the directories" in {
+      val url = new URL(s"https://registry.npmjs.org/virtual-keyboard/-/virtual-keyboard-1.30.1.tgz")
+      val inputStream = url.openConnection().getInputStream
+      val gzipInputStream = new GZIPInputStream(inputStream)
+
+      val webJar = WebJarCreator.createWebJar(gzipInputStream, true, Set("node_modules"), "", "org.webjars.npm", "virtual-keyboard", "1.30.1", "virtual-keyboard/1.30.1/")
+
+      val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(new ByteArrayInputStream(webJar))
+
+      val allNames = LazyList.continually(archiveStream.getNextEntry).takeWhile(_ != null).filterNot(_.isDirectory).map(_.getName)
+      allNames must contain ("META-INF/resources/webjars/virtual-keyboard/1.30.1/package.json")
+      allNames must not contain "META-INF"
     }
   }
 

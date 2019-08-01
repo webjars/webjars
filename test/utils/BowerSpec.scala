@@ -1,7 +1,6 @@
 package utils
 
 import java.io.BufferedInputStream
-import java.net.{URI, URL}
 
 import akka.util.Timeout
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
@@ -36,7 +35,7 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
   }
   "dc.js" should {
     "have the corrected GitHub url" in {
-      await(bower.info("dc.js", Some("1.7.3"))).maybeHomepageUrl must beSome(new URL("https://github.com/dc-js/dc.js"))
+      await(bower.info("dc.js", Some("1.7.3"))).maybeHomepageUrl.map(_.toString) must beSome("https://github.com/dc-js/dc.js")
     }
   }
   "sjcl" should {
@@ -65,8 +64,8 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
       val info = await(bower.info("PolymerElements/iron-elements"))
       info.name must beEqualTo ("iron-elements")
       info.version mustNotEqual ""
-      info.sourceConnectionUri must beEqualTo (new URI("https://github.com/PolymerElements/iron-elements.git"))
-      info.maybeHomepageUrl must beSome (new URL("https://github.com/PolymerElements/iron-elements"))
+      info.sourceConnectionUri.toString must beEqualTo ("https://github.com/PolymerElements/iron-elements.git")
+      info.maybeHomepageUrl.map(_.toString) must beSome ("https://github.com/PolymerElements/iron-elements")
     }
   }
   "git repo tagged version info" should {
@@ -89,10 +88,10 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
       val info = await(bower.info("PolymerElements/iron-elements"))
       info.name must beEqualTo ("iron-elements")
       info.version mustNotEqual ""
-      info.maybeHomepageUrl must beSome (new URL("https://github.com/PolymerElements/iron-elements"))
-      info.sourceConnectionUri must beEqualTo (new URI("https://github.com/PolymerElements/iron-elements.git"))
-      info.maybeIssuesUrl must beSome (new URL("https://github.com/PolymerElements/iron-elements/issues"))
-      info.maybeGitHubUrl must beSome (new URL("https://github.com/PolymerElements/iron-elements"))
+      info.maybeHomepageUrl.map(_.toString) must beSome ("https://github.com/PolymerElements/iron-elements")
+      info.sourceConnectionUri.toString must beEqualTo ("https://github.com/PolymerElements/iron-elements.git")
+      info.maybeIssuesUrl.map(_.toString) must beSome ("https://github.com/PolymerElements/iron-elements/issues")
+      info.maybeGitHubUrl.map(_.toString) must beSome ("https://github.com/PolymerElements/iron-elements")
     }
   }
   "git fork - git url" should {
@@ -100,10 +99,10 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
       val info = await(bower.info("git://github.com/PolymerElements/iron-elements"))
       info.name must beEqualTo ("iron-elements")
       info.version mustNotEqual ""
-      info.maybeHomepageUrl must beSome (new URL("https://github.com/PolymerElements/iron-elements"))
-      info.sourceConnectionUri must beEqualTo (new URI("https://github.com/PolymerElements/iron-elements.git"))
-      info.maybeIssuesUrl must beSome (new URL("https://github.com/PolymerElements/iron-elements/issues"))
-      info.maybeGitHubUrl must beSome (new URL("https://github.com/PolymerElements/iron-elements"))
+      info.maybeHomepageUrl.map(_.toString) must beSome ("https://github.com/PolymerElements/iron-elements")
+      info.sourceConnectionUri.toString must beEqualTo ("https://github.com/PolymerElements/iron-elements.git")
+      info.maybeIssuesUrl.map(_.toString) must beSome ("https://github.com/PolymerElements/iron-elements/issues")
+      info.maybeGitHubUrl.map(_.toString) must beSome ("https://github.com/PolymerElements/iron-elements")
     }
   }
 
@@ -116,7 +115,7 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
 
   "homepage" should {
     "be have a default" in {
-      await(bower.info("git://github.com/millermedeiros/requirejs-plugins")).maybeHomepageUrl must beSome (new URL("https://github.com/millermedeiros/requirejs-plugins"))
+      await(bower.info("git://github.com/millermedeiros/requirejs-plugins")).maybeHomepageUrl.map(_.toString) must beSome ("https://github.com/millermedeiros/requirejs-plugins")
     }
   }
 

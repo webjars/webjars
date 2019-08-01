@@ -7,18 +7,7 @@ import org.apache.commons.compress.archivers.{ArchiveOutputStream, ArchiveStream
 import org.apache.commons.compress.utils.IOUtils
 import org.eclipse.jgit.ignore.IgnoreNode
 
-
 object WebJarCreator {
-
-  private def createDir(dir: String, jar: ArchiveOutputStream): Unit = {
-    val ze = new ZipArchiveEntry(dir)
-    jar.putArchiveEntry(ze)
-    jar.closeArchiveEntry()
-  }
-
-  private def createDirs(dir: String, jar: ArchiveOutputStream): Unit = {
-    dir.split("/").foldLeft(Seq.empty[String])(_ :+ _).foreach(createDir(_, jar))
-  }
 
   private def createFileEntry(path: String, jar: ArchiveOutputStream, contents: String): Unit = {
     val ze = new ZipArchiveEntry(path)
@@ -26,7 +15,6 @@ object WebJarCreator {
     jar.write(contents.getBytes)
     jar.closeArchiveEntry()
   }
-
 
   def isExcluded(excludes: Set[String], name: String, isDirectory: Boolean): Boolean = {
     val ignoreNode = new IgnoreNode()
@@ -56,8 +44,6 @@ object WebJarCreator {
 
     val archive = new ArchiveStreamFactory().createArchiveInputStream(bufferedInputStream)
 
-    createDirs(s"META-INF/maven/$groupId/$artifactId/", jar)
-
     createFileEntry(s"META-INF/maven/$groupId/$artifactId/pom.xml", jar, pom)
 
     val properties = s"""
@@ -70,7 +56,6 @@ object WebJarCreator {
     createFileEntry(s"META-INF/maven/$groupId/$artifactId/pom.properties", jar, properties)
 
     val webJarPrefix = s"META-INF/resources/webjars/$pathPrefix"
-    createDirs(webJarPrefix, jar)
 
     // copy zip to jar
     LazyList.continually(archive.getNextEntry).takeWhile(_ != null).foreach { ze =>
