@@ -23,17 +23,17 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
 
   "inflight 1.0.4" should {NPM
     "have the correct github url" in {
-      await(npm.info("inflight", Some("1.0.4"))).maybeGitHubUrl must beSome(new URL("https://github.com/npm/inflight"))
+      await(npm.info("inflight", Some("1.0.4"))).maybeGitHubUrl.map(_.toString) must beSome("https://github.com/npm/inflight")
     }
   }
   "inherits 2.0.1" should {
     "have a homepage" in {
-      await(npm.info("inherits", Some("2.0.1"))).maybeHomepageUrl must beSome (new URL("https://github.com/isaacs/inherits"))
+      await(npm.info("inherits", Some("2.0.1"))).maybeHomepageUrl.map(_.toString) must beSome ("https://github.com/isaacs/inherits")
     }
   }
   "simple-fmt" should {
     "have an issue tracking url" in {
-      await(npm.info("simple-fmt", Some("0.1.0"))).maybeIssuesUrl must beSome (new URL("https://github.com/olov/simple-fmt/issues"))
+      await(npm.info("simple-fmt", Some("0.1.0"))).maybeIssuesUrl.map(_.toString) must beSome ("https://github.com/olov/simple-fmt/issues")
     }
   }
   "weinre 2.0.0-pre-I0Z7U9OV" should {
@@ -60,7 +60,7 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
       info.name must beEqualTo ("mocha")
       info.version mustNotEqual ""
       info.sourceConnectionUri must beEqualTo (new URI("https://github.com/mochajs/mocha.git"))
-      info.maybeGitHubUrl must beSome (new URL("https://github.com/mochajs/mocha"))
+      info.maybeGitHubUrl.map(_.toString) must beSome ("https://github.com/mochajs/mocha")
     }
   }
   "git repo tagged version info" should {
@@ -83,10 +83,10 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
       val info = await(npm.info("btford/route-recognizer"))
       info.name must beEqualTo ("route-recognizer")
       info.version mustNotEqual ""
-      info.maybeHomepageUrl must beSome (new URL("https://github.com/btford/route-recognizer"))
-      info.sourceConnectionUri must beEqualTo (new URI("https://github.com/btford/route-recognizer.git"))
-      info.maybeIssuesUrl must beSome (new URL("https://github.com/btford/route-recognizer/issues"))
-      info.maybeGitHubUrl must beSome (new URL("https://github.com/btford/route-recognizer"))
+      info.maybeHomepageUrl.map(_.toString) must beSome ("https://github.com/btford/route-recognizer")
+      info.sourceConnectionUri.toString must beEqualTo ("https://github.com/btford/route-recognizer.git")
+      info.maybeIssuesUrl.map(_.toString) must beSome ("https://github.com/btford/route-recognizer/issues")
+      info.maybeGitHubUrl.map(_.toString) must beSome ("https://github.com/btford/route-recognizer")
     }
   }
   "git fork - git url" should {
@@ -94,10 +94,10 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
       val info = await(npm.info("git://github.com/btford/route-recognizer"))
       info.name must beEqualTo ("route-recognizer")
       info.version mustNotEqual ""
-      info.maybeHomepageUrl must beSome (new URL("https://github.com/btford/route-recognizer"))
-      info.sourceConnectionUri must beEqualTo (new URI("https://github.com/btford/route-recognizer.git"))
-      info.maybeIssuesUrl must beSome (new URL("https://github.com/btford/route-recognizer/issues"))
-      info.maybeGitHubUrl must beSome (new URL("https://github.com/btford/route-recognizer"))
+      info.maybeHomepageUrl.map(_.toString) must beSome ("https://github.com/btford/route-recognizer")
+      info.sourceConnectionUri.toString must beEqualTo ("https://github.com/btford/route-recognizer.git")
+      info.maybeIssuesUrl.map(_.toString) must beSome ("https://github.com/btford/route-recognizer/issues")
+      info.maybeGitHubUrl.map(_.toString) must beSome ("https://github.com/btford/route-recognizer")
     }
   }
   "info on amp-ui 3.2.0" should {
@@ -225,7 +225,7 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
   "quadkeytools" should {
     "work for 0.0.2" in {
       val info = await(npm.info("quadkeytools", Some("0.0.2")))
-      info.maybeIssuesUrl must beSome (new URL("https://bitbucket.org/steele/quadkeytools/issues"))
+      info.maybeIssuesUrl.map(_.toString) must beSome ("https://bitbucket.org/steele/quadkeytools/issues")
     }
   }
 
@@ -256,7 +256,7 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
         "bugs" -> "http://webjars.org"
       )
       val result = json.validate[Option[URL]](NPM.bugsReaderNullable)
-      result must beEqualTo(JsSuccess[Option[URL]](Some(new URL("http://webjars.org")), __))
+      result.map(_.map(_.toString)) must beEqualTo(JsSuccess[Option[String]](Some("http://webjars.org"), __))
     }
     "work if bugs.url is a url" in {
       val json = Json.obj(
@@ -265,14 +265,14 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
         )
       )
       val result = json.validate[Option[URL]](NPM.bugsReaderNullable)
-      result must beEqualTo(JsSuccess[Option[URL]](Some(new URL("http://webjars.org")), __))
+      result.map(_.map(_.toString)) must beEqualTo(JsSuccess[Option[String]](Some("http://webjars.org"), __))
     }
     "work if homepage has a GitHub url" in {
       val json = Json.obj(
         "homepage" -> "http://github.com/webjars/webjars"
       )
       val result = json.validate[Option[URL]](NPM.bugsReaderNullable)
-      result must beEqualTo(JsSuccess[Option[URL]](Some(new URL("http://github.com/webjars/webjars/issues")), __))
+      result.map(_.map(_.toString)) must beEqualTo(JsSuccess[Option[String]](Some("http://github.com/webjars/webjars/issues"), __))
     }
     "work if homepage has a GitHub url and bugs.url is set" in {
       val json = Json.obj(
@@ -282,7 +282,7 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
         )
       )
       val result = json.validate[Option[URL]](NPM.bugsReaderNullable)
-      result must beEqualTo(JsSuccess[Option[URL]](Some(new URL("http://webjars.org")), __))
+      result.map(_.map(_.toString)) must beEqualTo(JsSuccess[Option[String]](Some("http://webjars.org"), __))
     }
   }
 
@@ -300,7 +300,7 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
     "work with github homepage" in {
       val json = Json.obj("homepage" -> "http://github.com/webjars/webjars")
       val result = json.validate[URL](NPM.homepageToIssuesReader)
-      result must beEqualTo(JsSuccess[URL](new URL("http://github.com/webjars/webjars/issues"), __ \ "homepage"))
+      result.map(_.toString) must beEqualTo(JsSuccess[String]("http://github.com/webjars/webjars/issues", __ \ "homepage"))
     }
   }
 
