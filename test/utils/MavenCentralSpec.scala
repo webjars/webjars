@@ -1,21 +1,31 @@
 package utils
 
-import models.{WebJar, WebJarType}
+import akka.util.Timeout
 import org.joda.time.DateTime
 import play.api.Configuration
 import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.test._
 import utils.MavenCentral.UnavailableException
+import play.api.inject.bind
+import scala.concurrent.duration._
 
 class MavenCentralSpec extends PlaySpecification {
 
+  override implicit def defaultAwaitTimeout: Timeout = 300.seconds
+
+  def appWithLocalMavenSearch = GuiceApplicationBuilder(configuration = Configuration("mavencentral.search-url" -> s"http://localhost:$testServerPort/asdf"))
+    .overrides(bind[Memcache].to[MemcacheMock])
+    .build()
+
+  class WithApp extends WithApplication(_.overrides(bind[Memcache].to[MemcacheMock]))
+
   "fetchWebJars" should {
-    "fail when the search-url does not return JSON" in new WithServer(port = testServerPort, app = GuiceApplicationBuilder(configuration = Configuration("mavencentral.search-url" -> s"http://localhost:$testServerPort/asdf")).build()) {
+    "fail when the search-url does not return JSON" in new WithServer(port = testServerPort, app = appWithLocalMavenSearch) {
       val mavenCentral = app.injector.instanceOf[MavenCentral]
       val classic = app.injector.instanceOf[Classic]
       await(mavenCentral.fetchWebJars(classic)) should throwA[UnavailableException]
     }
-    "work normally" in new WithApplication() {
+    "work normally" in new WithApp() {
       val mavenCentral = app.injector.instanceOf[MavenCentral]
       val npm = app.injector.instanceOf[NPM]
       val webJars = await(mavenCentral.fetchWebJars(npm))
@@ -24,7 +34,7 @@ class MavenCentralSpec extends PlaySpecification {
   }
 
   "getStats" should {
-    "get the stats for a given date" in new WithApplication() {
+    "get the stats for a given date" in new WithApp() {
       if (app.configuration.getOptional[String]("oss.username").isEmpty) {
         skipped("skipped due to missing config")
       }
@@ -48,7 +58,7 @@ class MavenCentralSpec extends PlaySpecification {
   }
 
   "mostDownloaded" should {
-    "get the 20 most downloaded for each catalog" in new WithApplication() {
+    "get the 20 most downloaded for each catalog" in new WithApp() {
       if (app.configuration.getOptional[String]("oss.username").isEmpty) {
         skipped("skipped due to missing config")
       }

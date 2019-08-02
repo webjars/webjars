@@ -3,6 +3,7 @@ package utils
 import java.time.{LocalDateTime, ZoneOffset}
 import java.util.concurrent.TimeUnit
 
+import com.google.inject.ImplementedBy
 import javax.inject.{Inject, Singleton}
 import net.spy.memcached.{AddrUtil, ConnectionFactoryBuilder, MemcachedClient}
 import net.spy.memcached.auth.{AuthDescriptor, PlainCallbackHandler}
@@ -16,8 +17,17 @@ import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.util.Try
 
+@ImplementedBy(classOf[MemcacheLive])
+trait Memcache {
+  import Memcache._
+
+  def get[A](cacheKey: String)(implicit transcoder: Transcoder[A]): Future[A]
+  def getWithMiss[A](cacheKey: String)(miss: => Future[A])(implicit transcoder: Transcoder[A]): Future[A]
+  def set[A](cacheKey: String, value: A, expiration: Expiration = Expiration.Inf)(implicit transcoder: Transcoder[A]): Future[Unit]
+}
+
 @Singleton
-class Memcache @Inject() (configuration: Configuration, lifecycle: ApplicationLifecycle) (implicit ec: ExecutionContext) {
+class MemcacheLive @Inject() (configuration: Configuration, lifecycle: ApplicationLifecycle) (implicit ec: ExecutionContext) extends Memcache {
 
   import Memcache._
 

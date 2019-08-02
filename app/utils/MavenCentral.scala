@@ -15,7 +15,6 @@ import play.api.libs.json._
 import play.api.libs.ws.{WSAuthScheme, WSClient}
 import play.api.{Configuration, Logging}
 
-import scala.collection.MapView
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
