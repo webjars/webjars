@@ -6,7 +6,8 @@ import java.util.concurrent.TimeoutException
 import javax.inject.Inject
 import akka.actor.ActorSystem
 import akka.stream.scaladsl.{Flow, Source}
-import akka.util.ByteString
+import akka.util.{ByteString, Timeout}
+import com.google.inject.ImplementedBy
 import models.{WebJar, WebJarType}
 import org.joda.time.DateTime
 import play.api.data.Forms._
@@ -28,6 +29,7 @@ import scala.util.hashing.MurmurHash3
 class Application @Inject() (git: Git, gitHub: GitHub, heroku: Heroku, cache: Cache, mavenCentral: MavenCentral, deployWebJar: DeployWebJar, webJarsFileService: WebJarsFileService, actorSystem: ActorSystem, configuration: Configuration, environment: Environment, futures: Futures)
                             (classic: Classic, bower: Bower, npm: NPM, bowerGitHub: BowerGitHub)
                             (mainView: views.html.main, allView: views.html.all, indexView: views.html.index, webJarRequestView: views.html.webJarRequest, contributingView: views.html.contributing, documentationView: views.html.documentation)
+                            (fetchConfig: FetchConfig)
                             (implicit ec: ExecutionContext) extends InjectedController with Logging {
 
   private val allWebJarTypes = Set(classic, bowerGitHub, bower, npm)
@@ -54,13 +56,11 @@ class Application @Inject() (git: Git, gitHub: GitHub, heroku: Heroku, cache: Ca
     }
   }
 
-  private val defaultTimeout = 25.seconds
-
   private val allDeployables = Set(npm, bower, bowerGitHub)
 
   private def webJarsWithTimeout(maybeWebJarType: Option[WebJarType] = None): Future[List[WebJar]] = {
     val fetcher = maybeWebJarType.fold(mavenCentral.webJars)(mavenCentral.webJars)
-    val future = TimeoutFuture(defaultTimeout)(fetcher)
+    val future = TimeoutFuture(fetchConfig.timeout)(fetcher)
     future.onComplete {
       case Failure(e: TimeoutException) => logger.debug("Timeout fetching WebJars", e)
       case Failure(e: MavenCentral.ExistingWebJarRequestException) => logger.debug("Existing WebJar Request", e)
@@ -104,7 +104,7 @@ class Application @Inject() (git: Git, gitHub: GitHub, heroku: Heroku, cache: Ca
       case _: TimeoutException =>
         Future.successful(Redirect(routes.Application.index()))
       case _: ExistingWebJarRequestException =>
-        futures.delay(defaultTimeout).map(_ => Redirect(routes.Application.index()))
+        futures.delay(fetchConfig.timeout).map(_ => Redirect(routes.Application.index()))
       case e: Exception =>
         logger.error("index WebJar fetch failed", e)
         Future.successful(InternalServerError(indexView(Right(WEBJAR_FETCH_ERROR))))
@@ -434,6 +434,15 @@ class Application @Inject() (git: Git, gitHub: GitHub, heroku: Heroku, cache: Ca
     }
   }
 
+}
+
+@ImplementedBy(classOf[DefaultFetchConfig])
+trait FetchConfig {
+  val timeout: FiniteDuration
+}
+
+class DefaultFetchConfig extends FetchConfig {
+  override val timeout: FiniteDuration = 25.seconds
 }
 
 object Application {

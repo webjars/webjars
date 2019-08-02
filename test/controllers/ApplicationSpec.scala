@@ -4,18 +4,24 @@ import akka.util.Timeout
 import models.{WebJar, WebJarVersion}
 import play.api.http.{ContentTypes, HeaderNames, Status}
 import play.api.inject.bind
+import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.test.{FakeRequest, PlaySpecification, WithApplication}
 import utils.{BowerGitHub, Memcache, MemcacheMock}
 
 import scala.concurrent.duration._
 import scala.util.Random
 
+class TestFetchConfig extends FetchConfig {
+  override val timeout = 2.minutes
+}
 
 class ApplicationSpec extends PlaySpecification {
 
   override implicit def defaultAwaitTimeout: Timeout = 300.seconds
 
-  class WithApp extends WithApplication(_.overrides(bind[Memcache].to[MemcacheMock]))
+  val withOverrides = (gab: GuiceApplicationBuilder) => gab.overrides(bind[Memcache].to[MemcacheMock], bind[FetchConfig].to[TestFetchConfig])
+
+  class WithApp extends WithApplication(withOverrides)
 
   "sortedWebJars" should {
     "work" in new WithApp {
@@ -119,7 +125,7 @@ class ApplicationSpec extends PlaySpecification {
         contentAsJson(resultOnGroupFuture).as[Seq[WebJar]] must containTheSameElementsAs(possibleMatchesOnGroup)
       }
     }
-    "work when stats can't be fetched" in new WithApplication(_.configure("oss.username" -> "asdf", "oss.password" -> "asdf").overrides(bind[Memcache].to[MemcacheMock])) {
+    "work when stats can't be fetched" in new WithApplication(withOverrides.andThen(_.configure("oss.username" -> "asdf", "oss.password" -> "asdf"))) {
       val applicationController = app.injector.instanceOf[Application]
 
       val request = FakeRequest().withHeaders(HeaderNames.ACCEPT -> ContentTypes.JSON)
