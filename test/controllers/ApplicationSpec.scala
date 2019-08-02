@@ -1,19 +1,24 @@
 package controllers
 
-import models.{WebJar, WebJarType, WebJarVersion}
-import play.api.Configuration
+import akka.util.Timeout
+import models.{WebJar, WebJarVersion}
 import play.api.http.{ContentTypes, HeaderNames, Status}
-import play.api.inject.guice.GuiceApplicationBuilder
+import play.api.inject.bind
 import play.api.test.{FakeRequest, PlaySpecification, WithApplication}
-import utils.BowerGitHub
+import utils.{BowerGitHub, Memcache, MemcacheMock}
 
+import scala.concurrent.duration._
 import scala.util.Random
 
 
 class ApplicationSpec extends PlaySpecification {
 
+  override implicit def defaultAwaitTimeout: Timeout = 300.seconds
+
+  class WithApp extends WithApplication(_.overrides(bind[Memcache].to[MemcacheMock]))
+
   "sortedWebJars" should {
-    "work" in new WithApplication {
+    "work" in new WithApp {
       val applicationController = app.injector.instanceOf[Application]
 
       val counts = Random.shuffle(
@@ -42,7 +47,7 @@ class ApplicationSpec extends PlaySpecification {
     }
   }
   "sortedMostPopularWebJars" should {
-    "only include the max number" in new WithApplication {
+    "only include the max number" in new WithApp {
       if (app.configuration.getOptional[String]("oss.username").isEmpty) {
         skipped("skipped due to missing config")
       }
@@ -63,7 +68,7 @@ class ApplicationSpec extends PlaySpecification {
   }
 
   "searchWebJars" should {
-    "work with a classic webjar" in new WithApplication {
+    "work with a classic webjar" in new WithApp {
       if (app.configuration.getOptional[String]("oss.username").isEmpty) {
         skipped("skipped due to missing config")
       }
@@ -85,7 +90,7 @@ class ApplicationSpec extends PlaySpecification {
         // todo: verify that the ordering was correct (i.e. the stats worked)
       }
     }
-    "work with a bowergithub webjar" in new WithApplication {
+    "work with a bowergithub webjar" in new WithApp {
       if (app.configuration.getOptional[String]("oss.username").isEmpty) {
         skipped("skipped due to missing config")
       }
@@ -114,7 +119,7 @@ class ApplicationSpec extends PlaySpecification {
         contentAsJson(resultOnGroupFuture).as[Seq[WebJar]] must containTheSameElementsAs(possibleMatchesOnGroup)
       }
     }
-    "work when stats can't be fetched" in new WithApplication(app = GuiceApplicationBuilder(configuration = Configuration("oss.username" -> "asdf", "oss.password" -> "asdf")).build()) {
+    "work when stats can't be fetched" in new WithApplication(_.configure("oss.username" -> "asdf", "oss.password" -> "asdf").overrides(bind[Memcache].to[MemcacheMock])) {
       val applicationController = app.injector.instanceOf[Application]
 
       val request = FakeRequest().withHeaders(HeaderNames.ACCEPT -> ContentTypes.JSON)
@@ -130,7 +135,7 @@ class ApplicationSpec extends PlaySpecification {
   }
 
   "create" should {
-    "work" in new WithApplication {
+    "work" in new WithApp {
       val applicationController = app.injector.instanceOf[Application]
 
       val request = FakeRequest()
@@ -143,7 +148,7 @@ class ApplicationSpec extends PlaySpecification {
   }
 
   "versions" should {
-    "be sorted correctly" in new WithApplication {
+    "be sorted correctly" in new WithApp {
       val applicationController = app.injector.instanceOf[Application]
 
       val request = FakeRequest()
