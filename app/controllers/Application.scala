@@ -425,7 +425,7 @@ class Application @Inject() (git: Git, gitHub: GitHub, heroku: Heroku, cache: Ca
       val promise = Promise[A]()
 
       actorSystem.scheduler.scheduleOnce(timeout) {
-        promise.tryFailure(new TimeoutException)
+        promise.tryFailure(new TimeoutException(s"Future did not complete in $timeout"))
       }
 
       promise.completeWith(future)
