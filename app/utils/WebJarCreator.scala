@@ -1,6 +1,7 @@
 package utils
 
 import java.io._
+import java.nio.file.{Path, Paths}
 
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry
 import org.apache.commons.compress.archivers.{ArchiveOutputStream, ArchiveStreamFactory}
@@ -8,6 +9,19 @@ import org.apache.commons.compress.utils.IOUtils
 import org.eclipse.jgit.ignore.IgnoreNode
 
 object WebJarCreator {
+
+  private def createDir(path: Path, jar: ArchiveOutputStream): Unit = {
+    // make sure the dir ends with a "/"
+    val formattedDir = path.toString.stripSuffix("/") + "/"
+    val ze = new ZipArchiveEntry(formattedDir)
+    jar.putArchiveEntry(ze)
+    jar.closeArchiveEntry()
+  }
+
+  private def createDirs(dir: String, jar: ArchiveOutputStream): Unit = {
+    val paths = Iterator.iterate(Paths.get(dir))(_.getParent).takeWhile(_ != null).toSeq.reverse
+    paths.foreach(createDir(_, jar))
+  }
 
   private def createFileEntry(path: String, jar: ArchiveOutputStream, contents: String): Unit = {
     val ze = new ZipArchiveEntry(path)
@@ -44,6 +58,10 @@ object WebJarCreator {
 
     val archive = new ArchiveStreamFactory().createArchiveInputStream(bufferedInputStream)
 
+    val webJarPrefix = s"META-INF/resources/webjars/$pathPrefix"
+
+    createDirs(webJarPrefix, jar)
+
     createFileEntry(s"META-INF/maven/$groupId/$artifactId/pom.xml", jar, pom)
 
     val properties = s"""
@@ -54,8 +72,6 @@ object WebJarCreator {
        """.stripMargin
 
     createFileEntry(s"META-INF/maven/$groupId/$artifactId/pom.properties", jar, properties)
-
-    val webJarPrefix = s"META-INF/resources/webjars/$pathPrefix"
 
     // copy zip to jar
     LazyList.continually(archive.getNextEntry).takeWhile(_ != null).foreach { ze =>

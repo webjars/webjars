@@ -161,7 +161,12 @@ class WebJarCreatorSpec extends PlaySpecification {
 
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(new ByteArrayInputStream(webJar))
 
-      val allNames = LazyList.continually(archiveStream.getNextEntry).takeWhile(_ != null).filterNot(_.isDirectory).map(_.getName)
+      val allNames = LazyList.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName)
+      allNames must contain ("META-INF/")
+      allNames must contain ("META-INF/resources/")
+      allNames must contain ("META-INF/resources/webjars/")
+      allNames must contain ("META-INF/resources/webjars/virtual-keyboard/")
+      allNames must contain ("META-INF/resources/webjars/virtual-keyboard/1.30.1/")
       allNames must contain ("META-INF/resources/webjars/virtual-keyboard/1.30.1/package.json")
       allNames must not contain "META-INF"
     }
