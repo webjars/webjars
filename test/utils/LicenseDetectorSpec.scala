@@ -179,6 +179,13 @@ class LicenseDetectorSpec extends PlaySpecification with GlobalApplication {
     }
   }
 
+  "NPM @zalando/oauth2-client-js" should {
+    "have the right license" in {
+      val packageInfo = await(npm.info("@zalando/oauth2-client-js", Some("0.0.18")))
+      await(licenseDetector.resolveLicenses(npm, packageInfo)) must beEqualTo (Set("Apache-2.0"))
+    }
+  }
+
 
   /*
   // This is broken due to upstream: https://github.com/webjars/webjars/issues/1265
