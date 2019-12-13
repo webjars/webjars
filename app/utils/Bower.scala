@@ -8,7 +8,6 @@ import play.api.http.Status
 import play.api.libs.concurrent.Futures
 import play.api.libs.concurrent.Futures._
 import play.api.libs.functional.syntax._
-import play.api.libs.json.Reads._
 import play.api.libs.json._
 import play.api.libs.ws._
 import utils.PackageInfo._

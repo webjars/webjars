@@ -47,7 +47,7 @@ class MavenCentralSpec extends PlaySpecification {
         val bowerGitHub = app.injector.instanceOf[BowerGitHub]
         val bowerWebJars = await(mavenCentral.webJars(bowerGitHub))
 
-        val statsBowerWebJars = await(mavenCentral.getStats(bowerGitHub, new DateTime(2018, 1, 1, 1, 1)))
+        val statsBowerWebJars = await(mavenCentral.getStats(bowerGitHub, new DateTime(2019, 1, 1, 1, 1)))
 
         val (groupId, _, downloads) = statsBowerWebJars.head
         downloads should be > 0

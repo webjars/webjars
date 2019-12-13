@@ -1,14 +1,14 @@
 package utils
 
 import java.net.URI
-import javax.inject.Inject
-import javax.net.ssl.SSLContext
 
+import javax.inject.Inject
+import javax.net.ssl.{SSLContext, SSLEngine}
 import akka.NotUsed
 import akka.actor.ActorSystem
 import akka.stream.TLSProtocol.NegotiateNewSession
 import akka.stream.scaladsl.{BidiFlow, Flow, Framing, Source, TLS, Tcp}
-import akka.stream.{Materializer, TLSProtocol, TLSRole}
+import akka.stream.{TLSClosing, TLSProtocol, TLSRole}
 import akka.util.ByteString
 import play.api.Configuration
 import play.api.http.{HeaderNames, Status}
@@ -40,7 +40,7 @@ class Heroku @Inject() (ws: WSClient, config: Configuration) (implicit ec: Execu
 
       val connection = Tcp().outgoingConnection(uri.getHost, uri.getPort)
 
-      val tls = TLS(SSLContext.getDefault, NegotiateNewSession.withDefaults, TLSRole.client)
+      val tls = TLS(SSLContext.getDefault.createSSLEngine, TLSClosing.eagerClose)
 
       val tlsSupport = BidiFlow.fromFlows(
         Flow[ByteString].map(TLSProtocol.SendBytes),
@@ -83,7 +83,7 @@ class Heroku @Inject() (ws: WSClient, config: Configuration) (implicit ec: Execu
       }
     }
 
-    Source.fromFutureSource(sourceFuture)
+    Source.futureSource(sourceFuture)
   }
 
 }
