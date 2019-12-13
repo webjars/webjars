@@ -2,8 +2,8 @@ package utils
 
 import net.spy.memcached.transcoders.Transcoder
 
-import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
 import scala.util.Try
 
 class MemcacheMock extends Memcache {

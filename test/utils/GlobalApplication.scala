@@ -1,8 +1,8 @@
 package utils
 
 import org.specs2.specification.AfterAll
-import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.inject.bind
+import play.api.inject.guice.GuiceApplicationBuilder
 
 trait GlobalApplication extends AfterAll {
 

@@ -1,7 +1,6 @@
 package utils
 
 import javax.inject.Inject
-
 import play.api.cache.SyncCacheApi
 
 import scala.concurrent.duration.FiniteDuration

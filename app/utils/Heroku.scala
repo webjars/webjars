@@ -1,15 +1,13 @@
 package utils
 
-import java.net.URI
+import java.net.{InetSocketAddress, URI}
 
-import javax.inject.Inject
-import javax.net.ssl.{SSLContext, SSLEngine}
 import akka.NotUsed
 import akka.actor.ActorSystem
-import akka.stream.TLSProtocol.NegotiateNewSession
-import akka.stream.scaladsl.{BidiFlow, Flow, Framing, Source, TLS, Tcp}
-import akka.stream.{TLSClosing, TLSProtocol, TLSRole}
+import akka.stream.scaladsl.{BidiFlow, Flow, Framing, Source, Tcp}
 import akka.util.ByteString
+import javax.inject.Inject
+import javax.net.ssl.SSLContext
 import play.api.Configuration
 import play.api.http.{HeaderNames, Status}
 import play.api.libs.json.Json
@@ -38,23 +36,22 @@ class Heroku @Inject() (ws: WSClient, config: Configuration) (implicit ec: Execu
     def connect(uri: URI): Source[String, NotUsed] = {
       val secret = uri.getPath.stripPrefix("/")
 
-      val connection = Tcp().outgoingConnection(uri.getHost, uri.getPort)
+      val address = InetSocketAddress.createUnresolved(uri.getHost, uri.getPort)
 
-      val tls = TLS(SSLContext.getDefault.createSSLEngine, TLSClosing.eagerClose)
+      val engine = () => {
+        val engine = SSLContext.getDefault.createSSLEngine
+        engine.setUseClientMode(true)
+        engine
+      }
 
-      val tlsSupport = BidiFlow.fromFlows(
-        Flow[ByteString].map(TLSProtocol.SendBytes),
-        Flow[TLSProtocol.SslTlsInbound].collect {
-          case TLSProtocol.SessionBytes(_, sb) => sb
-        }
-      )
+      val connection = Tcp().outgoingConnectionWithTls(address, engine)
 
       val byteStringToString = BidiFlow.fromFlows(
         Flow[ByteString].via(Framing.delimiter(ByteString("\r\n"), maximumFrameLength = 16384, allowTruncation = true)).map(_.utf8String),
         Flow[String].map(ByteString(_))
       )
 
-      val tlsClient = tlsSupport.atop(tls).join(connection).join(byteStringToString)
+      val tlsClient = connection.join(byteStringToString)
 
       Source.single(secret).via(tlsClient).dropWhile(_ == "rendezvous")
     }

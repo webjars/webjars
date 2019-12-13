@@ -5,10 +5,10 @@ import java.util.Date
 
 import akka.util.Timeout
 import org.apache.commons.io.IOUtils
-import play.api.{Configuration, Environment}
 import play.api.libs.json.JsArray
 import play.api.libs.ws.WSClient
 import play.api.test._
+import play.api.{Configuration, Environment}
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._

@@ -1,6 +1,7 @@
 package utils
 
 import java.net.URL
+
 import javax.inject.Inject
 
 import scala.concurrent.{ExecutionContext, Future}

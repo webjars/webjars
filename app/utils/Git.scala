@@ -10,10 +10,10 @@ import org.eclipse.jgit.api.{Git => GitApi}
 import play.api.http.{HeaderNames, Status}
 import play.api.libs.ws.WSClient
 
-import scala.reflect.io.Directory
-import scala.jdk.CollectionConverters._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.io.{Codec, Source}
+import scala.jdk.CollectionConverters._
+import scala.reflect.io.Directory
 import scala.util.Try
 
 class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {

@@ -9,8 +9,8 @@ import org.apache.commons.compress.archivers.ArchiveStreamFactory
 import org.eclipse.jgit.api.{Git => GitApi}
 import play.api.test._
 
-import scala.jdk.CollectionConverters._
 import scala.concurrent.duration._
+import scala.jdk.CollectionConverters._
 
 class GitSpec extends PlaySpecification with GlobalApplication {
 

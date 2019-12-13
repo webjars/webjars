@@ -2,11 +2,11 @@ package utils
 
 import java.io.FileNotFoundException
 
-import javax.inject.{Inject, Singleton}
 import actors.{FetchWebJars, WebJarFetcher}
 import akka.actor._
 import akka.pattern.ask
 import akka.util.Timeout
+import javax.inject.{Inject, Singleton}
 import models.{WebJar, WebJarType, WebJarVersion}
 import net.spy.memcached.transcoders.{IntegerTranscoder, SerializingTranscoder, Transcoder}
 import org.joda.time.DateTime

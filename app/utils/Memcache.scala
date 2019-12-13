@@ -5,11 +5,11 @@ import java.util.concurrent.TimeUnit
 
 import com.google.inject.ImplementedBy
 import javax.inject.{Inject, Singleton}
-import net.spy.memcached.{AddrUtil, ConnectionFactoryBuilder, MemcachedClient}
 import net.spy.memcached.auth.{AuthDescriptor, PlainCallbackHandler}
 import net.spy.memcached.internal.{GetFuture, OperationFuture}
 import net.spy.memcached.ops.StatusCode
 import net.spy.memcached.transcoders.Transcoder
+import net.spy.memcached.{AddrUtil, ConnectionFactoryBuilder, MemcachedClient}
 import play.api.Configuration
 import play.api.inject.ApplicationLifecycle
 

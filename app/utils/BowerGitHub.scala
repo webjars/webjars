@@ -3,7 +3,6 @@ package utils
 import java.io.InputStream
 
 import javax.inject.Inject
-import play.api.libs.concurrent.Futures
 import play.api.libs.ws._
 
 import scala.concurrent.{ExecutionContext, Future}

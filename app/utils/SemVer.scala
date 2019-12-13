@@ -1,8 +1,9 @@
 package utils
 
-import scala.util.{Failure, Success, Try}
+import fastparse.NoWhitespace._
+import fastparse._
 
-import fastparse._, NoWhitespace._
+import scala.util.{Failure, Success, Try}
 
 object SemVer {
 

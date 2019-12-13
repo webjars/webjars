@@ -3,11 +3,11 @@ package controllers
 import java.io.FileNotFoundException
 import java.util.concurrent.TimeoutException
 
-import javax.inject.Inject
 import akka.actor.ActorSystem
 import akka.stream.scaladsl.{Flow, Source}
-import akka.util.{ByteString, Timeout}
+import akka.util.ByteString
 import com.google.inject.ImplementedBy
+import javax.inject.Inject
 import models.{WebJar, WebJarType}
 import org.joda.time.DateTime
 import play.api.data.Forms._

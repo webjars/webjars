@@ -3,10 +3,11 @@ package utils
 import akka.util.Timeout
 import org.joda.time.DateTime
 import play.api.Configuration
+import play.api.inject.bind
 import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.test._
 import utils.MavenCentral.UnavailableException
-import play.api.inject.bind
+
 import scala.concurrent.duration._
 
 class MavenCentralSpec extends PlaySpecification {

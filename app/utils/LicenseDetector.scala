@@ -1,8 +1,8 @@
 package utils
 
 import java.net.URL
-import javax.inject.Inject
 
+import javax.inject.Inject
 import play.api.Logging
 import play.api.http.{HeaderNames, MimeTypes, Status}
 import play.api.i18n.{Lang, Langs, MessagesApi}
