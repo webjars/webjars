@@ -253,7 +253,7 @@ class Application @Inject() (git: Git, gitHub: GitHub, heroku: Heroku, cache: Ca
   }
 
   def file(groupId: String, artifactId: String, version: String, file: String) = Action {
-    MovedPermanently(s"http://webjars-file-service.herokuapp.com/files/$groupId/$artifactId/$version/$file")
+    MovedPermanently(s"https://webjars-file-service.herokuapp.com/files/$groupId/$artifactId/$version/$file")
   }
 
   def fileOptions(file: String) = CorsAction {

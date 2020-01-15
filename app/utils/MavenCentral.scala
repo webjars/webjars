@@ -57,7 +57,7 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
       val rawUrl = (xml \ "scm" \ "url").text
       val urlFuture = if (rawUrl.contains("${")) {
         // can't handle pom properties so fallback to a guess
-        Future.successful(s"http://github.com/webjars/$artifactId")
+        Future.successful(s"https://github.com/webjars/$artifactId")
       } else {
         if (rawUrl != "") {
           Future.successful(rawUrl)
@@ -78,7 +78,7 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
     } recover {
       case _ =>
         // fall back to the usual
-        (artifactId, s"http://github.com/webjars/$artifactId")
+        (artifactId, s"https://github.com/webjars/$artifactId")
     }
   }
 
@@ -211,7 +211,7 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
 
   def fetchPom(groupId: String, artifactId: String, version: String, maybeUrlPrefix: Option[String] = None): Future[Elem] = {
     val groupIdPath = groupId.replace(".", "/")
-    val urlPrefix = maybeUrlPrefix.getOrElse("http://repo1.maven.org/maven2")
+    val urlPrefix = maybeUrlPrefix.getOrElse("https://repo1.maven.org/maven2")
     val url = s"$urlPrefix/$groupIdPath/$artifactId/$version/$artifactId-$version.pom"
     wsClient.url(url).get().flatMap { response =>
       response.status match {

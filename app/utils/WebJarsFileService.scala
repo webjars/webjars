@@ -12,7 +12,7 @@ import scala.util.Try
 class WebJarsFileService @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
 
   def getFileList(groupId: String, artifactId: String, version: String): Future[List[String]] = {
-    val url = s"http://webjars-file-service.herokuapp.com/listfiles/$groupId/$artifactId/$version"
+    val url = s"https://webjars-file-service.herokuapp.com/listfiles/$groupId/$artifactId/$version"
     ws.url(url).get().flatMap { response =>
       response.status match {
         case Status.OK =>
@@ -26,7 +26,7 @@ class WebJarsFileService @Inject() (ws: WSClient) (implicit ec: ExecutionContext
   }
 
   def getNumFiles(groupId: String, artifactId: String, version: String): Future[Int] = {
-    val url = s"http://webjars-file-service.herokuapp.com/numfiles/$groupId/$artifactId/$version"
+    val url = s"https://webjars-file-service.herokuapp.com/numfiles/$groupId/$artifactId/$version"
     ws.url(url).get().flatMap { response =>
       response.status match {
         case Status.OK =>

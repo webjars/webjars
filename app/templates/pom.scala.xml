@@ -8,7 +8,7 @@
     <version>@releaseVersion</version>
     <name>@packageInfo.name</name>
     <description>WebJar for @packageInfo.name</description>
-    <url>http://webjars.org</url>
+    <url>https://www.webjars.org</url>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -24,7 +24,7 @@
     <developers>
         <developer>
             <id>webjars</id>
-            <url>http://webjars.org</url>
+            <url>https://www.webjars.org</url>
         </developer>
     </developers>
 
