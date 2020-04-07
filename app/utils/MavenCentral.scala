@@ -279,7 +279,7 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
         case Status.UNAUTHORIZED =>
           Future.failed(UnauthorizedError("Invalid credentials"))
         case _ =>
-          Future.failed(new Exception(response.body))
+          Future.failed(new MavenCentral.UnavailableException(response.body))
       }
     }
   }
@@ -291,6 +291,7 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
           getStats(groupId, dateTime).recover {
             case _: MavenCentral.EmptyStatsException => Seq.empty[(String, String, Int)]
             case _: UnauthorizedError => Seq.empty[(String, String, Int)]
+            case _: MavenCentral.UnavailableException => Seq.empty[(String, String, Int)]
           }
         }
         Future.reduceLeft(futures)(_ ++ _)
