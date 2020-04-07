@@ -84,6 +84,8 @@ class Application @Inject() (git: Git, gitHub: GitHub, heroku: Heroku, cache: Ca
         val lastMonth = DateTime.now().minusMonths(1)
         mavenCentral.mostDownloaded(lastMonth, MAX_POPULAR_WEBJARS).recoverWith {
           case _: Exception => mavenCentral.mostDownloaded(lastMonth.minusMonths(1), MAX_POPULAR_WEBJARS)
+        } recover {
+          case _: MavenCentral.UnavailableException => Seq.empty
         }
       }
 
