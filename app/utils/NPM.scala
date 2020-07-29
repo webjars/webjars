@@ -48,11 +48,11 @@ class NPM @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Maven)(impli
   private def registryMetadataUrl(packageName: String, maybeVersion: Option[String] = None): String = {
     maybeVersion.fold {
       // when a version is not specified an @ must not be encoded
-      val encodedPackageName = packageName.replaceAllLiterally("/", "%2F")
+      val encodedPackageName = packageName.replace("/", "%2F")
       s"$BASE_URL/$encodedPackageName"
     } { version =>
       // when a version is specified an @ must be encoded
-      val encodedPackageName = packageName.replaceAllLiterally("/", "%2F").replaceAllLiterally("@", "%40")
+      val encodedPackageName = packageName.replace("/", "%2F").replace("@", "%40")
       s"$BASE_URL/$encodedPackageName/$version"
     }
   }
@@ -277,15 +277,15 @@ object NPM {
     }
     else if (repository.startsWith("gist:")) {
       // gist:11081aaa281
-      repository.replaceAllLiterally("gist:", "https://gist.github.com/") + ".git"
+      repository.replace("gist:", "https://gist.github.com/") + ".git"
     }
     else if (repository.startsWith("bitbucket:")) {
       // bitbucket:example/repo
-      repository.replaceAllLiterally("bitbucket:", "https://bitbucket.org/") + ".git"
+      repository.replace("bitbucket:", "https://bitbucket.org/") + ".git"
     }
     else if (repository.startsWith("gitlab:")) {
       // gitlab:another/repo
-      repository.replaceAllLiterally("gitlab:", "https://gitlab.com/") + ".git"
+      repository.replace("gitlab:", "https://gitlab.com/") + ".git"
     }
     else if (repository.contains(":/")) {
       // host.xz:/another/repo.git
@@ -294,7 +294,7 @@ object NPM {
     }
     else if (repository.contains(":")) {
       // host.xz:another/repo.git
-      "ssh://" + repository.replaceAllLiterally(":", "/")
+      "ssh://" + repository.replace(":", "/")
     }
     else if (repository.contains("/")) {
       // another/repo

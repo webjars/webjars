@@ -1,4 +1,4 @@
-addSbtPlugin("com.typesafe.play" % "sbt-plugin" % "2.8.1")
+addSbtPlugin("com.typesafe.play" % "sbt-plugin" % "2.8.2")
 
 addSbtPlugin("com.typesafe.sbt" % "sbt-digest" % "1.1.4")
 

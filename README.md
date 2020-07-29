@@ -20,6 +20,9 @@ Run the web app:
 
 > Note: Deploying WebJars to BinTray / Maven Central requires a bunch of stuff.  In the future that will be documented but for now, deployment won't work in plain development environments.
 
-Run the tests:
+Run the all tests:
 
 1. `./sbt test`
+
+Run a specific test, i.e.:
+1. `testOnly utils.LicenseDetectorSpec -- ex "detect the license"`

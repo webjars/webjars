@@ -6,9 +6,9 @@ import play.api.inject.guice.GuiceApplicationBuilder
 
 trait GlobalApplication extends AfterAll {
 
-  lazy val application = new GuiceApplicationBuilder().overrides(bind[BinTray].to[BinTrayMock]).build
+  lazy val application = new GuiceApplicationBuilder().overrides(bind[BinTray].to[BinTrayMock]).build()
 
-  override def afterAll: Unit = {
+  override def afterAll(): Unit = {
     application.stop()
   }
 

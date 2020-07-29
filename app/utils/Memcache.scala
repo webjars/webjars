@@ -61,7 +61,7 @@ class MemcacheLive @Inject() (configuration: Configuration, lifecycle: Applicati
   // todo: not sure how DRY these two
 
   def operationFutureToScalaFuture[A](operationFuture: OperationFuture[A]): Future[A] = {
-    val promise = Promise[A]
+    val promise = Promise[A]()
     // todo: is this racey if the getFuture is already complete?
     operationFuture.addListener { gettableFuture =>
       if (gettableFuture.getStatus.isSuccess)
@@ -74,7 +74,7 @@ class MemcacheLive @Inject() (configuration: Configuration, lifecycle: Applicati
   }
 
   def getFutureToScalaFuture[A](getFuture: GetFuture[A]): Future[A] = {
-    val promise = Promise[A]
+    val promise = Promise[A]()
     // todo: is this racey if the getFuture is already complete?
     getFuture.addListener { gettableFuture =>
       if (gettableFuture.getStatus.isSuccess)

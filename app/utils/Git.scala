@@ -55,14 +55,14 @@ class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
       gitRepo
     }
     else if (gitRepo.contains("github:")) {
-      gitRepo.replaceAllLiterally("github:", "https://github.com/")
+      gitRepo.replace("github:", "https://github.com/")
     }
     else {
       // infer github
       s"https://github.com/$gitRepo"
     }
 
-    val jgitReadyUrl = resolvedUrl.replaceAllLiterally("git+", "")
+    val jgitReadyUrl = resolvedUrl.replace("git+", "")
 
     if (jgitReadyUrl.startsWith("http")) {
       resolveRedir(jgitReadyUrl)
@@ -89,7 +89,7 @@ class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
       }
     }
     else {
-      val encoded = nameOrUrlish.replaceAllLiterally("@", "").replaceAllLiterally("/", "__")
+      val encoded = nameOrUrlish.replace("@", "").replace("/", "__")
       Future.successful(encoded)
     }
   }

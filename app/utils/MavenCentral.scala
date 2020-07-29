@@ -23,7 +23,7 @@ import scala.xml.Elem
 @Singleton
 class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClient, actorSystem: ActorSystem, configuration: Configuration, webJarsFileService: WebJarsFileService)(classic: Classic, bower: Bower, bowerGitHub: BowerGitHub, npm: NPM) (implicit ec: ExecutionContext) extends Logging {
 
-  lazy val webJarFetcher: ActorRef = actorSystem.actorOf(Props[WebJarFetcher])
+  lazy val webJarFetcher: ActorRef = actorSystem.actorOf(Props[WebJarFetcher]())
 
   val allWebJarTypes = Set(classic, bower, bowerGitHub, npm)
 

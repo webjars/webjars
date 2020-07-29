@@ -244,14 +244,14 @@ object SemVer {
 
   def parseSemVer(versionString: String): Try[VersionRange] = {
     val normalizedVersion = versionString
-      .replaceAllLiterally("x", "*")
-      .replaceAllLiterally("X", "*")
-      .replaceAllLiterally("> ", ">")
-      .replaceAllLiterally("< ", "<")
-      .replaceAllLiterally("= ", "=")
-      .replaceAllLiterally(".*", "")
-      .replaceAllLiterally("~ ", "~")
-      .replaceAllLiterally("#", "")
+      .replace("x", "*")
+      .replace("X", "*")
+      .replace("> ", ">")
+      .replace("< ", "<")
+      .replace("= ", "=")
+      .replace(".*", "")
+      .replace("~ ", "~")
+      .replace("#", "")
 
     trySequence(normalizedVersion.split(" \\|\\| ").toIndexedSeq.map(parseSemVerRange))
   }

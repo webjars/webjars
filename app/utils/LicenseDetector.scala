@@ -180,7 +180,7 @@ class LicenseDetector @Inject() (ws: WSClient, git: Git, messages: MessagesApi, 
 }
 
 case class LicenseNotFoundException(message: String, cause: Exception = null) extends Exception(message, cause)
-case class NoValidLicenses() extends Exception()
+case class NoValidLicenses() extends Exception("no valid licenses found")
 
 object LicenseDetector {
   def defaultUrls(licenses: Iterable[String]): Map[String, String] = {

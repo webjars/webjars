@@ -390,7 +390,7 @@ class Application @Inject() (git: Git, gitHub: GitHub, heroku: Heroku, cache: Ca
   }
 
   def gitHubAuthorize = Action { implicit request =>
-    Redirect(gitHub.authUrl)
+    Redirect(gitHub.authUrl())
   }
 
   def gitHubOauthCallback(code: String) = Action.async {
