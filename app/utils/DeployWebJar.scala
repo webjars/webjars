@@ -120,7 +120,9 @@ class DeployWebJar @Inject()(binTray: BinTray, mavenCentral: MavenCentral, licen
         optionalMavenDependencies <- deployable.mavenDependencies(packageInfo.optionalDependencies)
         _ <- queue.offer("Converted optional dependencies to Maven")
 
-        sourceUrl <- sourceLocator.sourceUrl(packageInfo.sourceConnectionUri)
+        sourceUrl <- maybeSourceUri.flatMap(uri => Try(uri.toURL).toOption).fold {
+          sourceLocator.sourceUrl(packageInfo.sourceConnectionUri)
+        } (Future.successful)
         _ <- queue.offer(s"Got the source URL: $sourceUrl")
 
         pom = templates.xml.pom(groupId, artifactId, releaseVersion, packageInfo, sourceUrl, mavenDependencies, optionalMavenDependencies, licenses).toString()

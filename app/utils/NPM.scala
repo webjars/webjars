@@ -120,7 +120,7 @@ class NPM @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Maven)(impli
 
           case JsSuccess(initialInfo, _) =>
 
-            val dependenciesSansOptionals = initialInfo.dependencies.view.filterKeys(initialInfo.optionalDependencies.get(_).isEmpty).toMap
+            val dependenciesSansOptionals = initialInfo.dependencies.view.filterKeys(!initialInfo.optionalDependencies.contains(_)).toMap
 
             val infoWithResolvedOptionalDependencies = initialInfo.copy(dependencies = dependenciesSansOptionals)
 
