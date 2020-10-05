@@ -67,6 +67,4 @@ pipelineStages := Seq(gzip, digest)
 
 publishArtifact in (Compile, packageDoc) := false
 
-publishArtifact in packageDoc := false
-
 sources in (Compile,doc) := Seq.empty
