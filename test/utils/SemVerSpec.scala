@@ -355,4 +355,11 @@ class SemVerSpec extends Specification {
     }
   }
 
+  // https://github.com/webjars/webjars/issues/1901
+  "x" should {
+    "not be converted to *" in {
+      SemVer.convertSemVerToMaven("^1.18.0-next.0") must beASuccessfulTry ("[1.18.0-next.0,2)")
+    }
+  }
+
 }

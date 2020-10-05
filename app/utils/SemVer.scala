@@ -243,20 +243,20 @@ object SemVer {
   }
 
   def parseSemVer(versionString: String): Try[VersionRange] = {
-    val normalizedVersion = versionString
-      .replace("x", "*")
-      .replace("X", "*")
+    trySequence(versionString.split(" \\|\\| ").toIndexedSeq.map(parseSemVerRange))
+  }
+
+  def parseSemVerRange(_versionString: String): Try[ComparatorSet] = {
+
+    val versionString = _versionString
+      .replace(".x", ".*")
+      .replace(".X", ".*")
       .replace("> ", ">")
       .replace("< ", "<")
       .replace("= ", "=")
       .replace(".*", "")
       .replace("~ ", "~")
       .replace("#", "")
-
-    trySequence(normalizedVersion.split(" \\|\\| ").toIndexedSeq.map(parseSemVerRange))
-  }
-
-  def parseSemVerRange(versionString: String): Try[ComparatorSet] = {
 
     // 1 | 1-alpha
     def major[_: P] = Version.version.filter { version =>
