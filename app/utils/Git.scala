@@ -14,7 +14,7 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.io.{Codec, Source}
 import scala.jdk.CollectionConverters._
 import scala.reflect.io.Directory
-import scala.util.Try
+import scala.util.{Try, Using}
 
 class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
 
@@ -152,13 +152,13 @@ class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
         }
       }
 
-      val checkoutFuture = cloneOrPullFuture.flatMap { _ =>
+      def checkOut(branch: String): Future[File] = {
         Future.fromTry {
           Try {
             // checkout the version
             val checkout = GitApi.open(baseDir).checkout()
 
-            version.fold(checkout.setName("origin/master"))(checkout.setName)
+            version.fold(checkout.setName(branch))(checkout.setName)
             checkout.setForced(true)
 
             checkout.call()
@@ -166,6 +166,11 @@ class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
             baseDir
           }
         }
+      }
+
+      // todo: maybe a better way to get the default branch?
+      val checkoutFuture = cloneOrPullFuture.flatMap { _ =>
+        checkOut("origin/master").fallbackTo(checkOut("origin/main"))
       }
 
       checkoutFuture.recoverWith {
@@ -186,10 +191,8 @@ class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
   def file(gitRepo: String, tagCommitOrBranch: Option[String], fileName: String): Future[String] = {
     cloneOrCheckout(gitRepo, tagCommitOrBranch).flatMap { baseDir =>
       Future.fromTry {
-        Try {
-          val decoder = Codec.UTF8.decoder.onMalformedInput(CodingErrorAction.IGNORE)
-          Source.fromFile(new File(baseDir, fileName))(decoder).mkString
-        }
+        val decoder = Codec.UTF8.decoder.onMalformedInput(CodingErrorAction.IGNORE)
+        Using(Source.fromFile(new File(baseDir, fileName))(decoder))(_.mkString)
       }
     }
   }

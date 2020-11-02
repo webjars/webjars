@@ -68,9 +68,13 @@ class LicenseDetectorSpec extends PlaySpecification with GlobalApplication {
       await(licenseDetector.resolveLicenses(DeployableMock(), emptyPackageInfo(Seq("(Apache-2.0 or MIT)")))) must be equalTo Set("Apache-2.0", "MIT")
     }
     "work with SPDX 'SEE LICENSE IN LICENSE' expressions" in {
-      val testPackageInfo = emptyPackageInfo(Seq("SEE LICENSE IN LICENSE")).copy(sourceConnectionUri = new URI("git://github.com/stacktracejs/error-stack-parser.git"))
-      val licenses = await(licenseDetector.resolveLicenses(DeployableMock(), testPackageInfo))
-      licenses must be equalTo Set("MIT")
+      val testPackageInfo1 = emptyPackageInfo(Seq("SEE LICENSE IN LICENSE")).copy(sourceConnectionUri = new URI("git://github.com/stacktracejs/error-stack-parser.git"))
+      val licenses1 = await(licenseDetector.resolveLicenses(DeployableMock(), testPackageInfo1))
+      licenses1 must be equalTo Set("MIT")
+
+      val testPackageInfo2 = emptyPackageInfo(Seq("SEE LICENSE IN LICENSE.txt")).copy(sourceConnectionUri = new URI("https://github.com/mapbox/mapbox-gl-js.git"))
+      val licenses2 = await(licenseDetector.resolveLicenses(DeployableMock(), testPackageInfo2))
+      licenses2 must be equalTo Set("BSD 3-Clause")
     }
     "be able to be fetched from git repos" in {
       val packageInfo = await(npm.info("ms", Some("0.7.1")))

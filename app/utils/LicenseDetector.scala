@@ -127,7 +127,8 @@ class LicenseDetector @Inject() (ws: WSClient, git: Git, messages: MessagesApi, 
         }
       }
       else if (maybeRef.startsWith("SEE LICENSE IN ")) {
-        git.file(packageInfo.sourceConnectionUri, None, maybeRef.stripPrefix("SEE LICENSE IN "))
+        val version = Option.when(packageInfo.version.nonEmpty)(packageInfo.version)
+        git.file(packageInfo.sourceConnectionUri, version, maybeRef.stripPrefix("SEE LICENSE IN "))
       }
       else {
         git.file(packageInfo.sourceConnectionUri, Some(packageInfo.version), maybeRef)
