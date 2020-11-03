@@ -21,23 +21,26 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
 
   "jquery info" should {
     "work with a correct version" in {
-      await(bower.info("jquery", Some("1.11.1"))).name must equalTo("jquery")
+      await(bower.info("jquery", "1.11.1")).name must equalTo("jquery")
     }
     "fail with an invalid version" in {
-      await(bower.info("jquery", Some("0.0.0"))) must throwA[Exception]
+      await(bower.info("jquery", "0.0.0")) must throwA[Exception]
     }
   }
+
   "bootstrap" should {
-    val info = await(bower.info("bootstrap", Some("3.3.2")))
+    val info = await(bower.info("bootstrap", "3.3.2"))
     "have a dependency on jquery" in {
       info.dependencies must contain("jquery" -> ">= 1.9.1")
     }
   }
+
   "dc.js" should {
     "have the corrected GitHub url" in {
-      await(bower.info("dc.js", Some("1.7.3"))).maybeHomepageUrl.map(_.toString) must beSome("https://github.com/dc-js/dc.js")
+      await(bower.info("dc.js", "1.7.3")).maybeHomepageUrl.map(_.toString) must beSome("https://github.com/dc-js/dc.js")
     }
   }
+
   "sjcl" should {
     "download" in {
       val is = new BufferedInputStream(await(bower.archive("sjcl", "1.0.2")))
@@ -54,27 +57,21 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
       versions must contain ("1.0.0")
     }
   }
+
   "invalid git url" should {
     "fail" in {
       await(bower.versions("foo/bar")) must throwA[Exception]
     }
   }
-  "git repo master info" should {
-    "work" in {
-      val info = await(bower.info("PolymerElements/iron-elements"))
-      info.name must beEqualTo ("iron-elements")
-      info.version mustNotEqual ""
-      info.sourceConnectionUri.toString must beEqualTo ("https://github.com/PolymerElements/iron-elements.git")
-      info.maybeHomepageUrl.map(_.toString) must beSome ("https://github.com/PolymerElements/iron-elements")
-    }
-  }
+
   "git repo tagged version info" should {
     "work" in {
-      val info = await(bower.info("PolymerElements/iron-elements", Some("v1.0.0")))
+      val info = await(bower.info("PolymerElements/iron-elements", "v1.0.0"))
       info.name must beEqualTo ("iron-elements")
       info.version must beEqualTo ("1.0.0")
     }
   }
+
   "git repo tagged version zip" should {
     "work" in {
       val zip = await(bower.archive("PolymerElements/iron-elements", "v1.0.0"))
@@ -83,9 +80,10 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
       archiveStream.getNextEntry.getName must beEqualTo (".bower.json")
     }
   }
+
   "git fork - github short url" should {
     "have the correct urls" in {
-      val info = await(bower.info("PolymerElements/iron-elements"))
+      val info = await(bower.info("PolymerElements/iron-elements", "v1.0.0"))
       info.name must beEqualTo ("iron-elements")
       info.version mustNotEqual ""
       info.maybeHomepageUrl.map(_.toString) must beSome ("https://github.com/PolymerElements/iron-elements")
@@ -94,9 +92,10 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
       info.maybeGitHubUrl.map(_.toString) must beSome ("https://github.com/PolymerElements/iron-elements")
     }
   }
+
   "git fork - git url" should {
     "have the correct urls" in {
-      val info = await(bower.info("git://github.com/PolymerElements/iron-elements"))
+      val info = await(bower.info("git://github.com/PolymerElements/iron-elements", "v1.0.0"))
       info.name must beEqualTo ("iron-elements")
       info.version mustNotEqual ""
       info.maybeHomepageUrl.map(_.toString) must beSome ("https://github.com/PolymerElements/iron-elements")
@@ -108,20 +107,20 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
 
   "git commits" should {
     "work as version" in {
-      val info = await(bower.info("git://github.com/dc-js/dc.js", Some("6e95388b9a")))
+      val info = await(bower.info("git://github.com/dc-js/dc.js", "6e95388b9a"))
       info.version must beEqualTo ("6e95388b9a")
     }
   }
 
   "homepage" should {
-    "be have a default" in {
-      await(bower.info("git://github.com/millermedeiros/requirejs-plugins")).maybeHomepageUrl.map(_.toString) must beSome ("https://github.com/millermedeiros/requirejs-plugins")
+    "have a default" in {
+      await(bower.info("git://github.com/millermedeiros/requirejs-plugins", "1.0.3")).maybeHomepageUrl.map(_.toString) must beSome ("https://github.com/millermedeiros/requirejs-plugins")
     }
   }
 
   "bootstrap" should {
     "have a dependency on jquery" in {
-      val packageInfo = await(bower.info("bootstrap", Some("3.3.2")))
+      val packageInfo = await(bower.info("bootstrap", "3.3.2"))
       packageInfo.dependencies must contain("jquery" -> ">= 1.9.1")
     }
   }
@@ -145,7 +144,7 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
 
   "pathPrefix" should {
     "be in the form artifactid/releaseVersion" in {
-      val packageInfo = await(bower.info("bootstrap", Some("3.3.2")))
+      val packageInfo = await(bower.info("bootstrap", "3.3.2"))
       val pathPrefix = await(bower.pathPrefix("foobar", "1.2.3", packageInfo))
       pathPrefix must beEqualTo ("foobar/1.2.3/")
     }
@@ -153,23 +152,23 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
 
   "info" should {
     "work even when a package.json doesn't exist" in {
-      await(bower.info("https://github.com/Polymer/polymer-analyzer.git", Some("v2.7.0"))).name must equalTo("polymer-analyzer")
+      await(bower.info("https://github.com/Polymer/polymer-analyzer.git", "v2.7.0")).name must equalTo("polymer-analyzer")
     }
   }
 
   "depGraph" should {
     "work with bootstrap" in {
-      val packageInfo = await(bower.info("bootstrap", Some("3.3.7")))
+      val packageInfo = await(bower.info("bootstrap", "3.3.7"))
       val depGraph = await(bower.depGraph(packageInfo))
       depGraph must beEqualTo(Map("jquery" -> "3.5.1"))
     }
     "work with " in {
-      val packageInfo = await(bower.info("ng-bootstrap-select", Some("0.5.0")))
+      val packageInfo = await(bower.info("ng-bootstrap-select", "0.5.0"))
       val depGraph = await(bower.depGraph(packageInfo))
       depGraph.keySet must beEqualTo(Set("angular", "bootstrap", "bootstrap-select", "jquery"))
     }
     "work with PolymerElements/iron-behaviors" in {
-      val packageInfo = await(bower.info("PolymerElements/iron-behaviors", Some("v2.0.0")))
+      val packageInfo = await(bower.info("PolymerElements/iron-behaviors", "v2.0.0"))
       val depGraph = await(bower.depGraph(packageInfo))
       depGraph.keySet must beEqualTo(Set("Polymer/polymer", "polymerelements/iron-a11y-keys-behavior", "webcomponents/shadycss", "webcomponents/webcomponentsjs"))
     }
@@ -186,9 +185,79 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
 
   "dojox" should {
     "have the right licenses" in {
-      val packageInfo = await(bower.info("dojox", Some("1.13.0")))
+      val packageInfo = await(bower.info("dojox", "1.13.0"))
       packageInfo.metadataLicenses must beEqualTo (Seq("BSD-3-Clause", "AFL-2.1"))
     }
   }
+
+  "jquery info" should {
+    "have a license" in {
+      val packageInfo = await(bower.info("jquery", "1.11.1"))
+      await(bower.licenses("jquery", "1.11.1", packageInfo)) must contain("MIT")
+    }
+  }
+
+  "bootstrap" should {
+    "have a license" in {
+      val packageInfo = await(bower.info("bootstrap", "3.3.2"))
+      await(bower.licenses("bootstrap", "3.3.2", packageInfo)) must contain("MIT")
+    }
+  }
+
+  "angular" should {
+    "have an MIT license" in {
+      val packageInfo = await(bower.info("angular", "1.4.0"))
+      await(bower.licenses("angular", "1.4.0", packageInfo)) must contain("MIT")
+    }
+  }
+  "angular-equalizer" should {
+    "have an MIT license" in {
+      val packageInfo = await(bower.info("angular-equalizer", "2.0.1"))
+      await(bower.licenses("angular-equalizer", "2.0.1", packageInfo)) must contain("MIT")
+    }
+  }
+
+  "zeroclipboard 2.2.0" should {
+    "have an MIT license" in {
+      val packageInfo = await(bower.info("zeroclipboard", "2.2.0"))
+      await(bower.licenses("zeroclipboard", "2.2.0", packageInfo)) must beEqualTo(Set("MIT"))
+    }
+  }
+
+  "angular-translate 2.7.2" should {
+    "fail with a useful error" in {
+      val packageInfo = await(bower.info("angular-translate", "2.7.2"))
+      await(bower.licenses("angular-translate", "2.7.2", packageInfo)) must throwA[LicenseNotFoundException]
+    }
+  }
+
+  "dojox" should {
+    "have the right licenses" in {
+      val packageInfo = await(bower.info("dojox", "1.13.0"))
+      await(bower.licenses("dojox", "1.13.0", packageInfo)) must beEqualTo (Set("BSD 3-Clause", "AFL-2.1"))
+    }
+  }
+
+  "swagger-ui" should {
+    "have the right license" in {
+      val packageInfo = await(bower.info("swagger-ui", "3.13.0"))
+      await(bower.licenses("swagger-ui", "3.13.0", packageInfo)) must beEqualTo (Set("Apache-2.0"))
+    }
+  }
+
+  "be able to be fetched from git repos" in {
+    val packageInfo = await(bower.info("git://github.com/mdedetrich/requirejs-plugins", "d9c103e7a0"))
+    await(bower.licenses("git://github.com/mdedetrich/requirejs-plugins", "d9c103e7a0", packageInfo)) must beEqualTo(Set("MIT"))
+  }
+
+  /*
+  // This is broken due to upstream: https://github.com/webjars/webjars/issues/1265
+
+  "tinymce-dist 4.2.5" should {
+    "have an LGPL-2.1 license" in {
+      await(bower.info("tinymce-dist", Some("4.2.5"))).licenses must beEqualTo (Set("LGPL-2.1"))
+    }
+  }
+  */
 
 }

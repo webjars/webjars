@@ -6,16 +6,18 @@ import java.util.zip.{GZIPInputStream, ZipException}
 
 import javax.inject.Inject
 import play.api.http.Status
+import play.api.i18n.{Langs, MessagesApi}
 import play.api.libs.concurrent.Futures
 import play.api.libs.functional.syntax._
 import play.api.libs.json._
 import play.api.libs.ws.WSClient
+import utils.Deployable.{NameOrUrlish, Version}
 import utils.PackageInfo._
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success, Try}
 
-class NPM @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Maven)(implicit ec: ExecutionContext) extends Deployable {
+class NPM @Inject() (val ws: WSClient, val licenseDetector: LicenseDetector, val messages: MessagesApi, val langs: Langs, git: Git, gitHub: GitHub, maven: Maven)(implicit ec: ExecutionContext) extends Deployable {
 
   val BASE_URL = "https://registry.npmjs.org"
 
@@ -25,11 +27,11 @@ class NPM @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Maven)(impli
 
   override def includesGroupId(groupId: String): Boolean = groupId.equalsIgnoreCase(groupIdQuery)
 
-  override def groupId(nameOrUrlish: String, version: String): Future[String] = Future.successful(groupIdQuery)
+  override def groupId(nameOrUrlish: NameOrUrlish, version: Version): Future[String] = Future.successful(groupIdQuery)
 
-  override def artifactId(nameOrUrlish: String, version: String): Future[String] = git.artifactId(nameOrUrlish)
+  override def artifactId(nameOrUrlish: NameOrUrlish, version: Version): Future[String] = git.artifactId(nameOrUrlish)
 
-  override def excludes(nameOrUrlish: String, version: String): Future[Set[String]] = {
+  override def excludes(nameOrUrlish: NameOrUrlish, version: Version): Future[Set[String]] = {
     // todo: apply npm ignore in case of git repo
     Future.successful(Set("node_modules"))
   }
@@ -38,14 +40,14 @@ class NPM @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Maven)(impli
 
   override val contentsInSubdir: Boolean = true
 
-  override def pathPrefix(nameOrUrlish: String, releaseVersion: String, packageInfo: PackageInfo): Future[String] = {
+  override def pathPrefix(nameOrUrlish: NameOrUrlish, releaseVersion: Version, packageInfo: PackageInfo): Future[String] = {
     artifactId(nameOrUrlish, releaseVersion).map { artifactId =>
       s"$artifactId/$releaseVersion/"
     }
   }
 
   // a whole lot of WTF
-  private def registryMetadataUrl(packageName: String, maybeVersion: Option[String] = None): String = {
+  private def registryMetadataUrl(packageName: String, maybeVersion: Option[Version] = None): String = {
     maybeVersion.fold {
       // when a version is not specified an @ must not be encoded
       val encodedPackageName = packageName.replace("/", "%2F")
@@ -61,7 +63,7 @@ class NPM @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Maven)(impli
     maybeScopeAndPackageName.contains('/') && maybeScopeAndPackageName.startsWith("@")
   }
 
-  private def registryTgzUrl(maybeScopeAndPackageName: String, version: String): String = {
+  private def registryTgzUrl(maybeScopeAndPackageName: String, version: Version): String = {
     if (isScoped(maybeScopeAndPackageName)) {
       val parts = maybeScopeAndPackageName.split('/')
       val scope = parts.head
@@ -73,7 +75,7 @@ class NPM @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Maven)(impli
     }
   }
 
-  override def versions(packageNameOrGitRepo: String): Future[Set[String]] = {
+  override def versions(packageNameOrGitRepo: NameOrUrlish): Future[Set[Version]] = {
     if (git.isGit(packageNameOrGitRepo)) {
       git.versions(packageNameOrGitRepo)
     }
@@ -89,7 +91,7 @@ class NPM @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Maven)(impli
     }
   }
 
-  override def info(packageNameOrGitRepo: String, maybeVersion: Option[String] = None, maybeSourceUri: Option[URI] = None): Future[PackageInfo] = {
+  override def info(packageNameOrGitRepo: NameOrUrlish, version: Version, maybeSourceUri: Option[URI] = None): Future[PackageInfo] = {
 
     def packageInfo(packageJson: JsValue): Future[PackageInfo] = {
 
@@ -97,12 +99,7 @@ class NPM @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Maven)(impli
         // this is a git repo so its package.json values might be wrong
         git.gitUrl(packageNameOrGitRepo).map { gitUrl =>
           // replace the repository.url with the possible fork's git url
-          val json = packageJson.as[JsObject] ++ Json.obj("repository" -> Json.obj("url" -> gitUrl))
-
-          // todo: resolve differences between json & maybeVersion
-
-          json
-
+          packageJson.as[JsObject] ++ Json.obj("repository" -> Json.obj("url" -> gitUrl))
         }
       }
       else {
@@ -150,14 +147,9 @@ class NPM @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Maven)(impli
     }
 
     if (git.isGit(packageNameOrGitRepo)) {
-      versions(packageNameOrGitRepo).flatMap { versions =>
-        // if version was set use it, otherwise use the latest version
-        val version = maybeVersion.orElse(versions.headOption)
-        git.file(packageNameOrGitRepo, version, "package.json").flatMap { packageJsonString =>
-          packageInfo(Json.parse(packageJsonString))
-        }
+      git.file(packageNameOrGitRepo, version, "package.json").flatMap { packageJsonString =>
+        packageInfo(Json.parse(packageJsonString))
       }
-
     }
     else {
       if (isScoped(packageNameOrGitRepo)) {
@@ -166,18 +158,15 @@ class NPM @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Maven)(impli
         ws.url(registryMetadataUrl(packageNameOrGitRepo)).get().flatMap { response =>
           response.status match {
             case Status.OK =>
-              val maybeVersionOrLatest = maybeVersion.orElse((response.json \ "dist-tags" \ "latest").asOpt[String])
-              maybeVersionOrLatest.fold(Future.failed[PackageInfo](new Exception("Could not determine the version to get"))) { versionOrLatest =>
-                val versionInfoLookup = response.json \ "versions" \ versionOrLatest
-                versionInfoLookup.toOption.fold(Future.failed[PackageInfo](new Exception(s"Could not parse: ${response.body}")))(packageInfo)
-              }
+              val versionInfoLookup = response.json \ "versions" \ version
+              versionInfoLookup.toOption.fold(Future.failed[PackageInfo](new Exception(s"Could not parse: ${response.body}")))(packageInfo)
             case _ =>
               Future.failed(new Exception(response.body))
           }
         }
       }
       else {
-        ws.url(registryMetadataUrl(packageNameOrGitRepo, maybeVersion)).get().flatMap { response =>
+        ws.url(registryMetadataUrl(packageNameOrGitRepo, Some(version))).get().flatMap { response =>
           response.status match {
             case Status.OK =>
               packageInfo(response.json)
@@ -189,9 +178,9 @@ class NPM @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Maven)(impli
     }
   }
 
-  override def archive(packageNameOrGitRepo: String, version: String): Future[InputStream] = {
+  override def archive(packageNameOrGitRepo: String, version: Version): Future[InputStream] = {
     if (git.isGit(packageNameOrGitRepo)) {
-      git.tar(packageNameOrGitRepo, Some(version), Set("node_modules"))
+      git.tar(packageNameOrGitRepo, version, Set("node_modules"))
     }
     else {
       Future.fromTry {
@@ -211,6 +200,15 @@ class NPM @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Maven)(impli
     }
   }
 
+  override def file(packageNameOrGitRepo: String, version: Version, filename: String): Future[String] = {
+    if (git.isGit(packageNameOrGitRepo)) {
+      git.file(packageNameOrGitRepo, version, filename)
+    }
+    else {
+      archiveFile(packageNameOrGitRepo, version, "package/" + filename)
+    }
+  }
+
   override def mavenDependencies(dependencies: Map[String, String]): Future[Set[(String, String, String)]] = {
     maven.convertNpmBowerDependenciesToMaven(dependencies).map { mavenDependencies =>
       mavenDependencies.map {
@@ -221,7 +219,7 @@ class NPM @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Maven)(impli
   }
 
 
-  def latestDep(nameOrUrlish: String, version: String)(implicit ec: ExecutionContext): Future[String] = {
+  def latestDep(nameOrUrlish: NameOrUrlish, version: Version)(implicit ec: ExecutionContext): Future[Version] = {
     versions(nameOrUrlish).flatMap { availableVersions =>
       val maybeVersionRange = SemVer.parseSemVer(version)
       Future.fromTry {
@@ -249,7 +247,7 @@ class NPM @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Maven)(impli
         val (nameOrUrlish, versionish) = parseDep(dep)
         latestDep(nameOrUrlish, versionish).flatMap { version =>
           val newResolvedDeps = resolvedDeps + (nameOrUrlish -> version)
-          info(nameOrUrlish, Some(version)).flatMap { newPackageInfo =>
+          info(nameOrUrlish, version).flatMap { newPackageInfo =>
             val newUnresolvedDeps = packagesToResolve.tail ++ newPackageInfo.dependencies.map(parseDep)
 
             depResolver(newUnresolvedDeps, newResolvedDeps)

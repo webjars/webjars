@@ -54,21 +54,17 @@ class GitSpec extends PlaySpecification with GlobalApplication {
 
   "git file" should {
     "fetch a file with a version" in {
-      val file = await(git.file("mochajs/mocha", Some("2.2.5"), "package.json"))
+      val file = await(git.file("mochajs/mocha", "2.2.5", "package.json"))
       file.length must beEqualTo (1683)
       file.contains(""""version": "2.2.5"""") must beTrue
     }
-    "fetch a file" in {
-      val file = await(git.file("mochajs/mocha", None, "package.json"))
-      file must not be empty
-    }
     "fetch a file with a different version" in {
-      val file = await(git.file("mochajs/mocha", Some("2.2.4"), "package.json"))
+      val file = await(git.file("mochajs/mocha", "2.2.4", "package.json"))
       file.length must beEqualTo (1663)
       file.contains(""""version": "2.2.4"""") must beTrue
     }
     "fetch a file with a git url syntax" in {
-      val file = await(git.file(new URI("https://github.com/yiminghe/async-validator.git"), None, "LICENSE.md"))
+      val file = await(git.file(new URI("https://github.com/yiminghe/async-validator.git"), "v3.4.0", "LICENSE.md"))
       file.length must beEqualTo (1083)
       file must contain ("The MIT License (MIT)")
     }
@@ -76,7 +72,7 @@ class GitSpec extends PlaySpecification with GlobalApplication {
 
   "git tar" should {
     "fetch a tar" in {
-      val tar = await(git.tar("mochajs/mocha", Some("2.2.5"), Set("node_modules")))
+      val tar = await(git.tar("mochajs/mocha", "2.2.5", Set("node_modules")))
 
       val bufferedInputStream = new BufferedInputStream(tar)
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(bufferedInputStream)
@@ -125,21 +121,21 @@ class GitSpec extends PlaySpecification with GlobalApplication {
 
   "cloneOrCheckout" should {
     "update the cache when run again" in {
-      val dir = await(git.cloneOrCheckout("https://github.com/vaadin/vaadin-board.git", None))
+      val dir = await(git.cloneOrCheckout("https://github.com/vaadin/vaadin-board.git", "v2.2.0"))
 
       val deletedTags = GitApi.open(dir).tagDelete().setTags("refs/tags/v2.0.0-beta2").call()
 
       deletedTags.asScala must contain ("refs/tags/v2.0.0-beta2")
 
-      await(git.cloneOrCheckout("https://github.com/vaadin/vaadin-board.git", None))
+      await(git.cloneOrCheckout("https://github.com/vaadin/vaadin-board.git", "v2.2.0"))
 
       val tags = GitApi.open(dir).tagList().call()
 
       tags.asScala.map(_.getName) must contain ("refs/tags/v2.0.0-beta2")
     }
-    "be able to checkout master, then a version" in {
-      await(git.cloneOrCheckout("mochajs/mocha", None, false))
-      await(git.cloneOrCheckout("mochajs/mocha", Some("2.2.4"), false)) must not(throwAn[Exception])
+    "be able to checkout a version, then a version" in {
+      await(git.cloneOrCheckout("mochajs/mocha", "2.2.0", false))
+      await(git.cloneOrCheckout("mochajs/mocha", "2.2.4", false)) must not(throwAn[Exception])
     }
   }
 

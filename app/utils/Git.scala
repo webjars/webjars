@@ -3,12 +3,13 @@ package utils
 import java.io.{File, InputStream}
 import java.net.{URI, URL}
 import java.nio.charset.CodingErrorAction
-import java.nio.file.Files
+import java.nio.file.{Files, Path}
 
 import javax.inject.Inject
 import org.eclipse.jgit.api.{Git => GitApi}
 import play.api.http.{HeaderNames, Status}
 import play.api.libs.ws.WSClient
+import utils.Deployable.Version
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.io.{Codec, Source}
@@ -18,7 +19,7 @@ import scala.util.{Try, Using}
 
 class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
 
-  val cacheDir = Files.createTempDirectory("git")
+  val cacheDir: Path = Files.createTempDirectory("git")
 
   def isGit(packageNameOrGitRepo: String): Boolean = {
     packageNameOrGitRepo.contains("/") && !packageNameOrGitRepo.startsWith("@")
@@ -111,7 +112,7 @@ class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
 
   def versionsOnBranch(gitRepo: String, branch: String): Future[Seq[String]] = {
     gitUrl(gitRepo).flatMap { _ =>
-      cloneOrCheckout(gitRepo, Some(s"origin/$branch")).flatMap { baseDir =>
+      cloneOrCheckout(gitRepo, s"origin/$branch").flatMap { baseDir =>
         Future.fromTry {
           Try {
             val commits = GitApi.open(baseDir).log().call()
@@ -122,7 +123,8 @@ class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
     }
   }
 
-  def cloneOrCheckout(gitRepo: String, version: Option[String], retry: Boolean = true): Future[File] = {
+  // todo: only clone the specified version to speed things up
+  def cloneOrCheckout(gitRepo: String, version: Version, retry: Boolean = true): Future[File] = {
     gitUrl(gitRepo).flatMap { url =>
       val baseDir = new File(cacheDir.toFile, url)
 
@@ -152,13 +154,13 @@ class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
         }
       }
 
-      def checkOut(branch: String): Future[File] = {
+      val checkoutFuture = cloneOrPullFuture.flatMap { _ =>
         Future.fromTry {
           Try {
             // checkout the version
             val checkout = GitApi.open(baseDir).checkout()
 
-            version.fold(checkout.setName(branch))(checkout.setName)
+            checkout.setName(version)
             checkout.setForced(true)
 
             checkout.call()
@@ -168,16 +170,11 @@ class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
         }
       }
 
-      // todo: maybe a better way to get the default branch?
-      val checkoutFuture = cloneOrPullFuture.flatMap { _ =>
-        checkOut("origin/master").fallbackTo(checkOut("origin/main"))
-      }
-
       checkoutFuture.recoverWith {
         case t: Throwable =>
           new Directory(baseDir).deleteRecursively()
           if (retry) {
-            cloneOrCheckout(gitRepo, version, false)
+            cloneOrCheckout(gitRepo, version, retry = false)
           }
           else {
             Future.failed(t)
@@ -186,9 +183,9 @@ class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
     }
   }
 
-  def file(uri: URI, version: Option[String], fileName: String): Future[String] = file(uri.toString, version, fileName)
+  def file(uri: URI, version: Version, fileName: String): Future[String] = file(uri.toString, version, fileName)
 
-  def file(gitRepo: String, tagCommitOrBranch: Option[String], fileName: String): Future[String] = {
+  def file(gitRepo: String, tagCommitOrBranch: Version, fileName: String): Future[String] = {
     cloneOrCheckout(gitRepo, tagCommitOrBranch).flatMap { baseDir =>
       Future.fromTry {
         val decoder = Codec.UTF8.decoder.onMalformedInput(CodingErrorAction.IGNORE)
@@ -197,7 +194,7 @@ class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
     }
   }
 
-  def tar(gitRepo: String, version: Option[String], excludes: Set[String]): Future[InputStream] = {
+  def tar(gitRepo: String, version: Version, excludes: Set[String]): Future[InputStream] = {
     cloneOrCheckout(gitRepo, version).flatMap { baseDir =>
       // todo: apply .npmignore
 

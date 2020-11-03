@@ -1,10 +1,9 @@
 package utils
 
 
-import java.net.URI
+import java.net.URL
 
 import akka.util.Timeout
-import play.api.i18n.MessagesApi
 import play.api.test._
 
 import scala.concurrent.duration._
@@ -14,11 +13,6 @@ class LicenseDetectorSpec extends PlaySpecification with GlobalApplication {
   override implicit def defaultAwaitTimeout: Timeout = 120.seconds
 
   lazy val licenseDetector: LicenseDetector = application.injector.instanceOf[LicenseDetector]
-  lazy val messages: MessagesApi = application.injector.instanceOf[MessagesApi]
-  lazy val npm: NPM = application.injector.instanceOf[NPM]
-  lazy val bower: Bower = application.injector.instanceOf[Bower]
-
-  def emptyPackageInfo(licenses: Seq[String]) = PackageInfo("", "", None, new URI("http://webjars.org"), None, licenses, Map.empty[String, String], Map.empty[String, String])
 
   "gitHubLicenseDetect" should {
     "detect the license" in {
@@ -32,173 +26,36 @@ class LicenseDetectorSpec extends PlaySpecification with GlobalApplication {
     }
   }
 
-  "resolveLicenses" should {
+  "validLicenses" should {
     "convert licenses to accepted ones" in {
       val licenses = Seq("BSD 2-Clause", "BSD-2-Clause", "bsd2clause", "GPLv2", "GPLv3", "MIT/X11")
-      val result = await(licenseDetector.resolveLicenses(DeployableMock(), emptyPackageInfo(licenses)))
-      result must be equalTo Set("GPL-2.0", "BSD 2-Clause", "GPL-3.0", "MIT")
+      val result = licenseDetector.validLicenses(licenses)
+      result must containAllOf(Seq("GPL-2.0", "BSD 2-Clause", "GPL-3.0", "MIT"))
     }
     "convert SPDX to BinTray" in {
       val licenses = Seq("OFL-1.1")
-      val result = await(licenseDetector.resolveLicenses(DeployableMock(), emptyPackageInfo(licenses)))
-      result must be equalTo Set("Openfont-1.1")
-    }
-    "convert raw license URL to license" in {
-      val licenses = Seq("http://polymer.github.io/LICENSE.txt")
-      val result = await(licenseDetector.resolveLicenses(DeployableMock(), emptyPackageInfo(licenses)))
-      result must be equalTo Set("BSD 3-Clause")
-    }
-    "convert github license URL to license" in {
-      val licenses = Seq("https://github.com/facebook/flux/blob/master/LICENSE")
-      val result = await(licenseDetector.resolveLicenses(DeployableMock(), emptyPackageInfo(licenses)))
-      result must be equalTo Set("BSD 3-Clause")
+      val result = licenseDetector.validLicenses(licenses)
+      result must be equalTo Seq("Openfont-1.1")
     }
     "fail to convert incompatible licenses" in {
-      await(licenseDetector.resolveLicenses(DeployableMock(), emptyPackageInfo(Seq("foo")))) must throwA[Exception]
-    }
-    "fail on license conversion if no valid licenses are found" in {
-      await(licenseDetector.resolveLicenses(DeployableMock(), emptyPackageInfo(Seq()))) must throwA[Exception]
+      licenseDetector.validLicenses(Seq("foo")) must beEmpty
     }
     "succeed with at least one valid license" in {
-      val licenses = await(licenseDetector.resolveLicenses(DeployableMock(), emptyPackageInfo(Seq("foo", "MIT"))))
-      licenses must be equalTo Set("MIT")
+      licenseDetector.validLicenses(Seq("foo", "MIT")) must be equalTo Seq("MIT")
     }
-    "work with SPDX OR expressions" in {
-      await(licenseDetector.resolveLicenses(DeployableMock(), emptyPackageInfo(Seq("(Apache-2.0 OR MIT)")))) must be equalTo Set("Apache-2.0", "MIT")
-      await(licenseDetector.resolveLicenses(DeployableMock(), emptyPackageInfo(Seq("(Apache-2.0 or MIT)")))) must be equalTo Set("Apache-2.0", "MIT")
-    }
-    "work with SPDX 'SEE LICENSE IN LICENSE' expressions" in {
-      val testPackageInfo1 = emptyPackageInfo(Seq("SEE LICENSE IN LICENSE")).copy(sourceConnectionUri = new URI("git://github.com/stacktracejs/error-stack-parser.git"))
-      val licenses1 = await(licenseDetector.resolveLicenses(DeployableMock(), testPackageInfo1))
-      licenses1 must be equalTo Set("MIT")
-
-      val testPackageInfo2 = emptyPackageInfo(Seq("SEE LICENSE IN LICENSE.txt")).copy(sourceConnectionUri = new URI("https://github.com/mapbox/mapbox-gl-js.git"))
-      val licenses2 = await(licenseDetector.resolveLicenses(DeployableMock(), testPackageInfo2))
-      licenses2 must be equalTo Set("BSD 3-Clause")
-    }
-    "be able to be fetched from git repos" in {
-      val packageInfo = await(npm.info("ms", Some("0.7.1")))
-      await(licenseDetector.resolveLicenses(npm, packageInfo)) must beEqualTo(Set("MIT"))
-    }
-    "be able to be fetched from git repos" in {
-      val packageInfo = await(bower.info("git://github.com/mdedetrich/requirejs-plugins", Some("d9c103e7a0")))
-      await(licenseDetector.resolveLicenses(bower, packageInfo, Some("d9c103e7a0"))) must beEqualTo(Set("MIT"))
+    "convert New BSD License to BSD 3-Clause" in {
+      licenseDetector.validLicenses(Seq("New BSD License")) must be equalTo Seq("BSD 3-Clause")
     }
     "use a case insensitive match" in {
-      val licenses = Seq("UNLICENSE")
-      val result = await(licenseDetector.resolveLicenses(DeployableMock(), emptyPackageInfo(licenses)))
-      result must be equalTo Set("Unlicense")
+      licenseDetector.validLicenses(Seq("UNLICENSE")) must be equalTo Seq("Unlicense")
     }
   }
 
-  "chokidar 1.0.1" should {
-    "have a license" in {
-      val packageInfo = await(npm.info("chokidar", Some("1.0.1")))
-      await(licenseDetector.resolveLicenses(npm, packageInfo)) must contain ("MIT")
+  "licenseDetect" should {
+    "convert raw license URL to license" in {
+      val result = await(licenseDetector.licenseDetect(new URL("http://polymer.github.io/LICENSE.txt")))
+      result must be equalTo "BSD 3-Clause"
     }
   }
-
-  "jquery info" should {
-    "have a license" in {
-      val packageInfo = await(bower.info("jquery", Some("1.11.1")))
-      await(licenseDetector.resolveLicenses(bower, packageInfo)) must contain("MIT")
-    }
-  }
-
-  "bootstrap" should {
-    "have a license" in {
-      val packageInfo = await(bower.info("bootstrap", Some("3.3.2")))
-      await(licenseDetector.resolveLicenses(bower, packageInfo)) must contain("MIT")
-    }
-  }
-
-  "angular" should {
-    "have an MIT license" in {
-      val packageInfo = await(bower.info("angular", Some("1.4.0")))
-      await(licenseDetector.resolveLicenses(bower, packageInfo)) must contain("MIT")
-    }
-  }
-  "angular-equalizer" should {
-    "have an MIT license" in {
-      val packageInfo = await(bower.info("angular-equalizer", Some("2.0.1")))
-      await(licenseDetector.resolveLicenses(bower, packageInfo)) must contain("MIT")
-    }
-  }
-
-  "zeroclipboard 2.2.0" should {
-    "have an MIT license" in {
-      val packageInfo = await(bower.info("zeroclipboard", Some("2.2.0")))
-      await(licenseDetector.resolveLicenses(bower, packageInfo)) must beEqualTo(Set("MIT"))
-    }
-  }
-
-  "angular-translate 2.7.2" should {
-    "fail with a useful error" in {
-      val packageInfo = await(bower.info("angular-translate", Some("2.7.2")))
-      await(licenseDetector.resolveLicenses(bower, packageInfo)) must throwA[LicenseNotFoundException]
-      // todo: (messages("licensenotfound", "bower.json", "git://github.com/angular-translate/bower-angular-translate.git", ""))
-    }
-  }
-
-  "entities 1.0.0" should {
-    "fail with a useful error" in {
-      val packageInfo = await(npm.info("entities", Some("1.0.0")))
-      await(licenseDetector.resolveLicenses(npm, packageInfo)) must beEqualTo(Set("BSD 2-Clause"))
-    }
-  }
-
-  "New BSD License" should {
-    "resolve to BSD 3-Clause" in {
-      val licenses = Seq("New BSD License")
-      val result = await(licenseDetector.resolveLicenses(DeployableMock(), emptyPackageInfo(licenses)))
-      result must be equalTo Set("BSD 3-Clause")
-    }
-  }
-
-  "async-validator" should {
-    "have an MIT license" in {
-      val packageInfo = await(npm.info("async-validator", Some("1.0.0")))
-      await(licenseDetector.resolveLicenses(npm, packageInfo)) must contain("MIT")
-    }
-  }
-
-  "esprima 3.1.3" should {
-    "have a BSD 2-Clause license" in {
-      val packageInfo = await(npm.info("esprima", Some("3.1.3")))
-      await(licenseDetector.resolveLicenses(npm, packageInfo)) must contain("BSD 2-Clause")
-    }
-  }
-
-  "dojox" should {
-    "have the right licenses" in {
-      val packageInfo = await(bower.info("dojox", Some("1.13.0")))
-      await(licenseDetector.resolveLicenses(bower, packageInfo)) must beEqualTo (Set("BSD 3-Clause", "AFL-2.1"))
-    }
-  }
-
-  "swagger-ui" should {
-    "have the right license" in {
-      val packageInfo = await(bower.info("swagger-ui", Some("3.13.0")))
-      await(licenseDetector.resolveLicenses(bower, packageInfo)) must beEqualTo (Set("Apache-2.0"))
-    }
-  }
-
-  "NPM @zalando/oauth2-client-js" should {
-    "have the right license" in {
-      val packageInfo = await(npm.info("@zalando/oauth2-client-js", Some("0.0.18")))
-      await(licenseDetector.resolveLicenses(npm, packageInfo)) must beEqualTo (Set("Apache-2.0"))
-    }
-  }
-
-
-  /*
-  // This is broken due to upstream: https://github.com/webjars/webjars/issues/1265
-
-  "tinymce-dist 4.2.5" should {
-    "have an LGPL-2.1 license" in {
-      await(bower.info("tinymce-dist", Some("4.2.5"))).licenses must beEqualTo (Set("LGPL-2.1"))
-    }
-  }
-  */
 
 }

@@ -5,14 +5,11 @@ import java.net.URL
 import javax.inject.Inject
 import play.api.Logging
 import play.api.http.{HeaderNames, MimeTypes, Status}
-import play.api.i18n.{Lang, Langs, MessagesApi}
 import play.api.libs.ws.WSClient
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class LicenseDetector @Inject() (ws: WSClient, git: Git, messages: MessagesApi, langs: Langs) (implicit ec: ExecutionContext) extends Logging{
-
-  implicit lazy val lang: Lang = langs.availables.head
+class LicenseDetector @Inject() (ws: WSClient) (implicit ec: ExecutionContext) extends Logging {
 
   def gitHubLicenseDetect(maybeGitHubOrgRepo: Option[String]): Future[String] = {
     def fetchLicense(url: String): Future[String] = ws.url(url).get().flatMap { response =>
@@ -44,19 +41,20 @@ class LicenseDetector @Inject() (ws: WSClient, git: Git, messages: MessagesApi, 
     }
   }
 
-  def fetchLicenseFromRepo[A](packageInfo: PackageInfo, maybeVersion: Option[String], file: String): Future[String] = {
-    git.file(packageInfo.sourceConnectionUri, maybeVersion, file).flatMap(licenseDetect)
-  }
-
-  def tryToGetLicenseFromVariousFiles[A](packageInfo: PackageInfo, maybeVersion: Option[String]): Future[String] = {
-    fetchLicenseFromRepo(packageInfo, maybeVersion, "LICENSE").recoverWith {
-      case _: Exception =>
-        fetchLicenseFromRepo(packageInfo, maybeVersion, "LICENSE.txt").recoverWith {
-          case _: Exception =>
-            fetchLicenseFromRepo(packageInfo, maybeVersion, "license.md")
-        }
+  def licenseDetect(url: URL): Future[String] = {
+    ws.url(url.toString).get().flatMap { response =>
+      response.status match {
+        case Status.OK if response.header(HeaderNames.CONTENT_TYPE).exists(_.startsWith(MimeTypes.TEXT)) =>
+          licenseDetect(response.body)
+        case Status.OK =>
+          Future.failed(new Exception(s"License at $url was not plain text"))
+        case _ =>
+          Future.failed(new Exception(s"Could not fetch license at $url - response was: ${response.body}"))
+      }
     }
   }
+
+  val typicalLicenseFiles = Set("LICENSE", "LICENSE.txt", "license.md")
 
   def normalize(s: String): String = s.replace(" ", "").replace("-", "").toLowerCase
 
@@ -100,83 +98,6 @@ class LicenseDetector @Inject() (ws: WSClient, git: Git, messages: MessagesApi, 
         license.equalsIgnoreCase(availableLicense)
       }
     }.toSeq
-  }
-
-  def licenseReference(packageInfo: PackageInfo)(maybeRef: String): Seq[Future[String]] = {
-    if (maybeRef.contains("/") || maybeRef.startsWith("SEE LICENSE IN ")) {
-      // we need to fetch the file and try to detect the license from the contents
-
-      val contentsFuture = if (maybeRef.startsWith("http")) {
-        // sometimes this url points to the license on GitHub which can't be heuristically converted to an actual license so change the url to the raw content
-        val licenseUrl = new URL(maybeRef)
-
-        val rawLicenseUrl = if (licenseUrl.getHost.endsWith("github.com")) {
-          val path = licenseUrl.getPath.replaceAll("/blob", "")
-          s"https://raw.githubusercontent.com$path"
-        }
-        else {
-          licenseUrl.toString
-        }
-
-        ws.url(rawLicenseUrl).get().flatMap { response =>
-          response.status match {
-            case Status.OK if response.header(HeaderNames.CONTENT_TYPE).exists(_.startsWith(MimeTypes.TEXT)) => Future.successful(response.body)
-            case Status.OK => Future.failed(new Exception(s"License at $rawLicenseUrl was not plain text"))
-            case _ => Future.failed(new Exception(s"Could not fetch license at $rawLicenseUrl - response was: ${response.body}"))
-          }
-        }
-      }
-      else if (maybeRef.startsWith("SEE LICENSE IN ")) {
-        val version = Option.when(packageInfo.version.nonEmpty)(packageInfo.version)
-        git.file(packageInfo.sourceConnectionUri, version, maybeRef.stripPrefix("SEE LICENSE IN "))
-      }
-      else {
-        git.file(packageInfo.sourceConnectionUri, Some(packageInfo.version), maybeRef)
-      }
-
-      Seq(contentsFuture.flatMap(licenseDetect))
-    }
-    else if (maybeRef.startsWith("(") && maybeRef.endsWith(")") && !maybeRef.contains("AND")) {
-      // SPDX license expression
-      maybeRef.stripPrefix("(").stripSuffix(")").split(" OR ").toIndexedSeq.flatMap(_.split(" or ")).map(Future.successful)
-    }
-    else {
-      Seq(Future.successful(maybeRef))
-    }
-  }
-
-  def failIfEmpty(seq: Seq[String]): Future[Seq[String]] = {
-    if (seq.nonEmpty) {
-      Future.successful(seq)
-    }
-    else {
-      Future.failed(NoValidLicenses())
-    }
-  }
-
-  def failIfEmpty(seq: Future[Seq[String]]): Future[Seq[String]] = {
-    seq.flatMap(failIfEmpty)
-  }
-
-  def resolveLicenses(deployable: Deployable, packageInfo: PackageInfo, maybeVersion: Option[String] = None): Future[Set[String]] = {
-    // first check just the specified licenses including synonyms
-    failIfEmpty(validLicenses(packageInfo.metadataLicenses)).recoverWith {
-      case _: NoValidLicenses =>
-        // if that doesn't work, see if the specified licenses include references (e.g. urls)
-        val licensesFuture = packageInfo.metadataLicenses.flatMap(licenseReference(packageInfo))
-        Future.sequence(licensesFuture).map(validLicenses).flatMap(failIfEmpty).recoverWith {
-          case _: NoValidLicenses =>
-            // finally if no licenses could be found, troll through the repo to find one
-            gitHubLicenseDetect(packageInfo.maybeGitHubOrgRepo).recoverWith {
-              case _: NoValidLicenses =>
-                tryToGetLicenseFromVariousFiles(packageInfo, maybeVersion)
-            } map (Set(_))
-        }
-    } recoverWith {
-      case e: Exception =>
-        val errorMessage = messages("licensenotfound", deployable.metadataFile, packageInfo.sourceConnectionUri, packageInfo.metadataLicenses.mkString)
-        Future.failed(LicenseNotFoundException(errorMessage, e))
-    } map(_.toSet)
   }
 
 }

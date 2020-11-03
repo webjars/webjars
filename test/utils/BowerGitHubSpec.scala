@@ -62,12 +62,12 @@ class BowerGitHubSpec extends PlaySpecification with GlobalApplication {
 
   "name" should {
     "be the same as the bower.json when using a url" in {
-      val info = await(bowerGitHub.info("https://github.com/PolymerElements/iron-elements"))
+      val info = await(bowerGitHub.info("https://github.com/PolymerElements/iron-elements", "1.0.10"))
       info.name must beEqualTo ("iron-elements")
     }
     "be the same as the bower index when using a bower name" in {
-      val info = await(bowerGitHub.info("jQuery"))
-      info.name must beEqualTo ("jQuery")
+      val info = await(bowerGitHub.info("jQuery", "3.5.1"))
+      info.name must beEqualTo ("jquery")
     }
   }
 
@@ -169,11 +169,11 @@ class BowerGitHubSpec extends PlaySpecification with GlobalApplication {
 
   "version" should {
     "not contain a prepended v" in {
-      val bowerInfo = await(bowerGitHub.info("jQuery", Some("v3.2.1")))
+      val bowerInfo = await(bowerGitHub.info("jQuery", "v3.2.1"))
       bowerInfo.version must beEqualTo ("3.2.1")
     }
     "should always be a git tag with any prepended v removed" in {
-      val gitHubInfo = await(bowerGitHub.info("https://github.com/PolymerElements/iron-elements.git", Some("v1.0.10")))
+      val gitHubInfo = await(bowerGitHub.info("https://github.com/PolymerElements/iron-elements.git", "v1.0.10"))
       gitHubInfo.version must beEqualTo ("1.0.10")
     }
   }
@@ -250,14 +250,14 @@ class BowerGitHubSpec extends PlaySpecification with GlobalApplication {
       bowerGitHub.releaseVersion(None, packageInfo) must beEqualTo ("3.2.1")
     }
     "use the specified version instead of the package verison" in {
-      val packageInfo = await(bowerGitHub.info("polymerelements/paper-ripple", Some("v1.0.10")))
+      val packageInfo = await(bowerGitHub.info("polymerelements/paper-ripple", "v1.0.10"))
       bowerGitHub.releaseVersion(None, packageInfo) must beEqualTo ("1.0.10")
     }
   }
 
   "polymer/polymer 2.5.0" should {
     "have dependencies" in {
-      val info = await(bowerGitHub.info("polymer/polymer", Some("2.5.0")))
+      val info = await(bowerGitHub.info("polymer/polymer", "2.5.0"))
       info.dependencies.head._1 must beEqualTo ("shadycss")
     }
   }

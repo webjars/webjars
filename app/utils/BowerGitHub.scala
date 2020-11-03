@@ -3,12 +3,13 @@ package utils
 import java.io.InputStream
 
 import javax.inject.Inject
+import play.api.i18n.{Langs, MessagesApi}
 import play.api.libs.ws._
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class BowerGitHub @Inject() (ws: WSClient, git: Git, gitHub: GitHub, maven: Maven)(implicit ec: ExecutionContext)
-  extends Bower(ws, git, gitHub, maven)(ec) {
+class BowerGitHub @Inject() (ws: WSClient, licenseDetector: LicenseDetector, messages: MessagesApi, langs: Langs, git: Git, gitHub: GitHub, maven: Maven)(implicit ec: ExecutionContext)
+  extends Bower(ws, licenseDetector, messages, langs, git, gitHub, maven)(ec) {
 
   override val name: String = "BowerGitHub"
 
