@@ -89,10 +89,10 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
     }
 
     if (allVersions.size >= rowLimit) {
-      logger.error(s"Retrieved max WebJar rows: ${allVersions.size}")
+      logger.error(s"Retrieved max ${webJarType.name} WebJar rows: ${allVersions.size}")
     }
     else {
-      logger.info(s"Retrieved ${allVersions.size} WebJars")
+      logger.info(s"Retrieved ${allVersions.size} ${webJarType.name} WebJars")
     }
 
     // group by the artifactId
