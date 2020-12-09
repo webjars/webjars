@@ -2,7 +2,7 @@ enablePlugins(PlayScala)
 
 name := "webjars"
 
-scalaVersion := "2.13.3"
+scalaVersion := "2.13.4"
 
 libraryDependencies ++= Seq(
   ws,
@@ -10,7 +10,7 @@ libraryDependencies ++= Seq(
   guice,
   filters,
   "net.spy" % "spymemcached" % "2.12.3",
-  "com.lihaoyi" %% "fastparse" % "2.1.3",
+  "com.lihaoyi" %% "fastparse" % "2.3.0",
   "org.apache.commons" % "commons-compress" % "1.18",
   "org.eclipse.jgit" % "org.eclipse.jgit" % "5.6.0.201912101111-r",
   "org.webjars" %% "webjars-play" % "2.8.0-1",

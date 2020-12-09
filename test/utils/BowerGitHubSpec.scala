@@ -67,7 +67,7 @@ class BowerGitHubSpec extends PlaySpecification with GlobalApplication {
     }
     "be the same as the bower index when using a bower name" in {
       val info = await(bowerGitHub.info("jQuery", "3.5.1"))
-      info.name must beEqualTo ("jquery")
+      info.name must beEqualTo ("jQuery")
     }
   }
 

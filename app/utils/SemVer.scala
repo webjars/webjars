@@ -87,7 +87,7 @@ object SemVer {
         parse(version, full(_)) match {
           case Parsed.Success((maybeMajor, maybeMinor, maybePatch, maybeTag), _) =>
             Version(maybeMajor, maybeMinor, maybePatch, maybeTag)
-          case Parsed.Failure(_, _, _) =>
+          case _: Parsed.Failure =>
             Version().copy(maybeTag = Some(version))
         }
       }

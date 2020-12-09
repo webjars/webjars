@@ -88,6 +88,13 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
       ((jsObject \ "g").as[String], (jsObject \ "a").as[String], (jsObject \ "v").as[String])
     }
 
+    if (allVersions.size >= rowLimit) {
+      logger.error(s"Retrieved max WebJar rows: ${allVersions.size}")
+    }
+    else {
+      logger.info(s"Retrieved ${allVersions.size} WebJars")
+    }
+
     // group by the artifactId
     val artifactsAndVersions = allVersions.groupBy {
       case (groupId, artifactId, _) => groupId -> artifactId
