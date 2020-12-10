@@ -6,7 +6,7 @@ scalaVersion := "2.13.4"
 
 libraryDependencies ++= Seq(
   ws,
-  ehcache,
+  caffeine,
   guice,
   filters,
   "net.spy" % "spymemcached" % "2.12.3",
