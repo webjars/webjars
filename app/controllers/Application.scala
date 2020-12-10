@@ -128,7 +128,9 @@ class Application @Inject() (git: Git, gitHub: GitHub, cache: Cache, mavenCentra
         }
       } recover {
         // if the stats can't be fetched, continue without them
-        case _: Exception => Seq.empty[(String, String, Int)]
+        case e: Exception =>
+          logger.error("Could not get stats", e)
+          Seq.empty[(String, String, Int)]
       }
 
       webJarStatsFuture.map { webJarStats =>
@@ -142,7 +144,8 @@ class Application @Inject() (git: Git, gitHub: GitHub, cache: Cache, mavenCentra
             )
         }
 
-        val sortedMatchingWebJars = sortedWebJars(webJarStats, matchingWebJars)
+        // max search results = 1000
+        val sortedMatchingWebJars = sortedWebJars(webJarStats, matchingWebJars).take(1000)
 
         render {
           case Accepts.Html() => Ok(views.html.webJarList(Left(sortedMatchingWebJars)))

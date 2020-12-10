@@ -36,13 +36,24 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
   implicit val transcoderInt = new IntegerTranscoder().asInstanceOf[Transcoder[Int]]
   implicit val transcoderElem = new SerializingTranscoder().asInstanceOf[Transcoder[Elem]]
 
-  lazy val ossUsername = configuration.get[String]("oss.username")
-  lazy val ossPassword = configuration.get[String]("oss.password")
+  lazy val maybeOssUsername = configuration.getOptional[String]("oss.username")
+  lazy val maybeOssPassword = configuration.getOptional[String]("oss.password")
   lazy val ossProject = configuration.get[String]("oss.project")
   lazy val disableDeploy = configuration.getOptional[Boolean]("oss.disable-deploy").getOrElse(false)
 
   lazy val rowLimit = configuration.get[Int]("mavencentral.row-limit")
   lazy val searchUrl = configuration.get[String]("mavencentral.search-url")
+
+  def withOssCredentials[T](f: (String, String) => Future[T]): Future[T] = {
+    val maybeUsernameAndPassword = for {
+      ossUsername <- maybeOssUsername
+      ossPassword <- maybeOssPassword
+    } yield (ossUsername, ossPassword)
+
+    maybeUsernameAndPassword.fold(Future.failed[T](new IllegalArgumentException("oss.username or oss.password not set"))) { case (ossUsername, ossPassword) =>
+      f(ossUsername, ossPassword)
+    }
+  }
 
   def fetchWebJarNameAndUrl(groupId: String, artifactId: String, version: String): Future[(String, String)] = {
     getPom(groupId, artifactId, version).flatMap { xml =>
@@ -254,39 +265,42 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
       "nom" -> "1"
     )
 
-    val statsFuture = wsClient.url("https://oss.sonatype.org/service/local/stats/slices")
-      .withHttpHeaders(HeaderNames.ACCEPT -> MimeTypes.JSON)
-      .withQueryStringParameters(queryString: _*)
-      .withAuth(ossUsername, ossPassword, WSAuthScheme.BASIC)
-      .get()
 
-    statsFuture.flatMap { response =>
-      response.status match {
-        case Status.OK =>
+    withOssCredentials { (ossUsername, ossPassword) =>
+      val statsFuture = wsClient.url("https://oss.sonatype.org/service/local/stats/slices")
+        .withHttpHeaders(HeaderNames.ACCEPT -> MimeTypes.JSON)
+        .withQueryStringParameters(queryString: _*)
+        .withAuth(ossUsername, ossPassword, WSAuthScheme.BASIC)
+        .get()
 
-          val groupId = (response.json \ "data" \ "groupId").as[String]
-          val total = (response.json \ "data" \ "total").as[Int]
+      statsFuture.flatMap { response =>
+        response.status match {
+          case Status.OK =>
 
-          if (total > 0) {
+            val groupId = (response.json \ "data" \ "groupId").as[String]
+            val total = (response.json \ "data" \ "total").as[Int]
 
-            val slices = (response.json \ "data" \ "slices").as[Seq[JsObject]]
-            val webJarCounts = slices.map { jsObject =>
-              val name = (jsObject \ "name").as[String]
-              val count = (jsObject \ "count").as[Int]
-              (groupId, name, count)
+            if (total > 0) {
+
+              val slices = (response.json \ "data" \ "slices").as[Seq[JsObject]]
+              val webJarCounts = slices.map { jsObject =>
+                val name = (jsObject \ "name").as[String]
+                val count = (jsObject \ "count").as[Int]
+                (groupId, name, count)
+              }
+
+              val sorted = webJarCounts.sortBy(_._3)(Ordering[Int].reverse)
+
+              Future.successful(sorted)
             }
-
-            val sorted = webJarCounts.sortBy(_._3)(Ordering[Int].reverse)
-
-            Future.successful(sorted)
-          }
-          else {
-            Future.failed(new MavenCentral.EmptyStatsException("Stats were empty"))
-          }
-        case Status.UNAUTHORIZED =>
-          Future.failed(UnauthorizedError("Invalid credentials"))
-        case _ =>
-          Future.failed(new MavenCentral.UnavailableException(response.body))
+            else {
+              Future.failed(new MavenCentral.EmptyStatsException("Stats were empty"))
+            }
+          case Status.UNAUTHORIZED =>
+            Future.failed(UnauthorizedError("Invalid credentials"))
+          case _ =>
+            Future.failed(new MavenCentral.UnavailableException(response.body))
+        }
       }
     }
   }

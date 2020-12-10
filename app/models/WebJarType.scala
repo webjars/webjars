@@ -4,6 +4,7 @@ trait WebJarType {
   val name: String
   val groupIdQuery: String
   def includesGroupId(groupId: String): Boolean
+  override def toString: String = name
 }
 
 object WebJarType {
