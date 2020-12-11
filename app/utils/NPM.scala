@@ -1,10 +1,5 @@
 package utils
 
-import java.io.InputStream
-import java.net.{URI, URL}
-import java.util.zip.{GZIPInputStream, ZipException}
-
-import javax.inject.Inject
 import play.api.http.Status
 import play.api.i18n.{Langs, MessagesApi}
 import play.api.libs.concurrent.Futures
@@ -14,6 +9,10 @@ import play.api.libs.ws.WSClient
 import utils.Deployable.{NameOrUrlish, Version}
 import utils.PackageInfo._
 
+import java.io.InputStream
+import java.net.{URI, URL}
+import java.util.zip.{GZIPInputStream, ZipException}
+import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success, Try}
 

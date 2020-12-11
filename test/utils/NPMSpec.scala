@@ -1,14 +1,13 @@
 package utils
 
-import java.io.BufferedInputStream
-import java.net.{URI, URL}
-
 import akka.util.Timeout
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
 import play.api.libs.concurrent.Futures
 import play.api.libs.json._
 import play.api.test._
 
+import java.io.BufferedInputStream
+import java.net.{URI, URL}
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try

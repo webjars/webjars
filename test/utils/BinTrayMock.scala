@@ -1,9 +1,8 @@
 package utils
 
-import java.net.{URI, URL}
-
 import play.api.libs.json.{JsArray, JsValue, Json}
 
+import java.net.{URI, URL}
 import scala.concurrent.Future
 
 class BinTrayMock extends BinTray {

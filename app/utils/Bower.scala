@@ -1,9 +1,5 @@
 package utils
 
-import java.io.InputStream
-import java.net.{URI, URL}
-
-import javax.inject.Inject
 import play.api.http.Status
 import play.api.i18n.{Langs, MessagesApi}
 import play.api.libs.concurrent.Futures
@@ -14,6 +10,9 @@ import play.api.libs.ws._
 import utils.Deployable._
 import utils.PackageInfo._
 
+import java.io.InputStream
+import java.net.{URI, URL}
+import javax.inject.Inject
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try

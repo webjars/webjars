@@ -1,15 +1,14 @@
 package utils
 
-import java.net.{URI, URL}
-
 import com.google.inject.ImplementedBy
-import javax.inject.Inject
 import play.api.Configuration
 import play.api.http.Status
 import play.api.libs.json.{JsArray, JsValue, Json}
 import play.api.libs.ws.{WSAuthScheme, WSClient, WSRequest, WSResponse}
 import play.mvc.Http.HttpVerbs
 
+import java.net.{URI, URL}
+import javax.inject.Inject
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try

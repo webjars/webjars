@@ -1,11 +1,10 @@
 package utils
 
-import java.util.UUID
-
 import akka.util.Timeout
 import net.spy.memcached.transcoders.{SerializingTranscoder, Transcoder}
 import play.api.test._
 
+import java.util.UUID
 import scala.concurrent.Future
 import scala.concurrent.duration._
 

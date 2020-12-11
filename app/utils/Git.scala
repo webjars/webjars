@@ -1,16 +1,15 @@
 package utils
 
-import java.io.{File, InputStream}
-import java.net.{URI, URL}
-import java.nio.charset.CodingErrorAction
-import java.nio.file.{Files, Path}
-
-import javax.inject.Inject
 import org.eclipse.jgit.api.{Git => GitApi}
 import play.api.http.{HeaderNames, Status}
 import play.api.libs.ws.WSClient
 import utils.Deployable.Version
 
+import java.io.{File, InputStream}
+import java.net.{URI, URL}
+import java.nio.charset.CodingErrorAction
+import java.nio.file.{Files, Path}
+import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
 import scala.io.{Codec, Source}
 import scala.jdk.CollectionConverters._

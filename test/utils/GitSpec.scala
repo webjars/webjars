@@ -1,14 +1,13 @@
 package utils
 
 
-import java.io.BufferedInputStream
-import java.net.URI
-
 import akka.util.Timeout
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
 import org.eclipse.jgit.api.{Git => GitApi}
 import play.api.test._
 
+import java.io.BufferedInputStream
+import java.net.URI
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
 

@@ -1,18 +1,17 @@
 package utils
 
-import java.net.{InetSocketAddress, URI}
-
 import akka.NotUsed
 import akka.actor.ActorSystem
 import akka.stream.scaladsl.{BidiFlow, Flow, Framing, Source, Tcp}
 import akka.util.ByteString
-import javax.inject.Inject
-import javax.net.ssl.SSLContext
 import play.api.Configuration
 import play.api.http.{HeaderNames, Status}
 import play.api.libs.json.Json
 import play.api.libs.ws.{WSClient, WSRequest}
 
+import java.net.{InetSocketAddress, URI}
+import javax.inject.Inject
+import javax.net.ssl.SSLContext
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 

@@ -1,8 +1,5 @@
 package utils
 
-import java.net.{URI, URL}
-
-import javax.inject.Inject
 import org.eclipse.jgit.util.Base64
 import play.api.Configuration
 import play.api.http.{HeaderNames, HttpVerbs, MimeTypes, Status}
@@ -10,6 +7,8 @@ import play.api.libs.json.{JsValue, Json}
 import play.api.libs.ws.{WSClient, WSRequest}
 import play.api.mvc.RequestHeader
 
+import java.net.{URI, URL}
+import javax.inject.Inject
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.language.implicitConversions

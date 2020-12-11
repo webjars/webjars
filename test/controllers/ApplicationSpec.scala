@@ -1,7 +1,7 @@
 package controllers
 
 import akka.util.Timeout
-import models.{WebJar, WebJarVersion}
+import models.WebJar
 import play.api.http.{ContentTypes, HeaderNames, Status}
 import play.api.inject.bind
 import play.api.inject.guice.GuiceApplicationBuilder
@@ -9,7 +9,6 @@ import play.api.test.{FakeRequest, PlaySpecification, WithApplication}
 import utils.{BowerGitHub, Memcache, MemcacheMock}
 
 import scala.concurrent.duration._
-import scala.util.Random
 
 class TestFetchConfig extends FetchConfig {
   override val timeout = 2.minutes
@@ -23,35 +22,6 @@ class ApplicationSpec extends PlaySpecification {
 
   class WithApp extends WithApplication(withOverrides)
 
-  "sortedWebJars" should {
-    "work" in new WithApp {
-      val applicationController = app.injector.instanceOf[Application]
-
-      val counts = Random.shuffle(
-        Seq(
-          ("foo", "foo", 3),
-          ("foo", "bar", 2),
-          ("foo", "baz", 1)
-        )
-      )
-
-      val webJars = Random.shuffle(
-        Seq(
-          WebJar("foo", "foo", "foo", "foo", "foo", List.empty[WebJarVersion]),
-          WebJar("foo","foo", "bar", "foo", "foo", List.empty[WebJarVersion]),
-          WebJar("foo","foo", "baz", "foo", "foo", List.empty[WebJarVersion]),
-          WebJar("foo","foo", "blah", "foo", "foo", List.empty[WebJarVersion])
-        )
-      )
-
-      val sorted = applicationController.sortedWebJars(counts, webJars)
-
-      sorted(0).artifactId must beEqualTo ("foo")
-      sorted(1).artifactId must beEqualTo ("bar")
-      sorted(2).artifactId must beEqualTo ("baz")
-      sorted(3).artifactId must beEqualTo ("blah")
-    }
-  }
   "sortedMostPopularWebJars" should {
     "only include the max number" in new WithApp {
       if (app.configuration.getOptional[String]("oss.username").isEmpty) {

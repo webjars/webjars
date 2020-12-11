@@ -1,7 +1,6 @@
 package utils
 
 import java.net.{URI, URL}
-
 import scala.util.Try
 
 object Bitbucket {

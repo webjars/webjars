@@ -1,8 +1,8 @@
 package utils
 
-import javax.inject.Inject
 import play.api.cache.SyncCacheApi
 
+import javax.inject.Inject
 import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.{ExecutionContext, Future}
 import scala.reflect.ClassTag

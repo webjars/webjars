@@ -1,11 +1,11 @@
 package utils
 
 import java.io.FileNotFoundException
-
 import actors.{FetchWebJars, WebJarFetcher}
 import akka.actor._
 import akka.pattern.ask
 import akka.util.Timeout
+
 import javax.inject.{Inject, Singleton}
 import models.{WebJar, WebJarType, WebJarVersion}
 import net.spy.memcached.transcoders.{IntegerTranscoder, SerializingTranscoder, Transcoder}
@@ -13,7 +13,8 @@ import org.joda.time.DateTime
 import play.api.http.{HeaderNames, MimeTypes, Status}
 import play.api.libs.json._
 import play.api.libs.ws.{WSAuthScheme, WSClient}
-import play.api.{Configuration, Logging}
+import play.api.{Configuration, Environment, Logging, Mode}
+import utils.MavenCentral.EmptyStatsException
 
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
@@ -21,7 +22,7 @@ import scala.util.Try
 import scala.xml.Elem
 
 @Singleton
-class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClient, actorSystem: ActorSystem, configuration: Configuration, webJarsFileService: WebJarsFileService)(classic: Classic, bower: Bower, bowerGitHub: BowerGitHub, npm: NPM) (implicit ec: ExecutionContext) extends Logging {
+class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClient, actorSystem: ActorSystem, configuration: Configuration, webJarsFileService: WebJarsFileService)(classic: Classic, bower: Bower, bowerGitHub: BowerGitHub, npm: NPM, environment: Environment) (implicit ec: ExecutionContext) extends Logging {
 
   lazy val webJarFetcher: ActorRef = actorSystem.actorOf(Props[WebJarFetcher]())
 
@@ -59,7 +60,7 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
     getPom(groupId, artifactId, version).flatMap { xml =>
       val artifactId = (xml \ "artifactId").text
       val rawName = (xml \ "name").text
-      val name = if (rawName.contains("${") || (rawName.length == 0)) {
+      val name = if (rawName.contains("${") || rawName.isEmpty) {
         // can't handle pom properties so fallback to id
         artifactId
       } else {
@@ -99,7 +100,7 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
       ((jsObject \ "g").as[String], (jsObject \ "a").as[String], (jsObject \ "v").as[String])
     }
 
-    if (allVersions.size >= rowLimit) {
+    if ((allVersions.size >= rowLimit) && (environment.mode == Mode.Prod)) {
       logger.error(s"Retrieved max ${webJarType.name} WebJar rows: ${allVersions.size}")
     }
     else {
@@ -191,10 +192,25 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
     }
   }
 
-  def fetchWebJars(webJarType: WebJarType): Future[List[WebJar]] = {
+  def fetchWebJars(webJarType: WebJarType, dateTime: DateTime = DateTime.now().minusMonths(1)): Future[List[WebJar]] = {
     logger.info(s"Getting ${webJarType.name} WebJars")
 
-    fetchWebJarsJson(webJarType).flatMap(webJarsFromJson(webJarType))
+    fetchWebJarsJson(webJarType).flatMap(webJarsFromJson(webJarType)).flatMap { webJars =>
+      val statsFuture = getStats(webJarType, dateTime).recoverWith {
+        case _: EmptyStatsException => getStats(webJarType, dateTime.minusMonths(1))
+      } recover {
+        // if the stats can't be fetched, continue without them
+        case e: Exception =>
+          logger.error(s"Could not get stats for $webJarType", e)
+          Map.empty[(String, String), Int]
+      }
+
+      statsFuture.map { stats =>
+        webJars.sortBy { webJar =>
+          stats.getOrElse((webJar.groupId, webJar.artifactId), 0)
+        } (Ordering[Int].reverse)
+      }
+    }
   }
 
   def webJars(webJarType: WebJarType): Future[List[WebJar]] = {
@@ -256,7 +272,7 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
     }
   }
 
-  def getStats(groupIdQuery: String, dateTime: DateTime): Future[Seq[(String, String, Int)]] = {
+  def getStats(groupIdQuery: String, dateTime: DateTime): Future[Map[(String, String), Int]] = {
     val queryString = Seq(
       "p" -> ossProject,
       "g" -> groupIdQuery,
@@ -276,7 +292,6 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
       statsFuture.flatMap { response =>
         response.status match {
           case Status.OK =>
-
             val groupId = (response.json \ "data" \ "groupId").as[String]
             val total = (response.json \ "data" \ "total").as[Int]
 
@@ -286,12 +301,10 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
               val webJarCounts = slices.map { jsObject =>
                 val name = (jsObject \ "name").as[String]
                 val count = (jsObject \ "count").as[Int]
-                (groupId, name, count)
-              }
+                (groupId, name) -> count
+              }.toMap
 
-              val sorted = webJarCounts.sortBy(_._3)(Ordering[Int].reverse)
-
-              Future.successful(sorted)
+              Future.successful(webJarCounts)
             }
             else {
               Future.failed(new MavenCentral.EmptyStatsException("Stats were empty"))
@@ -305,14 +318,15 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
     }
   }
 
-  def getStats(webJarType: WebJarType, dateTime: DateTime): Future[Seq[(String, String, Int)]] = {
+  def getStats(webJarType: WebJarType, dateTime: DateTime): Future[Map[(String, String), Int]] = {
+    println(dateTime)
     if (webJarType.groupIdQuery.endsWith("*")) {
       groupIds(webJarType).flatMap { groupIds =>
         val futures = groupIds.map { groupId =>
           getStats(groupId, dateTime).recover {
-            case _: MavenCentral.EmptyStatsException => Seq.empty[(String, String, Int)]
-            case _: UnauthorizedError => Seq.empty[(String, String, Int)]
-            case _: MavenCentral.UnavailableException => Seq.empty[(String, String, Int)]
+            case _: MavenCentral.EmptyStatsException => Map.empty[(String, String), Int]
+            case _: UnauthorizedError => Map.empty[(String, String), Int]
+            case _: MavenCentral.UnavailableException => Map.empty[(String, String), Int]
           }
         }
         Future.reduceLeft(futures)(_ ++ _)
@@ -321,20 +335,6 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
     else {
       getStats(webJarType.groupIdQuery, dateTime)
     }
-  }
-
-  def getStats(dateTime: DateTime): Future[Seq[(String, String, Int)]] = {
-    val allStatsFutures = allWebJarTypes.map { webJarType => getStats(webJarType, dateTime) }
-    Future.reduceLeft(allStatsFutures)(_ ++ _)
-  }
-
-  def mostDownloaded(webJarType: WebJarType, dateTime: DateTime, num: Int): Future[Seq[(String, String, Int)]] = {
-    getStats(webJarType, dateTime).map(_.take(num))
-  }
-
-  def mostDownloaded(dateTime: DateTime, num: Int): Future[Seq[(String, String, Int)]] = {
-    val allMostDownloadedFutures = allWebJarTypes.map { webJarType => mostDownloaded(webJarType, dateTime, num) }
-    Future.foldLeft(allMostDownloadedFutures)(Seq.empty[(String, String, Int)])(_ ++ _)
   }
 
 }

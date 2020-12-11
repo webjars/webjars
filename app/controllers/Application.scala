@@ -70,32 +70,9 @@ class Application @Inject() (git: Git, gitHub: GitHub, cache: Cache, mavenCentra
     future
   }
 
-  private[controllers] def sortedWebJars(counts: Seq[(String, String, Int)], webJars: Seq[WebJar]): Seq[WebJar] = {
-    webJars.sortBy { webJar =>
-      counts.collectFirst {
-        case (groupId, artifactId, count) if groupId == webJar.groupId && artifactId == webJar.artifactId => count
-      } getOrElse 0
-    } (Ordering[Int].reverse)
-  }
-
   private[controllers] def sortedMostPopularWebJars: Future[Seq[WebJar]] = {
-    webJarsWithTimeout().flatMap { allWebJars =>
-      val mostDownloadedFuture = cache.get[Seq[(String, String, Int)]]("mostDownloaded", 1.day) {
-        val lastMonth = DateTime.now().minusMonths(1)
-        mavenCentral.mostDownloaded(lastMonth, MAX_POPULAR_WEBJARS).recoverWith {
-          case _: Exception => mavenCentral.mostDownloaded(lastMonth.minusMonths(1), MAX_POPULAR_WEBJARS)
-        }
-      }
-
-      mostDownloadedFuture.map { mostDownloaded =>
-        val onlyMostDownloaded = allWebJars.filter { webJar =>
-          mostDownloaded.exists {
-            case (groupId, artifactId, _) =>
-              groupId == webJar.groupId && artifactId == webJar.artifactId
-          }
-        }
-        sortedWebJars(mostDownloaded, onlyMostDownloaded)
-      }
+    webJarsWithTimeout().map { allWebJars =>
+      allWebJars.take(MAX_POPULAR_WEBJARS)
     }
   }
 
@@ -119,38 +96,28 @@ class Application @Inject() (git: Git, gitHub: GitHub, cache: Cache, mavenCentra
   }
 
   def searchWebJars(query: String, groupIds: List[String]) = Action.async { implicit request =>
-    webJarsWithTimeout().flatMap { allWebJars =>
+    webJarsWithTimeout().map { allWebJars =>
 
-      val webJarStatsFuture = cache.get[Seq[(String, String, Int)]]("stats", 1.day) {
-        val lastMonth = DateTime.now().minusMonths(1)
-        mavenCentral.getStats(lastMonth).recoverWith {
-          case _: EmptyStatsException => mavenCentral.getStats(lastMonth.minusMonths(1))
-        }
-      } recover {
-        // if the stats can't be fetched, continue without them
-        case e: Exception =>
-          logger.error("Could not get stats", e)
-          Seq.empty[(String, String, Int)]
+      val queryLowerCase = query.toLowerCase.stripPrefix("org.webjars").stripPrefix("webjars")
+
+      val matchingWebJars = if (queryLowerCase.isEmpty) {
+        List.empty[WebJar]
       }
-
-      webJarStatsFuture.map { webJarStats =>
+      else {
         val webJarTypes = groupIds.flatMap(WebJarType.fromGroupId(_, allWebJarTypes))
-        val matchingWebJars = allWebJars.filter { webJar =>
+        allWebJars.filter { webJar =>
           webJarTypes.exists(_.includesGroupId(webJar.groupId)) &&
             (
-              webJar.name.toLowerCase.contains(query.toLowerCase) ||
-              webJar.groupId.toLowerCase.contains(query.toLowerCase) ||
-              webJar.artifactId.toLowerCase.contains(query.toLowerCase)
-            )
+              webJar.name.toLowerCase.contains(queryLowerCase) ||
+                webJar.groupId.toLowerCase.stripPrefix("org.webjars").stripPrefix("webjars").contains(queryLowerCase) ||
+                webJar.artifactId.toLowerCase.contains(queryLowerCase)
+              )
         }
+      }
 
-        // max search results = 1000
-        val sortedMatchingWebJars = sortedWebJars(webJarStats, matchingWebJars).take(1000)
-
-        render {
-          case Accepts.Html() => Ok(views.html.webJarList(Left(sortedMatchingWebJars)))
-          case Accepts.Json() => Ok(Json.toJson(sortedMatchingWebJars))
-        }
+      render {
+        case Accepts.Html() => Ok(views.html.webJarList(Left(matchingWebJars)))
+        case Accepts.Json() => Ok(Json.toJson(matchingWebJars))
       }
     } recover {
       case e: Exception =>

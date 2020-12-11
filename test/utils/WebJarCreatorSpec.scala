@@ -1,11 +1,11 @@
 package utils
 
+import org.apache.commons.compress.archivers.ArchiveStreamFactory
+import play.api.test._
+
 import java.io.ByteArrayInputStream
 import java.net.URL
 import java.util.zip.GZIPInputStream
-
-import org.apache.commons.compress.archivers.ArchiveStreamFactory
-import play.api.test._
 
 class WebJarCreatorSpec extends PlaySpecification {
 

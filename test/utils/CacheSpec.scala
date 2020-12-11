@@ -1,10 +1,9 @@
 package utils
 
-import java.util.UUID
-
 import play.api.cache.SyncCacheApi
 import play.api.test._
 
+import java.util.UUID
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.concurrent.duration._

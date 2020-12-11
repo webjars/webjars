@@ -1,8 +1,5 @@
 package utils
 
-import java.net.{URI, URL}
-import java.util.Date
-
 import akka.util.Timeout
 import org.apache.commons.io.IOUtils
 import play.api.libs.json.JsArray
@@ -10,6 +7,8 @@ import play.api.libs.ws.WSClient
 import play.api.test._
 import play.api.{Configuration, Environment}
 
+import java.net.{URI, URL}
+import java.util.Date
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.util.Random

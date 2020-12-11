@@ -1,10 +1,9 @@
 package utils
 
-import java.net.URL
-
 import play.api.libs.json.Json
 import play.api.test._
 
+import java.net.URL
 import scala.util.Try
 
 

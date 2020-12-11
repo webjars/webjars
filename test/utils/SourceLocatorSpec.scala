@@ -1,10 +1,9 @@
 package utils
 
-import java.net.URI
-
 import akka.util.Timeout
 import play.api.test._
 
+import java.net.URI
 import scala.concurrent.duration._
 
 class SourceLocatorSpec extends PlaySpecification with GlobalApplication {

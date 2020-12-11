@@ -32,6 +32,17 @@ class MavenCentralSpec extends PlaySpecification {
       val webJars = await(mavenCentral.fetchWebJars(npm))
       webJars.foldLeft(0)(_ + _.versions.size) should beGreaterThan (0)
     }
+    "be ordered correctly" in new WithApp() {
+      if (app.configuration.getOptional[String]("oss.username").isEmpty) {
+        skipped("skipped due to missing config")
+      }
+      else {
+        val mavenCentral = app.injector.instanceOf[MavenCentral]
+        val classic = app.injector.instanceOf[Classic]
+        val webJars = await(mavenCentral.fetchWebJars(classic, new DateTime(2016, 1, 1, 1, 1)))
+        webJars.head.artifactId must beEqualTo("bootstrap")
+      }
+    }
   }
 
   "getStats" should {
@@ -43,31 +54,17 @@ class MavenCentralSpec extends PlaySpecification {
         val mavenCentral = app.injector.instanceOf[MavenCentral]
         val classic = app.injector.instanceOf[Classic]
         val statsClassic = await(mavenCentral.getStats(classic, new DateTime(2016, 1, 1, 1, 1)))
-        statsClassic.head should beEqualTo(("org.webjars", "jquery", 45947))
+        statsClassic(("org.webjars", "jquery")) should beEqualTo(45947)
 
         val bowerGitHub = app.injector.instanceOf[BowerGitHub]
         val bowerWebJars = await(mavenCentral.webJars(bowerGitHub))
 
         val statsBowerWebJars = await(mavenCentral.getStats(bowerGitHub, new DateTime(2019, 1, 1, 1, 1)))
 
-        val (groupId, _, downloads) = statsBowerWebJars.head
+        val ((groupId, _), downloads) = statsBowerWebJars.head
         downloads should be > 0
 
         bowerWebJars.find(_.groupId == groupId) should beSome
-      }
-    }
-  }
-
-  "mostDownloaded" should {
-    "get the 20 most downloaded for each catalog" in new WithApp() {
-      if (app.configuration.getOptional[String]("oss.username").isEmpty) {
-        skipped("skipped due to missing config")
-      }
-      else {
-        val mavenCentral = app.injector.instanceOf[MavenCentral]
-        val mostDownloaded = await(mavenCentral.mostDownloaded(new DateTime(2016, 1, 1, 1, 1), 20))
-        mostDownloaded.size should beEqualTo(60)
-        mostDownloaded.head should beEqualTo(("org.webjars", "jquery", 45947))
       }
     }
   }

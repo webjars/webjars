@@ -1,11 +1,10 @@
 package utils
 
 
-import java.net.URL
-
 import akka.util.Timeout
 import play.api.test._
 
+import java.net.URL
 import scala.concurrent.duration._
 
 class LicenseDetectorSpec extends PlaySpecification with GlobalApplication {

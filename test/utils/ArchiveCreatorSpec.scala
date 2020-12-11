@@ -1,10 +1,10 @@
 package utils
 
-import java.io.{BufferedInputStream, File}
-import java.nio.file.Files
-
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
 import org.specs2.mutable.Specification
+
+import java.io.{BufferedInputStream, File}
+import java.nio.file.Files
 
 
 class ArchiveCreatorSpec extends Specification {

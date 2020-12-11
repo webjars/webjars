@@ -1,13 +1,12 @@
 package utils
 
 
-import java.io.{BufferedInputStream, ByteArrayInputStream}
-import java.net.URI
-
 import akka.util.Timeout
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
 import play.api.test._
 
+import java.io.{BufferedInputStream, ByteArrayInputStream}
+import java.net.URI
 import scala.concurrent.duration._
 
 class BowerGitHubSpec extends PlaySpecification with GlobalApplication {
