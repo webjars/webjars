@@ -319,7 +319,6 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
   }
 
   def getStats(webJarType: WebJarType, dateTime: DateTime): Future[Map[(String, String), Int]] = {
-    println(dateTime)
     if (webJarType.groupIdQuery.endsWith("*")) {
       groupIds(webJarType).flatMap { groupIds =>
         val futures = groupIds.map { groupId =>
