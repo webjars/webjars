@@ -69,4 +69,22 @@ class MavenCentralSpec extends PlaySpecification {
     }
   }
 
+  "deploy" should {
+    "create, close, promote" in new WithApp() {
+      if (app.configuration.getOptional[String]("oss.username").isEmpty) {
+        skipped("skipped due to missing config")
+      }
+      else {
+        val mavenCentral = app.injector.instanceOf[MavenCentral]
+
+        val stagingProfile = await(mavenCentral.createStaging("test create"))
+        stagingProfile.description mustEqual "test create"
+
+        await(mavenCentral.closeStaging(stagingProfile, "test close")) must not(throwAn[Exception])
+
+        await(mavenCentral.promoteStaging(stagingProfile, "test promote")) must not(throwAn[Exception])
+      }
+    }
+  }
+
 }

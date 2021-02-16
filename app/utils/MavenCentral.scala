@@ -3,7 +3,7 @@ package utils
 import java.io.FileNotFoundException
 import actors.{FetchWebJars, WebJarFetcher}
 import akka.actor._
-import akka.pattern.ask
+import akka.pattern.{after, ask}
 import akka.util.Timeout
 
 import javax.inject.{Inject, Singleton}
@@ -12,17 +12,19 @@ import net.spy.memcached.transcoders.{IntegerTranscoder, SerializingTranscoder, 
 import org.joda.time.DateTime
 import play.api.http.{HeaderNames, MimeTypes, Status}
 import play.api.libs.json._
-import play.api.libs.ws.{WSAuthScheme, WSClient}
+import play.api.libs.functional.syntax._
+import play.api.libs.ws.{WSAuthScheme, WSClient, WSRequest, WSResponse}
 import play.api.{Configuration, Environment, Logging, Mode}
 import utils.MavenCentral.EmptyStatsException
 
+import java.util.concurrent.TimeoutException
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.Try
+import scala.util.{Failure, Success, Try}
 import scala.xml.Elem
 
 @Singleton
-class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClient, actorSystem: ActorSystem, configuration: Configuration, webJarsFileService: WebJarsFileService)(classic: Classic, bower: Bower, bowerGitHub: BowerGitHub, npm: NPM, environment: Environment) (implicit ec: ExecutionContext) extends Logging {
+class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClient, configuration: Configuration, webJarsFileService: WebJarsFileService)(classic: Classic, bower: Bower, bowerGitHub: BowerGitHub, npm: NPM, environment: Environment) (implicit ec: ExecutionContext, actorSystem: ActorSystem) extends Logging {
 
   lazy val webJarFetcher: ActorRef = actorSystem.actorOf(Props[WebJarFetcher]())
 
@@ -39,6 +41,7 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
 
   lazy val maybeOssUsername = configuration.getOptional[String]("oss.username")
   lazy val maybeOssPassword = configuration.getOptional[String]("oss.password")
+  lazy val maybeOssStagingProfileId = configuration.getOptional[String]("oss.staging-profile")
   lazy val ossProject = configuration.get[String]("oss.project")
   lazy val disableDeploy = configuration.getOptional[Boolean]("oss.disable-deploy").getOrElse(false)
 
@@ -333,6 +336,151 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
     }
     else {
       getStats(webJarType.groupIdQuery, dateTime)
+    }
+  }
+
+  /*
+  private def ossStagingT[T](path: String)(f: WSRequest => Future[WSResponse])(implicit reads: Reads[T]): Future[T] = {
+    ossStaging(path)(f).flatMap { json =>
+      Future.fromTry(JsResult.toTry(json.validate[T](reads)))
+    }
+  }
+
+   */
+
+  private def stagingRepo(stagedRepo: StagedRepo): Future[JsValue] = {
+    withOssCredentials { (username, password) =>
+      val url = s"https://oss.sonatype.org/service/local/staging/repository/${stagedRepo.id}"
+      wsClient.url(url).withAuth(username, password, WSAuthScheme.BASIC).withHttpHeaders(HeaderNames.ACCEPT -> MimeTypes.JSON).get().flatMap { response =>
+        if (response.status == Status.OK) {
+          Future.fromTry {
+            Try {
+              response.json
+            }
+          }
+        }
+        else {
+          Future.failed(ServerError(response.body, response.status))
+        }
+      }
+    }
+  }
+
+  // kudos: https://nami.me/2015/01/20/scala-futures-with-timeout/
+  implicit class FutureExtensions[T](f: Future[T]) {
+    def withTimeout(duration: FiniteDuration)(implicit system: ActorSystem): Future[T] = {
+      val max = after(duration, system.scheduler)(Future.failed(new TimeoutException(s"Operation did not complete in $duration")))
+      Future.firstCompletedOf(Seq(f, max))
+    }
+  }
+
+  val maxwait = 10.minutes
+  val poll = 5.seconds
+
+  // todo: errors
+  private def stagingWait(stagedRepo: StagedRepo): Future[JsValue] = {
+    def tryAgain(): Future[JsValue] = {
+      stagingRepo(stagedRepo).flatMap { json =>
+        if ((json \ "transitioning").as[Boolean]) {
+          after(poll, actorSystem.scheduler)(tryAgain())
+        }
+        else {
+          Future.successful(json)
+        }
+      }
+    }
+
+    tryAgain().withTimeout(maxwait)
+  }
+
+  private def ossStagingProfiles(path: String, responseCode: Int)(f: WSRequest => Future[WSResponse]): Future[Option[JsValue]] = {
+    maybeOssStagingProfileId.fold(Future.failed[Option[JsValue]](new Exception("Could not get staging profile id"))) { stagingProfileId =>
+      withOssCredentials { (username, password) =>
+        val url = s"https://oss.sonatype.org/service/local/staging/profiles/$stagingProfileId/$path"
+        val req = wsClient.url(url).withAuth(username, password, WSAuthScheme.BASIC).withHttpHeaders(HeaderNames.ACCEPT -> MimeTypes.JSON)
+        f(req).flatMap { response =>
+          val result = if (response.status == responseCode && response.contentType.startsWith(MimeTypes.JSON)) {
+            Try {
+              Some(response.json)
+            }
+          }
+          else if (response.status == responseCode && response.bodyAsBytes.isEmpty) {
+            Success(None)
+          }
+          else {
+            Failure(ServerError(response.body, response.status))
+          }
+
+          Future.fromTry(result)
+        }
+      }
+    }
+  }
+
+  /*
+  def stagingRepositoryProfiles(): Future[JsValue] = {
+    ossStagingProfiles("profile_repositories")(_.get())
+  }
+   */
+
+  case class StagedRepo(id: String, description: String)
+
+  object StagedRepo {
+    implicit val jsonReads: Reads[StagedRepo] = (
+      (__ \ "stagedRepositoryId").read[String] ~
+      (__ \ "description").read[String]
+    ).apply(StagedRepo(_, _))
+  }
+
+  def createStaging(description: String): Future[StagedRepo] = {
+    ossStagingProfiles("start", Status.CREATED) { req =>
+      val body = Json.obj(
+        "data" -> Json.obj(
+          "description" -> description
+        )
+      )
+
+      req.post(body)
+    } collect {
+      case Some(jsValue) => jsValue
+    } flatMap { jsValue =>
+      (jsValue \ "data").asOpt[StagedRepo].fold(Future.failed[StagedRepo](new Exception("Could not parse response")))(Future.successful)
+    }
+  }
+
+  def closeStaging(stagedRepo: StagedRepo, description: String): Future[Unit] = {
+    ossStagingProfiles("finish", Status.CREATED) { req =>
+      val body = Json.obj(
+        "data" -> Json.obj(
+          "stagedRepositoryId" -> stagedRepo.id,
+          "targetRepositoryId" -> ossProject,
+          "description" -> description,
+        )
+      )
+
+      req.post(body)
+    } collect {
+      case None => ()
+    } flatMap { _ =>
+      stagingWait(stagedRepo).map(_ => ())
+    }
+  }
+
+  def promoteStaging(stagedRepo: StagedRepo, description: String): Future[Unit] = {
+    ossStagingProfiles("promote", Status.CREATED) { req =>
+      val body = Json.obj(
+        "data" -> Json.obj(
+          "stagedRepositoryId" -> stagedRepo.id,
+          "targetRepositoryId" -> ossProject,
+          "description" -> description,
+        )
+      )
+
+      req.post(body)
+    } collect {
+      case None => ()
+    } flatMap { _ =>
+      stagingWait(stagedRepo).map(_ => ())
     }
   }
 
