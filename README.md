@@ -26,3 +26,8 @@ Run the all tests:
 
 Run a specific test, i.e.:
 1. `testOnly utils.LicenseDetectorSpec -- ex "detect the license"`
+
+```
+export OSS_GPG_PASS=asdf
+export OSS_GPG_KEY=$(gpg --no-tty --pinentry-mode loopback --passphrase "$OSS_GPG_PASS" --export-secret-keys | base64 -w 0)
+```

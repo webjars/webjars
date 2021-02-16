@@ -8,6 +8,7 @@ import akka.stream.{Materializer, OverflowStrategy}
 import akka.{Done, NotUsed}
 import javax.inject.Inject
 import models.WebJarType
+import utils.MavenCentral.GAV
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
 import play.api.Configuration
 import play.api.i18n.{Lang, Langs, MessagesApi}
@@ -35,7 +36,7 @@ class DeployWebJar @Inject()(binTray: BinTray, mavenCentral: MavenCentral, sourc
 
     def webJarNotYetDeployed(groupId: String, artifactId: String, version: String): Future[Unit] = {
       if (!forceDeploy) {
-        mavenCentral.fetchPom(groupId, artifactId, version, Some("https://oss.sonatype.org/content/repositories/releases")).flatMap { _ =>
+        mavenCentral.fetchPom(GAV(groupId, artifactId, version), Some("https://oss.sonatype.org/content/repositories/releases")).flatMap { _ =>
           Future.failed(new IllegalStateException(s"WebJar $groupId $artifactId $version has already been deployed"))
         } recoverWith {
           case _: FileNotFoundException =>
