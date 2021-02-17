@@ -1,15 +1,19 @@
 package utils
 
 import akka.util.Timeout
+import models.{WebJar, WebJarType}
 import org.apache.commons.io.IOUtils
+import org.joda.time.DateTime
 import play.api.inject.bind
 import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.test._
 import play.api.{Configuration, Environment}
-import utils.MavenCentral.GAV
+import utils.MavenCentral.{GAV, StagedRepo}
 
 import java.net.{URI, URL}
+import scala.concurrent.Future
 import scala.concurrent.duration._
+import scala.xml.Elem
 
 class MavenCentralSpec extends PlaySpecification {
 
@@ -17,16 +21,16 @@ class MavenCentralSpec extends PlaySpecification {
 
   def appWithLocalMavenSearch = GuiceApplicationBuilder(configuration = Configuration("mavencentral.search-url" -> s"http://localhost:$testServerPort/asdf"))
     .overrides(bind[Memcache].to[MemcacheMock])
+    .overrides(bind[MavenCentral].to[MavenCentralLive])
     .build()
 
   class WithApp extends WithApplication(_.overrides(bind[Memcache].to[MemcacheMock]))
 
-  /*
   "fetchWebJars" should {
     "fail when the search-url does not return JSON" in new WithServer(port = testServerPort, app = appWithLocalMavenSearch) {
       val mavenCentral = app.injector.instanceOf[MavenCentral]
       val classic = app.injector.instanceOf[Classic]
-      await(mavenCentral.fetchWebJars(classic)) should throwA[UnavailableException]
+      await(mavenCentral.fetchWebJars(classic)) should throwA[MavenCentral.UnavailableException]
     }
     "work normally" in new WithApp() {
       val mavenCentral = app.injector.instanceOf[MavenCentral]
@@ -70,7 +74,6 @@ class MavenCentralSpec extends PlaySpecification {
       }
     }
   }
-  */
 
   "deploy" should {
     "asc" in new WithApp() {
@@ -83,7 +86,11 @@ class MavenCentralSpec extends PlaySpecification {
       }
     }
     "create, upload, close, drop" in new WithApp() {
-      if (app.configuration.getOptional[String]("oss.username").isEmpty) {
+      if (
+        app.configuration.getOptional[String]("oss.username").isEmpty ||
+        app.configuration.getOptional[String]("oss.password").isEmpty ||
+        app.configuration.getOptional[String]("oss.gpg-key").isEmpty
+      ) {
         skipped("skipped due to missing config")
       }
       else {
@@ -121,4 +128,50 @@ class MavenCentralSpec extends PlaySpecification {
     }
   }
 
+}
+
+class MavenCentralMock extends MavenCentral {
+  override def fetchWebJars(webJarType: WebJarType, dateTime: DateTime): Future[List[WebJar]] = {
+    Future.successful(List.empty)
+  }
+
+  override def fetchPom(gav: GAV, maybeUrlPrefix: Option[String]): Future[Elem] = {
+    Future.failed(new NotImplementedError("TODO"))
+  }
+
+  override def webJars(webJarType: WebJarType): Future[List[WebJar]] = {
+    Future.successful(List.empty)
+  }
+
+  override def webJars: Future[List[WebJar]] = {
+    Future.successful(List.empty)
+  }
+
+  override def createStaging(description: String): Future[MavenCentral.StagedRepo] = {
+    Future.successful(StagedRepo("test", "test"))
+  }
+
+  override def uploadStaging(stagedRepo: MavenCentral.StagedRepo, gav: GAV, pom: String, jar: Array[Byte]): Future[Unit] = {
+    Future.unit
+  }
+
+  override def closeStaging(stagedRepo: MavenCentral.StagedRepo, description: String): Future[Unit] = {
+    Future.unit
+  }
+
+  override def promoteStaging(stagedRepo: MavenCentral.StagedRepo, description: String): Future[Unit] = {
+    Future.unit
+  }
+
+  override def dropStaging(stagedRepo: MavenCentral.StagedRepo, description: String): Future[Unit] = {
+    Future.unit
+  }
+
+  override def getStats(webJarType: WebJarType, dateTime: DateTime): Future[Map[(String, String), Port]] = {
+    Future.successful(Map.empty)
+  }
+
+  override def asc(toSign: Array[Byte]): Option[String] = {
+    None
+  }
 }

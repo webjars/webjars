@@ -20,11 +20,9 @@ import scala.io.StdIn
 import scala.util.{Failure, Try, Using}
 
 
-class DeployWebJar @Inject()(binTray: BinTray, mavenCentral: MavenCentral, sourceLocator: SourceLocator, configuration: Configuration, heroku: Heroku)(implicit ec: ExecutionContext, futures: Futures, materializer: Materializer) {
+class DeployWebJar @Inject()(mavenCentral: MavenCentral, sourceLocator: SourceLocator, configuration: Configuration, heroku: Heroku)(implicit ec: ExecutionContext, futures: Futures, materializer: Materializer) {
 
   val fork = configuration.getOptional[Boolean]("deploy.fork").getOrElse(false)
-  val binTraySubject = "webjars"
-  val binTrayRepo = "maven"
 
   def forkDeploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, deployDependencies: Boolean, preventFork: Boolean): Source[String, Future[NotUsed]] = {
     val app = configuration.get[String]("deploy.herokuapp")
@@ -94,7 +92,6 @@ class DeployWebJar @Inject()(binTray: BinTray, mavenCentral: MavenCentral, sourc
         packageInfo <- deployable.info(nameOrUrlish, upstreamVersion, maybeSourceUri)
         groupId <- deployable.groupId(nameOrUrlish, upstreamVersion)
         artifactId <- deployable.artifactId(nameOrUrlish, upstreamVersion)
-        mavenBaseDir = groupId.replace(".", "/")
 
         releaseVersion = deployable.releaseVersion(maybeReleaseVersion, packageInfo)
 
@@ -132,31 +129,19 @@ class DeployWebJar @Inject()(binTray: BinTray, mavenCentral: MavenCentral, sourc
 
         _ <- queue.offer(s"Created ${deployable.name} WebJar")
 
-        packageName = s"$groupId:$artifactId"
+        gav = GAV(groupId, artifactId, releaseVersion)
 
-        _ <- binTray.getOrCreatePackage(binTraySubject, binTrayRepo, packageName, s"WebJar for $artifactId", Seq("webjar", artifactId), licenses.keySet, packageInfo.sourceConnectionUri, packageInfo.maybeHomepageUrl, packageInfo.maybeIssuesUrl, packageInfo.maybeGitHubOrgRepo)
-        _ <- queue.offer("Created BinTray Package")
+        stagedRepo <- mavenCentral.createStaging(gav.toString)
+        _ <- queue.offer(s"Created ${stagedRepo.id} on Maven Central for $gav")
 
-        _ <- binTray.createOrOverwriteVersion(binTraySubject, binTrayRepo, packageName, releaseVersion, s"$artifactId WebJar release $releaseVersion", Some(s"v$releaseVersion"))
-        _ <- queue.offer("Created BinTray Version")
+        _ <- mavenCentral.uploadStaging(stagedRepo, gav, pom, jar)
+        _ <- queue.offer(s"Uploaded artifacts to ${stagedRepo.id} to Maven Cental for $gav")
 
-        _ <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/$releaseVersion/$artifactId-$releaseVersion.pom", pom.getBytes)
-        _ <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/$releaseVersion/$artifactId-$releaseVersion.jar", jar)
-        emptyJar = WebJarCreator.emptyJar()
-        _ <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/$releaseVersion/$artifactId-$releaseVersion-sources.jar", emptyJar)
-        _ <- binTray.uploadMavenArtifact(binTraySubject, binTrayRepo, packageName, s"$mavenBaseDir/$artifactId/$releaseVersion/$artifactId-$releaseVersion-javadoc.jar", emptyJar)
-        _ <- queue.offer("Published BinTray Assets")
+        _ <- mavenCentral.closeStaging(stagedRepo, gav.toString)
+        _ <- queue.offer(s"Closed ${stagedRepo.id} on Maven Central")
 
-        _ <- binTray.signVersion(binTraySubject, binTrayRepo, packageName, releaseVersion)
-        _ <- queue.offer("Signed BinTray Assets")
-
-        _ <- binTray.publishVersion(binTraySubject, binTrayRepo, packageName, releaseVersion)
-        _ <- queue.offer("Published BinTray Version")
-
-        _ <- queue.offer("Syncing to Maven Central (this could take a while)")
-
-        _ <- binTray.syncToMavenCentral(binTraySubject, binTrayRepo, packageName, releaseVersion)
-        _ <- queue.offer("Synced With Maven Central")
+        _ <- mavenCentral.promoteStaging(stagedRepo, gav.toString)
+        _ <- queue.offer(s"Promoted ${stagedRepo.id} on Maven Central")
 
         _ <- queue.offer(s"""Deployed!
                           |It will take a few hours for the Maven Central index to update but you should be able to start using the ${deployable.name} WebJar shortly.

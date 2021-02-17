@@ -1,66 +1,78 @@
 package utils
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream, FileNotFoundException, InputStream}
 import actors.{FetchWebJars, WebJarFetcher}
 import akka.actor._
 import akka.pattern.{after, ask}
-import akka.stream.scaladsl.{Source, StreamConverters}
 import akka.util.Timeout
-
-import javax.inject.{Inject, Singleton}
+import com.google.inject.ImplementedBy
+import com.roundeights.hasher.Implicits._
 import models.{WebJar, WebJarType, WebJarVersion}
 import net.spy.memcached.transcoders.{IntegerTranscoder, SerializingTranscoder, Transcoder}
-import org.joda.time.DateTime
-import play.api.http.{HeaderNames, MimeTypes, Status}
-import play.api.libs.json._
-import play.api.libs.functional.syntax._
-import play.api.libs.ws.{BodyWritable, WSAuthScheme, WSClient, WSRequest, WSResponse}
-import play.api.{Configuration, Environment, Logging, Mode}
-import com.roundeights.hasher.Implicits._
 import org.bouncycastle.bcpg.{ArmoredOutputStream, BCPGOutputStream, HashAlgorithmTags}
 import org.bouncycastle.openpgp.operator.jcajce.{JcaKeyFingerprintCalculator, JcaPGPContentSignerBuilder, JcePBESecretKeyDecryptorBuilder}
-import org.bouncycastle.openpgp.{PGPObjectFactory, PGPSecretKeyRing, PGPSecretKeyRingCollection, PGPSignature, PGPSignatureGenerator, PGPUtil}
+import org.bouncycastle.openpgp.{PGPSecretKeyRing, PGPSignature, PGPSignatureGenerator}
+import org.joda.time.DateTime
+import play.api.http.{HeaderNames, MimeTypes, Status}
+import play.api.libs.functional.syntax._
+import play.api.libs.json._
+import play.api.libs.ws.{BodyWritable, WSAuthScheme, WSClient, WSRequest, WSResponse}
+import play.api.{Configuration, Environment, Logging, Mode}
 
-import java.nio.charset.StandardCharsets
-import java.security.spec.PKCS8EncodedKeySpec
-import java.security.{KeyFactory, PrivateKey}
+import java.io.{ByteArrayOutputStream, FileNotFoundException}
 import java.util.Base64
-import scala.language.postfixOps
 import java.util.concurrent.TimeoutException
+import javax.inject.{Inject, Singleton}
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
-import scala.jdk.CollectionConverters.IteratorHasAsScala
+import scala.language.postfixOps
 import scala.util.{Failure, Success, Try}
 import scala.xml.Elem
 
-@Singleton
-class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClient, configuration: Configuration, webJarsFileService: WebJarsFileService)(classic: Classic, bower: Bower, bowerGitHub: BowerGitHub, npm: NPM, environment: Environment) (implicit ec: ExecutionContext, actorSystem: ActorSystem) extends Logging {
+@ImplementedBy(classOf[MavenCentralLive])
+trait MavenCentral {
+  import MavenCentral._
 
+  def fetchWebJars(webJarType: WebJarType, dateTime: DateTime = DateTime.now().minusMonths(1)): Future[List[WebJar]]
+  def fetchPom(gav: GAV, maybeUrlPrefix: Option[String] = None): Future[Elem]
+  def webJars(webJarType: WebJarType): Future[List[WebJar]]
+  def webJars: Future[List[WebJar]]
+  def getStats(webJarType: WebJarType, dateTime: DateTime): Future[Map[(String, String), Int]]
+
+  def asc(toSign: Array[Byte]): Option[String]
+  def createStaging(description: String): Future[StagedRepo]
+  def uploadStaging(stagedRepo: StagedRepo, gav: GAV, pom: String, jar: Array[Byte]): Future[Unit]
+  def closeStaging(stagedRepo: StagedRepo, description: String): Future[Unit]
+  def promoteStaging(stagedRepo: StagedRepo, description: String): Future[Unit]
+  def dropStaging(stagedRepo: StagedRepo, description: String): Future[Unit]
+}
+
+@Singleton
+class MavenCentralLive @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClient, configuration: Configuration, webJarsFileService: WebJarsFileService)(classic: Classic, bower: Bower, bowerGitHub: BowerGitHub, npm: NPM, environment: Environment) (implicit ec: ExecutionContext, actorSystem: ActorSystem) extends MavenCentral with Logging {
   import MavenCentral._
 
   lazy val webJarFetcher: ActorRef = actorSystem.actorOf(Props[WebJarFetcher]())
 
   val allWebJarTypes = Set(classic, bower, bowerGitHub, npm)
 
-  implicit val webJarVersionReads = Json.reads[WebJarVersion]
-  implicit val webJarVersionWrites = Json.writes[WebJarVersion]
+  implicit val webJarVersionReads: Reads[WebJarVersion] = Json.reads[WebJarVersion]
+  implicit val webJarVersionWrites: Writes[WebJarVersion] = Json.writes[WebJarVersion]
 
-  implicit val webJarReads = Json.reads[WebJar]
-  implicit val webJarWrites = Json.writes[WebJar]
+  implicit val webJarReads: Reads[WebJar] = Json.reads[WebJar]
+  implicit val webJarWrites: Writes[WebJar] = Json.writes[WebJar]
 
-  implicit val transcoderInt = new IntegerTranscoder().asInstanceOf[Transcoder[Int]]
-  implicit val transcoderElem = new SerializingTranscoder().asInstanceOf[Transcoder[Elem]]
+  private implicit val transcoderInt: Transcoder[Int] = new IntegerTranscoder().asInstanceOf[Transcoder[Int]]
+  private implicit val transcoderElem: Transcoder[Elem] = new SerializingTranscoder().asInstanceOf[Transcoder[Elem]]
 
-  lazy val maybeOssUsername = configuration.getOptional[String]("oss.username")
-  lazy val maybeOssPassword = configuration.getOptional[String]("oss.password")
-  lazy val maybeOssStagingProfileId = configuration.getOptional[String]("oss.staging-profile")
-  lazy val ossProject = configuration.get[String]("oss.project")
-  lazy val disableDeploy = configuration.getOptional[Boolean]("oss.disable-deploy").getOrElse(false)
-  lazy val maybeOssGpgKey = configuration.getOptional[String]("oss.gpg-key")
-  lazy val maybeOssGpgPass = configuration.getOptional[String]("oss.gpg-pass")
+  private lazy val maybeOssUsername = configuration.getOptional[String]("oss.username")
+  private lazy val maybeOssPassword = configuration.getOptional[String]("oss.password")
+  private lazy val maybeOssStagingProfileId = configuration.getOptional[String]("oss.staging-profile")
+  private lazy val ossProject = configuration.get[String]("oss.project")
+  private lazy val disableDeploy = configuration.getOptional[Boolean]("oss.disable-deploy").getOrElse(false)
+  private lazy val maybeOssGpgKey = configuration.getOptional[String]("oss.gpg-key")
+  private lazy val maybeOssGpgPass = configuration.getOptional[String]("oss.gpg-pass")
 
-  lazy val rowLimit = configuration.get[Int]("mavencentral.row-limit")
-  lazy val searchUrl = configuration.get[String]("mavencentral.search-url")
+  private lazy val rowLimit = configuration.get[Int]("mavencentral.row-limit")
+  private lazy val searchUrl = configuration.get[String]("mavencentral.search-url")
 
   def withOssCredentials[T](f: (String, String) => Future[T]): Future[T] = {
     val maybeUsernameAndPassword = for {
@@ -479,7 +491,12 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
   }
 
   def promoteStaging(stagedRepo: StagedRepo, description: String): Future[Unit] = {
-    stagingTransitionWithWait("promote", stagedRepo, description)
+    if (!disableDeploy) {
+      stagingTransitionWithWait("promote", stagedRepo, description)
+    }
+    else {
+      Future.unit
+    }
   }
 
   def dropStaging(stagedRepo: StagedRepo, description: String): Future[Unit] = {
