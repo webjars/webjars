@@ -32,10 +32,10 @@ import scala.xml.Elem
 trait MavenCentral {
   import MavenCentral._
 
-  def fetchWebJars(webJarType: WebJarType, dateTime: DateTime = DateTime.now().minusMonths(1)): Future[List[WebJar]]
+  def fetchWebJars(webJarType: WebJarType): Future[List[WebJar]]
   def fetchPom(gav: GAV, maybeUrlPrefix: Option[String] = None): Future[Elem]
   def webJars(webJarType: WebJarType): Future[List[WebJar]]
-  def webJars: Future[List[WebJar]]
+  def webJarsSorted(dateTime: DateTime = DateTime.now().minusMonths(1)): Future[List[WebJar]]
   def getStats(webJarType: WebJarType, dateTime: DateTime): Future[Map[(String, String), Int]]
 
   def asc(toSign: Array[Byte]): Option[String]
@@ -221,25 +221,9 @@ class MavenCentralLive @Inject() (cache: Cache, memcache: Memcache, wsClient: WS
     }
   }
 
-  def fetchWebJars(webJarType: WebJarType, dateTime: DateTime = DateTime.now().minusMonths(1)): Future[List[WebJar]] = {
+  def fetchWebJars(webJarType: WebJarType): Future[List[WebJar]] = {
     logger.info(s"Getting ${webJarType.name} WebJars")
-
-    fetchWebJarsJson(webJarType).flatMap(webJarsFromJson(webJarType)).flatMap { webJars =>
-      val statsFuture = getStats(webJarType, dateTime).recoverWith {
-        case _: EmptyStatsException => getStats(webJarType, dateTime.minusMonths(1))
-      } recover {
-        // if the stats can't be fetched, continue without them
-        case e: Exception =>
-          logger.error(s"Could not get stats for $webJarType", e)
-          Map.empty[(String, String), Int]
-      }
-
-      statsFuture.map { stats =>
-        webJars.sortBy { webJar =>
-          stats.getOrElse((webJar.groupId, webJar.artifactId), 0)
-        } (Ordering[Int].reverse)
-      }
-    }
+    fetchWebJarsJson(webJarType).flatMap(webJarsFromJson(webJarType))
   }
 
   def webJars(webJarType: WebJarType): Future[List[WebJar]] = {
@@ -267,9 +251,29 @@ class MavenCentralLive @Inject() (cache: Cache, memcache: Memcache, wsClient: WS
     }
   }
 
-  def webJars: Future[List[WebJar]] = {
+  def webJarsSorted(dateTime: DateTime): Future[List[WebJar]] = {
     val allWebJarsFutures = allWebJarTypes.map(webJars)
-    Future.foldLeft(allWebJarsFutures)(List.empty[WebJar])(_ ++ _)
+
+    val statsFuture = Future.reduceLeft {
+      allWebJarTypes.map { webJarType =>
+        getStats(webJarType, dateTime).recoverWith {
+          case _: EmptyStatsException => getStats(webJarType, dateTime.minusMonths(1))
+        } recover {
+          // if the stats can't be fetched, continue without them
+          case e: Exception =>
+            logger.error(s"Could not get stats for $webJarType", e)
+            Map.empty[(String, String), Int]
+        }
+      }
+    }(_ ++ _)
+
+    statsFuture.flatMap { stats =>
+      Future.reduceLeft(allWebJarsFutures)(_ ++ _).map { webJars =>
+        webJars.sortBy { webJar =>
+          stats.getOrElse((webJar.groupId, webJar.artifactId), 0)
+        }(Ordering[Int].reverse)
+      }
+    }
   }
 
   def fetchPom(gav: GAV, maybeUrlPrefix: Option[String] = None): Future[Elem] = {
@@ -309,7 +313,6 @@ class MavenCentralLive @Inject() (cache: Cache, memcache: Memcache, wsClient: WS
       "nom" -> "1"
     )
 
-
     withOssCredentials { (ossUsername, ossPassword) =>
       val statsFuture = wsClient.url("https://oss.sonatype.org/service/local/stats/slices")
         .withHttpHeaders(HeaderNames.ACCEPT -> MimeTypes.JSON)
@@ -324,7 +327,6 @@ class MavenCentralLive @Inject() (cache: Cache, memcache: Memcache, wsClient: WS
             val total = (response.json \ "data" \ "total").as[Int]
 
             if (total > 0) {
-
               val slices = (response.json \ "data" \ "slices").as[Seq[JsObject]]
               val webJarCounts = slices.map { jsObject =>
                 val name = (jsObject \ "name").as[String]
@@ -347,31 +349,24 @@ class MavenCentralLive @Inject() (cache: Cache, memcache: Memcache, wsClient: WS
   }
 
   def getStats(webJarType: WebJarType, dateTime: DateTime): Future[Map[(String, String), Int]] = {
-    if (webJarType.groupIdQuery.endsWith("*")) {
-      groupIds(webJarType).flatMap { groupIds =>
-        val futures = groupIds.map { groupId =>
-          getStats(groupId, dateTime).recover {
-            case _: EmptyStatsException => Map.empty[(String, String), Int]
-            case _: UnauthorizedError => Map.empty[(String, String), Int]
-            case _: UnavailableException => Map.empty[(String, String), Int]
+    cache.get[Map[(String, String), Int]](s"stats-${webJarType}-${dateTime.toString("yyyyMM")}", 1.day) {
+      if (webJarType.groupIdQuery.endsWith("*")) {
+        groupIds(webJarType).flatMap { groupIds =>
+          val futures = groupIds.map { groupId =>
+            getStats(groupId, dateTime).recover {
+              case _: EmptyStatsException => Map.empty[(String, String), Int]
+              case _: UnauthorizedError => Map.empty[(String, String), Int]
+              case _: UnavailableException => Map.empty[(String, String), Int]
+            }
           }
+          Future.reduceLeft(futures)(_ ++ _)
         }
-        Future.reduceLeft(futures)(_ ++ _)
+      }
+      else {
+        getStats(webJarType.groupIdQuery, dateTime)
       }
     }
-    else {
-      getStats(webJarType.groupIdQuery, dateTime)
-    }
   }
-
-  /*
-  private def ossStagingT[T](path: String)(f: WSRequest => Future[WSResponse])(implicit reads: Reads[T]): Future[T] = {
-    ossStaging(path)(f).flatMap { json =>
-      Future.fromTry(JsResult.toTry(json.validate[T](reads)))
-    }
-  }
-
-   */
 
   private def stagingRepo(stagedRepo: StagedRepo): Future[JsValue] = {
     withOssCredentials { (username, password) =>
@@ -464,12 +459,6 @@ class MavenCentralLive @Inject() (cache: Cache, memcache: Memcache, wsClient: WS
     }
   }
 
-  /*
-  def stagingRepositoryProfiles(): Future[JsValue] = {
-    ossStagingProfiles("profile_repositories")(_.get())
-  }
-   */
-
   def createStaging(description: String): Future[StagedRepo] = {
     stagingProfileReq("start", Status.CREATED) { req =>
       val body = Json.obj(
@@ -535,8 +524,7 @@ class MavenCentralLive @Inject() (cache: Cache, memcache: Memcache, wsClient: WS
 
   def uploadStaging(stagedRepo: StagedRepo, gav: GAV, pom: String, jar: Array[Byte]): Future[Unit] = {
     withOssCredentials { (username, password) =>
-      val baseUrl = s"https://oss.sonatype.org/service/local/staging/deployByRepositoryId/${stagedRepo.id}/"
-      val fileUrl = s"$baseUrl/${gav.path}"
+      val fileUrl = s"https://oss.sonatype.org/service/local/staging/deployByRepositoryId/${stagedRepo.id}/${gav.path}"
 
       val emptyJar = WebJarCreator.emptyJar()
 
@@ -587,9 +575,11 @@ object MavenCentral {
   class EmptyStatsException(msg: String) extends RuntimeException(msg)
 
   case class GAV(groupId: String, artifactId: String, version: String) {
-    lazy val groupIdPath = groupId.replace(".", "/")
+    private lazy val groupIdPath = groupId.replace(".", "/")
     lazy val path = s"$groupIdPath/$artifactId/$version/$artifactId-$version"
     lazy val cacheKey = s"$groupId-$artifactId-$version"
+
+    override def toString: String = s"$groupId:$artifactId:$version"
   }
 
   case class StagedRepo(id: String, description: String)

@@ -1,15 +1,10 @@
 package controllers
 
-import java.io.FileNotFoundException
-import java.util.concurrent.TimeoutException
-
 import akka.actor.ActorSystem
 import akka.stream.scaladsl.{Flow, Source}
 import akka.util.ByteString
 import com.google.inject.ImplementedBy
-import javax.inject.Inject
 import models.{WebJar, WebJarType}
-import org.joda.time.DateTime
 import play.api.data.Forms._
 import play.api.data._
 import play.api.http.{ContentTypes, HttpEntity, MimeTypes}
@@ -17,10 +12,13 @@ import play.api.libs.EventSource
 import play.api.libs.concurrent.Futures
 import play.api.libs.json.Json
 import play.api.mvc._
-import play.api.{Configuration, Environment, Logging, Mode}
-import utils.MavenCentral.{EmptyStatsException, ExistingWebJarRequestException}
+import play.api.{Environment, Logging, Mode}
+import utils.MavenCentral.ExistingWebJarRequestException
 import utils._
 
+import java.io.FileNotFoundException
+import java.util.concurrent.TimeoutException
+import javax.inject.Inject
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Failure
@@ -59,7 +57,10 @@ class Application @Inject() (git: Git, gitHub: GitHub, cache: Cache, mavenCentra
   private val allDeployables = Set(npm, bower, bowerGitHub)
 
   private def webJarsWithTimeout(maybeWebJarType: Option[WebJarType] = None): Future[List[WebJar]] = {
-    val fetcher = maybeWebJarType.fold(mavenCentral.webJars)(mavenCentral.webJars)
+    val fetcher = maybeWebJarType.fold {
+      cache.get[List[WebJar]]("all-webjars", 1.hour)(mavenCentral.webJarsSorted())
+    }(mavenCentral.webJars)
+
     val future = TimeoutFuture(fetchConfig.timeout)(fetcher)
     future.onComplete {
       case Failure(e: TimeoutException) => logger.debug("Timeout fetching WebJars", e)
@@ -71,8 +72,10 @@ class Application @Inject() (git: Git, gitHub: GitHub, cache: Cache, mavenCentra
   }
 
   private[controllers] def sortedMostPopularWebJars: Future[Seq[WebJar]] = {
-    webJarsWithTimeout().map { allWebJars =>
-      allWebJars.take(MAX_POPULAR_WEBJARS)
+    cache.get[Seq[WebJar]]("popular-webjars", 1.hour) {
+      webJarsWithTimeout().map { allWebJars =>
+        allWebJars.take(MAX_POPULAR_WEBJARS)
+      }
     }
   }
 
@@ -388,7 +391,6 @@ class Application @Inject() (git: Git, gitHub: GitHub, cache: Cache, mavenCentra
 
   object TimeoutFuture {
     import java.util.concurrent.TimeoutException
-
     import scala.concurrent.Promise
 
     def apply[A](timeout: FiniteDuration)(future: Future[A]): Future[A] = {

@@ -38,14 +38,17 @@ class MavenCentralSpec extends PlaySpecification {
       val webJars = await(mavenCentral.fetchWebJars(npm))
       webJars.foldLeft(0)(_ + _.versions.size) should beGreaterThan (0)
     }
+
+  }
+
+  "webJarsSorted" should {
     "be ordered correctly" in new WithApp() {
       if (app.configuration.getOptional[String]("oss.username").isEmpty) {
         skipped("skipped due to missing config")
       }
       else {
         val mavenCentral = app.injector.instanceOf[MavenCentral]
-        val classic = app.injector.instanceOf[Classic]
-        val webJars = await(mavenCentral.fetchWebJars(classic, new DateTime(2016, 1, 1, 1, 1)))
+        val webJars = await(mavenCentral.webJarsSorted(new DateTime(2016, 1, 1, 1, 1)))
         webJars.head.artifactId must beEqualTo("bootstrap")
       }
     }
@@ -131,7 +134,7 @@ class MavenCentralSpec extends PlaySpecification {
 }
 
 class MavenCentralMock extends MavenCentral {
-  override def fetchWebJars(webJarType: WebJarType, dateTime: DateTime): Future[List[WebJar]] = {
+  override def fetchWebJars(webJarType: WebJarType): Future[List[WebJar]] = {
     Future.successful(List.empty)
   }
 
@@ -143,7 +146,7 @@ class MavenCentralMock extends MavenCentral {
     Future.successful(List.empty)
   }
 
-  override def webJars: Future[List[WebJar]] = {
+  override def webJarsSorted(dateTime: DateTime): Future[List[WebJar]] = {
     Future.successful(List.empty)
   }
 

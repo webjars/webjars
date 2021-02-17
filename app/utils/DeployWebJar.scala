@@ -135,13 +135,13 @@ class DeployWebJar @Inject()(mavenCentral: MavenCentral, sourceLocator: SourceLo
         _ <- queue.offer(s"Created ${stagedRepo.id} on Maven Central for $gav")
 
         _ <- mavenCentral.uploadStaging(stagedRepo, gav, pom, jar)
-        _ <- queue.offer(s"Uploaded artifacts to ${stagedRepo.id} to Maven Cental for $gav")
+        _ <- queue.offer(s"Uploaded artifacts to ${stagedRepo.id} to Maven Central for $gav")
 
         _ <- mavenCentral.closeStaging(stagedRepo, gav.toString)
-        _ <- queue.offer(s"Closed ${stagedRepo.id} on Maven Central")
+        _ <- queue.offer(s"Closed ${stagedRepo.id} on Maven Central for $gav")
 
         _ <- mavenCentral.promoteStaging(stagedRepo, gav.toString)
-        _ <- queue.offer(s"Promoted ${stagedRepo.id} on Maven Central")
+        _ <- queue.offer(s"Promoted ${stagedRepo.id} on Maven Central for $gav")
 
         _ <- queue.offer(s"""Deployed!
                           |It will take a few hours for the Maven Central index to update but you should be able to start using the ${deployable.name} WebJar shortly.
