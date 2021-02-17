@@ -1,49 +1,78 @@
 package utils
 
-import java.io.FileNotFoundException
 import actors.{FetchWebJars, WebJarFetcher}
 import akka.actor._
-import akka.pattern.ask
+import akka.pattern.{after, ask}
 import akka.util.Timeout
-
-import javax.inject.{Inject, Singleton}
+import com.google.inject.ImplementedBy
+import com.roundeights.hasher.Implicits._
 import models.{WebJar, WebJarType, WebJarVersion}
 import net.spy.memcached.transcoders.{IntegerTranscoder, SerializingTranscoder, Transcoder}
+import org.bouncycastle.bcpg.{ArmoredOutputStream, BCPGOutputStream, HashAlgorithmTags}
+import org.bouncycastle.openpgp.operator.jcajce.{JcaKeyFingerprintCalculator, JcaPGPContentSignerBuilder, JcePBESecretKeyDecryptorBuilder}
+import org.bouncycastle.openpgp.{PGPSecretKeyRing, PGPSignature, PGPSignatureGenerator}
 import org.joda.time.DateTime
 import play.api.http.{HeaderNames, MimeTypes, Status}
+import play.api.libs.functional.syntax._
 import play.api.libs.json._
-import play.api.libs.ws.{WSAuthScheme, WSClient}
+import play.api.libs.ws.{BodyWritable, WSAuthScheme, WSClient, WSRequest, WSResponse}
 import play.api.{Configuration, Environment, Logging, Mode}
-import utils.MavenCentral.EmptyStatsException
 
+import java.io.{ByteArrayOutputStream, FileNotFoundException}
+import java.util.Base64
+import java.util.concurrent.TimeoutException
+import javax.inject.{Inject, Singleton}
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.Try
+import scala.language.postfixOps
+import scala.util.{Failure, Success, Try}
 import scala.xml.Elem
 
+@ImplementedBy(classOf[MavenCentralLive])
+trait MavenCentral {
+  import MavenCentral._
+
+  def fetchWebJars(webJarType: WebJarType, dateTime: DateTime = DateTime.now().minusMonths(1)): Future[List[WebJar]]
+  def fetchPom(gav: GAV, maybeUrlPrefix: Option[String] = None): Future[Elem]
+  def webJars(webJarType: WebJarType): Future[List[WebJar]]
+  def webJars: Future[List[WebJar]]
+  def getStats(webJarType: WebJarType, dateTime: DateTime): Future[Map[(String, String), Int]]
+
+  def asc(toSign: Array[Byte]): Option[String]
+  def createStaging(description: String): Future[StagedRepo]
+  def uploadStaging(stagedRepo: StagedRepo, gav: GAV, pom: String, jar: Array[Byte]): Future[Unit]
+  def closeStaging(stagedRepo: StagedRepo, description: String): Future[Unit]
+  def promoteStaging(stagedRepo: StagedRepo, description: String): Future[Unit]
+  def dropStaging(stagedRepo: StagedRepo, description: String): Future[Unit]
+}
+
 @Singleton
-class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClient, actorSystem: ActorSystem, configuration: Configuration, webJarsFileService: WebJarsFileService)(classic: Classic, bower: Bower, bowerGitHub: BowerGitHub, npm: NPM, environment: Environment) (implicit ec: ExecutionContext) extends Logging {
+class MavenCentralLive @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClient, configuration: Configuration, webJarsFileService: WebJarsFileService)(classic: Classic, bower: Bower, bowerGitHub: BowerGitHub, npm: NPM, environment: Environment) (implicit ec: ExecutionContext, actorSystem: ActorSystem) extends MavenCentral with Logging {
+  import MavenCentral._
 
   lazy val webJarFetcher: ActorRef = actorSystem.actorOf(Props[WebJarFetcher]())
 
   val allWebJarTypes = Set(classic, bower, bowerGitHub, npm)
 
-  implicit val webJarVersionReads = Json.reads[WebJarVersion]
-  implicit val webJarVersionWrites = Json.writes[WebJarVersion]
+  implicit val webJarVersionReads: Reads[WebJarVersion] = Json.reads[WebJarVersion]
+  implicit val webJarVersionWrites: Writes[WebJarVersion] = Json.writes[WebJarVersion]
 
-  implicit val webJarReads = Json.reads[WebJar]
-  implicit val webJarWrites = Json.writes[WebJar]
+  implicit val webJarReads: Reads[WebJar] = Json.reads[WebJar]
+  implicit val webJarWrites: Writes[WebJar] = Json.writes[WebJar]
 
-  implicit val transcoderInt = new IntegerTranscoder().asInstanceOf[Transcoder[Int]]
-  implicit val transcoderElem = new SerializingTranscoder().asInstanceOf[Transcoder[Elem]]
+  private implicit val transcoderInt: Transcoder[Int] = new IntegerTranscoder().asInstanceOf[Transcoder[Int]]
+  private implicit val transcoderElem: Transcoder[Elem] = new SerializingTranscoder().asInstanceOf[Transcoder[Elem]]
 
-  lazy val maybeOssUsername = configuration.getOptional[String]("oss.username")
-  lazy val maybeOssPassword = configuration.getOptional[String]("oss.password")
-  lazy val ossProject = configuration.get[String]("oss.project")
-  lazy val disableDeploy = configuration.getOptional[Boolean]("oss.disable-deploy").getOrElse(false)
+  private lazy val maybeOssUsername = configuration.getOptional[String]("oss.username")
+  private lazy val maybeOssPassword = configuration.getOptional[String]("oss.password")
+  private lazy val maybeOssStagingProfileId = configuration.getOptional[String]("oss.staging-profile")
+  private lazy val ossProject = configuration.get[String]("oss.project")
+  private lazy val disableDeploy = configuration.getOptional[Boolean]("oss.disable-deploy").getOrElse(false)
+  private lazy val maybeOssGpgKey = configuration.getOptional[String]("oss.gpg-key")
+  private lazy val maybeOssGpgPass = configuration.getOptional[String]("oss.gpg-pass")
 
-  lazy val rowLimit = configuration.get[Int]("mavencentral.row-limit")
-  lazy val searchUrl = configuration.get[String]("mavencentral.search-url")
+  private lazy val rowLimit = configuration.get[Int]("mavencentral.row-limit")
+  private lazy val searchUrl = configuration.get[String]("mavencentral.search-url")
 
   def withOssCredentials[T](f: (String, String) => Future[T]): Future[T] = {
     val maybeUsernameAndPassword = for {
@@ -56,8 +85,8 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
     }
   }
 
-  def fetchWebJarNameAndUrl(groupId: String, artifactId: String, version: String): Future[(String, String)] = {
-    getPom(groupId, artifactId, version).flatMap { xml =>
+  def fetchWebJarNameAndUrl(gav: GAV): Future[(String, String)] = {
+    getPom(gav).flatMap { xml =>
       val artifactId = (xml \ "artifactId").text
       val rawName = (xml \ "name").text
       val name = if (rawName.contains("${") || rawName.isEmpty) {
@@ -77,7 +106,7 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
         else {
           // try the parent pom
           val parentArtifactId = (xml \ "parent" \ "artifactId").text
-          getPom(groupId, parentArtifactId, version).map { parentXml =>
+          getPom(gav.copy(artifactId = parentArtifactId)).map { parentXml =>
             (parentXml \ "scm" \ "url").text
           }
         }
@@ -90,7 +119,7 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
     } recover {
       case _ =>
         // fall back to the usual
-        (artifactId, s"https://github.com/webjars/$artifactId")
+        (gav.artifactId, s"https://github.com/webjars/${gav.artifactId}")
     }
   }
 
@@ -163,7 +192,7 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
         artifactsWithWebJarVersions.flatMap {
           case ((groupId, artifactId), webJarVersions) =>
             webJarVersions.map(_.number).headOption.map { latestVersion =>
-              fetchWebJarNameAndUrl(groupId, artifactId, latestVersion).map {
+              fetchWebJarNameAndUrl(GAV(groupId, artifactId, latestVersion)).map {
                 case (name, url) =>
                   WebJar(WebJarType.toString(webJarType), groupId, artifactId, name, url, webJarVersions)
               }
@@ -187,7 +216,7 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
 
     wsClient.url(searchUrl).withQueryStringParameters(params.toSeq: _*).get().flatMap { response =>
       Future.fromTry(Try(response.json)).recoverWith {
-        case _ => Future.failed(new MavenCentral.UnavailableException(response.body))
+        case _ => Future.failed(new UnavailableException(response.body))
       }
     }
   }
@@ -217,14 +246,14 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
     cache.get[List[WebJar]](webJarType.toString, 1.hour) {
       actorSystem.actorSelection("user/" + webJarType.toString).resolveOne(1.second).flatMap { _ =>
         // in-flight request exists
-        Future.failed(new MavenCentral.ExistingWebJarRequestException(webJarType.toString))
+        Future.failed(new ExistingWebJarRequestException(webJarType.toString))
       } recoverWith {
         // no request so make one
         case _: ActorNotFound =>
           implicit val timeout: Timeout = Timeout(10.minutes)
 
           val webJarFetcherTry = Future.fromTry(Try(actorSystem.actorOf(Props(classOf[WebJarFetcher], this, ec), webJarType.toString))).recoverWith {
-            case _: InvalidActorNameException => Future.failed(new MavenCentral.ExistingWebJarRequestException(webJarType.toString))
+            case _: InvalidActorNameException => Future.failed(new ExistingWebJarRequestException(webJarType.toString))
           }
 
           webJarFetcherTry.flatMap { webJarFetcher =>
@@ -243,10 +272,10 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
     Future.foldLeft(allWebJarsFutures)(List.empty[WebJar])(_ ++ _)
   }
 
-  def fetchPom(groupId: String, artifactId: String, version: String, maybeUrlPrefix: Option[String] = None): Future[Elem] = {
-    val groupIdPath = groupId.replace(".", "/")
+  def fetchPom(gav: GAV, maybeUrlPrefix: Option[String] = None): Future[Elem] = {
+
     val urlPrefix = maybeUrlPrefix.getOrElse("https://repo1.maven.org/maven2")
-    val url = s"$urlPrefix/$groupIdPath/$artifactId/$version/$artifactId-$version.pom"
+    val url = s"$urlPrefix/${gav.path}.pom"
     wsClient.url(url).get().flatMap { response =>
       response.status match {
         case Status.OK =>
@@ -259,10 +288,9 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
     }
   }
 
-  def getPom(groupId: String, artifactId: String, version: String): Future[Elem] = {
-    val cacheKey = s"pom-$groupId-$artifactId-$version"
-    memcache.getWithMiss[Elem](cacheKey) {
-      fetchPom(groupId, artifactId, version)
+  def getPom(gav: GAV): Future[Elem] = {
+    memcache.getWithMiss[Elem](s"pom-${gav.cacheKey}") {
+      fetchPom(gav)
     }
   }
 
@@ -307,12 +335,12 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
               Future.successful(webJarCounts)
             }
             else {
-              Future.failed(new MavenCentral.EmptyStatsException("Stats were empty"))
+              Future.failed(new EmptyStatsException("Stats were empty"))
             }
           case Status.UNAUTHORIZED =>
             Future.failed(UnauthorizedError("Invalid credentials"))
           case _ =>
-            Future.failed(new MavenCentral.UnavailableException(response.body))
+            Future.failed(new UnavailableException(response.body))
         }
       }
     }
@@ -323,9 +351,9 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
       groupIds(webJarType).flatMap { groupIds =>
         val futures = groupIds.map { groupId =>
           getStats(groupId, dateTime).recover {
-            case _: MavenCentral.EmptyStatsException => Map.empty[(String, String), Int]
+            case _: EmptyStatsException => Map.empty[(String, String), Int]
             case _: UnauthorizedError => Map.empty[(String, String), Int]
-            case _: MavenCentral.UnavailableException => Map.empty[(String, String), Int]
+            case _: UnavailableException => Map.empty[(String, String), Int]
           }
         }
         Future.reduceLeft(futures)(_ ++ _)
@@ -336,6 +364,220 @@ class MavenCentral @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClie
     }
   }
 
+  /*
+  private def ossStagingT[T](path: String)(f: WSRequest => Future[WSResponse])(implicit reads: Reads[T]): Future[T] = {
+    ossStaging(path)(f).flatMap { json =>
+      Future.fromTry(JsResult.toTry(json.validate[T](reads)))
+    }
+  }
+
+   */
+
+  private def stagingRepo(stagedRepo: StagedRepo): Future[JsValue] = {
+    withOssCredentials { (username, password) =>
+      val url = s"https://oss.sonatype.org/service/local/staging/repository/${stagedRepo.id}"
+      wsClient.url(url).withAuth(username, password, WSAuthScheme.BASIC).withHttpHeaders(HeaderNames.ACCEPT -> MimeTypes.JSON).get().flatMap { response =>
+        if (response.status == Status.OK) {
+          Future.fromTry {
+            Try {
+              response.json
+            }
+          }
+        }
+        else {
+          Future.failed(ServerError(response.body, response.status))
+        }
+      }
+    }
+  }
+
+  // kudos: https://nami.me/2015/01/20/scala-futures-with-timeout/
+  implicit class FutureExtensions[T](f: Future[T]) {
+    def withTimeout(duration: FiniteDuration)(implicit system: ActorSystem): Future[T] = {
+      val max = after(duration, system.scheduler)(Future.failed(new TimeoutException(s"Operation did not complete in $duration")))
+      Future.firstCompletedOf(Seq(f, max))
+    }
+  }
+
+  val maxwait = 10.minutes
+  val poll = 5.seconds
+
+  // todo: errors
+  private def stagingWait(stagedRepo: StagedRepo): Future[JsValue] = {
+    def tryAgain(): Future[JsValue] = {
+      stagingRepo(stagedRepo).flatMap { json =>
+        if ((json \ "transitioning").as[Boolean]) {
+          after(poll, actorSystem.scheduler)(tryAgain())
+        }
+        else {
+          Future.successful(json)
+        }
+      }
+    }
+
+    tryAgain().withTimeout(maxwait)
+  }
+
+  private def stagingProfileReq(path: String, responseCode: Int)(f: WSRequest => Future[WSResponse]): Future[Option[JsValue]] = {
+    maybeOssStagingProfileId.fold(Future.failed[Option[JsValue]](new Exception("Could not get staging profile id"))) { stagingProfileId =>
+      withOssCredentials { (username, password) =>
+        val url = s"https://oss.sonatype.org/service/local/staging/profiles/$stagingProfileId/$path"
+        val req = wsClient.url(url).withAuth(username, password, WSAuthScheme.BASIC).withHttpHeaders(HeaderNames.ACCEPT -> MimeTypes.JSON)
+        f(req).flatMap { response =>
+          val result = if (response.status == responseCode && response.contentType.startsWith(MimeTypes.JSON)) {
+            Try {
+              Some(response.json)
+            }
+          }
+          else if (response.status == responseCode && response.bodyAsBytes.isEmpty) {
+            Success(None)
+          }
+          else {
+            Failure(ServerError(response.body, response.status))
+          }
+
+          Future.fromTry(result)
+        }
+      }
+    }
+  }
+
+  private def stagingTransition(state: String, stagedRepo: StagedRepo, description: String): Future[Unit] = {
+    stagingProfileReq(state, Status.CREATED) { req =>
+      val body = Json.obj(
+        "data" -> Json.obj(
+          "stagedRepositoryId" -> stagedRepo.id,
+          "targetRepositoryId" -> ossProject,
+          "description" -> description,
+        )
+      )
+
+      req.post(body)
+    } collect {
+      case None => ()
+    }
+  }
+
+  private def stagingTransitionWithWait(state: String, stagedRepo: StagedRepo, description: String): Future[Unit] = {
+    stagingTransition(state, stagedRepo, description).flatMap { _ =>
+      stagingWait(stagedRepo).map(_ => ())
+    }
+  }
+
+  /*
+  def stagingRepositoryProfiles(): Future[JsValue] = {
+    ossStagingProfiles("profile_repositories")(_.get())
+  }
+   */
+
+  def createStaging(description: String): Future[StagedRepo] = {
+    stagingProfileReq("start", Status.CREATED) { req =>
+      val body = Json.obj(
+        "data" -> Json.obj(
+          "description" -> description
+        )
+      )
+
+      req.post(body)
+    } collect {
+      case Some(jsValue) => jsValue
+    } flatMap { jsValue =>
+      (jsValue \ "data").asOpt[StagedRepo].fold(Future.failed[StagedRepo](new Exception("Could not parse response")))(Future.successful)
+    }
+  }
+
+  def closeStaging(stagedRepo: StagedRepo, description: String): Future[Unit] = {
+    stagingTransitionWithWait("finish", stagedRepo, description)
+  }
+
+  def promoteStaging(stagedRepo: StagedRepo, description: String): Future[Unit] = {
+    if (!disableDeploy) {
+      stagingTransitionWithWait("promote", stagedRepo, description)
+    }
+    else {
+      Future.unit
+    }
+  }
+
+  def dropStaging(stagedRepo: StagedRepo, description: String): Future[Unit] = {
+    stagingTransition("drop", stagedRepo, description)
+  }
+
+  def asc(toSign: Array[Byte]): Option[String] = {
+    maybeOssGpgKey.map { gpgKey =>
+      val keyBytes = Base64.getDecoder.decode(gpgKey)
+
+      val secretKeyRing = new PGPSecretKeyRing(keyBytes, new JcaKeyFingerprintCalculator())
+
+      val pass = maybeOssGpgPass.getOrElse("").toCharArray
+
+      val privKey = secretKeyRing.getSecretKey.extractPrivateKey(new JcePBESecretKeyDecryptorBuilder().build(pass))
+
+      val signerBuilder = new JcaPGPContentSignerBuilder(secretKeyRing.getPublicKey().getAlgorithm, HashAlgorithmTags.SHA1)
+
+      val sGen = new PGPSignatureGenerator(signerBuilder)
+      sGen.init(PGPSignature.BINARY_DOCUMENT, privKey)
+
+      val bos = new ByteArrayOutputStream()
+      val armor = new ArmoredOutputStream(bos)
+      val bOut = new BCPGOutputStream(armor)
+
+      sGen.update(toSign)
+      sGen.generate().encode(bOut)
+
+      bOut.close()
+      armor.close()
+      bos.close()
+
+      new String(bos.toByteArray)
+    }
+  }
+
+  def uploadStaging(stagedRepo: StagedRepo, gav: GAV, pom: String, jar: Array[Byte]): Future[Unit] = {
+    withOssCredentials { (username, password) =>
+      val baseUrl = s"https://oss.sonatype.org/service/local/staging/deployByRepositoryId/${stagedRepo.id}/"
+      val fileUrl = s"$baseUrl/${gav.path}"
+
+      val emptyJar = WebJarCreator.emptyJar()
+
+      def upload[A](url: String, content: A)(implicit bodyWritable: BodyWritable[A]) = {
+        wsClient.url(url).withAuth(username, password, WSAuthScheme.BASIC).put(content).collect(_.status == Status.CREATED)
+      }
+
+      val maybeAscs = for {
+        pomAsc <- asc(pom.getBytes)
+        emptyAsc <- asc(emptyJar)
+        jarAsc <- asc(jar)
+      } yield (pomAsc, emptyAsc, jarAsc)
+
+      maybeAscs.fold(Future.failed[Unit](new Exception("Could not create ascs"))) { case (pomAsc, emptyJarAsc, jarAsc) =>
+        Future.sequence(
+          Seq(
+            upload(fileUrl + ".pom", pom),
+            upload(fileUrl + ".pom.sha1", pom.sha1.hex),
+            upload(fileUrl + ".pom.md5", pom.md5.hex),
+            upload(fileUrl + ".pom.asc", pomAsc),
+
+            upload(fileUrl + "-sources.jar", emptyJar),
+            upload(fileUrl + "-sources.jar.sha1", emptyJar.sha1.hex),
+            upload(fileUrl + "-sources.jar.md5", emptyJar.md5.hex),
+            upload(fileUrl + "-sources.jar.asc", emptyJarAsc),
+
+            upload(fileUrl + "-javadoc.jar", emptyJar),
+            upload(fileUrl + "-javadoc.jar.sha1", emptyJar.sha1.hex),
+            upload(fileUrl + "-javadoc.jar.md5", emptyJar.md5.hex),
+            upload(fileUrl + "-javadoc.jar.asc", emptyJarAsc),
+
+            upload(fileUrl + ".jar", jar),
+            upload(fileUrl + ".jar.sha1", jar.sha1.hex),
+            upload(fileUrl + ".jar.md5", jar.md5.hex),
+            upload(fileUrl + ".jar.asc", jarAsc),
+          )
+        ).map(_ => ())
+      }
+    }
+  }
+
 }
 
 
@@ -343,4 +585,19 @@ object MavenCentral {
   class UnavailableException(msg: String) extends RuntimeException(msg)
   class ExistingWebJarRequestException(groupId: String) extends RuntimeException(s"There is an existing WebJar request for $groupId")
   class EmptyStatsException(msg: String) extends RuntimeException(msg)
+
+  case class GAV(groupId: String, artifactId: String, version: String) {
+    lazy val groupIdPath = groupId.replace(".", "/")
+    lazy val path = s"$groupIdPath/$artifactId/$version/$artifactId-$version"
+    lazy val cacheKey = s"$groupId-$artifactId-$version"
+  }
+
+  case class StagedRepo(id: String, description: String)
+
+  object StagedRepo {
+    implicit val jsonReads: Reads[StagedRepo] = (
+      (__ \ "stagedRepositoryId").read[String] ~
+        (__ \ "description").read[String]
+      ).apply(StagedRepo(_, _))
+  }
 }

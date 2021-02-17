@@ -8,25 +8,27 @@ import java.util.UUID
 import scala.concurrent.Future
 import scala.concurrent.duration._
 
-class MemcacheSpec extends PlaySpecification with GlobalApplication {
+class MemcacheSpec extends PlaySpecification {
 
   override implicit def defaultAwaitTimeout: Timeout = 30.seconds
-
-  lazy val memcache = application.injector.instanceOf[Memcache]
 
   implicit val transcoderString = new SerializingTranscoder().asInstanceOf[Transcoder[String]]
 
   "set & get" should {
-    "work" in {
+    "work" in new WithApplication() {
+      val memcache = app.injector.instanceOf[Memcache]
+
       val cacheKey = UUID.randomUUID().toString
       await(memcache.set(cacheKey, "foo"))
       await(memcache.get[String](cacheKey)) must be equalTo "foo"
     }
-    "work with expiration less than a second" in {
+    "work with expiration less than a second" in new WithApplication() {
+      val memcache = app.injector.instanceOf[Memcache]
       val cacheKey = UUID.randomUUID().toString
       await(memcache.set(cacheKey, "foo", Memcache.Expiration.In(50.millis))) must throwAn[Exception]
     }
-    "work with expiration more than a second" in {
+    "work with expiration more than a second" in new WithApplication() {
+      val memcache = app.injector.instanceOf[Memcache]
       val cacheKey = UUID.randomUUID().toString
       await(memcache.set(cacheKey, "foo", Memcache.Expiration.In(2.seconds)))
       await(memcache.get[String](cacheKey)) must be equalTo "foo"
@@ -36,11 +38,13 @@ class MemcacheSpec extends PlaySpecification with GlobalApplication {
   }
 
   "getWithMiss" should {
-    "work on a miss" in {
+    "work on a miss" in new WithApplication() {
+      val memcache = app.injector.instanceOf[Memcache]
       val cacheKey = UUID.randomUUID().toString
       await(memcache.getWithMiss(cacheKey)(Future.successful("foo"))) must be equalTo "foo"
     }
-    "work on a hit" in {
+    "work on a hit" in new WithApplication() {
+      val memcache = app.injector.instanceOf[Memcache]
       val cacheKey = UUID.randomUUID().toString
       await(memcache.set(cacheKey, "foo"))
       await(memcache.getWithMiss(cacheKey)(Future.successful("bar"))) must be equalTo "foo"
@@ -48,7 +52,8 @@ class MemcacheSpec extends PlaySpecification with GlobalApplication {
   }
 
   "get miss" should {
-    "work" in {
+    "work" in new WithApplication() {
+      val memcache = app.injector.instanceOf[Memcache]
       val cacheKey = UUID.randomUUID().toString
       await(memcache.get[String](cacheKey)) must throwA[Memcache.Miss.type]
     }

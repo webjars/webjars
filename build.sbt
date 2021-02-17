@@ -13,6 +13,7 @@ libraryDependencies ++= Seq(
   "com.lihaoyi" %% "fastparse" % "2.3.0",
   "org.apache.commons" % "commons-compress" % "1.18",
   "org.eclipse.jgit" % "org.eclipse.jgit" % "5.6.0.201912101111-r",
+  "com.outr" %% "hasher" % "1.2.2",
   "org.webjars" %% "webjars-play" % "2.8.0-1",
   "org.webjars.bower" % "bootstrap" % "3.3.4",
   "org.webjars.bower" % "select2" % "3.5.2",
