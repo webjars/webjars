@@ -10,6 +10,7 @@ import play.api.test._
 import play.api.{Configuration, Environment}
 import utils.MavenCentral.{GAV, StagedRepo}
 
+import java.io.FileNotFoundException
 import java.net.{URI, URL}
 import scala.concurrent.Future
 import scala.concurrent.duration._
@@ -109,7 +110,7 @@ class MavenCentralSpec extends PlaySpecification {
         val gitUri = new URI("https://githib.com/webjars/webjars.git")
         val sourceUrl = new URL("https://github.com/webjars/webjars")
         val version = "0.0.1" // Instant.now.getEpochSecond.toString
-        val licenses = Map("MIT" -> "https://opensource.org/licenses/MIT")
+        val licenses = Set[License](LicenseWithNameAndUrl("MIT", new URL("https://opensource.org/licenses/MIT")))
 
         val packageInfo = PackageInfo("Test WebJar", version, None, gitUri, None, Seq.empty, Map.empty, Map.empty)
 
@@ -138,8 +139,9 @@ class MavenCentralMock extends MavenCentral {
     Future.successful(List.empty)
   }
 
+  // this makes it so the mock says the artifact has not already been deployed
   override def fetchPom(gav: GAV, maybeUrlPrefix: Option[String]): Future[Elem] = {
-    Future.failed(new NotImplementedError("TODO"))
+    Future.failed(new FileNotFoundException())
   }
 
   override def webJars(webJarType: WebJarType): Future[List[WebJar]] = {

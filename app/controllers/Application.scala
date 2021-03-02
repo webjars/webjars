@@ -17,6 +17,7 @@ import utils.MavenCentral.ExistingWebJarRequestException
 import utils._
 
 import java.io.FileNotFoundException
+import java.net.URL
 import java.util.concurrent.TimeoutException
 import javax.inject.Inject
 import scala.concurrent.duration._
@@ -333,7 +334,11 @@ class Application @Inject() (git: Git, gitHub: GitHub, cache: Cache, mavenCentra
 
     val bodyAsJson = request.body.asJson
     val licenseOverride = bodyAsJson.flatMap { json =>
-      (json \ "license").asOpt[Map[String, String]]
+      (json \ "license").asOpt[Map[String, String]].map { licenses =>
+        licenses.map[License] { case (name, url) =>
+          LicenseWithNameAndUrl(name, new URL(url))
+        }.toSet
+      }
     }
     val groupIdOverride = bodyAsJson.flatMap { json =>
       (json \ "groupId").asOpt[String]

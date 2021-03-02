@@ -30,19 +30,14 @@ class DeployWebJar @Inject()(mavenCentral: MavenCentral, sourceLocator: SourceLo
     heroku.dynoCreate(app, cmd, "Standard-2X")
   }
 
-  def localDeploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, deployDependencies: Boolean, maybeReleaseVersion: Option[String] = None, maybeSourceUri: Option[URI] = None, maybeLicense: Option[String] = None, forceDeploy: Boolean = false): Source[String, Future[NotUsed]] = {
+  def localDeploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, deployDependencies: Boolean, maybeReleaseVersion: Option[String] = None, maybeSourceUri: Option[URI] = None, maybeLicense: Option[String] = None): Source[String, Future[NotUsed]] = {
 
     def webJarNotYetDeployed(groupId: String, artifactId: String, version: String): Future[Unit] = {
-      if (!forceDeploy) {
-        mavenCentral.fetchPom(GAV(groupId, artifactId, version), Some("https://oss.sonatype.org/content/repositories/releases")).flatMap { _ =>
-          Future.failed(new IllegalStateException(s"WebJar $groupId $artifactId $version has already been deployed"))
-        } recoverWith {
-          case _: FileNotFoundException =>
-            Future.unit
-        }
-      }
-      else {
-        Future.unit
+      mavenCentral.fetchPom(GAV(groupId, artifactId, version), Some("https://oss.sonatype.org/content/repositories/releases")).flatMap { _ =>
+        Future.failed(new IllegalStateException(s"WebJar $groupId $artifactId $version has already been deployed"))
+      } recoverWith {
+        case _: FileNotFoundException =>
+          Future.unit
       }
     }
 
@@ -103,8 +98,10 @@ class DeployWebJar @Inject()(mavenCentral: MavenCentral, sourceLocator: SourceLo
 
         _ <- queue.offer(s"Resolving licenses & dependencies for $groupId $artifactId $releaseVersion")
 
-        licenses <- maybeLicense.fold(deployable.licenses(nameOrUrlish, upstreamVersion, packageInfo))(license => Future.successful(Set(license))).map(LicenseDetector.defaultUrls)
-        _ <- queue.offer(s"Resolved Licenses: ${licenses.keySet.mkString(",")}")
+        licenses <- maybeLicense.fold(deployable.licenses(nameOrUrlish, upstreamVersion, packageInfo)) { license =>
+          Future.successful(Set(LicenseWithName(license)))
+        }
+        _ <- queue.offer(s"Resolved Licenses: ${licenses.mkString(",")}")
 
         mavenDependencies <- deployable.mavenDependencies(packageInfo.dependencies)
         _ <- queue.offer("Converted dependencies to Maven")
@@ -168,7 +165,7 @@ class DeployWebJar @Inject()(mavenCentral: MavenCentral, sourceLocator: SourceLo
     }
   }
 
-  def create(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, licenseOverride: Option[Map[String, String]], groupIdOverride: Option[String]): Future[(String, Array[Byte])] = {
+  def create(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, licenseOverride: Option[Set[License]], groupIdOverride: Option[String]): Future[(String, Array[Byte])] = {
     import deployable._
 
     for {
@@ -178,7 +175,7 @@ class DeployWebJar @Inject()(mavenCentral: MavenCentral, sourceLocator: SourceLo
 
       releaseVersion = upstreamVersion.vless
 
-      licenses <- licenseOverride.fold(licenses(nameOrUrlish, upstreamVersion, packageInfo).map(LicenseDetector.defaultUrls))(Future.successful)
+      licenses <- licenseOverride.fold(licenses(nameOrUrlish, upstreamVersion, packageInfo))(Future.successful)
 
       mavenDependencies <- deployable.mavenDependencies(packageInfo.dependencies)
 
@@ -285,35 +282,31 @@ trait Deployable extends WebJarType {
   def file(nameOrUrlish: NameOrUrlish, version: Version, filename: String): Future[String]
   def versions(nameOrUrlish: NameOrUrlish): Future[Set[Version]]
 
-  def licenses(nameOrUrlish: NameOrUrlish, version: Version, packageInfo: PackageInfo)(implicit ec: ExecutionContext): Future[Set[String]] = {
-    def failIfEmpty(seq: Seq[String]): Future[Seq[String]] = {
-      if (seq.nonEmpty) {
-        Future.successful(seq)
-      }
-      else {
-        Future.failed(NoValidLicenses())
-      }
-    }
+  def licenses(nameOrUrlish: NameOrUrlish, version: Version, packageInfo: PackageInfo)(implicit ec: ExecutionContext): Future[Set[License]] = {
 
-    def tryToGetLicenseFromVariousFiles(files: Set[String]): Future[String] = {
-      files.headOption.fold[Future[String]](Future.failed(NoValidLicenses())) { licenseFile =>
+    def tryToGetLicenseFromVariousFiles(files: Set[String]): Future[License] = {
+      files.headOption.fold[Future[License]](Future.failed(NoValidLicenses())) { licenseFile =>
+        // todo: could try a url if we know the source base
         file(nameOrUrlish, version, licenseFile).flatMap(licenseDetector.licenseDetect).recoverWith {
           case _ => tryToGetLicenseFromVariousFiles(files.tail)
         }
       }
     }
 
-    val resolvedLicenses = Future.sequence(packageInfo.metadataLicenses.flatMap(licenseReference(nameOrUrlish, version, _)))
+    val resolvedLicenses = Future.foldLeft(packageInfo.metadataLicenses.map(licenseReference(nameOrUrlish, version, _)))(Set.empty[License])(_ ++ _)
 
-    resolvedLicenses.map(licenseDetector.validLicenses).flatMap(failIfEmpty).recoverWith {
-      case _ => licenseDetector.gitHubLicenseDetect(packageInfo.maybeGitHubOrgRepo).recoverWith {
-        case _ => tryToGetLicenseFromVariousFiles(licenseDetector.typicalLicenseFiles)
-      }.map(Seq(_))
-    }.map(licenseDetector.validLicenses).filter(_.nonEmpty).recoverWith {
-      case e: Exception =>
-        val errorMessage = messages("licensenotfound", metadataFile, packageInfo.sourceConnectionUri, packageInfo.metadataLicenses.mkString)
-        Future.failed(LicenseNotFoundException(errorMessage, e))
-    }.map(_.toSet)
+    resolvedLicenses
+      .filter(_.nonEmpty)
+      .recoverWith {
+        case _ =>
+          tryToGetLicenseFromVariousFiles(licenseDetector.typicalLicenseFiles).map(Set(_))
+      }
+      .filter(_.nonEmpty)
+      .recoverWith {
+        case e: Exception =>
+          val errorMessage = messages("licensenotfound", metadataFile, packageInfo.sourceConnectionUri)
+          Future.failed(LicenseNotFoundException(errorMessage, e))
+      }
   }
 
   def archiveFile(nameOrUrlish: NameOrUrlish, version: Version, filename: String)(implicit ec: ExecutionContext): Future[String] = {
@@ -332,37 +325,28 @@ trait Deployable extends WebJarType {
     }
   }
 
-  def licenseReference(nameOrUrlish: NameOrUrlish, version: Version, license: String)(implicit ec: ExecutionContext): Seq[Future[String]] = {
+  def licenseReference(nameOrUrlish: NameOrUrlish, version: Version, license: String)(implicit ec: ExecutionContext): Future[Set[License]] = {
     if (license.contains("/") || license.startsWith("SEE LICENSE IN ")) {
       // we need to fetch the file and try to detect the license from the contents
 
       val licenseFuture = if (license.startsWith("http")) {
-        // sometimes this url points to the license on GitHub which can't be heuristically converted to an actual license so change the url to the raw content
-        val licenseUrl = new URL(license)
-
-        val rawLicenseUrl = if (licenseUrl.getHost.endsWith("github.com")) {
-          val path = licenseUrl.getPath.replaceAll("/blob", "")
-          new URL(s"https://raw.githubusercontent.com$path")
-        }
-        else {
-          licenseUrl
-        }
-
-        licenseDetector.licenseDetect(rawLicenseUrl)
+        licenseDetector.licenseDetect(new URL(license))
       }
       else {
         val licenseFile = license.stripPrefix("SEE LICENSE IN ")
         file(nameOrUrlish, version, licenseFile).flatMap(licenseDetector.licenseDetect)
       }
 
-      Seq(licenseFuture)
+      licenseFuture.map(Set(_))
     }
     else if (license.startsWith("(") && license.endsWith(")") && !license.contains("AND")) {
       // SPDX license expression
-      license.stripPrefix("(").stripSuffix(")").split(" OR ").toIndexedSeq.flatMap(_.split(" or ")).map(Future.successful)
+      Future.successful {
+        license.stripPrefix("(").stripSuffix(")").split(" OR ").flatMap(_.split(" or ")).toSet.map(LicenseWithName)
+      }
     }
     else {
-      Seq(Future.successful(license))
+      Future.successful(Set(LicenseWithName(license)))
     }
   }
 

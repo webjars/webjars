@@ -339,6 +339,7 @@ object NPM {
       .orElse((__ \ "license").read[String].map(Seq(_)))
       .orElse((__ \ "license").read[JsObject].map(_.\("type").as[String]).map(Seq(_)))
       .orElse((__ \ "licenses").read[Seq[JsObject]].map(_.map(_.\("type").as[String])))
+      .orElse((__ \ "licenses").read[String].map(Seq(_)))
       .orElse(Reads.pure(Seq.empty[String]))
 
     val nameReader = (__ \ "name").read[String]

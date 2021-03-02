@@ -8,8 +8,8 @@ import play.api.test._
 
 import java.io.BufferedInputStream
 import java.net.{URI, URL}
+import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
-import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
 class NPMSpec extends PlaySpecification with GlobalApplication {
@@ -368,67 +368,72 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
   "mapbox-gl" should {
     "have the right license for version 1.12.0 of the NPM package" in {
       val packageInfo = await(npm.info("mapbox-gl", "1.12.0"))
-      await(npm.licenses("mapbox-gl", "1.12.0", packageInfo)) must beEqualTo(Set("BSD 3-Clause"))
+      await(npm.licenses("mapbox-gl", "1.12.0", packageInfo)) must beEqualTo(Set(LicenseWithName("BSD 3-Clause")))
     }
     "have the right license for version v1.12.0 of the git repo" in {
       val packageInfo = await(npm.info("https://github.com/mapbox/mapbox-gl-js.git", "v1.12.0"))
-      await(npm.licenses("https://github.com/mapbox/mapbox-gl-js.git", "v1.12.0", packageInfo)) must beEqualTo (Set("BSD 3-Clause"))
+      await(npm.licenses("https://github.com/mapbox/mapbox-gl-js.git", "v1.12.0", packageInfo)) must beEqualTo (Set(LicenseWithName("BSD 3-Clause")))
     }
   }
 
   "chokidar 1.0.1" should {
     "have a license" in {
       val packageInfo = await(npm.info("chokidar", "1.0.1"))
-      await(npm.licenses("chokidar", "1.0.1", packageInfo)) must contain ("MIT")
+      await(npm.licenses("chokidar", "1.0.1", packageInfo)) must contain (LicenseWithName("MIT"))
     }
   }
 
   "entities 1.0.0" should {
     "fail with a useful error" in {
       val packageInfo = await(npm.info("entities", "1.0.0"))
-      await(npm.licenses("entities", "1.0.0", packageInfo)) must beEqualTo(Set("BSD 2-Clause"))
+      await(npm.licenses("entities", "1.0.0", packageInfo)) must beEqualTo(Set(LicenseWithName("BSD-like")))
     }
   }
 
   "async-validator" should {
     "have an MIT license" in {
       val packageInfo = await(npm.info("async-validator", "1.0.0"))
-      await(npm.licenses("async-validator", "1.0.0", packageInfo)) must contain("MIT")
+      await(npm.licenses("async-validator", "1.0.0", packageInfo)) must contain(LicenseWithName("MIT"))
     }
   }
 
   "esprima 3.1.3" should {
     "have a BSD 2-Clause license" in {
       val packageInfo = await(npm.info("esprima", "3.1.3"))
-      await(npm.licenses("esprima", "3.1.3", packageInfo)) must contain("BSD 2-Clause")
+      await(npm.licenses("esprima", "3.1.3", packageInfo)) must contain(LicenseWithName("BSD-2-Clause"))
     }
   }
 
   "NPM @zalando/oauth2-client-js" should {
     "have the right license" in {
       val packageInfo = await(npm.info("@zalando/oauth2-client-js", "0.0.18"))
-      await(npm.licenses("@zalando/oauth2-client-js", "0.0.18", packageInfo)) must beEqualTo (Set("Apache-2.0"))
+      await(npm.licenses("@zalando/oauth2-client-js", "0.0.18", packageInfo)) must beEqualTo (Set(LicenseWithName("Apache 2.0")))
     }
   }
 
   "licenseReference" should {
     "work with SPDX OR expressions" in {
-      await(Future.sequence(npm.licenseReference("foo", "0.0.0", "(Apache-2.0 OR MIT)"))) must containTheSameElementsAs(Seq("Apache-2.0", "MIT"))
-      await(Future.sequence(npm.licenseReference("foo", "0.0.0", "(Apache-2.0 or MIT)"))) must containTheSameElementsAs(Seq("Apache-2.0", "MIT"))
+      await(npm.licenseReference("foo", "0.0.0", "(Apache-2.0 OR MIT)")) must containTheSameElementsAs(Seq(LicenseWithName("Apache-2.0"), LicenseWithName("MIT")))
+      await(npm.licenseReference("foo", "0.0.0", "(Apache-2.0 or MIT)")) must containTheSameElementsAs(Seq(LicenseWithName("Apache-2.0"), LicenseWithName("MIT")))
     }
     "work with SPDX 'SEE LICENSE IN LICENSE' expressions" in {
-      val licenses = await(Future.sequence(npm.licenseReference("stacktracejs/error-stack-parser", "v2.0.0", "SEE LICENSE IN LICENSE")))
-      licenses must containTheSameElementsAs(Seq("Unlicense"))
+      val licenses = await(npm.licenseReference("stacktracejs/error-stack-parser", "v2.0.0", "SEE LICENSE IN LICENSE"))
+      licenses must containTheSameElementsAs(Seq(LicenseWithName("Unlicense")))
     }
     "be able to be fetched from git repos" in {
       val packageInfo = await(npm.info("ms", "0.7.1"))
-      await(npm.licenses("ms", "0.7.1", packageInfo)) must beEqualTo(Set("MIT"))
+      await(npm.licenses("ms", "0.7.1", packageInfo)) must beEqualTo(Set(LicenseWithName("MIT")))
     }
   }
 
   "convert github license URL to license" in {
-    val result = await(Future.sequence(npm.licenseReference("foo", "0.0.0", "https://github.com/facebook/flux/blob/master/LICENSE")))
-    result must be equalTo Seq("BSD 3-Clause")
+    val result = await(npm.licenseReference("foo", "0.0.0", "https://github.com/facebook/flux/blob/master/LICENSE"))
+    result must be equalTo Set(LicenseWithNameAndUrl("BSD 3-Clause", new URL("https://github.com/facebook/flux/blob/master/LICENSE")))
+  }
+
+  "have the right license for material-design-icons 2.2.3" in {
+    val packageInfo = await(npm.info("material-design-icons", "2.2.3"))
+    await(npm.licenses("material-design-icons", "2.2.3", packageInfo)) must beEqualTo (Set(LicenseWithName("CC-BY-4.0")))
   }
 
 }

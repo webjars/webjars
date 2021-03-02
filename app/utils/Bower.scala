@@ -208,4 +208,3 @@ object Bower {
   )(PackageInfo.apply _)
 
 }
-
