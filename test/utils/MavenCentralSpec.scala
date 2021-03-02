@@ -50,7 +50,7 @@ class MavenCentralSpec extends PlaySpecification {
       else {
         val mavenCentral = app.injector.instanceOf[MavenCentral]
         val webJars = await(mavenCentral.webJarsSorted(new DateTime(2016, 1, 1, 1, 1)))
-        webJars.head.artifactId must beEqualTo("bootstrap")
+        webJars.head.artifactId must beEqualTo("jquery")
       }
     }
   }
