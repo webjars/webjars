@@ -436,4 +436,12 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
     await(npm.licenses("material-design-icons", "2.2.3", packageInfo)) must beEqualTo (Set(LicenseWithName("CC-BY-4.0")))
   }
 
+  /*
+  Broken. See: https://github.com/webjars/webjars/issues/1920
+  "have the right license for hmrc-frontend 1.27.0" in {
+    val packageInfo = await(npm.info("hmrc-frontend", "1.27.0"))
+    await(npm.licenses("hmrc-frontend", "1.27.0", packageInfo)) must beEqualTo (Set(LicenseWithName("Apache 2.0")))
+  }
+   */
+
 }

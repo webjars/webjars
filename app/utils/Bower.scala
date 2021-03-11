@@ -204,7 +204,8 @@ object Bower {
     sourceToGitHubIssuesReads.map(Some(_)) ~
     (__ \ "license").read[Seq[String]].orElse((__ \ "license").read[String].map(Seq(_))).orElse((__ \ "licenses").read[Seq[String]]).orElse(Reads.pure(Seq.empty[String])) ~
     (__ \ "dependencies").read[Map[String, String]].orElse(Reads.pure(Map.empty[String, String])) ~
-    Reads.pure(Map.empty[String, String])
+    Reads.pure(Map.empty[String, String]) ~
+    (__ \ "_resolution" \ "tag").readNullable[String]
   )(PackageInfo.apply _)
 
 }

@@ -112,7 +112,7 @@ class MavenCentralSpec extends PlaySpecification {
         val version = "0.0.1" // Instant.now.getEpochSecond.toString
         val licenses = Set[License](LicenseWithNameAndUrl("MIT", new URL("https://opensource.org/licenses/MIT")))
 
-        val packageInfo = PackageInfo("Test WebJar", version, None, gitUri, None, Seq.empty, Map.empty, Map.empty)
+        val packageInfo = PackageInfo("Test WebJar", version, None, gitUri, None, Seq.empty, Map.empty, Map.empty, None)
 
         val gav = GAV("org.webjars", "_test", version)
 

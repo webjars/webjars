@@ -7,7 +7,17 @@ import play.api.libs.json._
 
 import scala.util.{Success, Try}
 
-case class PackageInfo(name: String, version: String, maybeHomepageUrl: Option[URL], sourceConnectionUri: URI, maybeIssuesUrl: Option[URL], metadataLicenses: Seq[String], dependencies: Map[String, String], optionalDependencies: Map[String, String]) {
+case class PackageInfo(
+                        name: String,
+                        version: String,
+                        maybeHomepageUrl: Option[URL],
+                        sourceConnectionUri: URI,
+                        maybeIssuesUrl: Option[URL],
+                        metadataLicenses: Seq[String],
+                        dependencies: Map[String, String],
+                        optionalDependencies: Map[String, String],
+                        maybeTag: Option[String],
+                      ) {
 
   lazy val maybeGitHubUrl: Option[URL] = GitHub.gitHubUrl(sourceConnectionUri).toOption
     .orElse(maybeHomepageUrl.flatMap(GitHub.gitHubUrl(_).toOption))
@@ -37,7 +47,8 @@ object PackageInfo {
     (__ \ "issuesUrl").writeNullable[URL] and
     (__ \ "metadataLicenses").write[Seq[String]] and
     (__ \ "dependencies").write[Map[String, String]] and
-    (__ \ "optionalDependencies").write[Map[String, String]]
+    (__ \ "optionalDependencies").write[Map[String, String]] and
+    (__ \ "tag").writeNullable[String]
   )(unlift(PackageInfo.unapply))
 
   implicit val readsUrl: Reads[URL] = Reads[URL] {

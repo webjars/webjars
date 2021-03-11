@@ -237,7 +237,7 @@ class BowerGitHubSpec extends PlaySpecification with GlobalApplication {
   }
 
   "releaseVersion" should {
-    val packageInfo = PackageInfo("foo", "3.2.1", None, new URI("foo://bar"), None, Seq.empty[String], Map.empty[String, String], Map.empty[String, String])
+    val packageInfo = PackageInfo("foo", "3.2.1", None, new URI("foo://bar"), None, Seq.empty, Map.empty, Map.empty, None)
 
     "strip the v prefix" in {
       bowerGitHub.releaseVersion(Some("v1.2.3"), packageInfo) must beEqualTo ("1.2.3")
