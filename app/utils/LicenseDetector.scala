@@ -48,7 +48,7 @@ class LicenseDetector @Inject() (ws: WSClient) (implicit ec: ExecutionContext) e
     }
   }
 
-  val typicalLicenseFiles = Set("LICENSE", "LICENSE.txt", "license.md")
+  val typicalLicenseFiles = Set("LICENSE", "LICENSE.txt", "license.md", "LICENSE-MIT")
 
 }
 

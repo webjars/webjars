@@ -286,7 +286,6 @@ trait Deployable extends WebJarType {
 
     def tryToGetLicenseFromVariousFiles(files: Set[String]): Future[License] = {
       files.headOption.fold[Future[License]](Future.failed(NoValidLicenses())) { licenseFile =>
-        // todo: could try a url if we know the source base
         file(nameOrUrlish, version, licenseFile).flatMap(licenseDetector.licenseDetect).recoverWith {
           case _ => tryToGetLicenseFromVariousFiles(files.tail)
         }
@@ -304,7 +303,7 @@ trait Deployable extends WebJarType {
       .filter(_.nonEmpty)
       .recoverWith {
         case e: Exception =>
-          val errorMessage = messages("licensenotfound", metadataFile, packageInfo.sourceConnectionUri)
+          val errorMessage = messages("licensenotfound", s"${this.name} - $nameOrUrlish $version")
           Future.failed(LicenseNotFoundException(errorMessage, e))
       }
   }
@@ -315,7 +314,7 @@ trait Deployable extends WebJarType {
         Using(new BufferedInputStream(resource)) { inputStream =>
           val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(inputStream)
           val maybeEntry = LazyList.continually(archiveStream.getNextEntry).takeWhile(_ != null).find(_.getName == filename)
-          maybeEntry.fold[Try[String]](Failure(new Exception(s"Could not find $filename in archive for $nameOrUrlish $version"))) { _ =>
+          maybeEntry.fold[Try[String]](Failure(new FileNotFoundException(s"Could not find $filename in archive for $nameOrUrlish $version"))) { _ =>
             Try {
               scala.io.Source.fromInputStream(archiveStream).mkString
             }

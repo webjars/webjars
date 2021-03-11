@@ -252,6 +252,15 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
     await(bower.licenses("git://github.com/mdedetrich/requirejs-plugins", "d9c103e7a0", packageInfo)) must beEqualTo(Set(LicenseWithName("MIT")))
   }
 
+  "cldrjs 0.5.5" should {
+    "have an MIT license" in {
+      val packageInfo = await(bower.info("cldrjs", "0.5.5"))
+      packageInfo.metadataLicenses must beEmpty
+      val licenses = await(bower.licenses("cldrjs", "0.5.5", packageInfo))
+      licenses must beEqualTo (Set(LicenseWithName("MIT")))
+    }
+  }
+
 
   /*
   // This is broken due to upstream: https://github.com/webjars/webjars/issues/1265
