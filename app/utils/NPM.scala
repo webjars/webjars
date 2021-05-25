@@ -266,7 +266,10 @@ class NPM @Inject() (val ws: WSClient, val licenseDetector: LicenseDetector, val
 object NPM {
 
   def uriIsh(repository: String): String = {
-    if (repository.contains("://")) {
+    if (repository.startsWith("git+https://")) {
+      repository.stripPrefix("git+")
+    }
+    else if (repository.contains("://")) {
       // ssh://host.xz/another/repo.git
       // git://host.xz/another/repo.git
       // https://host.xz/another/repo.git

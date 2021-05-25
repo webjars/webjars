@@ -2,7 +2,7 @@ enablePlugins(PlayScala)
 
 name := "webjars"
 
-scalaVersion := "2.13.5"
+scalaVersion := "2.13.6"
 
 libraryDependencies ++= Seq(
   ws,
@@ -54,7 +54,7 @@ scalacOptions ++= Seq(
   "-Ywarn-unused:privates",
 )
 
-onLoad in Global := (onLoad in Global).value.andThen { state =>
+Global / onLoad := (Global / onLoad).value.andThen { state =>
   if (sys.props("java.specification.version") != "1.8") {
     sys.error("Java 8 is required for this project.")
     state.exit(ok = false)
@@ -66,6 +66,6 @@ onLoad in Global := (onLoad in Global).value.andThen { state =>
 
 pipelineStages := Seq(gzip, digest)
 
-publishArtifact in (Compile, packageDoc) := false
+Compile / packageDoc / publishArtifact := false
 
-sources in (Compile,doc) := Seq.empty
+Compile / doc / sources := Seq.empty
