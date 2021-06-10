@@ -305,7 +305,7 @@ class Application @Inject() (git: Git, gitHub: GitHub, cache: Cache, mavenCentra
     WebJarType.fromString(webJarType, allDeployables).fold {
       BadRequest(s"Specified WebJar type '$webJarType' can not be deployed")
     } { deployable =>
-      val source = deployWebJar.deploy(deployable, nameOrUrlish, version, true, false).recover {
+      val source = deployWebJar.deploy(deployable, nameOrUrlish, version, true, false, false).recover {
         case e => e.getMessage
       } via {
         Flow[String].map(_ + "\n")

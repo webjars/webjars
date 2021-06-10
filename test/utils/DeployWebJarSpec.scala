@@ -15,7 +15,7 @@ class DeployWebJarSpec extends PlaySpecification {
       val deployWebJar: DeployWebJar = app.injector.instanceOf[DeployWebJar]
       val npm: NPM = app.injector.instanceOf[NPM]
 
-      val output = await(deployWebJar.localDeploy(npm, "jquery", "3.2.1", false).toMat(Sink.seq)(Keep.right).run())
+      val output = await(deployWebJar.localDeploy(npm, "jquery", "3.2.1", false, false).toMat(Sink.seq)(Keep.right).run())
       output.last must contain("GroupID = org.webjars.npm")
       output.last must contain("ArtifactID = jquery")
       output.last must contain("Version = 3.2.1")
@@ -24,20 +24,20 @@ class DeployWebJarSpec extends PlaySpecification {
       lazy val deployWebJar: DeployWebJar = app.injector.instanceOf[DeployWebJar]
       lazy val npm: NPM = app.injector.instanceOf[NPM]
 
-      await(deployWebJar.localDeploy(npm, "jquery", "3.2.1", false).to(Sink.ignore).run()) must throwAn[IllegalStateException]
+      await(deployWebJar.localDeploy(npm, "jquery", "3.2.1", false, false).to(Sink.ignore).run()) must throwAn[IllegalStateException]
     }
     "deploy deps" in new WithMocks() {
       val deployWebJar: DeployWebJar = app.injector.instanceOf[DeployWebJar]
       val npm: NPM = app.injector.instanceOf[NPM]
 
-      val output = await(deployWebJar.localDeploy(npm, "react", "16.8.6", true).toMat(Sink.seq)(Keep.right).run())
+      val output = await(deployWebJar.localDeploy(npm, "react", "16.8.6", true, false).toMat(Sink.seq)(Keep.right).run())
       output(2) must contain("Deploying these dependencies:")
     }
     "work with previously invalid licenses" in new WithMocks() {
       val deployWebJar: DeployWebJar = app.injector.instanceOf[DeployWebJar]
       val npm: NPM = app.injector.instanceOf[NPM]
 
-      val output = await(deployWebJar.localDeploy(npm, "material-design-icons", "2.2.3", true).toMat(Sink.seq)(Keep.right).run())
+      val output = await(deployWebJar.localDeploy(npm, "material-design-icons", "2.2.3", true, false).toMat(Sink.seq)(Keep.right).run())
       output(4) must contain("Resolved Licenses: CC-BY-4.0")
       output(15) must contain("Deployed!")
     }

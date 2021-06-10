@@ -24,20 +24,25 @@ class DeployWebJar @Inject()(mavenCentral: MavenCentral, sourceLocator: SourceLo
 
   val fork = configuration.getOptional[Boolean]("deploy.fork").getOrElse(false)
 
-  def forkDeploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, deployDependencies: Boolean, preventFork: Boolean): Source[String, Future[NotUsed]] = {
+  def forkDeploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, deployDependencies: Boolean, preventFork: Boolean, force: Boolean): Source[String, Future[NotUsed]] = {
     val app = configuration.get[String]("deploy.herokuapp")
-    val cmd = s"deploy ${WebJarType.toString(deployable)} $nameOrUrlish $upstreamVersion $deployDependencies $preventFork"
+    val cmd = s"deploy ${WebJarType.toString(deployable)} $nameOrUrlish $upstreamVersion $deployDependencies $preventFork $force"
     heroku.dynoCreate(app, cmd, "Standard-2X")
   }
 
-  def localDeploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, deployDependencies: Boolean, maybeReleaseVersion: Option[String] = None, maybeSourceUri: Option[URI] = None, maybeLicense: Option[String] = None): Source[String, Future[NotUsed]] = {
+  def localDeploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, deployDependencies: Boolean, force: Boolean, maybeReleaseVersion: Option[String] = None, maybeSourceUri: Option[URI] = None, maybeLicense: Option[String] = None): Source[String, Future[NotUsed]] = {
 
     def webJarNotYetDeployed(groupId: String, artifactId: String, version: String): Future[Unit] = {
-      mavenCentral.fetchPom(GAV(groupId, artifactId, version), Some("https://oss.sonatype.org/content/repositories/releases")).flatMap { _ =>
-        Future.failed(new IllegalStateException(s"WebJar $groupId $artifactId $version has already been deployed"))
-      } recoverWith {
-        case _: FileNotFoundException =>
-          Future.unit
+      if (!force) {
+        mavenCentral.fetchPom(GAV(groupId, artifactId, version), Some("https://oss.sonatype.org/content/repositories/releases")).flatMap { _ =>
+          Future.failed(new IllegalStateException(s"WebJar $groupId $artifactId $version has already been deployed"))
+        } recoverWith {
+          case _: FileNotFoundException =>
+            Future.unit
+        }
+      }
+      else {
+        Future.unit
       }
     }
 
@@ -63,7 +68,7 @@ class DeployWebJar @Inject()(mavenCentral: MavenCentral, sourceLocator: SourceLo
             }
             else {
               val (nameish, version) = deps.head
-              deploy(deployable, nameish, version, false, false).runForeach(queue.offer).recover {
+              deploy(deployable, nameish, version, false, false, force).runForeach(queue.offer).recover {
                 // ignore failures
                 case e =>
                   queue.offer(e.getMessage)
@@ -156,12 +161,12 @@ class DeployWebJar @Inject()(mavenCentral: MavenCentral, sourceLocator: SourceLo
     }
   }
 
-  def deploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, deployDependencies: Boolean, preventFork: Boolean, maybeReleaseVersion: Option[String] = None, maybeSourceUri: Option[URI] = None, maybeLicense: Option[String] = None): Source[String, Future[NotUsed]] = {
+  def deploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, deployDependencies: Boolean, preventFork: Boolean, force: Boolean, maybeReleaseVersion: Option[String] = None, maybeSourceUri: Option[URI] = None, maybeLicense: Option[String] = None): Source[String, Future[NotUsed]] = {
     if (fork && !preventFork) {
-      forkDeploy(deployable, nameOrUrlish, upstreamVersion, deployDependencies, true)
+      forkDeploy(deployable, nameOrUrlish, upstreamVersion, deployDependencies, true, force)
     }
     else {
-      localDeploy(deployable, nameOrUrlish, upstreamVersion, deployDependencies, maybeReleaseVersion, maybeSourceUri, maybeLicense)
+      localDeploy(deployable, nameOrUrlish, upstreamVersion, deployDependencies, force, maybeReleaseVersion, maybeSourceUri, maybeLicense)
     }
   }
 
@@ -197,12 +202,13 @@ class DeployWebJar @Inject()(mavenCentral: MavenCentral, sourceLocator: SourceLo
 
 object DeployWebJar extends App {
 
-  val (webJarType, nameOrUrlish, upstreamVersion, deployDependencies, preventFork, maybeReleaseVersion, maybeSourceUri, maybeLicense) = if (args.length < 5) {
+  val (webJarType, nameOrUrlish, upstreamVersion, deployDependencies, preventFork, force, maybeReleaseVersion, maybeSourceUri, maybeLicense) = if (args.length < 5) {
     val webJarType = StdIn.readLine("WebJar Type: ")
     val nameOrUrlish = StdIn.readLine("Name or URL: ")
     val upstreamVersion = StdIn.readLine("Upstream Version: ")
     val deployDependenciesIn = StdIn.readLine("Deploy dependencies (false|true): ")
     val preventForkIn = StdIn.readLine("Prevent Fork (false|true): ")
+    val forceIn = StdIn.readLine("Force deploy (false|true): ")
     val releaseVersionIn = StdIn.readLine("Release Version (override): ")
     val sourceUriIn = StdIn.readLine("Source URI (override): ")
     val licenseIn = StdIn.readLine("License (override): ")
@@ -211,17 +217,19 @@ object DeployWebJar extends App {
 
     val preventFork = if (preventForkIn.isEmpty) false else preventForkIn.toBoolean
 
+    val force = if (forceIn.isEmpty) false else forceIn.toBoolean
+
     val maybeReleaseVersion = if (releaseVersionIn.isEmpty) None else Some(releaseVersionIn)
 
     val maybeSourceUri = if (sourceUriIn.isEmpty) None else Try(new URI(sourceUriIn)).toOption
 
     val maybeLicense = if (licenseIn.isEmpty) None else Some(licenseIn)
 
-    (webJarType, nameOrUrlish, upstreamVersion, deployDependencies, preventFork, maybeReleaseVersion, maybeSourceUri, maybeLicense)
+    (webJarType, nameOrUrlish, upstreamVersion, deployDependencies, preventFork, force, maybeReleaseVersion, maybeSourceUri, maybeLicense)
   }
   else {
     // todo: come up with a way to handle the optional params because if we fork then we lose them
-    (args(0), args(1), args(2), args(3).toBoolean, args(4).toBoolean, None, None, None)
+    (args(0), args(1), args(2), args(3).toBoolean, args(4).toBoolean, args(5).toBoolean, None, None, None)
   }
 
   if (nameOrUrlish.isEmpty || upstreamVersion.isEmpty) {
@@ -246,7 +254,7 @@ object DeployWebJar extends App {
     val deployFuture = WebJarType.fromString(webJarType, allDeployables).fold[Future[Done]] {
       Future.failed(new Exception(s"Specified WebJar type '$webJarType' can not be deployed"))
     } { deployable =>
-      deployWebJar.deploy(deployable, nameOrUrlish, upstreamVersion, deployDependencies, preventFork, maybeReleaseVersion, maybeSourceUri, maybeLicense).runForeach(println)
+      deployWebJar.deploy(deployable, nameOrUrlish, upstreamVersion, deployDependencies, preventFork, force, maybeReleaseVersion, maybeSourceUri, maybeLicense).runForeach(println)
     }
 
     deployFuture.failed.foreach(e => println(e.getMessage))
