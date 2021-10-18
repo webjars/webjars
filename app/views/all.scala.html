@@ -22,7 +22,7 @@
                 @webjarsOrError match {
                     case Right(error) => {
                         <tr>
-                            <td colspan="4">@error</td>
+                            <td colspan="4">@Html(error)</td>
                         </tr>
                     }
                     case Left(webjars) => {
