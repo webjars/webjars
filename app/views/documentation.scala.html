@@ -458,15 +458,23 @@ public class WebConfig extends WebMvcConfigurerAdapter {
 
                 <h4>Making dependencies version agnostic</h4>
 
-                When using Spring Framework version 4.2 or higher, it will automatically detect the <code>webjars-locator</code> library on the classpath and use it to automatically resolve the version of any WebJar assets for you.
-                In order to enable this feature, you will need to add the webjars-locator library as a dependency of your application in the <span class="label label-info">pom.xml</span> file, like:
+                When using Spring Framework version 4.2 or higher, it will automatically detect the <code>webjars-locator-core</code> library on the classpath and use it to automatically resolve the version of any WebJar assets for you.
+                In order to enable this feature, you will need to add the webjars-locator-core library as a dependency of your application in the <span class="label label-info">pom.xml</span> file, like:
                 <pre><code>&lt;dependencies&gt;
     &lt;dependency&gt;
         &lt;groupId&gt;org.webjars&lt;/groupId&gt;
-        &lt;artifactId&gt;webjars-locator&lt;/artifactId&gt;
+        &lt;artifactId&gt;webjars-locator-core&lt;/artifactId&gt;
         &lt;version&gt;0.30&lt;/version&gt;
     &lt;/dependency&gt;
 &lt;/dependencies&gt;</code></pre>
+                <br>
+                And extend your XML config with a resource-chain element:
+                <pre><code>&lt;mvc:resources mapping="/webjars/**" location="/webjars/"&gt;
+    &lt;mvc:resource-chain resource-cache="true"/&gt;
+&lt;/mvc:resources&gt;</code></pre>
+                <br>
+                Or in case of Java config add the resourceChain() method:
+                <pre><code>registry.addResourceHandler("/webjars/**").addResourceLocations("/webjars/").setCachePeriod(CACHE_PERIOD).resourceChain(true);</code></pre>
                 <br>
                 Then you may reference a WebJar asset in your template like this:
                 <pre><code>&lt;link rel='stylesheet' href='/webjars/bootstrap/css/bootstrap.min.css'&gt;</code></pre>
