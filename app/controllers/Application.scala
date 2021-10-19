@@ -39,7 +39,7 @@ class Application @Inject() (git: Git, gitHub: GitHub, cache: Cache, mavenCentra
 
   private val WEBJAR_FETCH_ERROR = """
     Looks like there was an error fetching the WebJars.
-    Until the issue is resolved you can search for on search.maven.org for <a href="https://search.maven.org/search?q=g:org.webjars">Classic WebJars</a> or <a href="https://search.maven.org/search?q=g:org.webjars.npm">NPM WebJars</a>.
+    Until the issue is resolved you can search on search.maven.org for <a href="https://search.maven.org/search?q=g:org.webjars">Classic WebJars</a> or <a href="https://search.maven.org/search?q=g:org.webjars.npm">NPM WebJars</a>.
     If this problem persists please <a href=\"https://github.com/webjars/webjars/issues/new\">file an issue</a>.
     """
 
