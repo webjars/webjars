@@ -19,7 +19,7 @@ class HerokuSpec extends PlaySpecification with GlobalApplication {
   "dynoCreate" should {
     if (Try(heroku.apikey).isSuccess) {
       "return a stream when attach is true" in {
-        val source = heroku.dynoCreate(app, "echo test", "Standard-2X")
+        val source = heroku.dynoCreate(app, "echo test", "Free")
         val output = await(source.runReduce(_ + _))
         output must beEqualTo("test")
       }

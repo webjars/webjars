@@ -19,6 +19,37 @@
     <logger name="application" level="INFO" />
     <logger name="org.eclipse.jgit.internal.transport.http.NetscapeCookieFile" level="ERROR" />
     <logger name="play.shaded.ahc.org.asynchttpclient.netty.handler.intercept.Unauthorized401Interceptor" level="WARN"/>
+    <logger name="play.shaded.ahc.io.netty.channel.AbstractChannel" level="ERROR"/>
+    <!-- todo: investigate
+    p.s.a.i.n.c.AbstractChannel - Force-closing a channel whose registration task was not accepted by an event loop:
+    java.util.concurrent.RejectedExecutionException: event executor terminated
+        at play.shaded.ahc.io.netty.util.concurrent.SingleThreadEventExecutor.reject(SingleThreadEventExecutor.java:926)
+        at play.shaded.ahc.io.netty.util.concurrent.SingleThreadEventExecutor.offerTask(SingleThreadEventExecutor.java:353)
+        at play.shaded.ahc.io.netty.util.concurrent.SingleThreadEventExecutor.addTask(SingleThreadEventExecutor.java:346)
+        at play.shaded.ahc.io.netty.util.concurrent.SingleThreadEventExecutor.execute(SingleThreadEventExecutor.java:828)
+        at play.shaded.ahc.io.netty.util.concurrent.SingleThreadEventExecutor.execute(SingleThreadEventExecutor.java:818)
+        at play.shaded.ahc.io.netty.channel.AbstractChannel$AbstractUnsafe.register(AbstractChannel.java:471)
+        at play.shaded.ahc.io.netty.channel.SingleThreadEventLoop.register(SingleThreadEventLoop.java:87)
+        at play.shaded.ahc.io.netty.channel.SingleThreadEventLoop.register(SingleThreadEventLoop.java:81)
+        at play.shaded.ahc.io.netty.channel.MultithreadEventLoopGroup.register(MultithreadEventLoopGroup.java:86)
+        at play.shaded.ahc.io.netty.bootstrap.AbstractBootstrap.initAndRegister(AbstractBootstrap.java:315)
+    -->
+
+    <logger name="play.shaded.ahc.io.netty.util.concurrent" level="OFF"/>
+    <!-- todo: investigate
+    [error] p.s.a.i.n.u.c.D.rejectedExecution - Failed to submit a listener notification task. Event loop shut down?
+    java.util.concurrent.RejectedExecutionException: event executor terminated
+        at play.shaded.ahc.io.netty.util.concurrent.SingleThreadEventExecutor.reject(SingleThreadEventExecutor.java:926)
+        at play.shaded.ahc.io.netty.util.concurrent.SingleThreadEventExecutor.offerTask(SingleThreadEventExecutor.java:353)
+        at play.shaded.ahc.io.netty.util.concurrent.SingleThreadEventExecutor.addTask(SingleThreadEventExecutor.java:346)
+        at play.shaded.ahc.io.netty.util.concurrent.SingleThreadEventExecutor.execute(SingleThreadEventExecutor.java:828)
+        at play.shaded.ahc.io.netty.util.concurrent.SingleThreadEventExecutor.execute(SingleThreadEventExecutor.java:818)
+        at play.shaded.ahc.io.netty.util.concurrent.DefaultPromise.safeExecute(DefaultPromise.java:841)
+        at play.shaded.ahc.io.netty.util.concurrent.DefaultPromise.notifyListeners(DefaultPromise.java:498)
+        at play.shaded.ahc.io.netty.util.concurrent.DefaultPromise.addListener(DefaultPromise.java:183)
+        at play.shaded.ahc.io.netty.channel.DefaultChannelPromise.addListener(DefaultChannelPromise.java:95)
+        at play.shaded.ahc.io.netty.channel.DefaultChannelPromise.addListener(DefaultChannelPromise.java:30)
+    -->
 
     <root level="INFO">
         <appender-ref ref="ASYNCSTDOUT" />
