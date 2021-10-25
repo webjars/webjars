@@ -1,20 +1,19 @@
 package utils
 
-import java.io.{BufferedInputStream, FileNotFoundException, InputStream}
-import java.net.{URI, URL}
-
 import akka.stream.scaladsl.{Source, SourceQueueWithComplete}
 import akka.stream.{Materializer, OverflowStrategy}
 import akka.{Done, NotUsed}
-import javax.inject.Inject
 import models.WebJarType
-import utils.MavenCentral.GAV
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
 import play.api.Configuration
 import play.api.i18n.{Lang, Langs, MessagesApi}
 import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.libs.concurrent.Futures
+import utils.MavenCentral.GAV
 
+import java.io.{BufferedInputStream, FileNotFoundException, InputStream}
+import java.net.{URI, URL}
+import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
 import scala.io.StdIn
 import scala.util.{Failure, Try, Using}

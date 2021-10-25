@@ -4,10 +4,8 @@ import akka.util.Timeout
 import models.{WebJar, WebJarType}
 import org.apache.commons.io.IOUtils
 import org.joda.time.DateTime
-import play.api.inject.bind
-import play.api.inject.guice.GuiceApplicationBuilder
+import play.api.Environment
 import play.api.test._
-import play.api.{Configuration, Environment}
 import utils.MavenCentral.{GAV, StagedRepo}
 
 import java.io.FileNotFoundException
@@ -20,26 +18,27 @@ class MavenCentralSpec extends PlaySpecification {
 
   override implicit def defaultAwaitTimeout: Timeout = 300.seconds
 
-  def appWithLocalMavenSearch = GuiceApplicationBuilder(configuration = Configuration("mavencentral.search-url" -> s"http://localhost:$testServerPort/asdf"))
-    .overrides(bind[Memcache].to[MemcacheMock])
-    .overrides(bind[MavenCentral].to[MavenCentralLive])
-    .build()
-
-  class WithApp extends WithApplication(_.overrides(bind[Memcache].to[MemcacheMock]))
+  class WithApp extends WithApplication()
 
   "fetchWebJars" should {
-    "fail when the search-url does not return JSON" in new WithServer(port = testServerPort, app = appWithLocalMavenSearch) {
-      val mavenCentral = app.injector.instanceOf[MavenCentral]
-      val classic = app.injector.instanceOf[Classic]
-      await(mavenCentral.fetchWebJars(classic)) should throwA[MavenCentral.UnavailableException]
-    }
-    "work normally" in new WithApp() {
+    "work for npm" in new WithApp() {
       val mavenCentral = app.injector.instanceOf[MavenCentral]
       val npm = app.injector.instanceOf[NPM]
       val webJars = await(mavenCentral.fetchWebJars(npm))
       webJars.foldLeft(0)(_ + _.versions.size) should beGreaterThan (0)
     }
-
+    "work for bowergithub" in new WithApp() {
+      val mavenCentral = app.injector.instanceOf[MavenCentral]
+      val bowerGitHub = app.injector.instanceOf[BowerGitHub]
+      val webJars = await(mavenCentral.fetchWebJars(bowerGitHub))
+      webJars.map(_.groupId).size should beGreaterThan(1)
+    }
+    "does not include artifact versions in artifacts" in new WithApp() {
+      val mavenCentral = app.injector.instanceOf[MavenCentral]
+      val npm = app.injector.instanceOf[NPM]
+      val webJars = await(mavenCentral.fetchWebJars(npm))
+      webJars.exists(_.artifactId == "1.3.26") must beFalse
+    }
   }
 
   "webJarsSorted" should {
@@ -135,8 +134,8 @@ class MavenCentralSpec extends PlaySpecification {
 }
 
 class MavenCentralMock extends MavenCentral {
-  override def fetchWebJars(webJarType: WebJarType): Future[List[WebJar]] = {
-    Future.successful(List.empty)
+  override def fetchWebJars(webJarType: WebJarType): Future[Set[WebJar]] = {
+    Future.successful(Set.empty)
   }
 
   // this makes it so the mock says the artifact has not already been deployed

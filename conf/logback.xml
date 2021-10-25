@@ -18,6 +18,7 @@
     <logger name="akka.event.slf4j" level="WARN" />
     <logger name="application" level="INFO" />
     <logger name="org.eclipse.jgit.internal.transport.http.NetscapeCookieFile" level="ERROR" />
+    <logger name="play.shaded.ahc.org.asynchttpclient.netty.handler.intercept.Unauthorized401Interceptor" level="WARN"/>
 
     <root level="INFO">
         <appender-ref ref="ASYNCSTDOUT" />

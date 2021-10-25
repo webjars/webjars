@@ -104,25 +104,21 @@ class Application @Inject() (git: Git, gitHub: GitHub, cache: Cache, mavenCentra
   }
 
   def searchWebJars(query: String, groupIds: List[String]) = Action.async { implicit request =>
-    webJarsWithTimeout().map { allWebJars =>
+    val queryLowerCase = query.toLowerCase.stripPrefix("org.webjars").stripPrefix("webjars")
 
-      val queryLowerCase = query.toLowerCase.stripPrefix("org.webjars").stripPrefix("webjars")
+    def filter(webJar: WebJar): Boolean = {
+        webJar.name.toLowerCase.contains(queryLowerCase) ||
+        webJar.groupId.toLowerCase.stripPrefix("org.webjars").stripPrefix("webjars").contains(queryLowerCase) ||
+        webJar.artifactId.toLowerCase.contains(queryLowerCase)
+    }
 
-      val matchingWebJars = if (queryLowerCase.isEmpty) {
-        List.empty[WebJar]
+    val matchesFuture = Future.reduceLeft {
+      groupIds.map { groupId =>
+        webJarsWithTimeout(WebJarType.fromGroupId(groupId, allWebJarTypes)).map(_.filter(filter))
       }
-      else {
-        val webJarTypes = groupIds.flatMap(WebJarType.fromGroupId(_, allWebJarTypes))
-        allWebJars.filter { webJar =>
-          webJarTypes.exists(_.includesGroupId(webJar.groupId)) &&
-            (
-              webJar.name.toLowerCase.contains(queryLowerCase) ||
-                webJar.groupId.toLowerCase.stripPrefix("org.webjars").stripPrefix("webjars").contains(queryLowerCase) ||
-                webJar.artifactId.toLowerCase.contains(queryLowerCase)
-              )
-        }
-      }
+    } (_ ++ _)
 
+    matchesFuture.map { matchingWebJars =>
       render {
         case Accepts.Html() => Ok(views.html.webJarList(Left(matchingWebJars)))
         case Accepts.Json() => Ok(Json.toJson(matchingWebJars))
