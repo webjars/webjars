@@ -19,7 +19,7 @@ move_to_project_dir
 
 SBT_LAUNCHER="$(dirname $0)/sbt-launch.jar"
 
-SBT_OPTS="-Xms512M -Xmx1536M -Xss1M -XX:+CMSClassUnloadingEnabled"
+SBT_OPTS="-Xms512M -Xmx1536M -Xss4M -XX:+CMSClassUnloadingEnabled"
 
 # todo: check java cmd
 
