@@ -8,6 +8,7 @@ jobs:
 
     - uses: actions/setup-java@v1
       with:
+        distribution: 'adopt'
         java-version: 1.8
 
     - uses: actions/cache@v2
@@ -19,7 +20,7 @@ jobs:
 
     - uses: niden/actions-memcached@v7
 
-    - run: ./sbt clean test
+    - run: ./sbt test
       env:
         HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
         DEPLOY_HEROKU_APP: ${{ secrets.DEPLOY_HEROKU_APP }}
