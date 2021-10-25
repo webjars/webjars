@@ -19,4 +19,4 @@ jobs:
 
     - uses: niden/actions-memcached@v7
 
-    - run: ./bin/sbt test
+    - run: ./sbt test
