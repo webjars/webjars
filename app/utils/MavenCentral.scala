@@ -17,8 +17,10 @@ import play.api.libs.functional.syntax._
 import play.api.libs.json._
 import play.api.libs.ws.{BodyWritable, WSAuthScheme, WSClient, WSRequest, WSResponse}
 import play.api.{Configuration, Logging}
+import utils.Memcache.Expiration
 
 import java.io.{ByteArrayOutputStream, FileNotFoundException}
+import java.net.ConnectException
 import java.util.Base64
 import java.util.concurrent.TimeoutException
 import javax.inject.{Inject, Singleton}
@@ -350,16 +352,28 @@ class MavenCentralLive @Inject() (cache: Cache, memcache: Memcache, wsClient: WS
   }
 
   def getStats(webJarType: WebJarType, dateTime: DateTime): Future[Map[(String, String), Int]] = {
-    memcache.getWithMiss(s"stats-$webJarType-${dateTime.toString("yyyyMM")}") {
-      groupIds(webJarType).flatMap { groupIds =>
-        val futures = groupIds.map { groupId =>
-          fetchStats(groupId, dateTime).recover {
-            case _: EmptyStatsException => Map.empty[(String, String), Int]
-            case _: UnauthorizedError => Map.empty[(String, String), Int]
-            case _: UnavailableException => Map.empty[(String, String), Int]
+
+    // todo: optional batch size
+    def foldOneAtATime(groupIds: Set[String])(f: Future[Map[(String, String), Int]]): Future[Map[(String, String), Int]] = {
+      f.flatMap { m =>
+        groupIds.headOption.fold(Future.successful(m)) { groupId =>
+          foldOneAtATime(groupIds.tail) {
+            fetchStats(groupId, dateTime).map(m ++ _).recover {
+              case _: EmptyStatsException => m
+              case _: UnauthorizedError => m
+              case _: UnavailableException => m
+              case _: ConnectException => m
+            }
           }
         }
-        Future.reduceLeft(futures)(_ ++ _)
+      }
+    }
+
+    val jitter = (Random.nextInt(4) + 20).hours
+
+    memcache.getWithMiss(s"stats-$webJarType-${dateTime.toString("yyyyMM")}", Expiration.In(jitter)) {
+      groupIds(webJarType).flatMap { groupIds =>
+        foldOneAtATime(groupIds)(Future.successful(Map.empty))
       }
     }
   }

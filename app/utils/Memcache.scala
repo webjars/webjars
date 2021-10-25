@@ -21,7 +21,7 @@ trait Memcache {
   import Memcache._
 
   def get[A](cacheKey: String)(implicit transcoder: Transcoder[A]): Future[A]
-  def getWithMiss[A](cacheKey: String)(miss: => Future[A])(implicit transcoder: Transcoder[A]): Future[A]
+  def getWithMiss[A](cacheKey: String, expiration: Expiration = Expiration.Inf)(miss: => Future[A])(implicit transcoder: Transcoder[A]): Future[A]
   def set[A](cacheKey: String, value: A, expiration: Expiration = Expiration.Inf)(implicit transcoder: Transcoder[A]): Future[Unit]
 }
 
@@ -92,12 +92,12 @@ class MemcacheLive @Inject() (configuration: Configuration, lifecycle: Applicati
     getFutureToScalaFuture(instance.asyncGet(cacheKey, transcoder))
   }
 
-  def getWithMiss[A](cacheKey: String)(miss: => Future[A])(implicit transcoder: Transcoder[A]): Future[A] = {
+  def getWithMiss[A](cacheKey: String, expiration: Expiration = Expiration.Inf)(miss: => Future[A])(implicit transcoder: Transcoder[A]): Future[A] = {
     get(cacheKey).recoverWith {
       case Miss =>
         for {
           value <- miss
-          _ <- set(cacheKey, value)
+          _ <- set(cacheKey, value, expiration)
         } yield value
     }
   }

@@ -20,7 +20,7 @@ class MemcacheMock extends Memcache {
     }
   }
 
-  override def getWithMiss[A](cacheKey: String)(miss: => Future[A])(implicit transcoder: Transcoder[A]): Future[A] = {
+  override def getWithMiss[A](cacheKey: String, expiration: Memcache.Expiration)(miss: => Future[A])(implicit transcoder: Transcoder[A]): Future[A] = {
     get(cacheKey).recoverWith {
       case Memcache.Miss =>
         for {
