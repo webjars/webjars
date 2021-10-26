@@ -63,8 +63,14 @@ class Application @Inject() (git: Git, gitHub: GitHub, cache: Cache, mavenCentra
 
   private def webJarsWithTimeout(maybeWebJarType: Option[WebJarType] = None): Future[List[WebJar]] = {
     val fetcher = maybeWebJarType.fold {
-      cache.get[List[WebJar]]("all-webjars", 1.hour)(mavenCentral.webJarsSorted())
-    }(mavenCentral.webJars)
+      cache.get[List[WebJar]]("webjars-all", 1.hour) {
+        mavenCentral.webJarsSorted()
+      }
+    } { webJarType =>
+      cache.get[List[WebJar]](s"webjars-$webJarType", 1.hour) {
+        mavenCentral.webJarsSorted(Some(webJarType))
+      }
+    }
 
     val future = TimeoutFuture(fetchConfig.timeout)(fetcher)
     future.onComplete {

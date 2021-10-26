@@ -18,7 +18,9 @@ class ApplicationSpec extends PlaySpecification {
 
   override implicit def defaultAwaitTimeout: Timeout = 300.seconds
 
-  val withOverrides = (gab: GuiceApplicationBuilder) => gab.overrides(bind[FetchConfig].to[TestFetchConfig])
+  val limit = 5
+
+  val withOverrides = (gab: GuiceApplicationBuilder) => gab.overrides(bind[FetchConfig].to[TestFetchConfig]).configure("mavencentral.limit" -> limit)
 
   class WithApp extends WithApplication(withOverrides)
 

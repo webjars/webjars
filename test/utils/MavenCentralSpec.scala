@@ -18,21 +18,23 @@ class MavenCentralSpec extends PlaySpecification {
 
   override implicit def defaultAwaitTimeout: Timeout = 300.seconds
 
-  class WithApp extends WithApplication(_.configure("mavencentral.limit" -> "10")) // limit how many subgroups and artifacts are fetched
+  val limit = 5
+
+  class WithApp extends WithApplication(_.configure("mavencentral.limit" -> limit)) // limit how many subgroups and artifacts are fetched
 
   "fetchWebJars" should {
     "work for npm" in new WithApp() {
       val mavenCentral = app.injector.instanceOf[MavenCentral]
       val npm = app.injector.instanceOf[NPM]
       val webJars = await(mavenCentral.fetchWebJars(npm))
-      webJars.size should beEqualTo(10)
+      webJars.size should beEqualTo(limit)
       webJars.foldLeft(0)(_ + _.versions.size) should beGreaterThan (0)
     }
     "work for bowergithub" in new WithApp() {
       val mavenCentral = app.injector.instanceOf[MavenCentral]
       val bowerGitHub = app.injector.instanceOf[BowerGitHub]
       val webJars = await(mavenCentral.fetchWebJars(bowerGitHub))
-      webJars.map(_.groupId).size should beEqualTo(10)
+      webJars.map(_.groupId).size should beEqualTo(limit)
     }
   }
 
@@ -45,15 +47,15 @@ class MavenCentralSpec extends PlaySpecification {
   }
 
   "webJarsSorted" should {
-    "be ordered correctly" in new WithApplication() { // no limit
+    "be ordered correctly" in new WithApp() {
       if (app.configuration.getOptional[String]("oss.username").isEmpty) {
         skipped("skipped due to missing config")
       }
       else {
         val mavenCentral = app.injector.instanceOf[MavenCentral]
         val classic = app.injector.instanceOf[Classic]
-        val webJars = await(mavenCentral.webJarsSorted(new DateTime(2016, 1, 1, 1, 1), Some(classic)))
-        webJars.head.artifactId must beEqualTo("jquery")
+        val webJars = await(mavenCentral.webJarsSorted(Some(classic), new DateTime(2016, 1, 1, 1, 1)))
+        webJars.map(_.artifactId).take(limit) must beEqualTo(List("ace", "acorn", "adm-zip", "3rdwavemedia-themes-developer", "activity-indicator"))
       }
     }
   }
@@ -151,7 +153,7 @@ class MavenCentralMock extends MavenCentral {
     Future.successful(List.empty)
   }
 
-  override def webJarsSorted(dateTime: DateTime, maybeWebJarType: Option[WebJarType]): Future[List[WebJar]] = {
+  override def webJarsSorted(maybeWebJarType: Option[WebJarType], dateTime: DateTime): Future[List[WebJar]] = {
     Future.successful(List.empty)
   }
 
