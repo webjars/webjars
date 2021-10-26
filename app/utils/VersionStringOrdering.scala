@@ -1,7 +1,6 @@
 package utils
 
 import java.util.Calendar
-
 import scala.util.Try
 
 object VersionStringOrdering extends Ordering[String] {

@@ -16,7 +16,8 @@ import play.api.http.{HeaderNames, MimeTypes, Status}
 import play.api.libs.functional.syntax._
 import play.api.libs.json._
 import play.api.libs.ws.{BodyWritable, WSAuthScheme, WSClient, WSRequest, WSResponse}
-import play.api.{Configuration, Environment, Logging, Mode}
+import play.api.{Configuration, Logging}
+import utils.Memcache.Expiration
 
 import java.io.{ByteArrayOutputStream, FileNotFoundException}
 import java.util.Base64
@@ -25,17 +26,19 @@ import javax.inject.{Inject, Singleton}
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.language.postfixOps
-import scala.util.{Failure, Success, Try}
+import scala.util.matching.Regex
+import scala.util.{Failure, Random, Success, Try}
 import scala.xml.Elem
 
 @ImplementedBy(classOf[MavenCentralLive])
 trait MavenCentral {
   import MavenCentral._
 
-  def fetchWebJars(webJarType: WebJarType): Future[List[WebJar]]
+  def artifactIds(groupId: String): Future[Set[String]]
+  def fetchWebJars(webJarType: WebJarType): Future[Set[WebJar]]
   def fetchPom(gav: GAV, maybeUrlPrefix: Option[String] = None): Future[Elem]
   def webJars(webJarType: WebJarType): Future[List[WebJar]]
-  def webJarsSorted(dateTime: DateTime = DateTime.now().minusMonths(1)): Future[List[WebJar]]
+  def webJarsSorted(maybeWebJarType: Option[WebJarType] = None, dateTime: DateTime = DateTime.now().minusMonths(1)): Future[List[WebJar]]
   def getStats(webJarType: WebJarType, dateTime: DateTime): Future[Map[(String, String), Int]]
 
   def asc(toSign: Array[Byte]): Option[String]
@@ -47,21 +50,20 @@ trait MavenCentral {
 }
 
 @Singleton
-class MavenCentralLive @Inject() (cache: Cache, memcache: Memcache, wsClient: WSClient, configuration: Configuration, webJarsFileService: WebJarsFileService)(classic: Classic, bower: Bower, bowerGitHub: BowerGitHub, npm: NPM, environment: Environment) (implicit ec: ExecutionContext, actorSystem: ActorSystem) extends MavenCentral with Logging {
+class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, configuration: Configuration, webJarsFileService: WebJarsFileService)(classic: Classic, bower: Bower, bowerGitHub: BowerGitHub, npm: NPM) (implicit ec: ExecutionContext, actorSystem: ActorSystem) extends MavenCentral with Logging {
   import MavenCentral._
 
   lazy val webJarFetcher: ActorRef = actorSystem.actorOf(Props[WebJarFetcher]())
 
   val allWebJarTypes = Set(classic, bower, bowerGitHub, npm)
 
-  implicit val webJarVersionReads: Reads[WebJarVersion] = Json.reads[WebJarVersion]
-  implicit val webJarVersionWrites: Writes[WebJarVersion] = Json.writes[WebJarVersion]
-
-  implicit val webJarReads: Reads[WebJar] = Json.reads[WebJar]
-  implicit val webJarWrites: Writes[WebJar] = Json.writes[WebJar]
-
   private implicit val transcoderInt: Transcoder[Int] = new IntegerTranscoder().asInstanceOf[Transcoder[Int]]
-  private implicit val transcoderElem: Transcoder[Elem] = new SerializingTranscoder().asInstanceOf[Transcoder[Elem]]
+  private implicit val transcoderNameUrl: Transcoder[(String, String)] = new SerializingTranscoder().asInstanceOf[Transcoder[(String, String)]]
+  private implicit val transcoderStats: Transcoder[Map[(String, String), Int]] = new SerializingTranscoder().asInstanceOf[Transcoder[Map[(String, String), Int]]]
+  private implicit val transcoderVersions: Transcoder[List[(String, Int)]] = new SerializingTranscoder().asInstanceOf[Transcoder[List[(String, Int)]]]
+  private implicit val transcoderArtifactIds: Transcoder[Set[String]] = new SerializingTranscoder().asInstanceOf[Transcoder[Set[String]]]
+
+  private lazy val maybeLimit = configuration.getOptional[Int]("mavencentral.limit")
 
   private lazy val maybeOssUsername = configuration.getOptional[String]("oss.username")
   private lazy val maybeOssPassword = configuration.getOptional[String]("oss.password")
@@ -70,9 +72,6 @@ class MavenCentralLive @Inject() (cache: Cache, memcache: Memcache, wsClient: WS
   private lazy val disableDeploy = configuration.getOptional[Boolean]("oss.disable-deploy").getOrElse(false)
   private lazy val maybeOssGpgKey = configuration.getOptional[String]("oss.gpg-key")
   private lazy val maybeOssGpgPass = configuration.getOptional[String]("oss.gpg-pass")
-
-  private lazy val rowLimit = configuration.get[Int]("mavencentral.row-limit")
-  private lazy val searchUrl = configuration.get[String]("mavencentral.search-url")
 
   def withOssCredentials[T](f: (String, String) => Future[T]): Future[T] = {
     val maybeUsernameAndPassword = for {
@@ -86,7 +85,7 @@ class MavenCentralLive @Inject() (cache: Cache, memcache: Memcache, wsClient: WS
   }
 
   def fetchWebJarNameAndUrl(gav: GAV): Future[(String, String)] = {
-    getPom(gav).flatMap { xml =>
+    fetchPom(gav).flatMap { xml =>
       val artifactId = (xml \ "artifactId").text
       val rawName = (xml \ "name").text
       val name = if (rawName.contains("${") || rawName.isEmpty) {
@@ -106,7 +105,7 @@ class MavenCentralLive @Inject() (cache: Cache, memcache: Memcache, wsClient: WS
         else {
           // try the parent pom
           val parentArtifactId = (xml \ "parent" \ "artifactId").text
-          getPom(gav.copy(artifactId = parentArtifactId)).map { parentXml =>
+          fetchPom(gav.copy(artifactId = parentArtifactId)).map { parentXml =>
             (parentXml \ "scm" \ "url").text
           }
         }
@@ -123,139 +122,188 @@ class MavenCentralLive @Inject() (cache: Cache, memcache: Memcache, wsClient: WS
     }
   }
 
-  def webJarsFromJson(webJarType: WebJarType)(json: JsValue): Future[List[WebJar]] = {
-
-    val allVersions = (json \ "response" \ "docs").as[List[JsObject]].map { jsObject =>
-      ((jsObject \ "g").as[String], (jsObject \ "a").as[String], (jsObject \ "v").as[String])
+  def getWebJarNameAndUrl(gav: GAV): Future[(String, String)] = {
+    memcache.getWithMiss[(String, String)](s"name-url-${gav.cacheKey}") {
+      fetchWebJarNameAndUrl(gav)
     }
+  }
 
-    if ((allVersions.size >= rowLimit) && (environment.mode == Mode.Prod)) {
-      logger.error(s"Retrieved max ${webJarType.name} WebJar rows: ${allVersions.size}")
+  sealed trait Include
+  case object OnlyDated extends Include
+  case object OnlyUndated extends Include
+
+  def fetchDirs(url: String, include: Include): Future[Set[String]] = {
+    val filenameExtractor: Regex = """.*<a href="([^"]+)".*""".r
+    val filenameAndDateExtractor: Regex = """.*<a href="([^"]+)".*</a>\s+(\d+-\d+-\d+\s\d+:\d+)\s+-.*""".r
+    wsClient.url(url).get().flatMap { response =>
+      response.status match {
+        case Status.OK =>
+          Future.successful {
+            response.body.linesIterator.collect[(String, Option[String])] {
+              case filenameAndDateExtractor(name, date) =>
+                name.stripSuffix("/") -> Some(date)
+              case filenameExtractor(name) if name.endsWith("/") && !name.startsWith("..") =>
+                name.stripSuffix("/") -> None
+            }.filter { case (_, maybeDate) =>
+              include match {
+                case OnlyDated => maybeDate.isDefined
+                case OnlyUndated => maybeDate.isEmpty
+              }
+            }.map { case (name, _) =>
+              name
+            }.toSet
+          }
+        case _ =>
+          Future.failed(new Exception(s"Error fetching $url ${response.status} \n ${response.body}"))
+      }
+    }
+  }
+
+  def groupIds(webJarType: WebJarType): Future[Set[String]] = {
+    if (webJarType.groupIdQuery.endsWith(".*")) {
+      val groupPath = webJarType.groupIdQuery.stripSuffix(".*").split('.').mkString("", "/", "/")
+      val groupUrl = s"https://repo1.maven.org/maven2/$groupPath"
+
+      fetchDirs(groupUrl, OnlyUndated).map { dirs =>
+        val groupIds = dirs.map { dir =>
+          webJarType.groupIdQuery.replace("*", dir)
+        }
+
+        maybeLimit.fold(groupIds)(groupIds.take)
+      }
     }
     else {
-      logger.info(s"Retrieved ${allVersions.size} ${webJarType.name} WebJars")
+      Future.successful(Set(webJarType.groupIdQuery))
     }
+  }
 
-    // group by the artifactId
-    val artifactsAndVersions = allVersions.groupBy {
-      case (groupId, artifactId, _) => groupId -> artifactId
-    }.view.filterKeys {
-      case (_, artifactId) => !artifactId.startsWith("webjars-")
-    } mapValues { versions =>
-      versions.map {
-        case (_, _, version) => version
-      }
+  def artifactIds(groupId: String): Future[Set[String]] = {
+    val groupPath = groupId.split('.').mkString("", "/", "/")
+    val groupUrl = s"https://repo1.maven.org/maven2/$groupPath"
+
+    fetchDirs(groupUrl, OnlyUndated).map { dirs =>
+      val artifactIds = dirs.filterNot(_.startsWith("webjars-"))
+
+      // with the limit, sort before taking so the output is more stable
+      maybeLimit.fold(artifactIds)(artifactIds.toList.sortBy(_.toLowerCase).take(_).toSet)
     }
+  }
 
-    // partition and batch
+  def fetchWebJarVersions(groupId: String, artifactId: String): Future[List[WebJarVersion]] = {
+    val jitter = (Random.nextInt(10) + 55).minutes
 
-    def fetchWebJarVersions(artifactAndVersions: ((String, String), List[String])): ((String, String), Future[List[WebJarVersion]]) = {
-      val ((groupId, artifactId), versions) = artifactAndVersions
-      val versionsFuture = Future.sequence {
-        versions.map { version =>
-          val cacheKey = s"numfiles-$groupId-$artifactId-$version"
-          memcache.getWithMiss[Int](cacheKey) {
-            webJarsFileService.getNumFiles(groupId, artifactId, version)
-          } map { numFiles =>
-            Some(WebJarVersion(version, numFiles))
-          } recover {
-            case _: FileNotFoundException => None
-          }
-        }
-      } map { webJarVersions =>
-        webJarVersions.flatten.sorted.reverse
-      }
+    memcache.getWithMiss[List[(String, Int)]](s"versions-$groupId-$artifactId", Expiration.In(jitter)) {
+      val groupPath = groupId.split('.').mkString("/")
+      val url = s"https://repo1.maven.org/maven2/$groupPath/$artifactId"
 
-      (groupId -> artifactId) -> versionsFuture
-    }
-
-    def processBatch(resultsFuture: Future[Map[(String, String), List[WebJarVersion]]], batch: Map[(String, String), List[String]]): Future[Map[(String, String), List[WebJarVersion]]] = {
-      resultsFuture.flatMap { results =>
-        val batchFutures: Map[(String, String), Future[List[WebJarVersion]]] = batch.map(fetchWebJarVersions)
-
-        val batchFuture: Future[Map[(String, String), List[WebJarVersion]]] = Future.traverse(batchFutures.iterator) {
-          case ((groupId, artifactId), futureVersions) =>
-            futureVersions.map(((groupId, artifactId), _))
-        }.map(_.toMap)
-
-        batchFuture.map { batchResult =>
-          results ++ batchResult
-        }
-      }
-    }
-
-    // batch size = 100
-    val artifactsWithWebJarVersionsFuture: Future[Map[(String, String), List[WebJarVersion]]] = artifactsAndVersions.toMap.grouped(100).foldLeft(Future.successful(Map.empty[(String, String), List[WebJarVersion]]))(processBatch)
-
-    val webJarsFuture: Future[List[WebJar]] = artifactsWithWebJarVersionsFuture.flatMap { artifactsWithWebJarVersions =>
-      Future.sequence {
-        artifactsWithWebJarVersions.flatMap {
-          case ((groupId, artifactId), webJarVersions) =>
-            webJarVersions.map(_.number).headOption.map { latestVersion =>
-              fetchWebJarNameAndUrl(GAV(groupId, artifactId, latestVersion)).map {
-                case (name, url) =>
-                  WebJar(WebJarType.toString(webJarType), groupId, artifactId, name, url, webJarVersions)
-              }
+      fetchDirs(url, OnlyDated).flatMap { versions =>
+        Future.sequence {
+          versions.map { version =>
+            val cacheKey = s"numfiles-$groupId-$artifactId-$version"
+            memcache.getWithMiss[Int](cacheKey) {
+              webJarsFileService.getNumFiles(groupId, artifactId, version)
+            } map { numFiles =>
+              Some(version -> numFiles)
+            } recover {
+              case _: FileNotFoundException => None
             }
+          }
+        } map { webJarVersions =>
+          webJarVersions.flatten.toList.sortBy(_._1)(VersionStringOrdering.compare).reverse
         }
       }
-    } map { webJars =>
-      webJars.toList.sortWith(_.name.toLowerCase < _.name.toLowerCase)
-    }
-
-    webJarsFuture
-  }
-
-  def fetchWebJarsJson(webJarType: WebJarType): Future[JsValue] = {
-    val params = Map(
-      "q" -> s"""g:${webJarType.groupIdQuery} AND p:jar""",
-      "core" -> "gav",
-      "rows" -> rowLimit.toString,
-      "wt" -> "json"
-    )
-
-    wsClient.url(searchUrl).withQueryStringParameters(params.toSeq: _*).get().flatMap { response =>
-      Future.fromTry(Try(response.json)).recoverWith {
-        case _ => Future.failed(new UnavailableException(response.body))
+    }.map { versions =>
+      versions.map { case (number, downloads) =>
+        WebJarVersion(number, downloads)
       }
     }
   }
 
-  def fetchWebJars(webJarType: WebJarType): Future[List[WebJar]] = {
+  def fetchWebJar(webJarType: WebJarType, groupId: String, artifactId: String): Future[WebJar] = {
+    fetchWebJarVersions(groupId, artifactId).flatMap { webJarVersions =>
+      webJarVersions.map(_.number).headOption.fold {
+        Future.failed[WebJar](new Exception(s"Could not fetch $groupId $artifactId because it did not have versions"))
+      } { latestVersion =>
+        getWebJarNameAndUrl(GAV(groupId, artifactId, latestVersion)).map {
+          case (name, url) =>
+            WebJar(WebJarType.toString(webJarType), groupId, artifactId, name, url, webJarVersions)
+        }
+      }
+    }
+  }
+
+  def fetchBatch(f: Future[Set[WebJar]], webJarType: WebJarType, groupId: String, artifactIds: Set[String], batchSize: Int = 20): Future[Set[WebJar]] = {
+    f.flatMap { alreadyFetched =>
+      val (doNow, doNext) = artifactIds.splitAt(batchSize)
+
+      if (doNow.isEmpty) {
+        Future.successful(alreadyFetched)
+      }
+      else {
+        val newF = Future.sequence {
+          doNow.map { artifactId =>
+            fetchWebJar(webJarType, groupId, artifactId).map(Some(_)).recover {
+              case e =>
+                logger.trace(s"Could not fetch $groupId $artifactId", e)
+                None
+            }
+          }
+        }.map { newWebJars =>
+          alreadyFetched ++ newWebJars.flatten
+        }
+
+        fetchBatch(newF, webJarType, groupId, doNext)
+      }
+    }
+  }
+
+  def fetchWebJars(webJarType: WebJarType): Future[Set[WebJar]] = {
     logger.info(s"Getting ${webJarType.name} WebJars")
-    fetchWebJarsJson(webJarType).flatMap(webJarsFromJson(webJarType))
+
+    groupIds(webJarType).flatMap { groupIds =>
+      val futures = groupIds.map { groupId =>
+        val jitter = (Random.nextInt(4) + 20).hours
+
+        memcache.getWithMiss(s"artifactIds-$groupId", Expiration.In(jitter)) {
+          artifactIds(groupId)
+        }.flatMap { artifactIds =>
+          fetchBatch(Future.successful(Set.empty), webJarType, groupId, artifactIds)
+        }
+      }
+
+      Future.reduceLeft(futures)(_ ++ _)
+    }
   }
 
   def webJars(webJarType: WebJarType): Future[List[WebJar]] = {
-    cache.get[List[WebJar]](webJarType.toString, 1.hour) {
-      actorSystem.actorSelection("user/" + webJarType.toString).resolveOne(1.second).flatMap { _ =>
-        // in-flight request exists
-        Future.failed(new ExistingWebJarRequestException(webJarType.toString))
-      } recoverWith {
-        // no request so make one
-        case _: ActorNotFound =>
-          implicit val timeout: Timeout = Timeout(10.minutes)
+    actorSystem.actorSelection("user/" + webJarType.toString).resolveOne(1.second).flatMap { _ =>
+      // in-flight request exists
+      Future.failed(new ExistingWebJarRequestException(webJarType.toString))
+    } recoverWith {
+      // no request so make one
+      case _: ActorNotFound =>
+        implicit val timeout: Timeout = Timeout(10.minutes)
 
-          val webJarFetcherTry = Future.fromTry(Try(actorSystem.actorOf(Props(classOf[WebJarFetcher], this, ec), webJarType.toString))).recoverWith {
-            case _: InvalidActorNameException => Future.failed(new ExistingWebJarRequestException(webJarType.toString))
-          }
+        val webJarFetcherTry = Future.fromTry(Try(actorSystem.actorOf(Props(classOf[WebJarFetcher], this, ec), webJarType.toString))).recoverWith {
+          case _: InvalidActorNameException => Future.failed(new ExistingWebJarRequestException(webJarType.toString))
+        }
 
-          webJarFetcherTry.flatMap { webJarFetcher =>
-            val fetchWebJarsFuture = (webJarFetcher ? FetchWebJars(webJarType)).mapTo[List[WebJar]]
+        webJarFetcherTry.flatMap { webJarFetcher =>
+          val fetchWebJarsFuture = (webJarFetcher ? FetchWebJars(webJarType)).mapTo[Set[WebJar]]
 
-            fetchWebJarsFuture.onComplete(_ => actorSystem.stop(webJarFetcher))
+          fetchWebJarsFuture.onComplete(_ => actorSystem.stop(webJarFetcher))
 
-            fetchWebJarsFuture
-          }
-      }
+          fetchWebJarsFuture.map(_.toList.sortBy(_.name.toLowerCase))
+        }
     }
   }
 
-  def webJarsSorted(dateTime: DateTime): Future[List[WebJar]] = {
-    val allWebJarsFutures = allWebJarTypes.map(webJars)
+  def webJarsSorted(maybeWebJarType: Option[WebJarType], dateTime: DateTime): Future[List[WebJar]] = {
+    val webJarTypes = maybeWebJarType.fold(allWebJarTypes)(Set(_))
+    val webJarsFutures = webJarTypes.map(webJars)
 
     val statsFuture = Future.reduceLeft {
-      allWebJarTypes.map { webJarType =>
+      webJarTypes.map { webJarType =>
         getStats(webJarType, dateTime).recoverWith {
           case _: EmptyStatsException => getStats(webJarType, dateTime.minusMonths(1))
         } recover {
@@ -268,16 +316,17 @@ class MavenCentralLive @Inject() (cache: Cache, memcache: Memcache, wsClient: WS
     }(_ ++ _)
 
     statsFuture.flatMap { stats =>
-      Future.reduceLeft(allWebJarsFutures)(_ ++ _).map { webJars =>
-        webJars.sortBy { webJar =>
-          stats.getOrElse((webJar.groupId, webJar.artifactId), 0)
-        }(Ordering[Int].reverse)
+      Future.reduceLeft(webJarsFutures)(_ ++ _).map { webJars =>
+        val webJarsWithDownloads = webJars.map { webJar =>
+          webJar -> stats.getOrElse((webJar.groupId, webJar.artifactId), 0)
+        }
+
+        webJarsWithDownloads.sortBy(_._2)(Ordering[Int].reverse).map(_._1)
       }
     }
   }
 
   def fetchPom(gav: GAV, maybeUrlPrefix: Option[String] = None): Future[Elem] = {
-
     val urlPrefix = maybeUrlPrefix.getOrElse("https://repo1.maven.org/maven2")
     val url = s"$urlPrefix/${gav.path}.pom"
     wsClient.url(url).get().flatMap { response =>
@@ -292,19 +341,7 @@ class MavenCentralLive @Inject() (cache: Cache, memcache: Memcache, wsClient: WS
     }
   }
 
-  def getPom(gav: GAV): Future[Elem] = {
-    memcache.getWithMiss[Elem](s"pom-${gav.cacheKey}") {
-      fetchPom(gav)
-    }
-  }
-
-  def groupIds(webJarType: WebJarType): Future[Set[String]] = {
-    fetchWebJarsJson(webJarType).map { json =>
-      (json \ "response" \ "docs").as[Seq[JsObject]].map(_.\("g").as[String]).toSet
-    }
-  }
-
-  def getStats(groupIdQuery: String, dateTime: DateTime): Future[Map[(String, String), Int]] = {
+  def fetchStats(groupIdQuery: String, dateTime: DateTime): Future[Map[(String, String), Int]] = {
     val queryString = Seq(
       "p" -> ossProject,
       "g" -> groupIdQuery,
@@ -349,21 +386,16 @@ class MavenCentralLive @Inject() (cache: Cache, memcache: Memcache, wsClient: WS
   }
 
   def getStats(webJarType: WebJarType, dateTime: DateTime): Future[Map[(String, String), Int]] = {
-    cache.get[Map[(String, String), Int]](s"stats-${webJarType}-${dateTime.toString("yyyyMM")}", 1.day) {
-      if (webJarType.groupIdQuery.endsWith("*")) {
-        groupIds(webJarType).flatMap { groupIds =>
-          val futures = groupIds.map { groupId =>
-            getStats(groupId, dateTime).recover {
-              case _: EmptyStatsException => Map.empty[(String, String), Int]
-              case _: UnauthorizedError => Map.empty[(String, String), Int]
-              case _: UnavailableException => Map.empty[(String, String), Int]
-            }
+     memcache.getWithMiss(s"stats-$webJarType-${dateTime.toString("yyyyMM")}") {
+      groupIds(webJarType).flatMap { groupIds =>
+        val futures = groupIds.map { groupId =>
+          fetchStats(groupId, dateTime).recover {
+            case _: EmptyStatsException => Map.empty[(String, String), Int]
+            case _: UnauthorizedError => Map.empty[(String, String), Int]
+            case _: UnavailableException => Map.empty[(String, String), Int]
           }
-          Future.reduceLeft(futures)(_ ++ _)
         }
-      }
-      else {
-        getStats(webJarType.groupIdQuery, dateTime)
+        Future.reduceLeft(futures)(_ ++ _)
       }
     }
   }
@@ -394,8 +426,8 @@ class MavenCentralLive @Inject() (cache: Cache, memcache: Memcache, wsClient: WS
     }
   }
 
-  val maxwait = 10.minutes
-  val poll = 5.seconds
+  private val maxwait = 10.minutes
+  private val poll = 5.seconds
 
   // todo: errors
   private def stagingWait(stagedRepo: StagedRepo): Future[JsValue] = {

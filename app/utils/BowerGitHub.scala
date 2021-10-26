@@ -1,11 +1,10 @@
 package utils
 
-import java.io.InputStream
-
-import javax.inject.Inject
 import play.api.i18n.{Langs, MessagesApi}
 import play.api.libs.ws._
 
+import java.io.InputStream
+import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
 
 class BowerGitHub @Inject() (ws: WSClient, licenseDetector: LicenseDetector, messages: MessagesApi, langs: Langs, git: Git, gitHub: GitHub, maven: Maven)(implicit ec: ExecutionContext)

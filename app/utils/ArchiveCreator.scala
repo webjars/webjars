@@ -1,10 +1,9 @@
 package utils
 
-import java.io._
-import java.nio.file.Files
-
 import org.apache.commons.compress.archivers.tar.{TarArchiveEntry, TarArchiveOutputStream}
 
+import java.io._
+import java.nio.file.Files
 import scala.jdk.CollectionConverters._
 import scala.util.Try
 

@@ -1,11 +1,10 @@
 package utils
 
-import java.io.FileNotFoundException
-
-import javax.inject.Inject
 import play.api.http.Status
 import play.api.libs.ws.WSClient
 
+import java.io.FileNotFoundException
+import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
