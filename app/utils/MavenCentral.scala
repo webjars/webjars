@@ -35,10 +35,11 @@ import scala.xml.Elem
 trait MavenCentral {
   import MavenCentral._
 
+  def artifactIds(groupId: String): Future[Set[String]]
   def fetchWebJars(webJarType: WebJarType): Future[Set[WebJar]]
   def fetchPom(gav: GAV, maybeUrlPrefix: Option[String] = None): Future[Elem]
   def webJars(webJarType: WebJarType): Future[List[WebJar]]
-  def webJarsSorted(dateTime: DateTime = DateTime.now().minusMonths(1)): Future[List[WebJar]]
+  def webJarsSorted(dateTime: DateTime = DateTime.now().minusMonths(1), maybeWebJarType: Option[WebJarType] = None): Future[List[WebJar]]
   def getStats(webJarType: WebJarType, dateTime: DateTime): Future[Map[(String, String), Int]]
 
   def asc(toSign: Array[Byte]): Option[String]
@@ -60,6 +61,8 @@ class MavenCentralLive @Inject() (cache: Cache, memcache: Memcache, wsClient: WS
   private implicit val transcoderInt: Transcoder[Int] = new IntegerTranscoder().asInstanceOf[Transcoder[Int]]
   private implicit val transcoderNameUrl: Transcoder[(String, String)] = new SerializingTranscoder().asInstanceOf[Transcoder[(String, String)]]
   private implicit val transcoderStats: Transcoder[Map[(String, String), Int]] = new SerializingTranscoder().asInstanceOf[Transcoder[Map[(String, String), Int]]]
+
+  private lazy val maybeLimit = configuration.getOptional[Int]("mavencentral.limit")
 
   private lazy val maybeOssUsername = configuration.getOptional[String]("oss.username")
   private lazy val maybeOssPassword = configuration.getOptional[String]("oss.password")
@@ -162,9 +165,11 @@ class MavenCentralLive @Inject() (cache: Cache, memcache: Memcache, wsClient: WS
       val groupUrl = s"https://repo1.maven.org/maven2/$groupPath"
 
       fetchDirs(groupUrl, OnlyUndated).map { dirs =>
-        dirs.map { dir =>
+        val groupIds = dirs.map { dir =>
           webJarType.groupIdQuery.replace("*", dir)
         }
+
+        maybeLimit.fold(groupIds)(groupIds.take)
       }
     }
     else {
@@ -176,8 +181,10 @@ class MavenCentralLive @Inject() (cache: Cache, memcache: Memcache, wsClient: WS
     val groupPath = groupId.split('.').mkString("", "/", "/")
     val groupUrl = s"https://repo1.maven.org/maven2/$groupPath"
 
-    fetchDirs(groupUrl, OnlyUndated).map { artifactIds =>
-      artifactIds.filterNot(_.startsWith("webjars-"))
+    fetchDirs(groupUrl, OnlyUndated).map { dirs =>
+      val artifactIds = dirs.filterNot(_.startsWith("webjars-"))
+
+      maybeLimit.fold(artifactIds)(artifactIds.take)
     }
   }
 
@@ -267,8 +274,8 @@ class MavenCentralLive @Inject() (cache: Cache, memcache: Memcache, wsClient: WS
     }
   }
 
-  def webJarsSorted(dateTime: DateTime): Future[List[WebJar]] = {
-    val allWebJarsFutures = allWebJarTypes.map(webJars)
+  def webJarsSorted(dateTime: DateTime, maybeWebJarType: Option[WebJarType]): Future[List[WebJar]] = {
+    val allWebJarsFutures = maybeWebJarType.fold(allWebJarTypes.map(webJars))(webJarType => Set(webJars(webJarType)))
 
     val statsFuture = Future.reduceLeft {
       allWebJarTypes.map { webJarType =>
@@ -352,28 +359,18 @@ class MavenCentralLive @Inject() (cache: Cache, memcache: Memcache, wsClient: WS
   }
 
   def getStats(webJarType: WebJarType, dateTime: DateTime): Future[Map[(String, String), Int]] = {
-
-    // todo: optional batch size
-    def foldOneAtATime(groupIds: Set[String])(f: Future[Map[(String, String), Int]]): Future[Map[(String, String), Int]] = {
-      f.flatMap { m =>
-        groupIds.headOption.fold(Future.successful(m)) { groupId =>
-          foldOneAtATime(groupIds.tail) {
-            fetchStats(groupId, dateTime).map(m ++ _).recover {
-              case _: EmptyStatsException => m
-              case _: UnauthorizedError => m
-              case _: UnavailableException => m
-              case _: ConnectException => m
-            }
-          }
-        }
-      }
-    }
-
     val jitter = (Random.nextInt(4) + 20).hours
 
-    memcache.getWithMiss(s"stats-$webJarType-${dateTime.toString("yyyyMM")}", Expiration.In(jitter)) {
+     memcache.getWithMiss(s"stats-$webJarType-${dateTime.toString("yyyyMM")}", Expiration.In(jitter)) {
       groupIds(webJarType).flatMap { groupIds =>
-        foldOneAtATime(groupIds)(Future.successful(Map.empty))
+        val futures = groupIds.map { groupId =>
+          fetchStats(groupId, dateTime).recover {
+            case _: EmptyStatsException => Map.empty[(String, String), Int]
+            case _: UnauthorizedError => Map.empty[(String, String), Int]
+            case _: UnavailableException => Map.empty[(String, String), Int]
+          }
+        }
+        Future.reduceLeft(futures)(_ ++ _)
       }
     }
   }

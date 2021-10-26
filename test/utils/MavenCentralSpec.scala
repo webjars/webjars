@@ -18,37 +18,41 @@ class MavenCentralSpec extends PlaySpecification {
 
   override implicit def defaultAwaitTimeout: Timeout = 300.seconds
 
-  class WithApp extends WithApplication()
+  class WithApp extends WithApplication(_.configure("mavencentral.limit" -> "10")) // limit how many subgroups and artifacts are fetched
 
   "fetchWebJars" should {
     "work for npm" in new WithApp() {
       val mavenCentral = app.injector.instanceOf[MavenCentral]
       val npm = app.injector.instanceOf[NPM]
       val webJars = await(mavenCentral.fetchWebJars(npm))
+      webJars.size should beEqualTo(10)
       webJars.foldLeft(0)(_ + _.versions.size) should beGreaterThan (0)
     }
     "work for bowergithub" in new WithApp() {
       val mavenCentral = app.injector.instanceOf[MavenCentral]
       val bowerGitHub = app.injector.instanceOf[BowerGitHub]
       val webJars = await(mavenCentral.fetchWebJars(bowerGitHub))
-      webJars.map(_.groupId).size should beGreaterThan(1)
+      webJars.map(_.groupId).size should beEqualTo(10)
     }
-    "does not include artifact versions in artifacts" in new WithApp() {
+  }
+
+  "artifactIds" should {
+    "does not include artifact versions in artifacts" in new WithApplication() { // no limit
       val mavenCentral = app.injector.instanceOf[MavenCentral]
-      val npm = app.injector.instanceOf[NPM]
-      val webJars = await(mavenCentral.fetchWebJars(npm))
-      webJars.exists(_.artifactId == "1.3.26") must beFalse
+      val artifactIds = await(mavenCentral.artifactIds("org.webjars.npm"))
+      artifactIds.contains("1.3.26") must beFalse
     }
   }
 
   "webJarsSorted" should {
-    "be ordered correctly" in new WithApp() {
+    "be ordered correctly" in new WithApplication() { // no limit
       if (app.configuration.getOptional[String]("oss.username").isEmpty) {
         skipped("skipped due to missing config")
       }
       else {
         val mavenCentral = app.injector.instanceOf[MavenCentral]
-        val webJars = await(mavenCentral.webJarsSorted(new DateTime(2016, 1, 1, 1, 1)))
+        val classic = app.injector.instanceOf[Classic]
+        val webJars = await(mavenCentral.webJarsSorted(new DateTime(2016, 1, 1, 1, 1), Some(classic)))
         webJars.head.artifactId must beEqualTo("jquery")
       }
     }
@@ -66,14 +70,9 @@ class MavenCentralSpec extends PlaySpecification {
         statsClassic(("org.webjars", "jquery")) should beEqualTo(45947)
 
         val bowerGitHub = app.injector.instanceOf[BowerGitHub]
-        val bowerWebJars = await(mavenCentral.webJars(bowerGitHub))
-
         val statsBowerWebJars = await(mavenCentral.getStats(bowerGitHub, new DateTime(2019, 1, 1, 1, 1)))
-
-        val ((groupId, _), downloads) = statsBowerWebJars.head
+        val ((_, _), downloads) = statsBowerWebJars.head
         downloads should be > 0
-
-        bowerWebJars.find(_.groupId == groupId) should beSome
       }
     }
   }
@@ -134,6 +133,11 @@ class MavenCentralSpec extends PlaySpecification {
 }
 
 class MavenCentralMock extends MavenCentral {
+
+  override def artifactIds(groupId: String): Future[Set[String]] = {
+    Future.successful(Set.empty)
+  }
+
   override def fetchWebJars(webJarType: WebJarType): Future[Set[WebJar]] = {
     Future.successful(Set.empty)
   }
@@ -147,7 +151,7 @@ class MavenCentralMock extends MavenCentral {
     Future.successful(List.empty)
   }
 
-  override def webJarsSorted(dateTime: DateTime): Future[List[WebJar]] = {
+  override def webJarsSorted(dateTime: DateTime, maybeWebJarType: Option[WebJarType]): Future[List[WebJar]] = {
     Future.successful(List.empty)
   }
 
@@ -178,4 +182,5 @@ class MavenCentralMock extends MavenCentral {
   override def asc(toSign: Array[Byte]): Option[String] = {
     None
   }
+
 }
