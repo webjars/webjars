@@ -170,7 +170,7 @@ play.filters.headers.contentSecurityPolicy = "default-src 'self' https://cdn.jsd
             <div class="tab-pane" id="servlet3">
                 <h3>Instructions for Servlet 3</h3>
 
-                With any Servlet 3 compatible container, the WebJars that are in the <span class="label label-info">WEB-INF/lib</span> directory are automatically made available as static resources.  This works because anything in a <span class="label label-info">META-INF/resources</span> directory in a JAR in <span class="label label-info">WEB-INF/lib</span> is automatically exposed as a static resource.
+                With any Servlet 3 compatible container, the WebJars that are in the <span class="label label-info">WEB-INF/lib</span> directory are automatically made available as static resources.  This works because anything in a <span class="label label-info">META-INF/resources</span> directory in a JAR in <span class="label label-info">WEB-INF/lib</span> is automatically exposed as a static resource. Please note that in case of Tomcat the JarScanner should not be configured to skip the bootstrap artifact (e.g. when jarsToSkip is set to * add bootstrap-*.jar to jarsToScan).
 
                 <h4>Maven Example (<a href="https://github.com/webjars/sample-jetty_war">example app</a>)</h4>
 
@@ -186,13 +186,17 @@ play.filters.headers.contentSecurityPolicy = "default-src 'self' https://cdn.jsd
                 Then simply reference the resource like:
                 <pre><code>&lt;link rel='stylesheet' href='webjars/bootstrap/3.1.0/css/bootstrap.min.css'&gt;</code></pre>
 
+                <h4>Making dependencies version agnostic</h4>
+
+                Use the WebjarsServlet to make dependencies version agnostic, see Servlet 2.
+
             </div>
 
                 <!-- Servlet 2 -->
             <div class="tab-pane" id="servlet2">
                 <h3>Instructions for Servlet 2</h3>
 
-                Webjars resources can now be referenced in legacy apps that are still running on Servlet containers that are not compliant with the Servlet 3 specification (e.g. Tomcat 6).
+                WebjarsServlet allows Webjars resources to be referenced in legacy apps that are still running on Servlet containers that are not compliant with the Servlet 3 specification (e.g. Tomcat 6). It can also be used to make dependencies version agnostic in both Servlet 2 and Servlet 3 compatible containers.
 
                 <h4>Usage</h4>
 
@@ -232,6 +236,26 @@ play.filters.headers.contentSecurityPolicy = "default-src 'self' https://cdn.jsd
     &lt;/init-param&gt;
     &lt;load-on-startup&gt;2&lt;/load-on-startup&gt;
 &lt;/servlet&gt;</code></pre>
+
+                It is off course also possible to instantiate the WebjarsServlet programmatically (e.g. with Spring Boot's ServletRegistrationBean).
+
+                <h4>Making dependencies version agnostic</h4>
+
+                When using WebjarsServlet version 1.6 or higher, it will automatically detect the <code>webjars-locator-core</code> library on the classpath and use it to automatically resolve the version of any WebJar assets for you.
+                In order to enable this feature, you will need to add the webjars-locator-core library as a dependency of your application in the <span class="label label-info">pom.xml</span> file, like:
+                <pre><code>&lt;dependencies&gt;
+    &lt;dependency&gt;
+        &lt;groupId&gt;org.webjars&lt;/groupId&gt;
+        &lt;artifactId&gt;webjars-locator-core&lt;/artifactId&gt;
+        &lt;version&gt;0.48&lt;/version&gt;
+    &lt;/dependency&gt;
+&lt;/dependencies&gt;</code></pre>
+                <br>
+                Then you may reference a WebJar asset in your template like this:
+                <pre><code>&lt;link rel='stylesheet' href='/webjars/bootstrap/css/bootstrap.min.css'&gt;</code></pre>
+                <br>
+                <div class="alert alert-danger" role="alert">Be sure to remove <strong>ONLY</strong> the version from the path, otherwise relative imports may not work.</div>
+                <br>
 
             </div>
 
