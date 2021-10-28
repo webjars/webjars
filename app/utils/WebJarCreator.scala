@@ -1,12 +1,12 @@
 package utils
 
-import java.io._
-import java.nio.file.{Path, Paths}
-
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry
 import org.apache.commons.compress.archivers.{ArchiveOutputStream, ArchiveStreamFactory}
 import org.apache.commons.compress.utils.IOUtils
 import org.eclipse.jgit.ignore.IgnoreNode
+
+import java.io._
+import java.nio.file.{Path, Paths}
 
 object WebJarCreator {
 

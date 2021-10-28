@@ -11,14 +11,16 @@ import utils.{BowerGitHub, Memcache, MemcacheMock}
 import scala.concurrent.duration._
 
 class TestFetchConfig extends FetchConfig {
-  override val timeout = 2.minutes
+  override val timeout = 5.minutes
 }
 
 class ApplicationSpec extends PlaySpecification {
 
   override implicit def defaultAwaitTimeout: Timeout = 300.seconds
 
-  val withOverrides = (gab: GuiceApplicationBuilder) => gab.overrides(bind[Memcache].to[MemcacheMock], bind[FetchConfig].to[TestFetchConfig])
+  val limit = 5
+
+  val withOverrides = (gab: GuiceApplicationBuilder) => gab.overrides(bind[FetchConfig].to[TestFetchConfig]).configure("mavencentral.limit" -> limit)
 
   class WithApp extends WithApplication(withOverrides)
 
@@ -95,7 +97,7 @@ class ApplicationSpec extends PlaySpecification {
         contentAsJson(resultOnGroupFuture).as[Seq[WebJar]] must containTheSameElementsAs(possibleMatchesOnGroup)
       }
     }
-    "work when stats can't be fetched" in new WithApplication(withOverrides.andThen(_.configure("oss.username" -> "asdf", "oss.password" -> "asdf"))) {
+    "work when stats can't be fetched" in new WithApplication(withOverrides.andThen(_.configure("oss.username" -> "asdf", "oss.password" -> "asdf")).andThen(_.overrides(bind[Memcache].to[MemcacheMock]))) { // use MemcacheMock otherwise the stats get pulled from memcache
       val applicationController = app.injector.instanceOf[Application]
 
       val request = FakeRequest().withHeaders(HeaderNames.ACCEPT -> ContentTypes.JSON)

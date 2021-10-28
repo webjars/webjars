@@ -19,6 +19,7 @@ import scala.util.{Try, Using}
 class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
 
   val cacheDir: Path = Files.createTempDirectory("git")
+  cacheDir.toFile.deleteOnExit()
 
   def isGit(packageNameOrGitRepo: String): Boolean = {
     packageNameOrGitRepo.contains("/") && !packageNameOrGitRepo.startsWith("@")

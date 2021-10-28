@@ -1,11 +1,10 @@
 package utils
 
-import java.net.{URI, URL}
-
-import javax.inject.Inject
 import play.api.http.{HeaderNames, Status}
 import play.api.libs.ws.WSClient
 
+import java.net.{URI, URL}
+import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Try}
 

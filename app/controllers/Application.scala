@@ -39,7 +39,7 @@ class Application @Inject() (git: Git, gitHub: GitHub, cache: Cache, mavenCentra
 
   private val WEBJAR_FETCH_ERROR = """
     Looks like there was an error fetching the WebJars.
-    Until the issue is resolved you can search for on search.maven.org for <a href="https://search.maven.org/search?q=g:org.webjars">Classic WebJars</a> or <a href="https://search.maven.org/search?q=g:org.webjars.npm">NPM WebJars</a>.
+    Until the issue is resolved you can search on search.maven.org for <a href="https://search.maven.org/search?q=g:org.webjars">Classic WebJars</a> or <a href="https://search.maven.org/search?q=g:org.webjars.npm">NPM WebJars</a>.
     If this problem persists please <a href=\"https://github.com/webjars/webjars/issues/new\">file an issue</a>.
     """
 
@@ -63,8 +63,14 @@ class Application @Inject() (git: Git, gitHub: GitHub, cache: Cache, mavenCentra
 
   private def webJarsWithTimeout(maybeWebJarType: Option[WebJarType] = None): Future[List[WebJar]] = {
     val fetcher = maybeWebJarType.fold {
-      cache.get[List[WebJar]]("all-webjars", 1.hour)(mavenCentral.webJarsSorted())
-    }(mavenCentral.webJars)
+      cache.get[List[WebJar]]("webjars-all", 1.hour) {
+        mavenCentral.webJarsSorted()
+      }
+    } { webJarType =>
+      cache.get[List[WebJar]](s"webjars-$webJarType", 1.hour) {
+        mavenCentral.webJarsSorted(Some(webJarType))
+      }
+    }
 
     val future = TimeoutFuture(fetchConfig.timeout)(fetcher)
     future.onComplete {
@@ -104,25 +110,21 @@ class Application @Inject() (git: Git, gitHub: GitHub, cache: Cache, mavenCentra
   }
 
   def searchWebJars(query: String, groupIds: List[String]) = Action.async { implicit request =>
-    webJarsWithTimeout().map { allWebJars =>
+    val queryLowerCase = query.toLowerCase.stripPrefix("org.webjars").stripPrefix("webjars")
 
-      val queryLowerCase = query.toLowerCase.stripPrefix("org.webjars").stripPrefix("webjars")
+    def filter(webJar: WebJar): Boolean = {
+        webJar.name.toLowerCase.contains(queryLowerCase) ||
+        webJar.groupId.toLowerCase.stripPrefix("org.webjars").stripPrefix("webjars").contains(queryLowerCase) ||
+        webJar.artifactId.toLowerCase.contains(queryLowerCase)
+    }
 
-      val matchingWebJars = if (queryLowerCase.isEmpty) {
-        List.empty[WebJar]
+    val matchesFuture = Future.reduceLeft {
+      groupIds.map { groupId =>
+        webJarsWithTimeout(WebJarType.fromGroupId(groupId, allWebJarTypes)).map(_.filter(filter))
       }
-      else {
-        val webJarTypes = groupIds.flatMap(WebJarType.fromGroupId(_, allWebJarTypes))
-        allWebJars.filter { webJar =>
-          webJarTypes.exists(_.includesGroupId(webJar.groupId)) &&
-            (
-              webJar.name.toLowerCase.contains(queryLowerCase) ||
-                webJar.groupId.toLowerCase.stripPrefix("org.webjars").stripPrefix("webjars").contains(queryLowerCase) ||
-                webJar.artifactId.toLowerCase.contains(queryLowerCase)
-              )
-        }
-      }
+    } (_ ++ _)
 
+    matchesFuture.map { matchingWebJars =>
       render {
         case Accepts.Html() => Ok(views.html.webJarList(Left(matchingWebJars)))
         case Accepts.Json() => Ok(Json.toJson(matchingWebJars))

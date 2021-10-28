@@ -4,10 +4,8 @@ import akka.util.Timeout
 import models.{WebJar, WebJarType}
 import org.apache.commons.io.IOUtils
 import org.joda.time.DateTime
-import play.api.inject.bind
-import play.api.inject.guice.GuiceApplicationBuilder
+import play.api.Environment
 import play.api.test._
-import play.api.{Configuration, Environment}
 import utils.MavenCentral.{GAV, StagedRepo}
 
 import java.io.FileNotFoundException
@@ -20,26 +18,32 @@ class MavenCentralSpec extends PlaySpecification {
 
   override implicit def defaultAwaitTimeout: Timeout = 300.seconds
 
-  def appWithLocalMavenSearch = GuiceApplicationBuilder(configuration = Configuration("mavencentral.search-url" -> s"http://localhost:$testServerPort/asdf"))
-    .overrides(bind[Memcache].to[MemcacheMock])
-    .overrides(bind[MavenCentral].to[MavenCentralLive])
-    .build()
+  val limit = 5
 
-  class WithApp extends WithApplication(_.overrides(bind[Memcache].to[MemcacheMock]))
+  class WithApp extends WithApplication(_.configure("mavencentral.limit" -> limit)) // limit how many subgroups and artifacts are fetched
 
   "fetchWebJars" should {
-    "fail when the search-url does not return JSON" in new WithServer(port = testServerPort, app = appWithLocalMavenSearch) {
-      val mavenCentral = app.injector.instanceOf[MavenCentral]
-      val classic = app.injector.instanceOf[Classic]
-      await(mavenCentral.fetchWebJars(classic)) should throwA[MavenCentral.UnavailableException]
-    }
-    "work normally" in new WithApp() {
+    "work for npm" in new WithApp() {
       val mavenCentral = app.injector.instanceOf[MavenCentral]
       val npm = app.injector.instanceOf[NPM]
       val webJars = await(mavenCentral.fetchWebJars(npm))
+      webJars.size should beEqualTo(limit)
       webJars.foldLeft(0)(_ + _.versions.size) should beGreaterThan (0)
     }
+    "work for bowergithub" in new WithApp() {
+      val mavenCentral = app.injector.instanceOf[MavenCentral]
+      val bowerGitHub = app.injector.instanceOf[BowerGitHub]
+      val webJars = await(mavenCentral.fetchWebJars(bowerGitHub))
+      webJars.map(_.groupId).size should beEqualTo(limit)
+    }
+  }
 
+  "artifactIds" should {
+    "does not include artifact versions in artifacts" in new WithApplication() { // no limit
+      val mavenCentral = app.injector.instanceOf[MavenCentral]
+      val artifactIds = await(mavenCentral.artifactIds("org.webjars.npm"))
+      artifactIds.contains("1.3.26") must beFalse
+    }
   }
 
   "webJarsSorted" should {
@@ -49,8 +53,9 @@ class MavenCentralSpec extends PlaySpecification {
       }
       else {
         val mavenCentral = app.injector.instanceOf[MavenCentral]
-        val webJars = await(mavenCentral.webJarsSorted(new DateTime(2016, 1, 1, 1, 1)))
-        webJars.head.artifactId must beEqualTo("jquery")
+        val classic = app.injector.instanceOf[Classic]
+        val webJars = await(mavenCentral.webJarsSorted(Some(classic), new DateTime(2016, 1, 1, 1, 1)))
+        webJars.map(_.artifactId).take(limit) must beEqualTo(List("ace", "acorn", "adm-zip", "3rdwavemedia-themes-developer", "activity-indicator"))
       }
     }
   }
@@ -67,14 +72,9 @@ class MavenCentralSpec extends PlaySpecification {
         statsClassic(("org.webjars", "jquery")) should beEqualTo(45947)
 
         val bowerGitHub = app.injector.instanceOf[BowerGitHub]
-        val bowerWebJars = await(mavenCentral.webJars(bowerGitHub))
-
         val statsBowerWebJars = await(mavenCentral.getStats(bowerGitHub, new DateTime(2019, 1, 1, 1, 1)))
-
-        val ((groupId, _), downloads) = statsBowerWebJars.head
+        val ((_, _), downloads) = statsBowerWebJars.head
         downloads should be > 0
-
-        bowerWebJars.find(_.groupId == groupId) should beSome
       }
     }
   }
@@ -135,8 +135,13 @@ class MavenCentralSpec extends PlaySpecification {
 }
 
 class MavenCentralMock extends MavenCentral {
-  override def fetchWebJars(webJarType: WebJarType): Future[List[WebJar]] = {
-    Future.successful(List.empty)
+
+  override def artifactIds(groupId: String): Future[Set[String]] = {
+    Future.successful(Set.empty)
+  }
+
+  override def fetchWebJars(webJarType: WebJarType): Future[Set[WebJar]] = {
+    Future.successful(Set.empty)
   }
 
   // this makes it so the mock says the artifact has not already been deployed
@@ -148,7 +153,7 @@ class MavenCentralMock extends MavenCentral {
     Future.successful(List.empty)
   }
 
-  override def webJarsSorted(dateTime: DateTime): Future[List[WebJar]] = {
+  override def webJarsSorted(maybeWebJarType: Option[WebJarType], dateTime: DateTime): Future[List[WebJar]] = {
     Future.successful(List.empty)
   }
 
@@ -179,4 +184,5 @@ class MavenCentralMock extends MavenCentral {
   override def asc(toSign: Array[Byte]): Option[String] = {
     None
   }
+
 }
