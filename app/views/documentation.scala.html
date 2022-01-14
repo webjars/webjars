@@ -170,7 +170,7 @@ play.filters.headers.contentSecurityPolicy = "default-src 'self' https://cdn.jsd
             <div class="tab-pane" id="servlet3">
                 <h3>Instructions for Servlet 3</h3>
 
-                With any Servlet 3 compatible container, the WebJars that are in the <span class="label label-info">WEB-INF/lib</span> directory are automatically made available as static resources.  This works because anything in a <span class="label label-info">META-INF/resources</span> directory in a JAR in <span class="label label-info">WEB-INF/lib</span> is automatically exposed as a static resource. Please note that in case of Tomcat the JarScanner should not be configured to skip the bootstrap artifact (e.g. when jarsToSkip is set to * add bootstrap-*.jar to jarsToScan).
+                With any Servlet 3 compatible container, the WebJars that are in the <span class="label label-info">WEB-INF/lib</span> directory are automatically made available as static resources.  This works because anything in a <span class="label label-info">META-INF/resources</span> directory in a JAR in <span class="label label-info">WEB-INF/lib</span> is automatically exposed as a static resource. Please note that in case of Tomcat the JarScanner should not be configured to skip the WebJars (e.g. when jarsToSkip is set to * add the WebJars to jarsToScan).
 
                 <h4>Maven Example (<a href="https://github.com/webjars/sample-jetty_war">example app</a>)</h4>
 
