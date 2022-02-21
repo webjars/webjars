@@ -2,6 +2,7 @@ enablePlugins(PlayScala)
 
 name := "webjars"
 
+// must stay below on 2.13.7 due to fastparse incompat / warning
 scalaVersion := "2.13.6"
 
 libraryDependencies ++= Seq(
@@ -10,11 +11,11 @@ libraryDependencies ++= Seq(
   guice,
   filters,
   "net.spy" % "spymemcached" % "2.12.3",
-  "com.lihaoyi" %% "fastparse" % "2.3.0",
-  "org.apache.commons" % "commons-compress" % "1.18",
+  "com.lihaoyi" %% "fastparse" % "2.3.3",
+  "org.apache.commons" % "commons-compress" % "1.21",
   "org.eclipse.jgit" % "org.eclipse.jgit" % "5.6.0.201912101111-r",
   "com.outr" %% "hasher" % "1.2.2",
-  "org.webjars" %% "webjars-play" % "2.8.8-1",
+  "org.webjars" %% "webjars-play" % "2.8.13",
   "org.webjars.bower" % "bootstrap" % "3.3.4",
   "org.webjars.bower" % "select2" % "3.5.2",
   "org.webjars.bower" % "highlightjs" % "9.10.0",

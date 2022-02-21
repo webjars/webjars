@@ -16,7 +16,7 @@ import play.api.http.{HeaderNames, MimeTypes, Status}
 import play.api.libs.functional.syntax._
 import play.api.libs.json._
 import play.api.libs.ws.{BodyWritable, WSAuthScheme, WSClient, WSRequest, WSResponse}
-import play.api.{Configuration, Logging}
+import play.api.{Configuration, Environment, Logging, Mode}
 import utils.Memcache.Expiration
 
 import java.io.{ByteArrayOutputStream, FileNotFoundException}
@@ -50,7 +50,9 @@ trait MavenCentral {
 }
 
 @Singleton
-class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, configuration: Configuration, webJarsFileService: WebJarsFileService)(classic: Classic, bower: Bower, bowerGitHub: BowerGitHub, npm: NPM) (implicit ec: ExecutionContext, actorSystem: ActorSystem) extends MavenCentral with Logging {
+class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, configuration: Configuration, webJarsFileService: WebJarsFileService, environment: Environment)
+                                 (classic: Classic, bower: Bower, bowerGitHub: BowerGitHub, npm: NPM)
+                                 (implicit ec: ExecutionContext, actorSystem: ActorSystem) extends MavenCentral with Logging {
   import MavenCentral._
 
   lazy val webJarFetcher: ActorRef = actorSystem.actorOf(Props[WebJarFetcher]())
@@ -63,7 +65,7 @@ class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, config
   private implicit val transcoderVersions: Transcoder[List[(String, Int)]] = new SerializingTranscoder().asInstanceOf[Transcoder[List[(String, Int)]]]
   private implicit val transcoderArtifactIds: Transcoder[Set[String]] = new SerializingTranscoder().asInstanceOf[Transcoder[Set[String]]]
 
-  private lazy val maybeLimit = configuration.getOptional[Int]("mavencentral.limit")
+  private lazy val maybeLimit = configuration.getOptional[Int]("mavencentral.limit").orElse(Option.when(environment.mode == Mode.Dev)(5))
 
   private lazy val maybeOssUsername = configuration.getOptional[String]("oss.username")
   private lazy val maybeOssPassword = configuration.getOptional[String]("oss.password")
