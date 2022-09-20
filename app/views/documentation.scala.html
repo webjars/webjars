@@ -56,6 +56,7 @@
                 <li><a href="#ring" data-toggle="tab">Ring (Clojure)</a></li>
                 <li><a href="#dandelion" data-toggle="tab">Dandelion</a></li>
                 <li><a href="#vertx" data-toggle="tab">Vert.x Web</a></li>
+                <li><a href="#quarkus" data-toggle="tab">Quarkus</a></li>
             </ul>
         </div>
 
@@ -789,6 +790,45 @@ router.route("/assets/lib/*").handler(StaticHandler.create("META-INF/resources/w
             <pre><code>&lt;link rel='stylesheet' href='assets/lib/bootstrap/3.1.0/css/bootstrap.min.css'&gt;</code></pre>
           </div>
         </div>
+
+
+        <!-- Quarkus -->
+        <div class="tab-pane" id="quarkus">
+            <h3>Instructions for Quarkus</h3>
+
+            Quarkus support the use of WebJars by default and also adds a <a href="https://quarkus.io/guides/http-reference#webjar-locator-support">WebJar Locator</a> to reference
+            WebJars without the version.
+
+            <h4>Maven Example</h4>
+
+            First add a WebJar as a dependency of your application in the <span class="label label-info">pom.xml</span> file, like:
+            <pre><code>&lt;dependencies&gt;
+    &lt;dependency&gt;
+        &lt;groupId&gt;org.webjars&lt;/groupId&gt;
+        &lt;artifactId&gt;bootstrap&lt;/artifactId&gt;
+        &lt;version&gt;3.1.0&lt;/version&gt;
+    &lt;/dependency&gt;
+&lt;/dependencies&gt;</code></pre>
+            <br>
+            Then simply reference the resource like:
+            <pre><code>&lt;link rel='stylesheet' href='/webjars/bootstrap/3.1.0/css/bootstrap.min.css'&gt;</code></pre>
+
+            <h4>Maven Example with locator</h4>
+
+            If you also want to use the locator, also add this to your <span class="label label-info">pom.xml</span> file :
+            <pre><code>&lt;dependencies&gt;
+    &lt;dependency&gt;
+        &lt;groupId&gt;io.quarkus</groupId&gt;
+        &lt;artifactId&gt;quarkus-webjars-locator&lt;/artifactId&gt;
+    &lt;/dependency&gt;
+&lt;/dependencies&gt;</code></pre>
+            <br>
+            Now you can reference the resource without the version:
+            <pre><code>&lt;link rel='stylesheet' href='/webjars/bootstrap/css/bootstrap.min.css'&gt;</code></pre>
+
+        </div>
+    </div>
+
     </div>
     </div>
 
