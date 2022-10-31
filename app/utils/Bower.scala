@@ -74,7 +74,9 @@ class Bower @Inject() (val ws: WSClient, val licenseDetector: LicenseDetector, v
   }
 
   def rawJson(packageNameOrGitRepo: NameOrUrlish, version: Version): Future[JsValue] = {
+    println((s"$BASE_URL/info", packageNameOrGitRepo, version))
     ws.url(s"$BASE_URL/info").withQueryStringParameters("package" -> packageNameOrGitRepo, "version" -> version).get().flatMap { versionResponse =>
+      println(versionResponse.status)
       versionResponse.status match {
         case Status.OK =>
           Future.successful(versionResponse.json)

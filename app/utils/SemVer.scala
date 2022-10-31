@@ -3,6 +3,7 @@ package utils
 import fastparse.NoWhitespace._
 import fastparse._
 
+import scala.annotation.tailrec
 import scala.util.{Failure, Success, Try}
 
 object SemVer {
@@ -35,7 +36,7 @@ object SemVer {
     }
 
     // note: ordering matters cause we don't want < to match on <=
-    def parse[_: P] = P(Operator.GTE.symbol | Operator.GT.symbol | Operator.LTE.symbol | Operator.LT.symbol | Operator.EQ.symbol).!.map {
+    def parse[p: P] = P(Operator.GTE.symbol | Operator.GT.symbol | Operator.LTE.symbol | Operator.LT.symbol | Operator.EQ.symbol).!.map {
       case LT.symbol => LT
       case LTE.symbol => LTE
       case GT.symbol => GT
@@ -68,14 +69,14 @@ object SemVer {
   }
 
   object Version {
-    def single[_: P] = P(CharIn("0-9").rep(1).!.map(_.toInt))
+    def single[p: P] = P(CharIn("0-9").rep(1).!.map(_.toInt))
 
-    def tag[_: P] = P("-" ~ (CharIn("a-z0-9").rep(1) ~ ("-" | ".").? ~ CharIn("a-z0-9").rep(1).?).!)
+    def tag[p: P] = P("-" ~ (CharIn("a-z0-9").rep(1) ~ ("-" | ".").? ~ CharIn("a-z0-9").rep(1).?).!)
 
-    def full[_: P] = P("v".? ~ single.? ~ ".".? ~ single.? ~ ".".? ~ single.? ~ tag.? ~ (" " | End))
+    def full[p: P] = P("v".? ~ single.? ~ ".".? ~ single.? ~ ".".? ~ single.? ~ tag.? ~ (" " | End))
 
     // todo: cleaner apply
-    def version[_: P] = full.map { case (maybeMajor, maybeMinor, maybePatch, maybeTag) =>
+    def version[p: P] = full.map { case (maybeMajor, maybeMinor, maybePatch, maybeTag) =>
       Version.apply(maybeMajor, maybeMinor, maybePatch, maybeTag)
     }
 
@@ -147,6 +148,7 @@ object SemVer {
   }
 
   // this is imperative crap
+  @tailrec
   def comparatorSetToMaven(comparatorSet: ComparatorSet): Try[String] = {
     if (comparatorSet.size == 1) {
       val comparator = comparatorSet.head
@@ -259,7 +261,7 @@ object SemVer {
       .replace("#", "")
 
     // 1 | 1-alpha
-    def major[_: P] = Version.version.filter { version =>
+    def major[p: P] = Version.version.filter { version =>
       version.maybeMajor.isDefined && version.maybeMinor.isEmpty && version.maybePatch.isEmpty
     } map { version =>
       val leftVersionRange = Comparator(Operator.GTE, version)
@@ -268,7 +270,7 @@ object SemVer {
     }
 
     // 1.1 | 1.1-alpha
-    def minor[_: P] = Version.version.filter { version =>
+    def minor[p: P] = Version.version.filter { version =>
       version.maybeMajor.isDefined && version.maybeMinor.isDefined && version.maybePatch.isEmpty
     } map { version =>
       val leftVersionRange = Comparator(Operator.GTE, version)
@@ -277,31 +279,31 @@ object SemVer {
     }
 
     // 1.2.3 | 1.2.3-alpha | =1.2.3 | =1.2.3-alpha
-    def patch[_: P] = (Operator.EQ.symbol.? ~ Version.version).filter { version =>
+    def patch[p: P] = (Operator.EQ.symbol.? ~ Version.version).filter { version =>
       version.maybeMajor.isDefined && version.maybeMinor.isDefined && version.maybePatch.isDefined
     } map { version =>
       Set(Comparator(Operator.EQ, version))
     }
 
-    def version[_: P] = Version.version.filter { version =>
+    def version[p: P] = Version.version.filter { version =>
       version.maybeMajor.isDefined || version.maybeMinor.isDefined || version.maybePatch.isDefined
     }
 
     // <1 | >1.0 | <=1.0.0
-    def operator[_: P] = (Operator.parse ~ version).map { case (operator, version) =>
+    def operator[p: P] = (Operator.parse ~ version).map { case (operator, version) =>
       Set(Comparator(operator, version))
     }
 
-    def range[_: P] = major | minor | patch | operator
+    def range[p: P] = major | minor | patch | operator
 
     // >1.0 <2.0
-    def rangeSet[_: P] = (range ~ range).map { case (left, right) =>
+    def rangeSet[p: P] = (range ~ range).map { case (left, right) =>
       left ++ right
     }
 
     // todo: some duplicate logic
     // 1 - 2 | 1 - 2.3 | 1 - 2.3.1 | 1 - 2.3.1-alpha
-    def hyphenRange[_: P] = (version ~ "- " ~ version).map { case (left, right) =>
+    def hyphenRange[p: P] = (version ~ "- " ~ version).map { case (left, right) =>
       val normalizedLeft = left.copy(
         maybeMajor = Some(left.maybeMajor.getOrElse(0)),
         maybeMinor = Some(left.maybeMinor.getOrElse(0)),
@@ -321,7 +323,7 @@ object SemVer {
 
     // todo: some duplicate logic
     // ^1.2.3 | ^0.0 | ^0 | ^1.2.x | ^1.x | ^0.0.x | ^0.x
-    def carrot[_: P] = ("^" ~ version).map { version =>
+    def carrot[p: P] = ("^" ~ version).map { version =>
       val desugaredMinor = version.maybeMinor.orElse(Some(0))
       val desugaredPatch = version.maybePatch.orElse(Some(0))
 
@@ -342,7 +344,7 @@ object SemVer {
 
     // todo: some duplicate logic
     // ~1.2.3 | ~0.0 | ~0 | ~1.2.x | ~1.x | ~0.0.x | ~0.x
-    def tilde[_: P] = ("~" ~ version).map { version =>
+    def tilde[p: P] = ("~" ~ version).map { version =>
       val rightVersion = if (version.maybePatch.isDefined || version.maybeMinor.isDefined) {
         version.copy(maybeMinor = version.maybeMinor.map(_ + 1), maybePatch = None, maybeTag = None)
       }
@@ -353,11 +355,11 @@ object SemVer {
       Set(Comparator(Operator.GTE, version), Comparator(Operator.LT, rightVersion))
     }
 
-    def string[_: P] = CharIn("a-z0-9").rep(1).!.map { s =>
+    def string[p: P] = CharIn("a-z0-9").rep(1).!.map { s =>
       Set(Comparator(Operator.EQ, Version(None, None, None, Some(s))))
     }
 
-    def all[_:P] = P(Start ~ (rangeSet | hyphenRange | range | carrot | tilde | string ~ End))
+    def all[p: P] = P(Start ~ (rangeSet | hyphenRange | range | carrot | tilde | string ~ End))
 
     if (versionString.isEmpty || versionString == "*" || versionString == "latest") {
       Success(Set(Comparator(Operator.GTE, Version(Some(0)))))

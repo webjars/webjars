@@ -133,8 +133,8 @@ class GitSpec extends PlaySpecification with GlobalApplication {
       tags.asScala.map(_.getName) must contain ("refs/tags/v2.0.0-beta2")
     }
     "be able to checkout a version, then a version" in {
-      await(git.cloneOrCheckout("mochajs/mocha", "2.2.0", false))
-      await(git.cloneOrCheckout("mochajs/mocha", "2.2.4", false)) must not(throwAn[Exception])
+      await(git.cloneOrCheckout("mochajs/mocha", "2.2.0", false)).exists() must beTrue
+      await(git.cloneOrCheckout("mochajs/mocha", "2.2.4", false)).exists() must beTrue
     }
   }
 

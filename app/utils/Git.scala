@@ -53,7 +53,8 @@ class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
 
   def gitUrl(gitRepo: String): Future[String] = {
     val resolvedUrl = if (gitRepo.contains("://")) {
-      gitRepo
+      // https://github.blog/2021-09-01-improving-git-protocol-security-github/
+      gitRepo.replace("git://", "https://")
     }
     else if (gitRepo.contains("github:")) {
       gitRepo.replace("github:", "https://github.com/")

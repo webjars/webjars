@@ -169,5 +169,5 @@ case class UnauthorizedError(message: String) extends Exception {
 }
 
 case class ServerError(message: String, status: Int) extends Exception {
-  override def getMessage: String = s"Response was $status for $message"
+  override def getMessage: String = s"Response was $status - $message"
 }

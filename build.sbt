@@ -2,18 +2,20 @@ enablePlugins(PlayScala)
 
 name := "webjars"
 
-// must stay below on 2.13.7 due to fastparse incompat / warning
-scalaVersion := "2.13.6"
+scalaVersion := "2.13.10"
 
 libraryDependencies ++= Seq(
   ws,
   caffeine,
   guice,
   filters,
+  "com.google.inject" % "guice" % "5.1.0",
+  "com.google.inject.extensions" % "guice-assistedinject" % "5.1.0",
   "net.spy" % "spymemcached" % "2.12.3",
   "com.lihaoyi" %% "fastparse" % "2.3.3",
   "org.apache.commons" % "commons-compress" % "1.21",
-  "org.eclipse.jgit" % "org.eclipse.jgit" % "5.6.0.201912101111-r",
+  "org.eclipse.jgit" % "org.eclipse.jgit" % "6.3.0.202209071007-r",
+  "org.bouncycastle" % "bcpg-jdk18on" % "1.72.1",
   "com.outr" %% "hasher" % "1.2.2",
   "org.webjars" %% "webjars-play" % "2.8.13",
   "org.webjars.bower" % "bootstrap" % "3.3.4",
@@ -22,8 +24,6 @@ libraryDependencies ++= Seq(
   "org.webjars.bower" % "jquery-typewatch" % "2.2.1",
   specs2 % Test
 )
-
-javacOptions ++= Seq("-source", "1.8", "-target", "1.8")
 
 scalacOptions ++= Seq(
   "-unchecked",
@@ -54,16 +54,6 @@ scalacOptions ++= Seq(
   "-Ywarn-unused:patvars",
   "-Ywarn-unused:privates",
 )
-
-Global / onLoad := (Global / onLoad).value.andThen { state =>
-  if (sys.props("java.specification.version") != "1.8") {
-    sys.error("Java 8 is required for this project.")
-    state.exit(ok = false)
-  }
-  else {
-    state
-  }
-}
 
 pipelineStages := Seq(gzip, digest)
 

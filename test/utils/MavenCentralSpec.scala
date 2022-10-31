@@ -123,11 +123,11 @@ class MavenCentralSpec extends PlaySpecification {
 
         await(mavenCentral.uploadStaging(stagingRepo, gav, pom, jar))
 
-        await(mavenCentral.closeStaging(stagingRepo, "test close")) must not(throwAn[Exception])
+        await(mavenCentral.closeStaging(stagingRepo, "test close")) must beEqualTo(())
 
         //await(mavenCentral.promoteStaging(stagingProfile, "test promote")) must not(throwAn[Exception])
 
-        await(mavenCentral.dropStaging(stagingRepo, "test drop")) must not(throwAn[Exception])
+        await(mavenCentral.dropStaging(stagingRepo, "test drop")) must beEqualTo(())
       }
     }
   }
