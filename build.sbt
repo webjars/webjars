@@ -9,8 +9,11 @@ libraryDependencies ++= Seq(
   caffeine,
   guice,
   filters,
+
+  // https://github.com/playframework/playframework/releases/2.8.15
   "com.google.inject" % "guice" % "5.1.0",
   "com.google.inject.extensions" % "guice-assistedinject" % "5.1.0",
+
   "net.spy" % "spymemcached" % "2.12.3",
   "com.lihaoyi" %% "fastparse" % "2.3.3",
   "org.apache.commons" % "commons-compress" % "1.21",
