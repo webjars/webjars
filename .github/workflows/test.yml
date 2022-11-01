@@ -20,3 +20,4 @@ jobs:
         DEPLOY_HEROKU_APP: ${{ secrets.DEPLOY_HEROKU_APP }}
         OSS_USERNAME: ${{ secrets.OSS_USERNAME }}
         OSS_PASSWORD: ${{ secrets.OSS_PASSWORD }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

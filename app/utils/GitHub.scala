@@ -19,6 +19,9 @@ class GitHub @Inject() (configuration: Configuration, wsClient: WSClient, cache:
   lazy val clientId = configuration.get[String]("github.oauth.client-id")
   lazy val clientSecret = configuration.get[String]("github.oauth.client-secret")
 
+  // primarily used in tests which break with too many concurrent requests to GitHub
+  lazy val maybeAuthToken = configuration.getOptional[String]("github.auth.token")
+
   def authUrl()(implicit request: RequestHeader): String = {
     val scope = "public_repo"
     s"https://github.com/login/oauth/authorize?client_id=$clientId&redirect_uri=$redirectUri&scope=$scope"
@@ -102,7 +105,13 @@ class GitHub @Inject() (configuration: Configuration, wsClient: WSClient, cache:
         Future.fromTry(newUrlsTry)
       }
 
-      wsClient.url(url.toString).withFollowRedirects(false).head().flatMap { response =>
+      // GitHub can return a 429 - too many request, when running integration tests
+      // Trying to auth the request to workaround
+      val baseClient = wsClient.url(url.toString).withFollowRedirects(false)
+      val clientMaybeWithAuth = maybeAuthToken.fold(baseClient) { authToken =>
+        baseClient.withHttpHeaders(HeaderNames.AUTHORIZATION -> s"Bearer $authToken")
+      }
+      clientMaybeWithAuth.head().flatMap { response =>
         response.status match {
           case Status.MOVED_PERMANENTLY =>
             response.header(HeaderNames.LOCATION).fold {
