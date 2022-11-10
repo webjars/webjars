@@ -22,7 +22,7 @@ import java.util.concurrent.TimeoutException
 import javax.inject.Inject
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.Failure
+import scala.util.{Failure, Random}
 import scala.util.hashing.MurmurHash3
 
 class Application @Inject() (git: Git, gitHub: GitHub, cache: Cache, mavenCentral: MavenCentral, deployWebJar: DeployWebJar, webJarsFileService: WebJarsFileService, actorSystem: ActorSystem, environment: Environment, futures: Futures)
@@ -62,12 +62,14 @@ class Application @Inject() (git: Git, gitHub: GitHub, cache: Cache, mavenCentra
   private val allDeployables = Set(npm, bower, bowerGitHub)
 
   private def webJarsWithTimeout(maybeWebJarType: Option[WebJarType] = None): Future[List[WebJar]] = {
+    // todo: de-dupe caches?
     val fetcher = maybeWebJarType.fold {
       cache.get[List[WebJar]]("webjars-all", 1.hour) {
         mavenCentral.webJarsSorted()
       }
     } { webJarType =>
-      cache.get[List[WebJar]](s"webjars-$webJarType", 1.hour) {
+      val jitter = (Random.nextInt(10) + 55).minutes
+      cache.get[List[WebJar]](s"webjars-$webJarType", jitter) {
         mavenCentral.webJarsSorted(Some(webJarType))
       }
     }
