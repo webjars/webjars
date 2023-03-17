@@ -11,7 +11,8 @@ import scala.util.{Failure, Try}
 class SourceLocator @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
 
   def sourceUrl(uri: URI): Future[URL] = {
-    val urlTry = Try(uri.toURL).recoverWith {
+    val normalized = uri.toString.replace("git://", "https://")
+    val urlTry = Try(new URL(normalized)).recoverWith {
       case e => Failure(new Exception(s"Could not convert provided source uri '$uri' to a URL", e))
     }
 

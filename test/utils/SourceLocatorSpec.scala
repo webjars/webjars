@@ -32,4 +32,11 @@ class SourceLocatorSpec extends PlaySpecification with GlobalApplication {
     }
   }
 
+  "git://git.coolaj86.com/coolaj86/atob.js.git" should {
+    "work" in {
+      val sourceUrl = await(sourceLocator.sourceUrl(new URI("git://git.coolaj86.com/coolaj86/atob.js.git")))
+      sourceUrl.toString must beEqualTo("https://git.coolaj86.com/coolaj86/atob.js.git")
+    }
+  }
+
 }
