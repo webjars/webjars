@@ -23,7 +23,7 @@ libraryDependencies ++= Seq(
   "org.webjars" %% "webjars-play" % "2.8.18",
   "org.webjars.bower" % "bootstrap" % "3.3.4",
   "org.webjars.bower" % "select2" % "3.5.2",
-  "org.webjars.bower" % "highlightjs" % "9.10.0",
+  "org.webjars.bower" % "highlightjs" % "9.12.0",
   "org.webjars.bower" % "jquery-typewatch" % "2.2.1",
   specs2 % Test
 )
