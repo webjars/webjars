@@ -54,8 +54,10 @@ class MavenCentralSpec extends PlaySpecification {
       else {
         val mavenCentral = app.injector.instanceOf[MavenCentral]
         val classic = app.injector.instanceOf[Classic]
-        val webJars = await(mavenCentral.webJarsSorted(Some(classic), new DateTime(2016, 1, 1, 1, 1)))
-        webJars.map(_.artifactId).take(limit) must beEqualTo(List("ace", "acorn", "adm-zip", "3rdwavemedia-themes-developer", "activity-indicator"))
+        val webJars = await(mavenCentral.webJarsSorted(Some(classic), new DateTime(2019, 1, 1, 1, 1)))
+        webJars.map(_.artifactId).take(limit) must beEqualTo(
+          List("ace", "acorn", "activity-indicator", "adm-zip", "3rdwavemedia-themes-developer")
+        )
       }
     }
   }
@@ -68,8 +70,8 @@ class MavenCentralSpec extends PlaySpecification {
       else {
         val mavenCentral = app.injector.instanceOf[MavenCentral]
         val classic = app.injector.instanceOf[Classic]
-        val statsClassic = await(mavenCentral.getStats(classic, new DateTime(2016, 1, 1, 1, 1)))
-        statsClassic(("org.webjars", "jquery")) should beEqualTo(45947)
+        val statsClassic = await(mavenCentral.getStats(classic, new DateTime(2019, 1, 1, 1, 1)))
+        statsClassic(("org.webjars", "jquery")) should beEqualTo(193177)
 
         val bowerGitHub = app.injector.instanceOf[BowerGitHub]
         val statsBowerWebJars = await(mavenCentral.getStats(bowerGitHub, new DateTime(2019, 1, 1, 1, 1)))

@@ -22,7 +22,7 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
 
   "inflight 1.0.4" should {
     "have the correct github url" in {
-      await(npm.info("inflight", "1.0.4")).maybeGitHubUrl.map(_.toString) must beSome("https://github.com/npm/inflight")
+      await(npm.info("inflight", "1.0.4")).maybeGitHubUrl.map(_.toString) must beSome("https://github.com/isaacs/inflight")
     }
   }
 
