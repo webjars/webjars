@@ -160,7 +160,7 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
     "work with bootstrap" in {
       val packageInfo = await(bower.info("bootstrap", "3.3.7"))
       val depGraph = await(bower.depGraph(packageInfo))
-      depGraph must beEqualTo(Map("jquery" -> "3.6.1"))
+      depGraph must beEqualTo(Map("jquery" -> "3.6.4"))
     }
     "work with " in {
       val packageInfo = await(bower.info("ng-bootstrap-select", "0.5.0"))
