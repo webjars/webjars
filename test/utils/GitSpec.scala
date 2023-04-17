@@ -67,6 +67,11 @@ class GitSpec extends PlaySpecification with GlobalApplication {
       file.length must beEqualTo (1083)
       file must contain ("The MIT License (MIT)")
     }
+    "fetch a file with a git url and a commit" in {
+      val file = await(git.file(new URI("git://github.com/mdedetrich/requirejs-plugins"), "d9c103e7a0", "LICENSE.txt"))
+      file.length must beEqualTo(1082)
+      file must contain("The MIT License (MIT)")
+    }
   }
 
   "git tar" should {

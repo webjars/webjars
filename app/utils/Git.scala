@@ -1,6 +1,8 @@
 package utils
 
+import org.eclipse.jgit.api.ResetCommand.ResetType
 import org.eclipse.jgit.api.{Git => GitApi}
+import org.eclipse.jgit.lib.ObjectId
 import play.api.http.{HeaderNames, Status}
 import play.api.libs.ws.WSClient
 import utils.Deployable.Version
@@ -82,8 +84,8 @@ class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
           Try {
             val uri = new URI(gitUrl.stripSuffix(".git"))
 
-            val host = uri.getHost.replaceAll("[^\\w\\d]", "-")
-            val path = uri.getPath.replaceAll("[^\\w\\d]", "-")
+            val host = uri.getHost.replaceAll("\\W", "-")
+            val path = uri.getPath.replaceAll("\\W", "-")
 
             host + path
           }
@@ -158,15 +160,24 @@ class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
       val checkoutFuture = cloneOrPullFuture.flatMap { _ =>
         Future.fromTry {
           Try {
-            // checkout the version
-            val checkout = GitApi.open(baseDir).checkout()
+            val ref = GitApi.open(baseDir).getRepository.findRef(version)
+            if (ref != null) {
+              ref.getName
+            } else {
+              version
+            }
+          }
+        }.flatMap { ref =>
+          Future.fromTry {
+            Try {
+              // hard reset to the version
+              val reset = GitApi.open(baseDir).reset()
+              reset.setMode(ResetType.HARD)
+              reset.setRef(ref)
+              reset.call()
 
-            checkout.setName(version)
-            checkout.setForced(true)
-
-            checkout.call()
-
-            baseDir
+              baseDir
+            }
           }
         }
       }
