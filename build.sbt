@@ -21,7 +21,7 @@ libraryDependencies ++= Seq(
   "org.bouncycastle" % "bcpg-jdk18on" % "1.73",
   "com.outr" %% "hasher" % "1.2.2",
   "org.webjars" %% "webjars-play" % "2.8.18",
-  "org.webjars.bower" % "bootstrap" % "3.4.1",
+  "org.webjars.bower" % "bootstrap" % "5.2.2",
   "org.webjars.bower" % "select2" % "3.5.4",
   "org.webjars.bower" % "highlightjs" % "9.12.0",
   "org.webjars.bower" % "jquery-typewatch" % "2.2.1",
