@@ -12,7 +12,7 @@ libraryDependencies ++= Seq(
 
   // https://github.com/playframework/playframework/releases/2.8.15
   "com.google.inject" % "guice" % "5.1.0",
-  "com.google.inject.extensions" % "guice-assistedinject" % "7.0.0",
+  "com.google.inject.extensions" % "guice-assistedinject" % "5.1.0",
 
   "net.spy" % "spymemcached" % "2.12.3",
   "com.lihaoyi" %% "fastparse" % "3.0.1",
