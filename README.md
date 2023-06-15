@@ -14,6 +14,9 @@ Development Info
 Run the web app:
 
 1. Start a local memcache server
+    ```
+    docker run -p11211:11211 memcached
+    ```
 1. `./sbt ~run`
 
 > Note: Deploying WebJars to BinTray / Maven Central requires a bunch of stuff.  In the future that will be documented but for now, deployment won't work in plain development environments.
