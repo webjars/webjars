@@ -10,11 +10,11 @@ import scala.util.Try
 
 class HerokuSpec extends PlaySpecification with GlobalApplication {
 
-  implicit lazy val materializer = application.injector.instanceOf[Materializer]
-  implicit lazy val actorSystem = application.injector.instanceOf[ActorSystem]
-  lazy val heroku = application.injector.instanceOf[Heroku]
-  lazy val configuration = application.injector.instanceOf[Configuration]
-  lazy val app = configuration.get[String]("deploy.herokuapp")
+  implicit lazy val materializer: Materializer = application.injector.instanceOf[Materializer]
+  implicit lazy val actorSystem: ActorSystem = application.injector.instanceOf[ActorSystem]
+  private lazy val heroku = application.injector.instanceOf[Heroku]
+  private lazy val configuration = application.injector.instanceOf[Configuration]
+  private lazy val app = configuration.get[String]("deploy.herokuapp")
 
   "dynoCreate" should {
     if (Try(heroku.apikey).isSuccess) {

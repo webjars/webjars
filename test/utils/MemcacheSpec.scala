@@ -12,7 +12,7 @@ class MemcacheSpec extends PlaySpecification {
 
   override implicit def defaultAwaitTimeout: Timeout = 30.seconds
 
-  implicit val transcoderString = new SerializingTranscoder().asInstanceOf[Transcoder[String]]
+  implicit val transcoderString: Transcoder[String] = new SerializingTranscoder().asInstanceOf[Transcoder[String]]
 
   "set & get" should {
     "work" in new WithApplication() {

@@ -1,6 +1,6 @@
 package models
 
-import play.api.libs.json.Json
+import play.api.libs.json.{Format, Json}
 import utils.VersionStringOrdering
 
 case class WebJar(`type`: String, groupId: String, artifactId: String, name: String, sourceUrl: String, versions: List[WebJarVersion]) extends Serializable
@@ -8,8 +8,8 @@ case class WebJar(`type`: String, groupId: String, artifactId: String, name: Str
 case class WebJarVersion(number: String, numFiles: Int = 0)
 
 object WebJar {
-  implicit val webJarVersionFormat = Json.format[WebJarVersion]
-  implicit val webJarFormat = Json.format[WebJar]
+  implicit val webJarVersionFormat: Format[WebJarVersion] = Json.format[WebJarVersion]
+  implicit val webJarFormat: Format[WebJar] = Json.format[WebJar]
 }
 
 object WebJarVersion {
