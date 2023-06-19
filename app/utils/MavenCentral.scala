@@ -60,8 +60,6 @@ class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, config
                                  (implicit ec: ExecutionContext, actorSystem: ActorSystem) extends MavenCentral with Logging {
   import MavenCentral._
 
-  lazy val webJarFetcher: ActorRef = actorSystem.actorOf(Props[WebJarFetcher]())
-
   val allWebJarTypes: Set[WebJarType] = Set(classic, bower, bowerGitHub, npm)
 
   private implicit val transcoderInt: Transcoder[Int] = new IntegerTranscoder().asInstanceOf[Transcoder[Int]]
