@@ -34,6 +34,11 @@ import scala.xml.Elem
 trait MavenCentral {
   import MavenCentral._
 
+  def maybeOssUsername(configuration: Configuration): Option[String] = configuration.getOptional[String]("oss.username").filter(_.nonEmpty)
+  def maybeOssPassword(configuration: Configuration): Option[String] = configuration.getOptional[String]("oss.password").filter(_.nonEmpty)
+  def maybeOssGpgKey(configuration: Configuration): Option[String] = configuration.getOptional[String]("oss.gpg-key").filter(_.nonEmpty)
+  def maybeOssGpgPass(configuration: Configuration): Option[String] = configuration.getOptional[String]("oss.gpg-pass").filter(_.nonEmpty)
+
   def artifactIds(groupId: String): Future[Set[String]]
   def fetchWebJars(webJarType: WebJarType): Future[Set[WebJar]]
   def fetchPom(gav: GAV, maybeUrlPrefix: Option[String] = None): Future[Elem]
@@ -57,7 +62,7 @@ class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, config
 
   lazy val webJarFetcher: ActorRef = actorSystem.actorOf(Props[WebJarFetcher]())
 
-  val allWebJarTypes = Set(classic, bower, bowerGitHub, npm)
+  val allWebJarTypes: Set[WebJarType] = Set(classic, bower, bowerGitHub, npm)
 
   private implicit val transcoderInt: Transcoder[Int] = new IntegerTranscoder().asInstanceOf[Transcoder[Int]]
   private implicit val transcoderNameUrl: Transcoder[(String, String)] = new SerializingTranscoder().asInstanceOf[Transcoder[(String, String)]]
@@ -67,18 +72,15 @@ class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, config
 
   private lazy val maybeLimit = configuration.getOptional[Int]("mavencentral.limit").orElse(Option.when(environment.mode == Mode.Dev)(5))
 
-  private lazy val maybeOssUsername = configuration.getOptional[String]("oss.username")
-  private lazy val maybeOssPassword = configuration.getOptional[String]("oss.password")
   private lazy val maybeOssStagingProfileId = configuration.getOptional[String]("oss.staging-profile")
   private lazy val ossProject = configuration.get[String]("oss.project")
   private lazy val disableDeploy = configuration.getOptional[Boolean]("oss.disable-deploy").getOrElse(false)
-  private lazy val maybeOssGpgKey = configuration.getOptional[String]("oss.gpg-key")
-  private lazy val maybeOssGpgPass = configuration.getOptional[String]("oss.gpg-pass")
+
 
   def withOssCredentials[T](f: (String, String) => Future[T]): Future[T] = {
     val maybeUsernameAndPassword = for {
-      ossUsername <- maybeOssUsername
-      ossPassword <- maybeOssPassword
+      ossUsername <- maybeOssUsername(configuration)
+      ossPassword <- maybeOssPassword(configuration)
     } yield (ossUsername, ossPassword)
 
     maybeUsernameAndPassword.fold(Future.failed[T](new IllegalArgumentException("oss.username or oss.password not set"))) { case (ossUsername, ossPassword) =>
@@ -527,12 +529,12 @@ class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, config
   }
 
   def asc(toSign: Array[Byte]): Option[String] = {
-    maybeOssGpgKey.map { gpgKey =>
+    maybeOssGpgKey(configuration).map { gpgKey =>
       val keyBytes = Base64.getDecoder.decode(gpgKey)
 
       val secretKeyRing = new PGPSecretKeyRing(keyBytes, new JcaKeyFingerprintCalculator())
 
-      val pass = maybeOssGpgPass.getOrElse("").toCharArray
+      val pass = maybeOssGpgPass(configuration).getOrElse("").toCharArray
 
       val privKey = secretKeyRing.getSecretKey.extractPrivateKey(new JcePBESecretKeyDecryptorBuilder().build(pass))
 

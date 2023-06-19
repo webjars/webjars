@@ -17,7 +17,8 @@ import scala.util.Try
 
 class Heroku @Inject() (ws: WSClient, config: Configuration) (implicit ec: ExecutionContext, actorSystem: ActorSystem) {
 
-  lazy val apikey = config.get[String]("heroku.apikey")
+  lazy val maybeApikey = config.getOptional[String]("heroku.apikey").filter(_.nonEmpty)
+  lazy val apikey = maybeApikey.get
 
 
   private def ws(path: String): WSRequest = {
