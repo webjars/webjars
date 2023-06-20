@@ -17,7 +17,7 @@ class HerokuSpec extends PlaySpecification with GlobalApplication {
   private lazy val app = configuration.get[String]("deploy.herokuapp")
 
   "dynoCreate" should {
-    if (Try(heroku.apikey).isSuccess) {
+    if (heroku.maybeApikey.isDefined) {
       "return a stream when attach is true" in {
         val source = heroku.dynoCreate(app, "echo test", "Eco")
         val output = await(source.runReduce(_ + _))

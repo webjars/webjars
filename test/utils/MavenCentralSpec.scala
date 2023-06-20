@@ -4,7 +4,7 @@ import akka.util.Timeout
 import models.{WebJar, WebJarType}
 import org.apache.commons.io.IOUtils
 import org.joda.time.DateTime
-import play.api.Environment
+import play.api.{Configuration, Environment}
 import play.api.test._
 import utils.MavenCentral.{GAV, StagedRepo}
 
@@ -48,7 +48,8 @@ class MavenCentralSpec extends PlaySpecification {
 
   "webJarsSorted" should {
     "be ordered correctly" in new WithApp() {
-      if (app.configuration.getOptional[String]("oss.username").isEmpty) {
+      val mavenCentral = app.injector.instanceOf[MavenCentral]
+      if (mavenCentral.maybeOssPassword(app.configuration).isEmpty) {
         skipped("skipped due to missing config")
       }
       else {
@@ -64,7 +65,8 @@ class MavenCentralSpec extends PlaySpecification {
 
   "getStats" should {
     "get the stats for a given date" in new WithApp() {
-      if (app.configuration.getOptional[String]("oss.username").isEmpty) {
+      val mavenCentral = app.injector.instanceOf[MavenCentral]
+      if (mavenCentral.maybeOssPassword(app.configuration).isEmpty) {
         skipped("skipped due to missing config")
       }
       else {
@@ -83,7 +85,8 @@ class MavenCentralSpec extends PlaySpecification {
 
   "deploy" should {
     "asc" in new WithApp() {
-      if (app.configuration.getOptional[String]("oss.gpg-key").isEmpty) {
+      val mavenCentral = app.injector.instanceOf[MavenCentral]
+      if (mavenCentral.maybeOssGpgKey(app.configuration).isEmpty) {
         skipped("skipped due to missing config")
       }
       else {
@@ -92,10 +95,11 @@ class MavenCentralSpec extends PlaySpecification {
       }
     }
     "create, upload, close, drop" in new WithApp() {
+      val mavenCentral = app.injector.instanceOf[MavenCentral]
       if (
-        app.configuration.getOptional[String]("oss.username").isEmpty ||
-        app.configuration.getOptional[String]("oss.password").isEmpty ||
-        app.configuration.getOptional[String]("oss.gpg-key").isEmpty
+        mavenCentral.maybeOssUsername(app.configuration).isEmpty ||
+        mavenCentral.maybeOssPassword(app.configuration).isEmpty ||
+        mavenCentral.maybeOssGpgKey(app.configuration).isEmpty
       ) {
         skipped("skipped due to missing config")
       }
