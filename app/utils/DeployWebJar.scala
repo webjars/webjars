@@ -360,17 +360,7 @@ trait Deployable extends WebJarType {
     else if (license.startsWith("(") && license.endsWith(")") && !license.contains("AND")) {
       // SPDX license expression
       Future.successful {
-        val expr = license.stripPrefix("(").stripSuffix(")")
-        val names = if (expr.contains(" or ")) {
-          expr.split(" or ".toCharArray)
-        }
-        else if (expr.contains(" OR ")) {
-          expr.split(" OR ".toCharArray)
-        }
-        else {
-          Array(expr)
-        }
-        names.toSet.map(LicenseWithName)
+        license.stripPrefix("(").stripSuffix(")").replace(" or ", " OR ").split(" OR ").toSet.map(LicenseWithName)
       }
     }
     else {
