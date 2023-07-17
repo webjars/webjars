@@ -299,7 +299,20 @@ trait Deployable extends WebJarType {
       }
     }
 
-    val resolvedLicenses = Future.foldLeft(packageInfo.metadataLicenses.map(licenseReference(nameOrUrlish, version, _)))(Set.empty[License])(_ ++ _)
+    val normalizedLicenses = packageInfo.metadataLicenses.map { license =>
+      val replacedDotSlash = if (license.startsWith("./")) {
+        license.replace("./", "file://")
+      }
+      else {
+        license
+      }
+
+      val replacedSeeLicenseIn = replacedDotSlash.replace("SEE LICENSE IN ", "file://")
+
+      licenseReference(nameOrUrlish, version, replacedSeeLicenseIn)
+    }
+
+    val resolvedLicenses = Future.foldLeft(normalizedLicenses)(Set.empty[License])(_ ++ _)
 
     resolvedLicenses
       .filter(_.nonEmpty)
@@ -332,23 +345,22 @@ trait Deployable extends WebJarType {
   }
 
   def licenseReference(nameOrUrlish: NameOrUrlish, version: Version, license: String)(implicit ec: ExecutionContext): Future[Set[License]] = {
-    if (license.contains("/") || license.startsWith("SEE LICENSE IN ")) {
+    if (license.startsWith("http://") || license.startsWith("https://")) {
       // we need to fetch the file and try to detect the license from the contents
-
-      val licenseFuture = if (license.startsWith("http")) {
-        licenseDetector.licenseDetect(new URL(license))
-      }
-      else {
-        val licenseFile = license.stripPrefix("SEE LICENSE IN ")
-        file(nameOrUrlish, version, licenseFile).flatMap(licenseDetector.licenseDetect)
-      }
-
-      licenseFuture.map(Set(_))
+      licenseDetector.licenseDetect(new URL(license)).map(Set(_))
+    }
+    else if (license.startsWith("file://")) {
+      file(nameOrUrlish, version, license.stripPrefix("file://")).flatMap { file =>
+        licenseDetector.licenseDetect(file)
+      }.recover {
+        case _ =>
+          LicenseWithUrl(new URL(license))
+      }.map(Set(_))
     }
     else if (license.startsWith("(") && license.endsWith(")") && !license.contains("AND")) {
       // SPDX license expression
       Future.successful {
-        license.stripPrefix("(").stripSuffix(")").split(" OR ").flatMap(_.split(" or ")).toSet.map(LicenseWithName)
+        license.stripPrefix("(").stripSuffix(")").split(" OR ".toCharArray).flatMap(_.split(" or ".toCharArray)).toSet.map(LicenseWithName)
       }
     }
     else {

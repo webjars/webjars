@@ -417,7 +417,8 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
       await(npm.licenseReference("foo", "0.0.0", "(Apache-2.0 or MIT)")) must containTheSameElementsAs(Seq(LicenseWithName("Apache-2.0"), LicenseWithName("MIT")))
     }
     "work with SPDX 'SEE LICENSE IN LICENSE' expressions" in {
-      val licenses = await(npm.licenseReference("stacktracejs/error-stack-parser", "v2.0.0", "SEE LICENSE IN LICENSE"))
+      val packageInfo = await(npm.info("stacktracejs/error-stack-parser", "v2.0.0"))
+      val licenses = await(npm.licenses("stacktracejs/error-stack-parser", "v2.0.0", packageInfo))
       licenses must containTheSameElementsAs(Seq(LicenseWithName("Unlicense")))
     }
     "be able to be fetched from git repos" in {
@@ -439,6 +440,12 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
   "libphonenumber-js 1.9.17" in {
     val packageInfo = await(npm.info("libphonenumber-js", "1.9.17"))
     packageInfo.sourceConnectionUri.toString must beEqualTo("https://gitlab.com/catamphetamine/libphonenumber-js.git")
+  }
+
+  "mapbox-gl license" in {
+    val packageInfo = await(npm.info("mapbox-gl", "2.15.0"))
+    val licenses = await(npm.licenses("mapbox-gl", "2.15.0", packageInfo))
+    licenses mustEqual Set(LicenseWithUrl(new URL("file://LICENSE.txt")))
   }
 
   /*

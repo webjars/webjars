@@ -16,7 +16,6 @@ class LicenseDetector @Inject() (ws: WSClient) (implicit ec: ExecutionContext) e
         case Status.OK =>
           Future.successful(LicenseWithName(licenseResponse.body))
         case _ =>
-          logger.error("License fetch error:\n" + contents + "\n" + licenseResponse.body)
           Future.failed(new Exception(licenseResponse.body))
       }
     }
