@@ -1,21 +1,24 @@
 package utils
 
-import play.api.test.PlaySpecification
+import zio.test._
+import zio.direct._
+import zio.http.Client
 
-object WebJarsFileServiceSpec extends PlaySpecification with GlobalApplication {
-  implicit lazy val webJarsFileService: WebJarsFileService = application.injector.instanceOf[WebJarsFileService]
+object WebJarsFileServiceSpec extends ZIOSpecDefault {
 
-  "getFileList" should {
-    "work" in {
-      val fileList = await(webJarsFileService.getFileList("org.webjars", "jquery", "3.6.4"))
-      fileList must contain("META-INF/resources/webjars/jquery/3.6.4/jquery.js")
-    }
-  }
+  def spec = suite("WebJarsFileService")(
+    test("getFileList") {
+      defer {
+        val fileList = WebJarsFileService.getFileList("org.webjars", "jquery", "3.6.4").run
+        assertTrue(fileList.contains("META-INF/resources/webjars/jquery/3.6.4/jquery.js"))
+      }
+    },
+    test("getNumFiles") {
+      defer {
+        val fileList = WebJarsFileService.getNumFiles("org.webjars", "jquery", "3.6.4").run
+        assertTrue(fileList == 7)
+      }
+    },
+  ).provide(Client.default)
 
-  "getNumFiles" should {
-    "work" in {
-      val numFiles = await(webJarsFileService.getNumFiles("org.webjars", "jquery", "3.6.4"))
-      numFiles mustEqual 7
-    }
-  }
 }
