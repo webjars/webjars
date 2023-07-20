@@ -388,7 +388,7 @@ class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, config
   }
 
   def getStats(webJarType: WebJarType, dateTime: DateTime): Future[Map[(String, String), Int]] = {
-     memcache.getWithMiss(s"stats-$webJarType-${dateTime.toString("yyyyMM")}") {
+     memcache.getWithMiss(s"stats-$webJarType", Expiration.In(1.day)) {
       groupIds(webJarType).flatMap { groupIds =>
         val futures = groupIds.map { groupId =>
           fetchStats(groupId, dateTime).recover {
