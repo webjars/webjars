@@ -104,10 +104,22 @@ class Application @Inject() (git: Git, gitHub: GitHub, cache: Cache, mavenCentra
     }
   }
 
-  def popularWebJars = Action.async { request =>
-    sortedMostPopularWebJars.map(maybeCached(request, webJars => Ok(views.html.webJarList(Left(webJars))))).recover {
+  def popularWebJars = Action.async { implicit request =>
+    sortedMostPopularWebJars.map { popularWebJars =>
+      render {
+        case Accepts.Html() =>
+          maybeCached(request, (webJars: Seq[WebJar]) => Ok(views.html.webJarList(Left(webJars))))(popularWebJars)
+        case Accepts.Json() =>
+          Ok(Json.toJson(popularWebJars))
+      }
+    }.recover {
       case _: Exception =>
-        InternalServerError(views.html.webJarList(Right(WEBJAR_FETCH_ERROR)))
+        render {
+          case Accepts.Html() =>
+            InternalServerError(views.html.webJarList(Right(WEBJAR_FETCH_ERROR)))
+          case Accepts.Json() =>
+            InternalServerError(WEBJAR_FETCH_ERROR)
+        }
     }
   }
 
