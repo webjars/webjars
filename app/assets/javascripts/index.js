@@ -241,7 +241,7 @@ $(function() {
 
     var deployLog = $("#deployLog");
     function log(message) {
-      deployLog.append(message);
+      deployLog.append(document.createTextNode(message));
       deployLog.animate({scrollTop: deployLog.prop("scrollHeight")}, 0);
     }
 
