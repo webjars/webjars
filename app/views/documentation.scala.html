@@ -498,8 +498,8 @@ public class WebConfig extends WebMvcConfigurerAdapter {
     &lt;mvc:resource-chain resource-cache="true"/&gt;
 &lt;/mvc:resources&gt;</code></pre>
                 <br>
-                Or in case of Java config add the resourceChain() method:
-                <pre><code>registry.addResourceHandler("/webjars/**").addResourceLocations("/webjars/").setCachePeriod(CACHE_PERIOD).resourceChain(true);</code></pre>
+                Or in case of Java config add the resourceChain() method and the WebJarsResourceResolver:
+                <pre><code>registry.addResourceHandler("/webjars/**").addResourceLocations("/webjars/").setCachePeriod(CACHE_PERIOD).resourceChain(true).addResolver(new WebJarsResourceResolver());</code></pre>
                 <br>
                 Then you may reference a WebJar asset in your template like this:
                 <pre><code>&lt;link rel='stylesheet' href='/webjars/bootstrap/css/bootstrap.min.css'&gt;</code></pre>
