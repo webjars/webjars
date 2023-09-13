@@ -6,7 +6,7 @@ import play.api.http.{ContentTypes, HeaderNames, Status}
 import play.api.inject.bind
 import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.test.{FakeRequest, PlaySpecification, WithApplication}
-import utils.{BowerGitHub, Memcache, MemcacheMock}
+import utils.{BowerGitHub, MavenCentral, Memcache, MemcacheMock}
 
 import scala.concurrent.duration._
 
@@ -26,7 +26,8 @@ class ApplicationSpec extends PlaySpecification {
 
   "sortedMostPopularWebJars" should {
     "only include the max number" in new WithApp {
-      if (app.configuration.getOptional[String]("oss.username").isEmpty) {
+      val mavenCentral = app.injector.instanceOf[MavenCentral]
+      if (mavenCentral.maybeOssPassword(app.configuration).isEmpty) {
         skipped("skipped due to missing config")
       }
       else {
@@ -47,7 +48,8 @@ class ApplicationSpec extends PlaySpecification {
 
   "searchWebJars" should {
     "work with a classic webjar" in new WithApp {
-      if (app.configuration.getOptional[String]("oss.username").isEmpty) {
+      val mavenCentral = app.injector.instanceOf[MavenCentral]
+      if (mavenCentral.maybeOssPassword(app.configuration).isEmpty) {
         skipped("skipped due to missing config")
       }
       else {
@@ -69,7 +71,8 @@ class ApplicationSpec extends PlaySpecification {
       }
     }
     "work with a bowergithub webjar" in new WithApp {
-      if (app.configuration.getOptional[String]("oss.username").isEmpty) {
+      val mavenCentral = app.injector.instanceOf[MavenCentral]
+      if (mavenCentral.maybeOssPassword(app.configuration).isEmpty) {
         skipped("skipped due to missing config")
       }
       else {
