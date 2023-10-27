@@ -184,7 +184,9 @@ class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, config
     val groupUrl = s"https://repo1.maven.org/maven2/$groupPath"
 
     fetchDirs(groupUrl, OnlyUndated).map { dirs =>
-      val artifactIds = dirs.filterNot(_.startsWith("webjars-"))
+      val artifactIds = dirs
+        .filterNot(_.startsWith("webjars-"))
+        .filterNot(_ == "2.11.2") // workaround because https://repo1.maven.org/maven2/org/webjars/npm/ has 2.11.2 without a date
 
       // with the limit, sort before taking so the output is more stable
       maybeLimit.fold(artifactIds)(artifactIds.toList.sortBy(_.toLowerCase).take(_).toSet)
