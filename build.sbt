@@ -20,7 +20,7 @@ libraryDependencies ++= Seq(
   "org.eclipse.jgit" % "org.eclipse.jgit" % "6.6.0.202305301015-r",
   "org.bouncycastle" % "bcpg-jdk18on" % "1.76",
   "com.outr" %% "hasher" % "1.2.2",
-  "org.webjars" %% "webjars-play" % "2.9.0",
+  "org.webjars" %% "webjars-play" % "2.8.18",
   "org.webjars.bower" % "bootstrap" % "3.4.1",
   "org.webjars.bower" % "select2" % "3.5.4",
   "org.webjars.bower" % "highlightjs" % "9.12.0",
