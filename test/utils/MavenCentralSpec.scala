@@ -3,13 +3,13 @@ package utils
 import org.apache.pekko.util.Timeout
 import models.{WebJar, WebJarType}
 import org.apache.commons.io.IOUtils
-import org.joda.time.DateTime
 import play.api.Environment
 import play.api.test._
 import utils.MavenCentral.{GAV, StagedRepo}
 
 import java.io.FileNotFoundException
 import java.net.{URI, URL}
+import java.time.LocalDateTime
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.xml.Elem
@@ -55,7 +55,7 @@ class MavenCentralSpec extends PlaySpecification {
       else {
         val mavenCentral = app.injector.instanceOf[MavenCentral]
         val classic = app.injector.instanceOf[Classic]
-        val webJars = await(mavenCentral.webJarsSorted(Some(classic), new DateTime(2019, 1, 1, 1, 1)))
+        val webJars = await(mavenCentral.webJarsSorted(Some(classic), LocalDateTime.of(2019, 1, 1, 1, 1)))
         webJars.map(_.artifactId).take(limit) must beEqualTo(
           List("ace", "acorn", "activity-indicator", "adm-zip", "3rdwavemedia-themes-developer")
         )
@@ -72,11 +72,11 @@ class MavenCentralSpec extends PlaySpecification {
       else {
         val mavenCentral = app.injector.instanceOf[MavenCentral]
         val classic = app.injector.instanceOf[Classic]
-        val statsClassic = await(mavenCentral.getStats(classic, new DateTime(2019, 1, 1, 1, 1)))
+        val statsClassic = await(mavenCentral.getStats(classic, LocalDateTime.of(2019, 1, 1, 1, 1)))
         statsClassic(("org.webjars", "jquery")) should beEqualTo(193177)
 
         val bowerGitHub = app.injector.instanceOf[BowerGitHub]
-        val statsBowerWebJars = await(mavenCentral.getStats(bowerGitHub, new DateTime(2019, 1, 1, 1, 1)))
+        val statsBowerWebJars = await(mavenCentral.getStats(bowerGitHub, LocalDateTime.of(2019, 1, 1, 1, 1)))
         val ((_, _), downloads) = statsBowerWebJars.head
         downloads should be > 0
       }
@@ -159,7 +159,7 @@ class MavenCentralMock extends MavenCentral {
     Future.successful(List.empty)
   }
 
-  override def webJarsSorted(maybeWebJarType: Option[WebJarType], dateTime: DateTime): Future[List[WebJar]] = {
+  override def webJarsSorted(maybeWebJarType: Option[WebJarType], dateTime: LocalDateTime): Future[List[WebJar]] = {
     Future.successful(List.empty)
   }
 
@@ -183,7 +183,7 @@ class MavenCentralMock extends MavenCentral {
     Future.unit
   }
 
-  override def getStats(webJarType: WebJarType, dateTime: DateTime): Future[Map[(String, String), Port]] = {
+  override def getStats(webJarType: WebJarType, dateTime: LocalDateTime): Future[Map[(String, String), Port]] = {
     Future.successful(Map.empty)
   }
 
