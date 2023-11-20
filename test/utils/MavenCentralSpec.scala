@@ -4,7 +4,7 @@ import akka.util.Timeout
 import models.{WebJar, WebJarType}
 import org.apache.commons.io.IOUtils
 import org.joda.time.DateTime
-import play.api.{Configuration, Environment}
+import play.api.Environment
 import play.api.test._
 import utils.MavenCentral.{GAV, StagedRepo}
 

@@ -4,7 +4,7 @@ import akka.stream.scaladsl.{Source, SourceQueueWithComplete}
 import akka.stream.{Materializer, OverflowStrategy}
 import akka.{Done, NotUsed}
 import models.WebJarType
-import org.apache.commons.compress.archivers.ArchiveStreamFactory
+import org.apache.commons.compress.archivers.{ArchiveEntry, ArchiveInputStream, ArchiveStreamFactory}
 import play.api.Configuration
 import play.api.i18n.{Lang, Langs, MessagesApi}
 import play.api.inject.guice.GuiceApplicationBuilder
@@ -328,11 +328,11 @@ trait Deployable extends WebJarType {
       }
   }
 
-  def archiveFile(nameOrUrlish: NameOrUrlish, version: Version, filename: String)(implicit ec: ExecutionContext): Future[String] = {
+  def archiveFile[E <: ArchiveEntry](nameOrUrlish: NameOrUrlish, version: Version, filename: String)(implicit ec: ExecutionContext): Future[String] = {
     archive(nameOrUrlish, version).flatMap { resource =>
       Future.fromTry {
         Using(new BufferedInputStream(resource)) { inputStream =>
-          val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(inputStream)
+          val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ArchiveInputStream[E]](inputStream)
           val maybeEntry = LazyList.continually(archiveStream.getNextEntry).takeWhile(_ != null).find(_.getName == filename)
           maybeEntry.fold[Try[String]](Failure(new FileNotFoundException(s"Could not find $filename in archive for $nameOrUrlish $version"))) { _ =>
             Try {

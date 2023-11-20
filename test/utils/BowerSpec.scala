@@ -2,6 +2,7 @@ package utils
 
 import akka.util.Timeout
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
+import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream
 import play.api.libs.concurrent.Futures
 import play.api.test._
 
@@ -44,7 +45,7 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
   "sjcl" should {
     "download" in {
       val is = new BufferedInputStream(await(bower.archive("sjcl", "1.0.2")))
-      val zis = new ArchiveStreamFactory().createArchiveInputStream(is)
+      val zis = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](is)
       val files = LazyList.continually(zis.getNextEntry).takeWhile(_ != null).map(_.getName)
       files must contain ("sjcl.js")
     }
@@ -76,7 +77,7 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
     "work" in {
       val zip = await(bower.archive("PolymerElements/iron-elements", "v1.0.0"))
       val bufferedInputStream = new BufferedInputStream(zip)
-      val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(bufferedInputStream)
+      val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](bufferedInputStream)
       archiveStream.getNextEntry.getName must beEqualTo (".bower.json")
     }
   }
@@ -177,7 +178,7 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
   "github.com/uwdata/vega-lite" should {
     "download" in {
       val is = new BufferedInputStream(await(bower.archive("uwdata/vega-lite", "v2.1.2")))
-      val zis = new ArchiveStreamFactory().createArchiveInputStream(is)
+      val zis = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](is)
       val files = LazyList.continually(zis.getNextEntry).takeWhile(_ != null).map(_.getName)
       files must not contain "examples/compiled/data"
     }

@@ -2,7 +2,6 @@ package utils
 
 import org.eclipse.jgit.api.ResetCommand.ResetType
 import org.eclipse.jgit.api.{Git => GitApi}
-import org.eclipse.jgit.lib.ObjectId
 import play.api.http.{HeaderNames, Status}
 import play.api.libs.ws.WSClient
 import utils.Deployable.Version

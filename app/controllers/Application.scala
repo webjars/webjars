@@ -22,8 +22,8 @@ import java.util.concurrent.TimeoutException
 import javax.inject.Inject
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.{Failure, Random}
 import scala.util.hashing.MurmurHash3
+import scala.util.{Failure, Random}
 
 class Application @Inject() (git: Git, gitHub: GitHub, cache: Cache, mavenCentral: MavenCentral, deployWebJar: DeployWebJar, webJarsFileService: WebJarsFileService, actorSystem: ActorSystem, environment: Environment, futures: Futures)
                             (classic: Classic, bower: Bower, npm: NPM, bowerGitHub: BowerGitHub)

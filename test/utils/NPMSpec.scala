@@ -2,6 +2,7 @@ package utils
 
 import akka.util.Timeout
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
+import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import play.api.libs.concurrent.Futures
 import play.api.libs.json._
 import play.api.test._
@@ -71,7 +72,7 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
     "work" in {
       val tgz = await(npm.archive("mochajs/mocha", "2.2.5"))
       val bufferedInputStream = new BufferedInputStream(tgz)
-      new ArchiveStreamFactory().createArchiveInputStream(bufferedInputStream)
+      new ArchiveStreamFactory().createArchiveInputStream[TarArchiveInputStream](bufferedInputStream)
       bufferedInputStream.available() must beEqualTo (640512)
     }
   }
@@ -122,7 +123,7 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
     "have a tgz" in {
       val tgz = await(npm.archive("@reactivex/rxjs", "5.0.0-alpha.7"))
       val bufferedInputStream = new BufferedInputStream(tgz)
-      val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(bufferedInputStream)
+      val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[TarArchiveInputStream](bufferedInputStream)
       bufferedInputStream.available() must beEqualTo (1687)
       archiveStream.getNextEntry.getName must beEqualTo ("package/package.json")
     }

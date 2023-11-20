@@ -3,6 +3,7 @@ package utils
 
 import akka.util.Timeout
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
+import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.eclipse.jgit.api.{Git => GitApi}
 import play.api.test._
 
@@ -79,7 +80,7 @@ class GitSpec extends PlaySpecification with GlobalApplication {
       val tar = await(git.tar("mochajs/mocha", "2.2.5", Set("node_modules")))
 
       val bufferedInputStream = new BufferedInputStream(tar)
-      val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(bufferedInputStream)
+      val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[TarArchiveInputStream](bufferedInputStream)
 
       bufferedInputStream.available() must beEqualTo (640512)
 

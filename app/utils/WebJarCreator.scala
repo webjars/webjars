@@ -1,7 +1,8 @@
 package utils
 
+import org.apache.commons.compress.archivers.jar.JarArchiveOutputStream
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry
-import org.apache.commons.compress.archivers.{ArchiveOutputStream, ArchiveStreamFactory}
+import org.apache.commons.compress.archivers.{ArchiveEntry, ArchiveInputStream, ArchiveStreamFactory}
 import org.apache.commons.compress.utils.IOUtils
 import org.eclipse.jgit.ignore.IgnoreNode
 
@@ -10,7 +11,7 @@ import java.nio.file.{Path, Paths}
 
 object WebJarCreator {
 
-  private def createDir(path: Path, jar: ArchiveOutputStream): Unit = {
+  private def createDir(path: Path, jar: JarArchiveOutputStream): Unit = {
     // make sure the dir ends with a "/"
     val formattedDir = path.toString.stripSuffix("/") + "/"
     val ze = new ZipArchiveEntry(formattedDir)
@@ -18,12 +19,12 @@ object WebJarCreator {
     jar.closeArchiveEntry()
   }
 
-  private def createDirs(dir: String, jar: ArchiveOutputStream): Unit = {
+  private def createDirs(dir: String, jar: JarArchiveOutputStream): Unit = {
     val paths = Iterator.iterate(Paths.get(dir))(_.getParent).takeWhile(_ != null).toSeq.reverse
     paths.foreach(createDir(_, jar))
   }
 
-  private def createFileEntry(path: String, jar: ArchiveOutputStream, contents: String): Unit = {
+  private def createFileEntry(path: String, jar: JarArchiveOutputStream, contents: String): Unit = {
     val ze = new ZipArchiveEntry(path)
     jar.putArchiveEntry(ze)
     jar.write(contents.getBytes)
@@ -46,17 +47,17 @@ object WebJarCreator {
     }
   }
 
-  def createWebJar(in: InputStream, contentsInSubdir: Boolean, exclude: Set[String], pom: String, groupId: String, artifactId: String, version: String, pathPrefix: String): Array[Byte] = {
+  def createWebJar[E <: ArchiveEntry](in: InputStream, contentsInSubdir: Boolean, exclude: Set[String], pom: String, groupId: String, artifactId: String, version: String, pathPrefix: String): Array[Byte] = {
 
     val byteArrayOutputStream = new ByteArrayOutputStream()
 
     val bufferedByteArrayOutputStream = new BufferedOutputStream(byteArrayOutputStream)
 
-    val jar = new ArchiveStreamFactory().createArchiveOutputStream(ArchiveStreamFactory.JAR, bufferedByteArrayOutputStream)
+    val jar = new ArchiveStreamFactory().createArchiveOutputStream[JarArchiveOutputStream](ArchiveStreamFactory.JAR, bufferedByteArrayOutputStream)
 
     val bufferedInputStream = new BufferedInputStream(in)
 
-    val archive = new ArchiveStreamFactory().createArchiveInputStream(bufferedInputStream)
+    val archive = new ArchiveStreamFactory().createArchiveInputStream[ArchiveInputStream[E]](bufferedInputStream)
 
     val webJarPrefix = s"META-INF/resources/webjars/$pathPrefix"
 
@@ -112,7 +113,7 @@ object WebJarCreator {
   def emptyJar(): Array[Byte] = {
     val byteArrayOutputStream = new ByteArrayOutputStream()
 
-    val jar = new ArchiveStreamFactory().createArchiveOutputStream(ArchiveStreamFactory.JAR, byteArrayOutputStream)
+    val jar = new ArchiveStreamFactory().createArchiveOutputStream[JarArchiveOutputStream](ArchiveStreamFactory.JAR, byteArrayOutputStream)
     jar.close()
 
     byteArrayOutputStream.toByteArray

@@ -3,6 +3,7 @@ package utils
 
 import akka.util.Timeout
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
+import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream
 import play.api.test._
 
 import java.io.{BufferedInputStream, ByteArrayInputStream}
@@ -187,7 +188,7 @@ class BowerGitHubSpec extends PlaySpecification with GlobalApplication {
 
       val webJar = WebJarCreator.createWebJar(archive, bowerGitHub.contentsInSubdir, excludes, "", "org.webjars.bowergithub.jquery", "jquery", "3.2.1", "jQuery/")
 
-      val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(new ByteArrayInputStream(webJar))
+      val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new ByteArrayInputStream(webJar))
 
       val names = LazyList.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName).toSet
       names must contain ("META-INF/resources/webjars/jQuery/dist/jquery.js")
@@ -200,7 +201,7 @@ class BowerGitHubSpec extends PlaySpecification with GlobalApplication {
 
       val webJar = WebJarCreator.createWebJar(archive, bowerGitHub.contentsInSubdir, excludes, "", "org.webjars.bowergithub.vaadin", "vaadin-grid", "4.0.0-alpha5", "vaadin-grid/")
 
-      val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(new ByteArrayInputStream(webJar))
+      val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new ByteArrayInputStream(webJar))
 
       val names = LazyList.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName).toSet
       names must contain ("META-INF/resources/webjars/vaadin-grid/index.html")
@@ -211,19 +212,19 @@ class BowerGitHubSpec extends PlaySpecification with GlobalApplication {
   "archive" should {
     "work with a v in front of the version" in {
       val inputStream = await(bowerGitHub.archive("vaadin-grid", "v4.0.0-alpha5"))
-      val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(new BufferedInputStream(inputStream))
+      val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new BufferedInputStream(inputStream))
 
       LazyList.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName) must contain ("bower.json")
     }
     "work when using a bower name" in {
       val inputStream = await(bowerGitHub.archive("vaadin-grid", "4.0.0-alpha5"))
-      val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(new BufferedInputStream(inputStream))
+      val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new BufferedInputStream(inputStream))
 
       LazyList.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName) must contain ("bower.json")
     }
     "work when using a github short url" in {
       val inputStream = await(bowerGitHub.archive("vaadin/vaadin-grid", "4.0.0-alpha5"))
-      val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(new BufferedInputStream(inputStream))
+      val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new BufferedInputStream(inputStream))
 
       LazyList.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName) must contain ("bower.json")
     }

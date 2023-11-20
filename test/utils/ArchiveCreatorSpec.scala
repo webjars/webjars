@@ -1,6 +1,7 @@
 package utils
 
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
+import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.specs2.mutable.Specification
 
 import java.io.{BufferedInputStream, File}
@@ -30,7 +31,7 @@ class ArchiveCreatorSpec extends Specification {
 
       val bufferedInputStream = new BufferedInputStream(tarTry.get)
 
-      val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(bufferedInputStream)
+      val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[TarArchiveInputStream](bufferedInputStream)
       val entryNames = LazyList.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName)
       entryNames.size must beEqualTo (2)
       entryNames must contain ("a.txt")
@@ -51,7 +52,7 @@ class ArchiveCreatorSpec extends Specification {
 
       val bufferedInputStream = new BufferedInputStream(tarTry.get)
 
-      val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(bufferedInputStream)
+      val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[TarArchiveInputStream](bufferedInputStream)
       archiveStream.getNextEntry.getName must beEqualTo ("b.txt")
       archiveStream.getNextEntry must beNull
     }
@@ -73,7 +74,7 @@ class ArchiveCreatorSpec extends Specification {
 
       val bufferedInputStream = new BufferedInputStream(tarTry.get)
 
-      val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(bufferedInputStream)
+      val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[TarArchiveInputStream](bufferedInputStream)
       archiveStream.getNextEntry.getName must beEqualTo ("a.txt")
       archiveStream.getNextEntry must beNull
     }
@@ -95,7 +96,7 @@ class ArchiveCreatorSpec extends Specification {
 
       val bufferedInputStream = new BufferedInputStream(tarTry.get)
 
-      val archiveStream = new ArchiveStreamFactory().createArchiveInputStream(bufferedInputStream)
+      val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[TarArchiveInputStream](bufferedInputStream)
       archiveStream.getNextEntry.getName must beEqualTo (dirName + "/a.txt")
       archiveStream.getNextEntry must beNull
     }

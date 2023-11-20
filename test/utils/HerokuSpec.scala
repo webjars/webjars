@@ -5,8 +5,6 @@ import akka.stream.Materializer
 import play.api.Configuration
 import play.api.test._
 
-import scala.util.Try
-
 
 class HerokuSpec extends PlaySpecification with GlobalApplication {
 
