@@ -15,7 +15,7 @@
 
     <logger name="play" level="INFO" />
     <logger name="net.spy.memcached" level="WARN" />
-    <logger name="akka.event.slf4j" level="WARN" />
+    <logger name="org.apache.pekko.event.slf4j" level="WARN" />
     <logger name="application" level="INFO" />
     <logger name="org.eclipse.jgit.internal.transport.http.NetscapeCookieFile" level="ERROR" />
     <logger name="play.shaded.ahc.org.asynchttpclient.netty.handler.intercept.Unauthorized401Interceptor" level="WARN"/>

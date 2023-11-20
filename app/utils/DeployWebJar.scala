@@ -1,8 +1,8 @@
 package utils
 
-import akka.stream.scaladsl.{Source, SourceQueueWithComplete}
-import akka.stream.{Materializer, OverflowStrategy}
-import akka.{Done, NotUsed}
+import org.apache.pekko.stream.scaladsl.{Source, SourceQueueWithComplete}
+import org.apache.pekko.stream.{Materializer, OverflowStrategy}
+import org.apache.pekko.{Done, NotUsed}
 import models.WebJarType
 import org.apache.commons.compress.archivers.{ArchiveEntry, ArchiveInputStream, ArchiveStreamFactory}
 import play.api.Configuration

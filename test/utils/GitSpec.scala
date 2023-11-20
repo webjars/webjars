@@ -1,7 +1,7 @@
 package utils
 
 
-import akka.util.Timeout
+import org.apache.pekko.util.Timeout
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.eclipse.jgit.api.{Git => GitApi}

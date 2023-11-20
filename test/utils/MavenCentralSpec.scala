@@ -1,6 +1,6 @@
 package utils
 
-import akka.util.Timeout
+import org.apache.pekko.util.Timeout
 import models.{WebJar, WebJarType}
 import org.apache.commons.io.IOUtils
 import org.joda.time.DateTime

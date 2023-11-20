@@ -1,8 +1,8 @@
 package controllers
 
-import akka.actor.ActorSystem
-import akka.stream.scaladsl.{Flow, Source}
-import akka.util.ByteString
+import org.apache.pekko.actor.ActorSystem
+import org.apache.pekko.stream.scaladsl.{Flow, Source}
+import org.apache.pekko.util.ByteString
 import com.google.inject.ImplementedBy
 import models.{WebJar, WebJarType}
 import play.api.data.Forms._

@@ -1,8 +1,8 @@
 package actors
 
 
-import akka.actor.Actor
-import akka.pattern.pipe
+import org.apache.pekko.actor.Actor
+import org.apache.pekko.pattern.pipe
 import models.WebJarType
 import utils.MavenCentral
 

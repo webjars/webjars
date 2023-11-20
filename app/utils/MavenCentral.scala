@@ -1,9 +1,9 @@
 package utils
 
 import actors.{FetchWebJars, WebJarFetcher}
-import akka.actor._
-import akka.pattern.{after, ask}
-import akka.util.Timeout
+import org.apache.pekko.actor._
+import org.apache.pekko.pattern.{after, ask}
+import org.apache.pekko.util.Timeout
 import com.google.inject.ImplementedBy
 import com.roundeights.hasher.Implicits._
 import models.{WebJar, WebJarType, WebJarVersion}
