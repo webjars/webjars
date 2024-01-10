@@ -1,6 +1,6 @@
 package controllers
 
-import akka.util.Timeout
+import org.apache.pekko.util.Timeout
 import models.WebJar
 import play.api.http.{ContentTypes, HeaderNames, Status}
 import play.api.inject.bind

@@ -1,7 +1,7 @@
 package utils
 
 
-import akka.util.Timeout
+import org.apache.pekko.util.Timeout
 import play.api.test._
 
 import java.net.URL

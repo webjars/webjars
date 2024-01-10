@@ -1,6 +1,6 @@
 package utils
 
-import akka.util.Timeout
+import org.apache.pekko.util.Timeout
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
 import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream
 import play.api.libs.concurrent.Futures

@@ -1,9 +1,9 @@
 package utils
 
 import actors.{FetchWebJars, WebJarFetcher}
-import akka.actor._
-import akka.pattern.{after, ask}
-import akka.util.Timeout
+import org.apache.pekko.actor._
+import org.apache.pekko.pattern.{after, ask}
+import org.apache.pekko.util.Timeout
 import com.google.inject.ImplementedBy
 import com.roundeights.hasher.Implicits._
 import models.{WebJar, WebJarType, WebJarVersion}
@@ -11,7 +11,6 @@ import net.spy.memcached.transcoders.{IntegerTranscoder, SerializingTranscoder, 
 import org.bouncycastle.bcpg.{ArmoredOutputStream, BCPGOutputStream, HashAlgorithmTags}
 import org.bouncycastle.openpgp.operator.jcajce.{JcaKeyFingerprintCalculator, JcaPGPContentSignerBuilder, JcePBESecretKeyDecryptorBuilder}
 import org.bouncycastle.openpgp.{PGPSecretKeyRing, PGPSignature, PGPSignatureGenerator}
-import org.joda.time.DateTime
 import play.api.http.{HeaderNames, MimeTypes, Status}
 import play.api.libs.functional.syntax._
 import play.api.libs.json._
@@ -20,6 +19,8 @@ import play.api.{Configuration, Environment, Logging, Mode}
 import utils.Memcache.Expiration
 
 import java.io.{ByteArrayOutputStream, FileNotFoundException}
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 import java.util.Base64
 import java.util.concurrent.TimeoutException
 import javax.inject.{Inject, Singleton}
@@ -43,8 +44,8 @@ trait MavenCentral {
   def fetchWebJars(webJarType: WebJarType): Future[Set[WebJar]]
   def fetchPom(gav: GAV, maybeUrlPrefix: Option[String] = None): Future[Elem]
   def webJars(webJarType: WebJarType): Future[List[WebJar]]
-  def webJarsSorted(maybeWebJarType: Option[WebJarType] = None, dateTime: DateTime = DateTime.now().minusMonths(1)): Future[List[WebJar]]
-  def getStats(webJarType: WebJarType, dateTime: DateTime): Future[Map[(String, String), Int]]
+  def webJarsSorted(maybeWebJarType: Option[WebJarType] = None, dateTime: LocalDateTime = LocalDateTime.now().minusMonths(1)): Future[List[WebJar]]
+  def getStats(webJarType: WebJarType, dateTime: LocalDateTime): Future[Map[(String, String), Int]]
 
   def asc(toSign: Array[Byte]): Option[String]
   def createStaging(description: String): Future[StagedRepo]
@@ -302,7 +303,7 @@ class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, config
     }
   }
 
-  def webJarsSorted(maybeWebJarType: Option[WebJarType], dateTime: DateTime): Future[List[WebJar]] = {
+  def webJarsSorted(maybeWebJarType: Option[WebJarType], dateTime: LocalDateTime): Future[List[WebJar]] = {
     val webJarTypes = maybeWebJarType.fold(allWebJarTypes)(Set(_))
     val webJarsFutures = webJarTypes.map(webJars)
 
@@ -345,12 +346,12 @@ class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, config
     }
   }
 
-  def fetchStats(groupIdQuery: String, dateTime: DateTime): Future[Map[(String, String), Int]] = {
+  def fetchStats(groupIdQuery: String, dateTime: LocalDateTime): Future[Map[(String, String), Int]] = {
     val queryString = Seq(
       "p" -> ossProject,
       "g" -> groupIdQuery,
       "t" -> "raw",
-      "from" -> dateTime.toString("yyyyMM"),
+      "from" -> dateTime.format(DateTimeFormatter.ofPattern("yyyyMM")),
       "nom" -> "1"
     )
 
@@ -389,7 +390,7 @@ class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, config
     }
   }
 
-  def getStats(webJarType: WebJarType, dateTime: DateTime): Future[Map[(String, String), Int]] = {
+  def getStats(webJarType: WebJarType, dateTime: LocalDateTime): Future[Map[(String, String), Int]] = {
      memcache.getWithMiss(s"stats-$webJarType", Expiration.In(1.day)) {
       groupIds(webJarType).flatMap { groupIds =>
         val futures = groupIds.map { groupId =>

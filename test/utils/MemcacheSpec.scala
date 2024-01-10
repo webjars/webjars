@@ -1,6 +1,6 @@
 package utils
 
-import akka.util.Timeout
+import org.apache.pekko.util.Timeout
 import net.spy.memcached.transcoders.{SerializingTranscoder, Transcoder}
 import play.api.test._
 

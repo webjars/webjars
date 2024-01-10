@@ -1,7 +1,7 @@
 package utils
 
-import akka.stream.scaladsl.{Keep, Sink}
-import akka.util.Timeout
+import org.apache.pekko.stream.scaladsl.{Keep, Sink}
+import org.apache.pekko.util.Timeout
 import play.api.test.{PlaySpecification, WithApplication}
 
 import scala.concurrent.duration._

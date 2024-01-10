@@ -1,9 +1,9 @@
 package utils
 
-import akka.NotUsed
-import akka.actor.ActorSystem
-import akka.stream.scaladsl.{BidiFlow, Flow, Framing, Source, Tcp}
-import akka.util.ByteString
+import org.apache.pekko.NotUsed
+import org.apache.pekko.actor.ActorSystem
+import org.apache.pekko.stream.scaladsl.{BidiFlow, Flow, Framing, Source, Tcp}
+import org.apache.pekko.util.ByteString
 import play.api.Configuration
 import play.api.http.{HeaderNames, Status}
 import play.api.libs.json.Json
