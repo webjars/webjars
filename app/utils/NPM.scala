@@ -14,9 +14,9 @@ import java.net.{URI, URL}
 import java.util.zip.{GZIPInputStream, ZipException}
 import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.{Failure, Success, Try}
+import scala.util.Try
 
-class NPM @Inject() (val ws: WSClient, val licenseDetector: LicenseDetector, val messages: MessagesApi, val langs: Langs, git: Git, gitHub: GitHub, maven: Maven)(implicit ec: ExecutionContext) extends Deployable {
+class NPM @Inject() (val ws: WSClient, val licenseDetector: LicenseDetector, val messages: MessagesApi, val langs: Langs, git: Git, gitHub: GitHub, maven: Maven, semVer: SemVer)(implicit ec: ExecutionContext) extends Deployable {
 
   val BASE_URL = "https://registry.npmjs.org"
 
@@ -217,15 +217,28 @@ class NPM @Inject() (val ws: WSClient, val licenseDetector: LicenseDetector, val
     }
   }
 
+  def justDeps(nameOrUrlish: NameOrUrlish, version: Version): Future[Map[String, String]] = {
+    ws.url(registryMetadataUrl(nameOrUrlish, Some(version))).get().flatMap { response =>
+      response.status match {
+        case Status.OK =>
+          Future.successful {
+            (response.json \ "dependencies").asOpt[Map[String, String]].getOrElse(Map.empty)
+          }
+        case _ =>
+          Future.failed(new Exception(response.body))
+      }
+    }
+  }
 
   def latestDep(nameOrUrlish: NameOrUrlish, version: Version)(implicit ec: ExecutionContext): Future[Version] = {
     versions(nameOrUrlish).flatMap { availableVersions =>
-      val maybeVersionRange = SemVer.parseSemVer(version)
-      Future.fromTry {
-        maybeVersionRange.flatMap { versionRange =>
-          SemVer.latestInRange(versionRange, availableVersions).fold[Try[String]] {
-            Failure(new Exception(s"Could not find a valid version for $nameOrUrlish in range $version given these available versions: ${availableVersions.mkString(" ")}"))
-          } (Success(_))
+      semVer.validRange(version).flatMap { maybeRange =>
+        maybeRange.fold(Future.failed[Version](new Exception(s"Could not convert $version to range"))) { range =>
+          semVer.maxSatisfying(availableVersions, range).flatMap { maybeVersion =>
+            maybeVersion.fold(Future.failed[Version](new Exception(s"Could not find a satisfying version in range $range"))) { version =>
+              Future.successful(version)
+            }
+          }
         }
       }
     }
@@ -237,23 +250,35 @@ class NPM @Inject() (val ws: WSClient, val licenseDetector: LicenseDetector, val
     import scala.concurrent.duration._
 
     def depResolver(unresolvedDeps: Map[String, String], resolvedDeps: Map[String, String]): Future[(Map[String, String], Map[String, String])] = {
-
       val packagesToResolve = unresolvedDeps.view.filterKeys(!resolvedDeps.contains(_)).toMap
 
-      packagesToResolve.headOption.fold {
-        Future.successful(packagesToResolve -> resolvedDeps)
-      } { dep =>
-        val (nameOrUrlish, versionish) = parseDep(dep)
-        latestDep(nameOrUrlish, versionish).flatMap { version =>
-          val newResolvedDeps = resolvedDeps + (nameOrUrlish -> version)
-          info(nameOrUrlish, version).flatMap { newPackageInfo =>
-            val newUnresolvedDeps = packagesToResolve.tail ++ newPackageInfo.dependencies.map(parseDep)
-
-            depResolver(newUnresolvedDeps, newResolvedDeps)
+      val resolveFuture = Future.sequence {
+        packagesToResolve.map { dep =>
+          val (nameOrUrlish, versionish) = parseDep(dep)
+          latestDep(nameOrUrlish, versionish).flatMap { version =>
+            val newResolvedDeps = resolvedDeps + (nameOrUrlish -> version)
+            justDeps(nameOrUrlish, version).map { newUnresolvedDeps =>
+              (newUnresolvedDeps, newResolvedDeps)
+            }
           }
-        } recoverWith {
-          // just skip deps that can't be resolved
-          case _ => depResolver(packagesToResolve.tail, resolvedDeps)
+        }
+      }
+
+      resolveFuture.map { resolutions =>
+        if (resolutions.isEmpty) {
+          (Map.empty[String, String], Map.empty[String, String])
+        }
+        else {
+          resolutions.reduce { (acc, these) =>
+            (acc._1 ++ these._1, acc._2 ++ these._2)
+          }
+        }
+      }.flatMap { case (unresolvedDeps, resolvedDeps) =>
+        if (unresolvedDeps.isEmpty) {
+          Future.successful(unresolvedDeps -> resolvedDeps)
+        }
+        else {
+          depResolver(unresolvedDeps, resolvedDeps)
         }
       }
     }

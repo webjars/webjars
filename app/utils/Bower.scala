@@ -17,7 +17,7 @@ import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
-class Bower @Inject() (val ws: WSClient, val licenseDetector: LicenseDetector, val messages: MessagesApi, val langs: Langs, git: Git, gitHub: GitHub, maven: Maven) (implicit ec: ExecutionContext) extends Deployable {
+class Bower @Inject() (ws: WSClient, val licenseDetector: LicenseDetector, val messages: MessagesApi, val langs: Langs, git: Git, gitHub: GitHub, maven: Maven, semVer: SemVer) (implicit ec: ExecutionContext) extends Deployable {
 
   import Bower._
 
@@ -52,12 +52,14 @@ class Bower @Inject() (val ws: WSClient, val licenseDetector: LicenseDetector, v
     val (name, version) = parseDep(keyValue)
 
     for {
-      info <- info(name, version)
-      latestVersionInRange = info.version
-      groupId <- groupId(name, latestVersionInRange)
-      artifactId <- artifactId(name, latestVersionInRange)
-      version <- Future.fromTry(SemVer.convertSemVerToMaven(version))
-    } yield (groupId, artifactId, version)
+      mavenVersion <- semVer.validRange(version).flatMap { maybeRange =>
+        maybeRange.fold(Future.successful(version)) { range =>
+          Future.fromTry(SemVer.toMaven(range))
+        }
+      }
+      groupId <- groupId(name, mavenVersion)
+      artifactId <- artifactId(name, mavenVersion)
+    } yield (groupId, artifactId, mavenVersion)
   }
 
   override def versions(packageNameOrGitRepo: NameOrUrlish): Future[Set[Version]] = {

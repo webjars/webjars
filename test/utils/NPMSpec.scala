@@ -449,6 +449,11 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
     licenses mustEqual Set(LicenseWithUrl(new URL("file://LICENSE.txt")))
   }
 
+  "@headlessui/react ^1.7.15" in {
+    val latest = await(npm.latestDep("@headlessui/react", "^1.7.15"))
+    latest mustEqual "1.7.18"
+  }
+
   /*
   Broken. See: https://github.com/webjars/webjars/issues/1920
   "have the right license for hmrc-frontend 1.27.0" in {
