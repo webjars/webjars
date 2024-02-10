@@ -76,25 +76,25 @@ class BowerGitHubSpec extends PlaySpecification with GlobalApplication {
       val (group, artifact, version) = await(bowerGitHub.bowerToMaven("jQuery" -> "1.12.4"))
       group must beEqualTo ("org.webjars.bowergithub.jquery")
       artifact must beEqualTo ("jquery")
-      version must beEqualTo ("[1.12.4]")
+      version must beEqualTo ("1.12.4")
     }
     "work with a plain name and semver range" in {
       val (group, artifact, version) = await(bowerGitHub.bowerToMaven("jQuery" -> "^1.0.0"))
       group must beEqualTo ("org.webjars.bowergithub.jquery")
       artifact must beEqualTo ("jquery")
-      version must beEqualTo ("[1.0.0,2)")
+      version must beEqualTo ("[1.0.0,2.0.0-0)")
     }
     "work with a plain name and semver range and a v prefix" in {
       val (group, artifact, version) = await(bowerGitHub.bowerToMaven("jQuery" -> "^v1.0.0"))
       group must beEqualTo ("org.webjars.bowergithub.jquery")
       artifact must beEqualTo ("jquery")
-      version must beEqualTo ("[1.0.0,2)")
+      version must beEqualTo ("[1.0.0,2.0.0-0)")
     }
     "work with a github short reference" in {
       val (group, artifact, version) = await(bowerGitHub.bowerToMaven("jquery/jquery" -> "1.0.1"))
       group must beEqualTo ("org.webjars.bowergithub.jquery")
       artifact must beEqualTo ("jquery")
-      version must beEqualTo ("[1.0.1]")
+      version must beEqualTo ("1.0.1")
     }
     "work with a github short reference" in {
       val (group, artifact, version) = await(bowerGitHub.bowerToMaven("jquery" -> "jquery/jquery"))
@@ -106,13 +106,13 @@ class BowerGitHubSpec extends PlaySpecification with GlobalApplication {
       val (group, artifact, version) = await(bowerGitHub.bowerToMaven("jquery" -> "jquery/jquery#1.0.1"))
       group must beEqualTo ("org.webjars.bowergithub.jquery")
       artifact must beEqualTo ("jquery")
-      version must beEqualTo ("[1.0.1]")
+      version must beEqualTo ("1.0.1")
     }
     "work with a github short reference and version with a v" in {
       val (group, artifact, version) = await(bowerGitHub.bowerToMaven("jquery" -> "jquery/jquery#v1.0.1"))
       group must beEqualTo ("org.webjars.bowergithub.jquery")
       artifact must beEqualTo ("jquery")
-      version must beEqualTo ("[1.0.1]")
+      version must beEqualTo ("1.0.1")
     }
     "work with a github url" in {
       val (group, artifact, version) = await(bowerGitHub.bowerToMaven("jquery" -> "https://github.com/jquery/jquery"))
@@ -124,46 +124,46 @@ class BowerGitHubSpec extends PlaySpecification with GlobalApplication {
       val (group, artifact, version) = await(bowerGitHub.bowerToMaven("jquery" -> "https://github.com/jquery/jquery#1.0.1"))
       group must beEqualTo ("org.webjars.bowergithub.jquery")
       artifact must beEqualTo ("jquery")
-      version must beEqualTo ("[1.0.1]")
+      version must beEqualTo ("1.0.1")
     }
     "work with a github url and version with a v" in {
       val (group, artifact, version) = await(bowerGitHub.bowerToMaven("jquery" -> "https://github.com/jquery/jquery#v1.0.1"))
       group must beEqualTo ("org.webjars.bowergithub.jquery")
       artifact must beEqualTo ("jquery")
-      version must beEqualTo ("[1.0.1]")
+      version must beEqualTo ("1.0.1")
     }
     "work with semver ranges and a v prefix" in {
       val (group, artifact, version) = await(bowerGitHub.bowerToMaven("shadycss" -> "webcomponents/shadycss#^v1.1.0"))
       group must beEqualTo ("org.webjars.bowergithub.webcomponents")
       artifact must beEqualTo ("shadycss")
-      version must beEqualTo ("[1.1.0,2)")
+      version must beEqualTo ("[1.1.0,2.0.0-0)")
     }
     "work with moved repos given a name" in {
       val (group, artifact, version) = await(bowerGitHub.bowerToMaven("webcomponentsjs" -> "1.0.22"))
       group must beEqualTo ("org.webjars.bowergithub.webcomponents")
       artifact must beEqualTo ("webcomponentsjs")
-      version must beEqualTo ("[1.0.22]")
+      version must beEqualTo ("1.0.22")
     }
     "work with moved repos given a repo" in {
       val (group, artifact, version) = await(bowerGitHub.bowerToMaven("webcomponentsjs" -> "polymer/webcomponentsjs#1.0.22"))
       group must beEqualTo ("org.webjars.bowergithub.webcomponents")
       artifact must beEqualTo ("webcomponentsjs")
-      version must beEqualTo ("[1.0.22]")
+      version must beEqualTo ("1.0.22")
     }
   }
 
   "dependencies" should {
     "be converted from bower package names" in {
       val dependencies = await(bowerGitHub.mavenDependencies(Map("jQuery" -> "3.2.1")))
-      dependencies.head must beEqualTo (("org.webjars.bowergithub.jquery", "jquery", "[3.2.1]"))
+      dependencies.head must beEqualTo (("org.webjars.bowergithub.jquery", "jquery", "3.2.1"))
     }
     "be converted from github short syntax package names" in {
       val dependencies = await(bowerGitHub.mavenDependencies(Map("iron-validator-behavior" -> "PolymerElements/iron-validator-behavior#^1.0.0")))
-      dependencies.head must beEqualTo (("org.webjars.bowergithub.polymerelements", "iron-validator-behavior", "[1.0.0,2)"))
+      dependencies.head must beEqualTo (("org.webjars.bowergithub.polymerelements", "iron-validator-behavior", "[1.0.0,2.0.0-0)"))
     }
     "not have a prepended v in the version" in {
       val dependencies = await(bowerGitHub.mavenDependencies(Map("jQuery" -> "v3.2.1")))
-      dependencies.head must beEqualTo (("org.webjars.bowergithub.jquery", "jquery", "[3.2.1]"))
+      dependencies.head must beEqualTo (("org.webjars.bowergithub.jquery", "jquery", "3.2.1"))
     }
   }
 

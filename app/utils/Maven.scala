@@ -5,7 +5,7 @@ import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
-class Maven @Inject() (git: Git) (implicit ec: ExecutionContext) {
+class Maven @Inject() (git: Git, semVer: SemVer) (implicit ec: ExecutionContext) {
 
   def convertNpmBowerDependenciesToMaven(dependencies: Map[String, String]): Future[Map[String, String]] = {
     val maybeMavenDeps = dependencies.map { case (name, versionOrUrl) =>
@@ -66,8 +66,11 @@ class Maven @Inject() (git: Git) (implicit ec: ExecutionContext) {
           Future.failed(new Exception(s"Invalid version specified in dependency: $name $versionOrUrl"))
         }
         else {
-          val maybeMavenVersion = SemVer.convertSemVerToMaven(version).map(artifactId -> _)
-          Future.fromTry(maybeMavenVersion)
+          semVer.validRange(version).flatMap { maybeRange =>
+            maybeRange.fold(Future.successful(artifactId -> version)) { range =>
+              Future.fromTry(SemVer.toMaven(range)).map(artifactId -> _)
+            }
+          }
         }
       }
     }
