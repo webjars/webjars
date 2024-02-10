@@ -55,7 +55,7 @@ function updateDetails(buildTool, row) {
       instructions = "'" + groupId + ":" + artifactId + ":jar:" + webJarVersion.val() + "'";
       break;
     case "gradle":
-      instructions = "compile '" + groupId + ":" + artifactId + ":" + webJarVersion.val() + "'";
+      instructions = "runtimeOnly(\"" + groupId + ":" + artifactId + ":" + webJarVersion.val() + "\")";
       break;
     case "grape":
       instructions = "@Grapes(\n" +
