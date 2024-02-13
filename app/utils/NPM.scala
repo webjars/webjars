@@ -233,9 +233,9 @@ class NPM @Inject() (val ws: WSClient, val licenseDetector: LicenseDetector, val
   def latestDep(nameOrUrlish: NameOrUrlish, version: Version)(implicit ec: ExecutionContext): Future[Version] = {
     versions(nameOrUrlish).flatMap { availableVersions =>
       semVer.validRange(version).flatMap { maybeRange =>
-        maybeRange.fold(Future.failed[Version](new Exception(s"Could not convert $version to range"))) { range =>
+        maybeRange.fold(Future.failed[Version](new Exception(s"For $nameOrUrlish could not convert $version to range"))) { range =>
           semVer.maxSatisfying(availableVersions, range).flatMap { maybeVersion =>
-            maybeVersion.fold(Future.failed[Version](new Exception(s"Could not find a satisfying version in range $range"))) { version =>
+            maybeVersion.fold(Future.failed[Version](new Exception(s"For $nameOrUrlish could not find a satisfying version in range $range"))) { version =>
               Future.successful(version)
             }
           }

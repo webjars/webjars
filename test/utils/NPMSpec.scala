@@ -454,6 +454,17 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
     latest mustEqual "1.7.18"
   }
 
+  "@types/node latestDep" in {
+    val latest = Try(await(npm.latestDep("@types/node", ">=13.7.0")))
+    latest must beASuccessfulTry
+  }
+
+  "@xenova/transformers depGraph" in {
+    val packageInfo = await(npm.info("@xenova/transformers", "2.15.0"))
+    val depGraph = await(npm.depGraph(packageInfo))
+    depGraph.keys must contain ("@types/node")
+  }
+
   /*
   Broken. See: https://github.com/webjars/webjars/issues/1920
   "have the right license for hmrc-frontend 1.27.0" in {

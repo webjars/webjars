@@ -19,9 +19,27 @@ class SemVer @Inject() (val ws: WSClient) (implicit ec: ExecutionContext) {
 
   def maxSatisfying(versions: Set[String], range: String): Future[Option[String]] = {
     val saneVersions = versions.filter(_.split('-').length <= 2) // ie 18.3.0-canary-1219d57fc-20240201,
-    val vParams = saneVersions.map("v" -> _).toSeq
-    ws.url(baseUrl + "/maxSatisfying").withQueryStringParameters(vParams:_*).addQueryStringParameters("range" -> range).get().map { response =>
-      Option.when(response.status == Status.OK)(response.body)
+
+    def fetch(versions: Set[String]): Future[Option[String]] = {
+      val vParams = versions.map("v" -> _).toSeq
+      ws.url(baseUrl + "/maxSatisfying").withQueryStringParameters(vParams:_*).addQueryStringParameters("range" -> range).get().map { response =>
+        Option.when(response.status == Status.OK)(response.body)
+      }
+    }
+
+    if (saneVersions.size > 256) {
+      // partition the versions so we don't exceed the query string limit
+      Future.traverse(saneVersions.grouped(256)) { versions =>
+        fetch(versions)
+      }.flatMap { maybeVersions =>
+        // out of the possible versions matching, re-find the maxSatisfying
+        val versions = maybeVersions.flatten.toSet
+        fetch(versions)
+      }
+    }
+    else {
+      // the partitioned version fetches at least twice, for smaller sets, just fetch once
+      fetch(saneVersions)
     }
   }
 
