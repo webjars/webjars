@@ -3,7 +3,7 @@ package utils
 import org.apache.commons.compress.archivers.jar.JarArchiveOutputStream
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry
 import org.apache.commons.compress.archivers.{ArchiveEntry, ArchiveInputStream, ArchiveStreamFactory}
-import org.apache.commons.compress.utils.IOUtils
+import org.apache.commons.io.IOUtils
 import org.eclipse.jgit.ignore.IgnoreNode
 
 import java.io._
