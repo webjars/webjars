@@ -47,6 +47,7 @@
                     </div>
                     <div class="panel-body">
                         <ul>
+                            <li><strong>Deprecated</strong> (<a href="https://github.com/webjars/webjars/issues/2039">details</a>)</li>
                             <li>Contents mirror Bower package</li>
                             <li>GroupId: <code>org.webjars.bowergithub.[GITHUB_ORG]</code></li>
                             <li>ArtifactId: GitHub Repo Name</li>
@@ -77,7 +78,7 @@
                     </div>
                     <div class="panel-body">
                         <ul>
-                            <li><strong>Deprecated</strong> Use Bower GitHub WebJars instead</li>
+                            <li><strong>Deprecated</strong> (<a href="https://github.com/webjars/webjars/issues/2039">details</a>)</li>
                             <li>GroupId: <code>org.webjars.bower</code></li>
                             <li>ArtifactId: Bower Package or URL-based Name</li>
                         </ul>
@@ -136,7 +137,7 @@
     </div>
 
     <div class="modal fade" id="newWebJarModal" tabindex="-1" role="dialog" aria-labelledby="newWebJarModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
+        <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
                     <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
@@ -150,13 +151,13 @@
                                 <input type="radio" name="new_webjar_catalog" value="npm"> NPM
                             </label>
                             <label class="radio-inline">
-                                <input type="radio" name="new_webjar_catalog" value="bowergithub"> Bower GitHub
+                                <input type="radio" name="new_webjar_catalog" value="classic"> Classic
+                            </label>
+                            <label class="radio-inline">
+                                <input type="radio" name="new_webjar_catalog" value="bowergithub"> <del>Bower GitHub</del> (Deprecated)
                             </label>
                             <label class="radio-inline">
                                 <input type="radio" name="new_webjar_catalog" value="bower"> <del>Bower Original</del> (Deprecated)
-                            </label>
-                            <label class="radio-inline">
-                                <input type="radio" name="new_webjar_catalog" value="classic"> Classic
                             </label>
                         </div>
                     </form>
