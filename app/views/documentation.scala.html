@@ -57,6 +57,7 @@
                 <li><a href="#dandelion" data-toggle="tab">Dandelion</a></li>
                 <li><a href="#vertx" data-toggle="tab">Vert.x Web</a></li>
                 <li><a href="#quarkus" data-toggle="tab">Quarkus</a></li>
+                <li><a href="#ktor" data-toggle="tab">Ktor</a></li>
             </ul>
         </div>
 
@@ -824,6 +825,45 @@ router.route("/assets/lib/*").handler(StaticHandler.create("META-INF/resources/w
             Now you can reference the resource without the version:
             <pre><code>&lt;link rel='stylesheet' href='/webjars/bootstrap/css/bootstrap.min.css'&gt;</code></pre>
 
+          </div>
+
+
+          <!-- Ktor -->
+          <div class="tab-pane" id="ktor">
+            <h3>Instructions for Ktor (<a href="https://github.com/webjars/sample-ktor">Sample Source</a>)</h3>
+
+            <p>
+            Add the <a href="https://github.com/webjars/webjars-locator-lite">webjars-locator-lite</a> dependency, i.e. in Gradle:
+            <pre><code>implementation("org.webjars:webjars-locator-lite:0.0.4")</code></pre>
+            </p>
+
+            <p>
+            Add your WebJars, i.e. in Gradle:
+            <pre><code>runtimeOnly("org.webjars:bootstrap:5.3.2")</code></pre>
+            </p>
+
+            <p>
+            Define a routing path, an extension function that handles route resolution with the locator, create a shared / singleton instance of the locator, and configure the routing:
+            <pre><code>val WEBJARS_PATH = "/webjars"
+fun WebJarVersionLocator.route(webJar: String, path: String) = run {
+    path(webJar, path)?.let {
+        "$WEBJARS_PATH/$it"
+    }
+}
+val server = embeddedServer(CIO, port = 8080) {
+    val webJarVersionLocator = WebJarVersionLocator()
+    install(CallLogging)
+    routing {
+        staticResources(WEBJARS_PATH, "META-INF/resources/webjars")
+        // other routes
+    }
+}</code></pre>
+            </p>
+
+            <p>
+            Use the <code>webjarVersionLocator</code> i.e. in <code>kotlinx.html</code>:
+            <pre><code>link(webJarVersionLocator.route("bootstrap", "css/bootstrap.min.css"), rel = "stylesheet")</code></pre>
+            </p>
           </div>
         </div>
       </div>
