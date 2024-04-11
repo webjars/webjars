@@ -77,7 +77,7 @@ class Classic @Inject() (ws: WSClient, val licenseDetector: LicenseDetector, val
     val req = gitHub.maybeAuthToken.fold(
       ws.url(s"https://api.github.com/repos/${metadata.repo}/license")
     )( accessToken =>
-      gitHub.ws(s"repos/${metadata.repo}/tags", accessToken)
+      gitHub.ws(s"repos/${metadata.repo}/license", accessToken)
     )
     req.get().flatMap { response =>
       response.status match {
