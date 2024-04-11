@@ -41,6 +41,17 @@ class DeployWebJarSpec extends PlaySpecification {
       output(4) must contain("Resolved Licenses: CC-BY-4.0")
       output(15) must contain("Deployed!")
     }
+    "work with Classic" in new WithMocks() {
+      val deployWebJar: DeployWebJar = app.injector.instanceOf[DeployWebJar]
+      val classic: Classic = app.injector.instanceOf[Classic]
+
+      val output = await(deployWebJar.localDeploy(classic, "swagger-ui", "v5.15.1", false, false).toMat(Sink.seq)(Keep.right).run()).mkString
+      output must contain("Resolved Licenses: Apache-2.0")
+      output must contain("GroupID = org.webjars")
+      output must contain("ArtifactID = swagger-ui")
+      output must contain("Version = 5.15.1")
+      output must contain("Deployed!")
+    }
   }
 
 }

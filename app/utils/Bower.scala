@@ -38,9 +38,9 @@ class Bower @Inject() (ws: WSClient, val licenseDetector: LicenseDetector, val m
     Future.successful(Set(".bower.json"))
   }
 
-  override val metadataFile: String = "bower.json"
+  override val metadataFile: Option[String] = Some("bower.json")
 
-  override val contentsInSubdir: Boolean = false
+  override def maybeBaseDirGlob(nameOrUrlish: NameOrUrlish): Future[Option[Version]] = Future.successful(None)
 
   override def pathPrefix(nameOrUrlish: NameOrUrlish, releaseVersion: Version, packageInfo: PackageInfo): Future[String] = {
     artifactId(nameOrUrlish, releaseVersion).map { artifactId =>

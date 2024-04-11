@@ -5,7 +5,6 @@ import play.api.Configuration
 import play.api.http.{HeaderNames, HttpVerbs, MimeTypes, Status}
 import play.api.libs.json.{JsValue, Json}
 import play.api.libs.ws.{WSClient, WSRequest}
-import play.api.mvc.RequestHeader
 
 import java.net.{URI, URL}
 import javax.inject.Inject
@@ -21,17 +20,6 @@ class GitHub @Inject() (configuration: Configuration, wsClient: WSClient, cache:
 
   // primarily used in tests which break with too many concurrent requests to GitHub
   lazy val maybeAuthToken = configuration.getOptional[String]("github.auth.token")
-
-  def authUrl()(implicit request: RequestHeader): String = {
-    val scope = "public_repo"
-    s"https://github.com/login/oauth/authorize?client_id=$clientId&redirect_uri=$redirectUri&scope=$scope"
-  }
-
-  def redirectUri(implicit request: RequestHeader): String = {
-    configuration.get[Option[String]]("github.oauth.redirect_uri").getOrElse {
-      controllers.routes.Application.gitHubOauthCallback("").absoluteURL(request.secure).stripSuffix("?code=")
-    }
-  }
 
   def ws(path: String, accessToken: String): WSRequest = {
     wsClient

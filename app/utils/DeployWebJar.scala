@@ -126,7 +126,9 @@ class DeployWebJar @Inject()(mavenCentral: MavenCentral, sourceLocator: SourceLo
 
         pathPrefix <- deployable.pathPrefix(nameOrUrlish, releaseVersion, packageInfo)
 
-        jar = WebJarCreator.createWebJar(zip, deployable.contentsInSubdir, excludes, pom, groupId, artifactId, releaseVersion, pathPrefix)
+        maybeBaseDirGlob <- deployable.maybeBaseDirGlob(nameOrUrlish)
+
+        jar = WebJarCreator.createWebJar(zip, maybeBaseDirGlob, excludes, pom, groupId, artifactId, releaseVersion, pathPrefix)
 
         _ <- queue.offer(s"Created ${deployable.name} WebJar")
 
@@ -194,7 +196,9 @@ class DeployWebJar @Inject()(mavenCentral: MavenCentral, sourceLocator: SourceLo
       excludes <- deployable.excludes(nameOrUrlish, upstreamVersion)
 
       pathPrefix <- deployable.pathPrefix(nameOrUrlish, releaseVersion, packageInfo)
-    } yield artifactId -> WebJarCreator.createWebJar(zip, deployable.contentsInSubdir, excludes, pom, groupId, artifactId, releaseVersion, pathPrefix)
+
+      maybeBaseDirGlob <- deployable.maybeBaseDirGlob(nameOrUrlish)
+    } yield artifactId -> WebJarCreator.createWebJar(zip, maybeBaseDirGlob, excludes, pom, groupId, artifactId, releaseVersion, pathPrefix)
   }
 
 }
@@ -243,11 +247,12 @@ object DeployWebJar extends App {
 
     val deployWebJar = app.injector.instanceOf[DeployWebJar]
 
+    val classic = app.injector.instanceOf[Classic]
     val npm = app.injector.instanceOf[NPM]
     val bower = app.injector.instanceOf[Bower]
     val bowerGitHub = app.injector.instanceOf[BowerGitHub]
 
-    val allDeployables = Set(npm, bower, bowerGitHub)
+    val allDeployables = Set(classic, npm, bower, bowerGitHub)
 
 
     val deployFuture = WebJarType.fromString(webJarType, allDeployables).fold[Future[Done]] {
@@ -263,6 +268,7 @@ object DeployWebJar extends App {
 }
 
 trait Deployable extends WebJarType {
+
   import Deployable._
 
   val licenseDetector: LicenseDetector
@@ -273,20 +279,32 @@ trait Deployable extends WebJarType {
 
   implicit class RichVersion(val s: Version) {
     def vless: Version = s.stripPrefix("v").replace("^v", "^").replace("~v", "v")
+
     def vwith: Version = if (s.startsWith("v")) s else "v" + s
   }
 
   def groupId(nameOrUrlish: NameOrUrlish, version: Version): Future[String]
+
   def artifactId(nameOrUrlish: NameOrUrlish, version: Version): Future[String]
+
   def releaseVersion(maybeVersion: Option[Version], packageInfo: PackageInfo): String = maybeVersion.getOrElse(packageInfo.version).vless
+
   def excludes(nameOrUrlish: NameOrUrlish, version: Version): Future[Set[String]]
-  val metadataFile: String
-  val contentsInSubdir: Boolean
+
+  val metadataFile: Option[String]
+
+  def maybeBaseDirGlob(nameOrUrlish: NameOrUrlish): Future[Option[Version]]
+
   def pathPrefix(nameOrUrlish: NameOrUrlish, releaseVersion: Version, packageInfo: PackageInfo): Future[String]
+
   def info(nameOrUrlish: NameOrUrlish, version: Version, maybeSourceUri: Option[URI] = None): Future[PackageInfo]
+
   def mavenDependencies(dependencies: Map[String, String]): Future[Set[(String, String, String)]]
+
   def archive(nameOrUrlish: NameOrUrlish, version: Version): Future[InputStream]
+
   def file(nameOrUrlish: NameOrUrlish, version: Version, filename: String): Future[String]
+
   def versions(nameOrUrlish: NameOrUrlish): Future[Set[Version]]
 
   def licenses(nameOrUrlish: NameOrUrlish, version: Version, packageInfo: PackageInfo)(implicit ec: ExecutionContext): Future[Set[License]] = {

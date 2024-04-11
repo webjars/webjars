@@ -186,7 +186,9 @@ class BowerGitHubSpec extends PlaySpecification with GlobalApplication {
 
       val excludes = await(bowerGitHub.excludes(name, "3.2.1"))
 
-      val webJar = WebJarCreator.createWebJar(archive, bowerGitHub.contentsInSubdir, excludes, "", "org.webjars.bowergithub.jquery", "jquery", "3.2.1", "jQuery/")
+      val maybeBaseDirGlob = await(bowerGitHub.maybeBaseDirGlob(name))
+
+      val webJar = WebJarCreator.createWebJar(archive, maybeBaseDirGlob, excludes, "", "org.webjars.bowergithub.jquery", "jquery", "3.2.1", "jQuery/")
 
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new ByteArrayInputStream(webJar))
 
@@ -199,7 +201,9 @@ class BowerGitHubSpec extends PlaySpecification with GlobalApplication {
       val archive = await(bowerGitHub.archive(name, "4.0.0-alpha5"))
       val excludes = await(bowerGitHub.excludes(name, "4.0.0-alpha5"))
 
-      val webJar = WebJarCreator.createWebJar(archive, bowerGitHub.contentsInSubdir, excludes, "", "org.webjars.bowergithub.vaadin", "vaadin-grid", "4.0.0-alpha5", "vaadin-grid/")
+      val maybeBaseDirGlob = await(bowerGitHub.maybeBaseDirGlob(name))
+
+      val webJar = WebJarCreator.createWebJar(archive, maybeBaseDirGlob, excludes, "", "org.webjars.bowergithub.vaadin", "vaadin-grid", "4.0.0-alpha5", "vaadin-grid/")
 
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new ByteArrayInputStream(webJar))
 

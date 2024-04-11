@@ -16,7 +16,7 @@ class WebJarCreatorSpec extends PlaySpecification {
       val inputStream = url.openConnection().getInputStream
       val gzipInputStream = new GZIPInputStream(inputStream)
 
-      val webJar = WebJarCreator.createWebJar(gzipInputStream, true, Set("node_modules"), "test", "test", "test", "2.10.0", "test")
+      val webJar = WebJarCreator.createWebJar(gzipInputStream, Some("*/"), Set("node_modules"), "test", "test", "test", "2.10.0", "test")
       webJar.length must beGreaterThan(0)
     }
     "deal with different tgz base dirs" in {
@@ -24,7 +24,7 @@ class WebJarCreatorSpec extends PlaySpecification {
       val inputStream = url.openConnection().getInputStream
       val gzipInputStream = new GZIPInputStream(inputStream)
 
-      val webJar = WebJarCreator.createWebJar(gzipInputStream, true, Set("node_modules"), "", "org.webjars.npm", "react-redux", "4.4.32", "react-redux/4.4.32/")
+      val webJar = WebJarCreator.createWebJar(gzipInputStream, Some("*/"), Set("node_modules"), "", "org.webjars.npm", "react-redux", "4.4.32", "react-redux/4.4.32/")
 
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new ByteArrayInputStream(webJar))
 
@@ -36,7 +36,7 @@ class WebJarCreatorSpec extends PlaySpecification {
       val inputStream = url.openConnection().getInputStream
       val gzipInputStream = new GZIPInputStream(inputStream)
 
-      val webJar = WebJarCreator.createWebJar(gzipInputStream, false, Set("node_modules"), "", "org.webjars.npm", "react-redux", "4.4.32", "react-redux/4.4.32/")
+      val webJar = WebJarCreator.createWebJar(gzipInputStream, None, Set("node_modules"), "", "org.webjars.npm", "react-redux", "4.4.32", "react-redux/4.4.32/")
 
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new ByteArrayInputStream(webJar))
 
@@ -48,7 +48,7 @@ class WebJarCreatorSpec extends PlaySpecification {
       val inputStream = url.openConnection().getInputStream
       val gzipInputStream = new GZIPInputStream(inputStream)
 
-      val webJar = WebJarCreator.createWebJar(gzipInputStream, true, Set("node_modules"), "", "org.webjars.npm", "react-router", "2.0.41", "react-router/2.0.41/")
+      val webJar = WebJarCreator.createWebJar(gzipInputStream, Some("*/"), Set("node_modules"), "", "org.webjars.npm", "react-router", "2.0.41", "react-router/2.0.41/")
 
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new ByteArrayInputStream(webJar))
 
@@ -59,7 +59,7 @@ class WebJarCreatorSpec extends PlaySpecification {
       val url = new URL(s"https://registry.npmjs.org/@types/escodegen/-/escodegen-0.0.2.tgz")
       val inputStream = url.openConnection().getInputStream
 
-      val webJar = WebJarCreator.createWebJar(inputStream, true, Set("node_modules"), "", "org.webjars.npm", "escodegen", "0.0.2", "escodegen/0.0.2/")
+      val webJar = WebJarCreator.createWebJar(inputStream, Some("*/"), Set("node_modules"), "", "org.webjars.npm", "escodegen", "0.0.2", "escodegen/0.0.2/")
 
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new ByteArrayInputStream(webJar))
 
@@ -99,7 +99,7 @@ class WebJarCreatorSpec extends PlaySpecification {
 
       val excludes = Set("**/test.js")
 
-      val webJar = WebJarCreator.createWebJar(inputStream, true, excludes, "", "", "", "", "vaadin-grid/")
+      val webJar = WebJarCreator.createWebJar(inputStream, Some("*/"), excludes, "", "", "", "", "vaadin-grid/")
 
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new ByteArrayInputStream(webJar))
 
@@ -113,7 +113,7 @@ class WebJarCreatorSpec extends PlaySpecification {
 
       val excludes = Set("*.js")
 
-      val webJar = WebJarCreator.createWebJar(inputStream, true, excludes, "", "", "", "", "vaadin-grid/")
+      val webJar = WebJarCreator.createWebJar(inputStream, Some("*/"), excludes, "", "", "", "", "vaadin-grid/")
 
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new ByteArrayInputStream(webJar))
 
@@ -127,7 +127,7 @@ class WebJarCreatorSpec extends PlaySpecification {
 
       val excludes = Set("**/.*")
 
-      val webJar = WebJarCreator.createWebJar(inputStream, true, excludes, "", "", "", "", "vaadin-grid/")
+      val webJar = WebJarCreator.createWebJar(inputStream, Some("*/"), excludes, "", "", "", "", "vaadin-grid/")
 
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new ByteArrayInputStream(webJar))
 
@@ -143,7 +143,7 @@ class WebJarCreatorSpec extends PlaySpecification {
       val url = new URL(s"https://bower-as-a-service.herokuapp.com/download/vaadin-ordered-layout/1.0.0-alpha3")
       val inputStream = url.openConnection().getInputStream
 
-      val webJar = WebJarCreator.createWebJar[ZipArchiveEntry](inputStream, false, Set(".bower.json"), "", "org.webjars.bower", "vaadin-ordered-layout", "1.0.0-alpha3", "vaadin-ordered-layout/1.0.0-alpha3/")
+      val webJar = WebJarCreator.createWebJar[ZipArchiveEntry](inputStream, None, Set(".bower.json"), "", "org.webjars.bower", "vaadin-ordered-layout", "1.0.0-alpha3", "vaadin-ordered-layout/1.0.0-alpha3/")
 
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new ByteArrayInputStream(webJar))
 
@@ -158,7 +158,7 @@ class WebJarCreatorSpec extends PlaySpecification {
       val inputStream = url.openConnection().getInputStream
       val gzipInputStream = new GZIPInputStream(inputStream)
 
-      val webJar = WebJarCreator.createWebJar(gzipInputStream, true, Set("node_modules"), "", "org.webjars.npm", "virtual-keyboard", "1.30.1", "virtual-keyboard/1.30.1/")
+      val webJar = WebJarCreator.createWebJar(gzipInputStream, Some("*/"), Set("node_modules"), "", "org.webjars.npm", "virtual-keyboard", "1.30.1", "virtual-keyboard/1.30.1/")
 
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new ByteArrayInputStream(webJar))
 
@@ -171,6 +171,29 @@ class WebJarCreatorSpec extends PlaySpecification {
       allNames must contain ("META-INF/resources/webjars/virtual-keyboard/1.30.1/package.json")
       allNames must not contain "META-INF"
     }
+  }
+
+  "work for classic" in {
+    val version = "5.15.0"
+    val url = new URL(s"https://github.com/swagger-api/swagger-ui/archive/v$version.zip")
+    val inputStream = url.openConnection().getInputStream
+
+    val webJar = WebJarCreator.createWebJar(inputStream, Some("*/dist/"), Set.empty, "", "org.webjars", "swagger-ui", version, s"swagger-ui/$version/")
+
+    val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new ByteArrayInputStream(webJar))
+
+    val allNames = LazyList.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName)
+    allNames must contain(s"META-INF/resources/webjars/swagger-ui/$version/swagger-ui.js")
+  }
+
+  "removeGlobPath" in {
+    WebJarCreator.removeGlobPath("*/", "asdf/foo") mustEqual("foo")
+    WebJarCreator.removeGlobPath("asdf/", "asdf/foo") mustEqual("foo")
+    WebJarCreator.removeGlobPath("zxcv/", "asdf/foo") mustEqual("asdf/foo")
+    WebJarCreator.removeGlobPath("*/dist/", "asdf/dist/foo") mustEqual("foo")
+    WebJarCreator.removeGlobPath("asdf/dist", "asdf/dist/foo") mustEqual("foo")
+    WebJarCreator.removeGlobPath("asdf/dist/", "asdf/dist/foo") mustEqual("foo")
+    WebJarCreator.removeGlobPath("zxcv/dist/", "asdf/dist/foo") mustEqual("asdf/dist/foo")
   }
 
 }

@@ -25,15 +25,13 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.util.hashing.MurmurHash3
 import scala.util.{Failure, Random}
 
-class Application @Inject() (git: Git, gitHub: GitHub, cache: Cache, mavenCentral: MavenCentral, deployWebJar: DeployWebJar, webJarsFileService: WebJarsFileService, actorSystem: ActorSystem, environment: Environment, futures: Futures)
+class Application @Inject() (git: Git, cache: Cache, mavenCentral: MavenCentral, deployWebJar: DeployWebJar, webJarsFileService: WebJarsFileService, actorSystem: ActorSystem, environment: Environment, futures: Futures)
                             (classic: Classic, bower: Bower, npm: NPM, bowerGitHub: BowerGitHub)
-                            (allView: views.html.all, indexView: views.html.index, webJarRequestView: views.html.webJarRequest, contributingView: views.html.contributing, documentationView: views.html.documentation)
+                            (allView: views.html.all, indexView: views.html.index, documentationView: views.html.documentation)
                             (fetchConfig: FetchConfig)
                             (implicit ec: ExecutionContext) extends InjectedController with Logging {
 
   private val allWebJarTypes = Set(classic, bowerGitHub, bower, npm)
-
-  private val X_GITHUB_ACCESS_TOKEN = "X-GITHUB-ACCESS-TOKEN"
 
   private[controllers] val MAX_POPULAR_WEBJARS = 20
 
@@ -59,7 +57,7 @@ class Application @Inject() (git: Git, gitHub: GitHub, cache: Cache, mavenCentra
     }
   }
 
-  private val allDeployables = Set(npm, bower, bowerGitHub)
+  private val allDeployables = Set(classic, npm, bower, bowerGitHub)
 
   private def webJarsWithTimeout(maybeWebJarType: Option[WebJarType] = None): Future[List[WebJar]] = {
     // todo: de-dupe caches?
@@ -260,67 +258,6 @@ class Application @Inject() (git: Git, gitHub: GitHub, cache: Cache, mavenCentra
     Ok(documentationView())
   }
 
-  def contributing = Action {
-    Ok(contributingView())
-  }
-
-  def webJarRequest = Action.async { request =>
-    request.flash.get(X_GITHUB_ACCESS_TOKEN).map { accessToken =>
-      gitHub.user(accessToken).map { user =>
-        val login = (user \ "login").as[String]
-        Ok(webJarRequestView(Application.webJarRequestForm, Some(accessToken), Some(login)))
-      }
-    } getOrElse {
-      Future.successful(Ok(webJarRequestView(Application.webJarRequestForm)))
-    }
-  }
-
-  def makeWebJarRequest = Action.async(parse.formUrlEncoded) { implicit request =>
-
-    Application.webJarRequestForm.bindFromRequest().fold(
-      formWithErrors => {
-        val gitHubToken = request.body.get("gitHubToken").flatMap(_.headOption)
-        val gitHubUsername = request.body.get("gitHubUsername").flatMap(_.headOption)
-        Future.successful(BadRequest(webJarRequestView(formWithErrors, gitHubToken, gitHubUsername)))
-      },
-      webJarRequest => {
-        gitHub.user(webJarRequest.gitHubToken).flatMap { user =>
-          val login = (user \ "login").asOpt[String].getOrElse("")
-          val email = (user \ "email").asOpt[String].getOrElse("")
-          val name = (user \ "name").asOpt[String].getOrElse("")
-
-          gitHub.contents(webJarRequest.gitHubToken, "webjars", "webjars-template-zip", "pom.xml").flatMap { templatePom =>
-            val pom = templatePom
-              .replace("WEBJAR_ID", webJarRequest.id)
-              .replace("UPSTREAM_VERSION", webJarRequest.version)
-              .replace("WEBJAR_NAME", webJarRequest.name)
-              .replace("UPSTREAM_ZIP_URL", webJarRequest.repoUrl + "/archive/v${version.unsnapshot}.zip")
-              .replace("YOUR_ID", login)
-              .replace("YOUR_NAME", name)
-              .replace("YOUR_EMAIL", email)
-              .replace("UPSTREAM_LICENSE_NAME", webJarRequest.licenseId)
-              .replace("UPSTREAM_LICENSE_URL", webJarRequest.licenseUrl)
-              .replace("MAIN_JS", webJarRequest.mainJs.map(_.stripSuffix(".js")).getOrElse(webJarRequest.id))
-
-            val issueTitle = s"WebJar Request: ${webJarRequest.id}"
-
-            val issueBody =
-              s"""
-                 |```
-                 |$pom
-                 |```
-               """.stripMargin
-
-            gitHub.createIssue(webJarRequest.gitHubToken, "webjars", "webjars", issueTitle, issueBody).map { issueResponse =>
-              val url = (issueResponse \ "html_url").as[String]
-              Redirect(url)
-            }
-          }
-        }
-      }
-    )
-  }
-
   def deploy(webJarType: String, nameOrUrlish: String, version: String): Action[AnyContent] = Action { implicit request =>
     WebJarType.fromString(webJarType, allDeployables).fold {
       BadRequest(s"Specified WebJar type '$webJarType' can not be deployed")
@@ -384,16 +321,6 @@ class Application @Inject() (git: Git, gitHub: GitHub, cache: Cache, mavenCentra
       } recover {
         case e => BadRequest(e.getMessage)
       }
-    }
-  }
-
-  def gitHubAuthorize = Action { implicit request =>
-    Redirect(gitHub.authUrl())
-  }
-
-  def gitHubOauthCallback(code: String) = Action.async {
-    gitHub.accessToken(code).map { accessToken =>
-      Redirect(routes.Application.webJarRequest()).flashing(X_GITHUB_ACCESS_TOKEN -> accessToken)
     }
   }
 

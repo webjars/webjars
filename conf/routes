@@ -12,9 +12,6 @@ GET            /list/:groupId                                             contro
 GET            /listfiles/:artifactId/:version                            controllers.Application.listFiles(groupId = "org.webjars", artifactId, version)
 GET            /listfiles/:groupId/:artifactId/:version                   controllers.Application.listFiles(groupId, artifactId, version)
 GET            /documentation                                             controllers.Application.documentation()
-GET            /contributing                                              controllers.Application.contributing()
-GET            /request                                                   controllers.Application.webJarRequest()
-POST           /request                                                   controllers.Application.makeWebJarRequest()
 
 GET            /exists                                                    controllers.Application.packageExists(webJarType, name)
 GET            /versions                                                  controllers.Application.packageVersions(webJarType, name, branch: Option[String])
@@ -29,9 +26,6 @@ GET            /files/org.webjars.bower/:artifactId/:version/*file        contro
 GET            /files/org.webjars.npm/:artifactId/:version/*file          controllers.Application.file(groupId = "org.webjars.npm", artifactId, version, file)
 GET            /files/:artifactId/:version/*file                          controllers.Application.file(groupId = "org.webjars", artifactId, version, file)
 OPTIONS        /files/*file                                               controllers.Application.fileOptions(file)
-
-GET            /_github_authorize                                         controllers.Application.gitHubAuthorize()
-GET            /_github_oauth_callback                                    controllers.Application.gitHubOauthCallback(code: String)
 
 ->             /webjars                                                   webjars.Routes
 

@@ -35,9 +35,9 @@ class NPM @Inject() (val ws: WSClient, val licenseDetector: LicenseDetector, val
     Future.successful(Set("node_modules"))
   }
 
-  override val metadataFile: String = "package.json"
+  override def maybeBaseDirGlob(nameOrUrlish: NameOrUrlish): Future[Option[Version]] = Future.successful(Some("*/"))
 
-  override val contentsInSubdir: Boolean = true
+  override val metadataFile: Option[String] = Some("package.json")
 
   override def pathPrefix(nameOrUrlish: NameOrUrlish, releaseVersion: Version, packageInfo: PackageInfo): Future[String] = {
     artifactId(nameOrUrlish, releaseVersion).map { artifactId =>

@@ -16,8 +16,8 @@
                 <li>Use JVM-based build tools (e.g. Maven, Gradle, sbt, ...) to download your client-side dependencies</li>
                 <li>Know which client-side dependencies you are using</li>
                 <li>Transitive dependencies are automatically resolved and optionally loaded via RequireJS</li>
-                <li>Deployed on <a href="http://search.maven.org/" target="_blank">Maven Central</a></li>
-                <li>Public CDN, generously provided by: <a href="http://www.jsdelivr.com" target="_blank"><img src="https://www.jsdelivr.com/blog/assets/img/logo.png" height="20"></a></li>
+                <li>Deployed on <a href="https://search.maven.org/" target="_blank">Maven Central</a></li>
+                <li>Public CDN, generously provided by: <a href="https://www.jsdelivr.com" target="_blank"><img src="https://www.jsdelivr.com/blog/assets/img/logo.png" height="20"></a></li>
             </ul>
         </div>
     </div>
@@ -148,7 +148,7 @@
                         <div class="form-group">
                             <span class="control-label" style="font-weight: bold">WebJar Type: </span>
                             <label class="radio-inline">
-                                <input type="radio" name="new_webjar_catalog" value="npm"> NPM
+                                <input type="radio" name="new_webjar_catalog" value="npm" checked> NPM
                             </label>
                             <label class="radio-inline">
                                 <input type="radio" name="new_webjar_catalog" value="classic"> Classic
@@ -162,8 +162,8 @@
                         </div>
                     </form>
 
-                    <div class="npm-bower-deploy">
-                        <form id="deploy" class="form-inline">
+                    <div class="webjar-deploy">
+                        <form id="webjar-deploy" class="form-inline">
                             <div class="form-group has-feedback">
                                 <input type="text" class="form-control input-sm" id="newWebJarName" aria-describedby="newWebJarNameStatus" style="width: 280px" placeholder="Package Name or Git Repo URL">
                                 <span id="newWebJarNameFeedback" class="glyphicon form-control-feedback hidden" aria-hidden="true"></span>
@@ -173,17 +173,19 @@
                                 <label for="newWebJarVersion" class="control-label sr-only">Package Version</label>
                                 <input id="newWebJarVersion" type="text" style="width: 284px" disabled data-placeholder="Version"/>
                             </div>
+                            <div id="classic-deploy-error" class="hidden invalid-feedback">
+                                <br/>
+                                <p><b>That Classic WebJar Can't Be Deployed This Way</b></p>
+                                <p>If you need a new version of an existing Classic WebJar, <a id="classic-error-url">create a request on the WebJar's repo</a>.</p>
+                                <p>If you need a new Classic WebJar, <a href="https://github.com/webjars/webjars-classic/issues/new">create a request to have it created</a>.</p>
+                            </div>
                         </form>
+
                         <h5>Deploy Log</h5>
                         <pre id="deployLog" style="height: 200px; white-space: pre-line; word-break: normal;" disabled></pre>
                     </div>
-                    <div class="classic-deploy">
-                        <p>If you need a new version of an existing Classic WebJar, <a href="https://github.com/webjars">find the repo and submit a Pull Request or create an issue</a>.</p>
-
-                        <p>If you need a new Classic WebJar, either <a href="@routes.Application.contributing()">build and contribute it</a>, or <a href="@routes.Application.webJarRequest()">request that a maintainer create it</a>.</p>
-                    </div>
                 </div>
-                <div class="modal-footer npm-bower-deploy">
+                <div class="modal-footer webjar-deploy">
                     <button id="deployButton" type="button" class="btn btn-default pull-left" disabled>Deploy!</button>
                 </div>
             </div>

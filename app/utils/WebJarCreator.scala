@@ -47,7 +47,25 @@ object WebJarCreator {
     }
   }
 
-  def createWebJar[E <: ArchiveEntry](in: InputStream, contentsInSubdir: Boolean, exclude: Set[String], pom: String, groupId: String, artifactId: String, version: String, pathPrefix: String): Array[Byte] = {
+  def removeGlobPath(glob: String, path: String): String = {
+    val globParts = glob.split('/')
+    val pathParts = path.split('/')
+
+    val parts = globParts.zip(pathParts)
+
+    val removeGlob = parts.forall { case (g, s) =>
+      g == "*" || g == s
+    }
+
+    if (removeGlob) {
+      pathParts.drop(globParts.length).mkString("/")
+    }
+    else {
+      path
+    }
+  }
+
+  def createWebJar[E <: ArchiveEntry](in: InputStream, maybeBaseDirGlob: Option[String], exclude: Set[String], pom: String, groupId: String, artifactId: String, version: String, pathPrefix: String): Array[Byte] = {
 
     val byteArrayOutputStream = new ByteArrayOutputStream()
 
@@ -76,16 +94,14 @@ object WebJarCreator {
 
     // copy zip to jar
     LazyList.continually(archive.getNextEntry).takeWhile(_ != null).foreach { ze =>
-      val name = if (contentsInSubdir) {
-        val baseName = ze.getName.split("/").tail.mkString("/")
+      val name = maybeBaseDirGlob.fold(ze.getName) { baseDirGlob =>
+        val baseName = removeGlobPath(baseDirGlob, ze.getName)
         if (ze.isDirectory) {
           baseName + "/"
         }
         else {
           baseName
         }
-      } else {
-        ze.getName
       }
 
       if (!isExcluded(exclude, name, ze.isDirectory)) {

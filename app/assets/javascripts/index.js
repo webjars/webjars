@@ -131,6 +131,7 @@ function checkPackageName(packageName) {
   $("#newWebJarNameFeedback").removeClass("glyphicon-ok glyphicon-remove hidden").addClass("glyphicon-refresh spin");
   $("#newWebJarVersion").select2("val", "");
   $("#newWebJarVersion").select2("enable", false);
+  $("#classic-deploy-error").addClass("hidden")
 
   $.ajax({
     url: "/exists?webJarType=" + webJarType() + "&name=" + packageName,
@@ -140,6 +141,10 @@ function checkPackageName(packageName) {
       $("#newWebJarVersion").select2("enable", true);
     },
     error: function(data, status) {
+      if (webJarType() === "classic") {
+        $("#classic-error-url").attr("href", "https://github.com/webjars/" + packageName + "/issues/new")
+        $("#classic-deploy-error").removeClass("hidden")
+      }
       $("#newWebJarName").parent().addClass("has-error");
       $("#newWebJarNameFeedback").addClass("glyphicon-remove").removeClass("glyphicon-refresh spin");
       $("#newWebJarVersion").select2("enable", false);
@@ -189,16 +194,16 @@ $(function() {
     });
   });
 
-  $("input[type=radio][name=new_webjar_catalog]").change(function() {
-    if (this.value === "classic") {
-      $(".npm-bower-deploy").hide();
-      $(".classic-deploy").show();
-    }
-    else {
-      $(".npm-bower-deploy").show();
-      $(".classic-deploy").hide();
-    }
-  });
+  // $("input[type=radio][name=new_webjar_catalog]").change(function() {
+  //   if (this.value === "classic") {
+  //     $(".npm-bower-deploy").hide();
+  //     $(".classic-deploy").show();
+  //   }
+  //   else {
+  //     $(".npm-bower-deploy").show();
+  //     $(".classic-deploy").hide();
+  //   }
+  // });
 
   $("#newWebJarName").typeWatch({
     callback: checkPackageName,
