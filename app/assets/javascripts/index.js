@@ -194,17 +194,6 @@ $(function() {
     });
   });
 
-  // $("input[type=radio][name=new_webjar_catalog]").change(function() {
-  //   if (this.value === "classic") {
-  //     $(".npm-bower-deploy").hide();
-  //     $(".classic-deploy").show();
-  //   }
-  //   else {
-  //     $(".npm-bower-deploy").show();
-  //     $(".classic-deploy").hide();
-  //   }
-  // });
-
   $("#newWebJarName").typeWatch({
     callback: checkPackageName,
     wait: 600,
