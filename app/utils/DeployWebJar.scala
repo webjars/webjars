@@ -34,7 +34,7 @@ class DeployWebJar @Inject()(mavenCentral: MavenCentral, sourceLocator: SourceLo
     def webJarNotYetDeployed(groupId: String, artifactId: String, version: String): Future[Unit] = {
       if (!force) {
         mavenCentral.fetchPom(GAV(groupId, artifactId, version), Some("https://oss.sonatype.org/content/repositories/releases")).flatMap { _ =>
-          Future.failed(new IllegalStateException(s"WebJar $groupId $artifactId $version has already been deployed"))
+          Future.failed(new IllegalStateException(s"WebJar $groupId $artifactId $version has already been deployed. Note that if you do not see it on webjars.org it can take >24 hours for the caches to update."))
         } recoverWith {
           case _: FileNotFoundException =>
             Future.unit
