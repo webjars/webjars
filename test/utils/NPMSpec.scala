@@ -451,7 +451,7 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
 
   "@headlessui/react ^1.7.15" in {
     val latest = await(npm.latestDep("@headlessui/react", "^1.7.15"))
-    latest mustEqual "1.7.18"
+    latest mustEqual "1.7.19"
   }
 
   "@types/node latestDep" in {

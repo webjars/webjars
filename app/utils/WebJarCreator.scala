@@ -47,21 +47,31 @@ object WebJarCreator {
     }
   }
 
-  def removeGlobPath(glob: String, path: String): String = {
+  def removeGlobPath(glob: String, path: String): Option[String] = {
     val globParts = glob.split('/')
     val pathParts = path.split('/')
 
-    val parts = globParts.zip(pathParts)
-
-    val removeGlob = parts.forall { case (g, s) =>
-      g == "*" || g == s
-    }
-
-    if (removeGlob) {
-      pathParts.drop(globParts.length).mkString("/")
+    // to match the glob, the path must have at more parts than the glob
+    // this excludes the root
+    if (pathParts.length <= globParts.length) {
+      None
     }
     else {
-      path
+      val parts = globParts.zip(pathParts)
+
+      val removeGlob = parts.forall { case (g, s) =>
+        g == "*" || g == s
+      }
+
+      Option.when(removeGlob) {
+        val reassembled = pathParts.drop(globParts.length).mkString("/")
+        if (path.endsWith("/")) {
+          reassembled + "/"
+        }
+        else {
+          reassembled
+        }
+      }
     }
   }
 
@@ -92,26 +102,23 @@ object WebJarCreator {
 
     createFileEntry(s"META-INF/maven/$groupId/$artifactId/pom.properties", jar, properties)
 
+    // todo: if the globber doesn't match on any files, likely there is a bug and we should produce an error
     // copy zip to jar
     LazyList.continually(archive.getNextEntry).takeWhile(_ != null).foreach { ze =>
-      val name = maybeBaseDirGlob.fold(ze.getName) { baseDirGlob =>
-        val baseName = removeGlobPath(baseDirGlob, ze.getName)
-        if (ze.isDirectory) {
-          baseName + "/"
-        }
-        else {
-          baseName
-        }
+      val maybeName = maybeBaseDirGlob.fold[Option[String]](Some(ze.getName)) { baseDirGlob =>
+        removeGlobPath(baseDirGlob, ze.getName)
       }
 
-      if (!isExcluded(exclude, name, ze.isDirectory)) {
-        val path = webJarPrefix + name
-        val nze = new ZipArchiveEntry(path)
-        jar.putArchiveEntry(nze)
-        if (!ze.isDirectory) {
-          IOUtils.copy(archive, jar)
+      maybeName.foreach { name =>
+        if (!isExcluded(exclude, name, ze.isDirectory)) {
+          val path = webJarPrefix + name
+          val nze = new ZipArchiveEntry(path)
+          jar.putArchiveEntry(nze)
+          if (!ze.isDirectory) {
+            IOUtils.copy(archive, jar)
+          }
+          jar.closeArchiveEntry()
         }
-        jar.closeArchiveEntry()
       }
     }
 

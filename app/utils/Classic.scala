@@ -71,7 +71,7 @@ class Classic @Inject() (ws: WSClient, val licenseDetector: LicenseDetector, val
   }
 
   override def pathPrefix(nameOrUrlish: NameOrUrlish, releaseVersion: Version, packageInfo: PackageInfo): Future[String] =
-    Future.successful(s"$nameOrUrlish/$releaseVersion")
+    Future.successful(s"$nameOrUrlish/$releaseVersion/")
 
   def license(metadata: Metadata): Future[String] = {
     val req = gitHub.maybeAuthToken.fold(
@@ -121,7 +121,7 @@ class Classic @Inject() (ws: WSClient, val licenseDetector: LicenseDetector, val
     cache.get[Metadata](s"webjars-classic-$nameOrUrlish", 1.hour) {
       metadata(nameOrUrlish)
     }.map { metadata =>
-      new URL(s"https://github.com/${metadata.repo}/archive/refs/tags/$version.zip").openStream()
+      new URL(s"https://github.com/${metadata.repo}/archive/$version.zip").openStream()
     }
   }
 

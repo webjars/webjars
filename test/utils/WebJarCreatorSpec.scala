@@ -8,7 +8,7 @@ import java.io.ByteArrayInputStream
 import java.net.URL
 import java.util.zip.GZIPInputStream
 
-class WebJarCreatorSpec extends PlaySpecification {
+class WebJarCreatorSpec extends PlaySpecification with GlobalApplication {
 
   "WebJarUtils" should {
     "create a WebJar from a tgz" in {
@@ -183,17 +183,42 @@ class WebJarCreatorSpec extends PlaySpecification {
     val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new ByteArrayInputStream(webJar))
 
     val allNames = LazyList.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName)
+    allNames.size mustEqual 25
     allNames must contain(s"META-INF/resources/webjars/swagger-ui/$version/swagger-ui.js")
   }
 
+  "work for classic from deployable" in {
+    val name = "swagger-ui"
+    val version = "v5.15.2"
+    lazy val classic: Classic = application.injector.instanceOf[Classic]
+    val info = await(classic.info(name, version))
+    val archive = await(classic.archive(name, version))
+    val maybeBaseGlob = await(classic.maybeBaseDirGlob(name))
+    val excludes = await(classic.excludes(name, version))
+    val releaseVersion = classic.releaseVersion(Some(version), info)
+    val pathPrefix = await(classic.pathPrefix(name, releaseVersion, info))
+
+    val webJar = WebJarCreator.createWebJar(archive, maybeBaseGlob, excludes, "", "org.webjars", "swagger-ui", releaseVersion, pathPrefix)
+
+    val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new ByteArrayInputStream(webJar))
+
+    val allNames = LazyList.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName)
+    allNames must contain(s"META-INF/resources/webjars/swagger-ui/$releaseVersion/swagger-ui.js")
+  }
+
   "removeGlobPath" in {
-    WebJarCreator.removeGlobPath("*/", "asdf/foo") mustEqual("foo")
-    WebJarCreator.removeGlobPath("asdf/", "asdf/foo") mustEqual("foo")
-    WebJarCreator.removeGlobPath("zxcv/", "asdf/foo") mustEqual("asdf/foo")
-    WebJarCreator.removeGlobPath("*/dist/", "asdf/dist/foo") mustEqual("foo")
-    WebJarCreator.removeGlobPath("asdf/dist", "asdf/dist/foo") mustEqual("foo")
-    WebJarCreator.removeGlobPath("asdf/dist/", "asdf/dist/foo") mustEqual("foo")
-    WebJarCreator.removeGlobPath("zxcv/dist/", "asdf/dist/foo") mustEqual("asdf/dist/foo")
+    WebJarCreator.removeGlobPath("*", "asdf/foo") must beSome("foo")
+    WebJarCreator.removeGlobPath("*/", "asdf/foo") must beSome("foo")
+    WebJarCreator.removeGlobPath("asdf/", "asdf/") must beNone
+    WebJarCreator.removeGlobPath("asdf/", "asdf/foo") must beSome("foo")
+    WebJarCreator.removeGlobPath("zxcv/", "asdf/foo") must beNone
+    WebJarCreator.removeGlobPath("*/dist/", "asdf/dist/foo") must beSome("foo")
+    WebJarCreator.removeGlobPath("asdf/dist", "asdf/dist/foo") must beSome("foo")
+    WebJarCreator.removeGlobPath("asdf/dist/", "asdf/dist/foo") must beSome("foo")
+    WebJarCreator.removeGlobPath("zxcv/dist/", "asdf/dist/foo") must beNone
+    WebJarCreator.removeGlobPath("*/dist", "asdf/") must beNone
+    WebJarCreator.removeGlobPath("*/dist", "asdf/dist/asdf/foo") must beSome("asdf/foo")
+    WebJarCreator.removeGlobPath("*/dist", "asdf/dist/asdf/foo/") must beSome("asdf/foo/")
   }
 
 }
