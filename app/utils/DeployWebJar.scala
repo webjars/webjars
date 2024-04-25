@@ -128,7 +128,7 @@ class DeployWebJar @Inject()(mavenCentral: MavenCentral, sourceLocator: SourceLo
 
         maybeBaseDirGlob <- deployable.maybeBaseDirGlob(nameOrUrlish)
 
-        jar = WebJarCreator.createWebJar(zip, maybeBaseDirGlob, excludes, pom, groupId, artifactId, releaseVersion, pathPrefix)
+        jar = WebJarCreator.createWebJar(zip, maybeBaseDirGlob, excludes, pom, packageInfo.name, licenses, groupId, artifactId, releaseVersion, pathPrefix)
 
         _ <- queue.offer(s"Created ${deployable.name} WebJar")
 
@@ -198,7 +198,7 @@ class DeployWebJar @Inject()(mavenCentral: MavenCentral, sourceLocator: SourceLo
       pathPrefix <- deployable.pathPrefix(nameOrUrlish, releaseVersion, packageInfo)
 
       maybeBaseDirGlob <- deployable.maybeBaseDirGlob(nameOrUrlish)
-    } yield artifactId -> WebJarCreator.createWebJar(zip, maybeBaseDirGlob, excludes, pom, groupId, artifactId, releaseVersion, pathPrefix)
+    } yield artifactId -> WebJarCreator.createWebJar(zip, maybeBaseDirGlob, excludes, pom, packageInfo.name, licenses, groupId, artifactId, releaseVersion, pathPrefix)
   }
 
 }

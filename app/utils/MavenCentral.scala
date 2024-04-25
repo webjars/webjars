@@ -563,35 +563,22 @@ class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, config
     withOssCredentials { (username, password) =>
       val fileUrl = s"https://oss.sonatype.org/service/local/staging/deployByRepositoryId/${stagedRepo.id}/${gav.path}"
 
-      val emptyJar = WebJarCreator.emptyJar()
-
       def upload[A](url: String, content: A)(implicit bodyWritable: BodyWritable[A]) = {
         wsClient.url(url).withAuth(username, password, WSAuthScheme.BASIC).put(content).collect(_.status == Status.CREATED)
       }
 
       val maybeAscs = for {
         pomAsc <- asc(pom.getBytes)
-        emptyAsc <- asc(emptyJar)
         jarAsc <- asc(jar)
-      } yield (pomAsc, emptyAsc, jarAsc)
+      } yield (pomAsc, jarAsc)
 
-      maybeAscs.fold(Future.failed[Unit](new Exception("Could not create ascs"))) { case (pomAsc, emptyJarAsc, jarAsc) =>
+      maybeAscs.fold(Future.failed[Unit](new Exception("Could not create ascs"))) { case (pomAsc, jarAsc) =>
         Future.sequence(
           Seq(
             upload(fileUrl + ".pom", pom),
             upload(fileUrl + ".pom.sha1", pom.sha1.hex),
             upload(fileUrl + ".pom.md5", pom.md5.hex),
             upload(fileUrl + ".pom.asc", pomAsc),
-
-            upload(fileUrl + "-sources.jar", emptyJar),
-            upload(fileUrl + "-sources.jar.sha1", emptyJar.sha1.hex),
-            upload(fileUrl + "-sources.jar.md5", emptyJar.md5.hex),
-            upload(fileUrl + "-sources.jar.asc", emptyJarAsc),
-
-            upload(fileUrl + "-javadoc.jar", emptyJar),
-            upload(fileUrl + "-javadoc.jar.sha1", emptyJar.sha1.hex),
-            upload(fileUrl + "-javadoc.jar.md5", emptyJar.md5.hex),
-            upload(fileUrl + "-javadoc.jar.asc", emptyJarAsc),
 
             upload(fileUrl + ".jar", jar),
             upload(fileUrl + ".jar.sha1", jar.sha1.hex),
