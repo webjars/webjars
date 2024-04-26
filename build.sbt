@@ -14,7 +14,7 @@ libraryDependencies ++= Seq(
   "org.apache.commons" % "commons-compress" % "1.26.0",
   "org.eclipse.jgit" % "org.eclipse.jgit" % "6.9.0.202403050737-r",
   "org.bouncycastle" % "bcpg-jdk18on" % "1.77",
-  "com.outr" %% "hasher" % "1.2.2",
+  "com.outr" %% "hasher" % "1.2.3",
   "org.webjars" %% "webjars-play" % "3.0.1",
   "org.webjars.bower" % "bootstrap" % "3.4.1",
   "org.webjars.bower" % "jquery" % "3.7.1",
