@@ -188,7 +188,7 @@ class BowerGitHubSpec extends PlaySpecification with GlobalApplication {
 
       val maybeBaseDirGlob = await(bowerGitHub.maybeBaseDirGlob(name))
 
-      val webJar = WebJarCreator.createWebJar(archive, maybeBaseDirGlob, excludes, "", "org.webjars.bowergithub.jquery", "jquery", "3.2.1", "jQuery/")
+      val webJar = WebJarCreator.createWebJar(archive, maybeBaseDirGlob, excludes, "", "jquery", Set.empty, "org.webjars.bowergithub.jquery", "jquery", "3.2.1", "jQuery/")
 
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new ByteArrayInputStream(webJar))
 
@@ -203,7 +203,7 @@ class BowerGitHubSpec extends PlaySpecification with GlobalApplication {
 
       val maybeBaseDirGlob = await(bowerGitHub.maybeBaseDirGlob(name))
 
-      val webJar = WebJarCreator.createWebJar(archive, maybeBaseDirGlob, excludes, "", "org.webjars.bowergithub.vaadin", "vaadin-grid", "4.0.0-alpha5", "vaadin-grid/")
+      val webJar = WebJarCreator.createWebJar(archive, maybeBaseDirGlob, excludes, "", "vaadin-grid", Set.empty, "org.webjars.bowergithub.vaadin", "vaadin-grid", "4.0.0-alpha5", "vaadin-grid/")
 
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new ByteArrayInputStream(webJar))
 
