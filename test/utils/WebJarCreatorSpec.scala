@@ -100,7 +100,7 @@ class WebJarCreatorSpec extends PlaySpecification with GlobalApplication {
 
       val excludes = Set("**/test.js")
 
-      val webJar = WebJarCreator.createWebJar(inputStream, Some("*/"), excludes, "", "Test", Set.empty, "", "", "", "vaadin-grid/")
+      val webJar = WebJarCreator.createWebJar(inputStream, Some("*/"), excludes, "", "Test", Set.empty, "test", "test", "", "vaadin-grid/")
 
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new ByteArrayInputStream(webJar))
 
@@ -114,7 +114,7 @@ class WebJarCreatorSpec extends PlaySpecification with GlobalApplication {
 
       val excludes = Set("*.js")
 
-      val webJar = WebJarCreator.createWebJar(inputStream, Some("*/"), excludes, "", "Test", Set.empty, "", "", "", "vaadin-grid/")
+      val webJar = WebJarCreator.createWebJar(inputStream, Some("*/"), excludes, "", "Test", Set.empty, "test", "test", "", "vaadin-grid/")
 
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new ByteArrayInputStream(webJar))
 
@@ -128,7 +128,7 @@ class WebJarCreatorSpec extends PlaySpecification with GlobalApplication {
 
       val excludes = Set("**/.*")
 
-      val webJar = WebJarCreator.createWebJar(inputStream, Some("*/"), excludes, "", "Test", Set.empty, "", "", "", "vaadin-grid/")
+      val webJar = WebJarCreator.createWebJar(inputStream, Some("*/"), excludes, "", "Test", Set.empty, "test", "test", "", "vaadin-grid/")
 
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new ByteArrayInputStream(webJar))
 
@@ -184,7 +184,7 @@ class WebJarCreatorSpec extends PlaySpecification with GlobalApplication {
     val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new ByteArrayInputStream(webJar))
 
     val allNames = LazyList.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName)
-    allNames.size mustEqual 26
+    allNames.size mustEqual 27
     allNames must contain(s"META-INF/resources/webjars/swagger-ui/$version/swagger-ui.js")
   }
 
