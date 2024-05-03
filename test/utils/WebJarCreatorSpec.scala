@@ -250,4 +250,11 @@ class WebJarCreatorSpec extends PlaySpecification with GlobalApplication {
     WebJarCreator.removeGlobPath("*/dist", "asdf/dist/asdf/foo/") must beSome("asdf/foo/")
   }
 
+  "normalizeModuleName" in {
+    WebJarCreator.normalizeModuleName("org.webjars", "react-native") mustEqual "org.webjars._react_native"
+    WebJarCreator.normalizeModuleName("org.webjars", "alchemy.js") mustEqual "org.webjars._alchemy_js"
+    WebJarCreator.normalizeModuleName("org.webjars", "3rdwavemedia-themes-developer") mustEqual "org.webjars._3rdwavemedia_themes_developer"
+    WebJarCreator.normalizeModuleName("org.webjars.npm", "vue__shared") mustEqual "org.webjars.npm._vue__shared"
+  }
+
 }

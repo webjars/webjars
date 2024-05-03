@@ -84,8 +84,12 @@ object WebJarCreator extends Logging {
     }
   }
 
-  def makeOpenModule(moduleName: String): Option[Path] = {
-    val normalizedModuleName = moduleName.replaceAll("[^a-zA-Z0-9.]", ".")
+  def normalizeModuleName(groupId: String, artifactId: String): String = {
+    groupId + "._" + artifactId.replaceAll("[^a-zA-Z0-9]", "_")
+  }
+
+  def makeOpenModule(groupId: String, artifactId: String): Option[Path] = {
+    val normalizedModuleName = normalizeModuleName(groupId, artifactId)
     val moduleContents = s"open module $normalizedModuleName {}"
     val dir = Files.createTempDirectory("module-temp")
     val file = Path.of(dir.toString, "module-info.java")
@@ -144,7 +148,7 @@ object WebJarCreator extends Logging {
 
     createFileEntry("META-INF/MANIFEST.MF", jar, manifest)
 
-    makeOpenModule(s"$groupId.$artifactId").fold(
+    makeOpenModule(groupId, artifactId).fold(
       logger.error("Could not build module-info.class")
     ) { openModule =>
       createFileEntry("META-INF/versions/9/module-info.class", jar, openModule)
