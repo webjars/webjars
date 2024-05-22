@@ -5,7 +5,7 @@ import org.apache.commons.compress.archivers.zip.{ZipArchiveEntry, ZipArchiveInp
 import play.api.test._
 
 import java.io.ByteArrayInputStream
-import java.net.URL
+import java.net.URI
 import java.util.zip.GZIPInputStream
 import scala.concurrent.ExecutionContext
 
@@ -13,7 +13,7 @@ class WebJarCreatorSpec extends PlaySpecification with GlobalApplication {
 
   "WebJarUtils" should {
     "create a WebJar from a tgz" in {
-      val url = new URL(s"https://registry.npmjs.org/npm/-/npm-2.10.0.tgz")
+      val url = new URI(s"https://registry.npmjs.org/npm/-/npm-2.10.0.tgz").toURL
       val inputStream = url.openConnection().getInputStream
       val gzipInputStream = new GZIPInputStream(inputStream)
 
@@ -21,7 +21,7 @@ class WebJarCreatorSpec extends PlaySpecification with GlobalApplication {
       webJar.length must beGreaterThan(0)
     }
     "deal with different tgz base dirs" in {
-      val url = new URL(s"https://registry.npmjs.org/@types/react-redux/-/react-redux-4.4.32.tgz")
+      val url = new URI(s"https://registry.npmjs.org/@types/react-redux/-/react-redux-4.4.32.tgz").toURL
       val inputStream = url.openConnection().getInputStream
       val gzipInputStream = new GZIPInputStream(inputStream)
 
@@ -33,7 +33,7 @@ class WebJarCreatorSpec extends PlaySpecification with GlobalApplication {
       allNames must contain("META-INF/resources/webjars/react-redux/4.4.32/package.json")
     }
     "handle packages where the contents are in the base dir" in {
-      val url = new URL(s"https://registry.npmjs.org/@types/react-redux/-/react-redux-4.4.32.tgz")
+      val url = new URI(s"https://registry.npmjs.org/@types/react-redux/-/react-redux-4.4.32.tgz").toURL
       val inputStream = url.openConnection().getInputStream
       val gzipInputStream = new GZIPInputStream(inputStream)
 
@@ -45,7 +45,7 @@ class WebJarCreatorSpec extends PlaySpecification with GlobalApplication {
       allNames must contain("META-INF/resources/webjars/react-redux/4.4.32/react-redux/package.json")
     }
     "create subdirectories for contents" in {
-      val url = new URL(s"https://registry.npmjs.org/@types/react-router/-/react-router-2.0.41.tgz")
+      val url = new URI(s"https://registry.npmjs.org/@types/react-router/-/react-router-2.0.41.tgz").toURL
       val inputStream = url.openConnection().getInputStream
       val gzipInputStream = new GZIPInputStream(inputStream)
 
@@ -57,7 +57,7 @@ class WebJarCreatorSpec extends PlaySpecification with GlobalApplication {
       maybeLib.exists(_.isDirectory) must beTrue
     }
     "handle non gzip tgzs" in {
-      val url = new URL(s"https://registry.npmjs.org/@types/escodegen/-/escodegen-0.0.2.tgz")
+      val url = new URI(s"https://registry.npmjs.org/@types/escodegen/-/escodegen-0.0.2.tgz").toURL
       val inputStream = url.openConnection().getInputStream
 
       val webJar = WebJarCreator.createWebJar(inputStream, Some("*/"), Set("node_modules"), "", "Test", Set.empty, "org.webjars.npm", "escodegen", "0.0.2", "escodegen/0.0.2/")
@@ -95,7 +95,7 @@ class WebJarCreatorSpec extends PlaySpecification with GlobalApplication {
     }
 
     "exclude ** globs" in {
-      val url = new URL("https://github.com/vaadin/vaadin-grid/archive/v4.0.0-alpha5.zip")
+      val url = new URI("https://github.com/vaadin/vaadin-grid/archive/v4.0.0-alpha5.zip").toURL
       val inputStream = url.openConnection().getInputStream
 
       val excludes = Set("**/test.js")
@@ -109,7 +109,7 @@ class WebJarCreatorSpec extends PlaySpecification with GlobalApplication {
       allNames must not contain "META-INF/resources/webjars/vaadin-grid/test/visual/test.js"
     }
     "exclude * globs" in {
-      val url = new URL("https://github.com/vaadin/vaadin-grid/archive/v4.0.0-alpha5.zip")
+      val url = new URI("https://github.com/vaadin/vaadin-grid/archive/v4.0.0-alpha5.zip").toURL
       val inputStream = url.openConnection().getInputStream
 
       val excludes = Set("*.js")
@@ -123,7 +123,7 @@ class WebJarCreatorSpec extends PlaySpecification with GlobalApplication {
       allNames must not contain "META-INF/resources/webjars/vaadin-grid/test/visual/test.js"
     }
     "exclude ** and * globs" in {
-      val url = new URL("https://github.com/vaadin/vaadin-grid/archive/v4.0.0-alpha5.zip")
+      val url = new URI("https://github.com/vaadin/vaadin-grid/archive/v4.0.0-alpha5.zip").toURL
       val inputStream = url.openConnection().getInputStream
 
       val excludes = Set("**/.*")
@@ -141,7 +141,7 @@ class WebJarCreatorSpec extends PlaySpecification with GlobalApplication {
 
   "vaadin-ordered-layout-1.0.0-alpha3" should {
     "not have duplicate dir entries" in {
-      val url = new URL(s"https://bower-as-a-service.herokuapp.com/download/vaadin-ordered-layout/1.0.0-alpha3")
+      val url = new URI(s"https://bower-as-a-service.herokuapp.com/download/vaadin-ordered-layout/1.0.0-alpha3").toURL
       val inputStream = url.openConnection().getInputStream
 
       val webJar = WebJarCreator.createWebJar[ZipArchiveEntry](inputStream, None, Set(".bower.json"), "", "Test", Set.empty, "org.webjars.bower", "vaadin-ordered-layout", "1.0.0-alpha3", "vaadin-ordered-layout/1.0.0-alpha3/")
@@ -155,7 +155,7 @@ class WebJarCreatorSpec extends PlaySpecification with GlobalApplication {
 
   "Created WebJar" should {
     "not have files in the root that are the directories" in {
-      val url = new URL(s"https://registry.npmjs.org/virtual-keyboard/-/virtual-keyboard-1.30.1.tgz")
+      val url = new URI(s"https://registry.npmjs.org/virtual-keyboard/-/virtual-keyboard-1.30.1.tgz").toURL
       val inputStream = url.openConnection().getInputStream
       val gzipInputStream = new GZIPInputStream(inputStream)
 
@@ -176,7 +176,7 @@ class WebJarCreatorSpec extends PlaySpecification with GlobalApplication {
 
   "work for classic" in {
     val version = "5.15.0"
-    val url = new URL(s"https://github.com/swagger-api/swagger-ui/archive/v$version.zip")
+    val url = new URI(s"https://github.com/swagger-api/swagger-ui/archive/v$version.zip").toURL
     val inputStream = url.openConnection().getInputStream
 
     val webJar = WebJarCreator.createWebJar(inputStream, Some("*/dist/"), Set.empty, "", "Test", Set.empty, "org.webjars", "swagger-ui", version, s"swagger-ui/$version/")

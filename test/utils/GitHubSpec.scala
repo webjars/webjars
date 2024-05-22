@@ -1,9 +1,9 @@
 package utils
 
+import io.lemonlabs.uri.AbsoluteUrl
 import play.api.libs.json.Json
 import play.api.test._
 
-import java.net.URL
 import scala.util.Try
 
 
@@ -13,29 +13,29 @@ class GitHubSpec extends PlaySpecification with GlobalApplication {
 
   "gitHubUrl" should {
     "work normally" in {
-      GitHub.gitHubUrl("git://github.com/isaacs/inherits").map(_.toString) must beASuccessfulTry ("https://github.com/isaacs/inherits")
-      GitHub.gitHubUrl("git://github.com/isaacs/inherits").map(_.toString) must beASuccessfulTry ("https://github.com/isaacs/inherits")
-      GitHub.gitHubUrl("https://github.com/isaacs/inherits").map(_.toString) must beASuccessfulTry ("https://github.com/isaacs/inherits")
-      GitHub.gitHubUrl(new URL("https://github.com/isaacs/inherits.git")).map(_.toString) must beASuccessfulTry ("https://github.com/isaacs/inherits")
-      GitHub.gitHubUrl(new URL("https://www.github.com/isaacs/inherits.git")).map(_.toString) must beASuccessfulTry ("https://www.github.com/isaacs/inherits")
-      GitHub.gitHubUrl(new URL("https://github.com/zippyui/react-flex#readme")).map(_.toString) must beASuccessfulTry ("https://github.com/zippyui/react-flex")
+      GitHub.gitHubUrl("git://github.com/isaacs/inherits") must beASuccessfulTry (AbsoluteUrl.parse("https://github.com/isaacs/inherits"))
+      GitHub.gitHubUrl("git://github.com/isaacs/inherits") must beASuccessfulTry (AbsoluteUrl.parse("https://github.com/isaacs/inherits"))
+      GitHub.gitHubUrl("https://github.com/isaacs/inherits") must beASuccessfulTry (AbsoluteUrl.parse("https://github.com/isaacs/inherits"))
+      GitHub.gitHubUrl(AbsoluteUrl.parse("https://github.com/isaacs/inherits.git")) must beASuccessfulTry (AbsoluteUrl.parse("https://github.com/isaacs/inherits"))
+      GitHub.gitHubUrl(AbsoluteUrl.parse("https://www.github.com/isaacs/inherits.git")) must beASuccessfulTry (AbsoluteUrl.parse("https://www.github.com/isaacs/inherits"))
+      GitHub.gitHubUrl(AbsoluteUrl.parse("https://github.com/zippyui/react-flex#readme")) must beASuccessfulTry (AbsoluteUrl.parse("https://github.com/zippyui/react-flex"))
       GitHub.gitHubUrl("https://foo.com") must beAFailedTry
     }
   }
 
   "currentUrls" should {
     "work for good urls" in {
-      val url = new URL("https://github.com/isaacs/inherits")
+      val url = AbsoluteUrl.parse("https://github.com/isaacs/inherits")
       val (homepage, _, _) = await(gitHub.currentUrls(url))
-      homepage.toString must beEqualTo (url.toString)
+      homepage must beEqualTo (url)
     }
     "work for http to https redirects" in {
-      val url = new URL("http://github.com/isaacs/inherits")
+      val url = AbsoluteUrl.parse("http://github.com/isaacs/inherits")
       val (homepage, _, _) = await(gitHub.currentUrls(url))
-      homepage.toString must beEqualTo ("https://github.com/isaacs/inherits")
+      homepage must beEqualTo (AbsoluteUrl.parse("https://github.com/isaacs/inherits"))
     }
     "fail for not founds" in {
-      val url = new URL("http://github.com/asdf1234/zxcv4321")
+      val url = AbsoluteUrl.parse("http://github.com/asdf1234/zxcv4321")
       await(gitHub.currentUrls(url)) must throwA[ServerError]
     }
   }

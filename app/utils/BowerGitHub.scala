@@ -19,7 +19,7 @@ class BowerGitHub @Inject() (ws: WSClient, licenseDetector: LicenseDetector, mes
   override def groupId(nameOrUrlish: String, version: String): Future[String] = lookup(nameOrUrlish).flatMap { url =>
     GitHub.gitHubUrl(url).fold(Future.failed[String], { gitHubUrl =>
       gitHub.currentUrls(gitHubUrl).flatMap { case (currentGitHubUrl, _, _) =>
-          GitHub.maybeGitHubOrg(Some(currentGitHubUrl)).fold {
+          GitHub.maybeGitHubOrg(currentGitHubUrl).fold {
             Future.failed[String](new Exception(s"Could not determine GitHub org from $currentGitHubUrl"))
           } { org =>
             Future.successful("org.webjars.bowergithub." + org.toLowerCase)
@@ -31,7 +31,7 @@ class BowerGitHub @Inject() (ws: WSClient, licenseDetector: LicenseDetector, mes
   override def artifactId(nameOrUrlish: String, version: String): Future[String] = lookup(nameOrUrlish).flatMap { url =>
     GitHub.gitHubUrl(url).fold(Future.failed[String], { gitHubUrl =>
       gitHub.currentUrls(gitHubUrl).flatMap { case (currentGitHubUrl, _, _) =>
-        GitHub.maybeGitHubRepo(Some(currentGitHubUrl)).fold {
+        GitHub.maybeGitHubRepo(currentGitHubUrl).fold {
           Future.failed[String](new Exception(s"Could not determine GitHub repo from $currentGitHubUrl"))
         } { repo =>
           Future.successful(repo.toLowerCase)

@@ -1,13 +1,13 @@
 package utils
 
-import org.apache.pekko.util.Timeout
+import io.lemonlabs.uri.AbsoluteUrl
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
 import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream
+import org.apache.pekko.util.Timeout
 import play.api.libs.concurrent.Futures
 import play.api.test._
 
 import java.io.BufferedInputStream
-import java.net.URL
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
@@ -223,7 +223,7 @@ class BowerSpec extends PlaySpecification with GlobalApplication {
   "zeroclipboard 2.2.0" should {
     "have an MIT license" in {
       val packageInfo = await(bower.info("zeroclipboard", "2.2.0"))
-      await(bower.licenses("zeroclipboard", "2.2.0", packageInfo)) must beEqualTo(Set(LicenseWithNameAndUrl("MIT", new URL("https://github.com/zeroclipboard/zeroclipboard/blob/master/LICENSE"))))
+      await(bower.licenses("zeroclipboard", "2.2.0", packageInfo)) must beEqualTo(Set(LicenseWithNameAndUrl("MIT", AbsoluteUrl.parse("https://github.com/zeroclipboard/zeroclipboard/blob/master/LICENSE"))))
     }
   }
 

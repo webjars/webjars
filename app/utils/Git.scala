@@ -1,5 +1,6 @@
 package utils
 
+import io.lemonlabs.uri.AbsoluteUrl
 import org.eclipse.jgit.api.ResetCommand.ResetType
 import org.eclipse.jgit.api.{Git => GitApi}
 import play.api.http.{HeaderNames, Status}
@@ -7,7 +8,6 @@ import play.api.libs.ws.WSClient
 import utils.Deployable.Version
 
 import java.io.{File, InputStream}
-import java.net.{URI, URL}
 import java.nio.charset.CodingErrorAction
 import java.nio.file.{Files, Path}
 import javax.inject.Inject
@@ -34,8 +34,8 @@ class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
           response.header(HeaderNames.LOCATION).fold(Future.failed[String](new Exception("Could not get redir location"))) { location =>
             val redirUrl = if (location.startsWith("/")) {
               // relative url
-              val url = new URL(httpUrl)
-              url.getProtocol + "://" + url.getHost + location
+              val url = AbsoluteUrl.parse(httpUrl)
+              url.scheme + "://" + url.host + location
             }
             else {
               location
@@ -80,14 +80,11 @@ class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
     if (isGit(nameOrUrlish)) {
       gitUrl(nameOrUrlish).flatMap { gitUrl =>
         Future.fromTry {
-          Try {
-            val uri = new URI(gitUrl.stripSuffix(".git"))
-
-            val host = uri.getHost.replaceAll("\\W", "-")
-            val path = uri.getPath.replaceAll("\\W", "-")
-
-            host + path
-          }
+          AbsoluteUrl.parseTry(gitUrl.stripSuffix(".git"))
+        }.map { url =>
+          val host = url.host.toString().replaceAll("\\W", "-")
+          val path = url.path.toString().replaceAll("\\W", "-")
+          host + path
         }
       }
     }
@@ -128,6 +125,7 @@ class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
   // todo: only clone the specified version to speed things up
   def cloneOrCheckout(gitRepo: String, version: Version, retry: Boolean = true): Future[File] = {
     gitUrl(gitRepo).flatMap { url =>
+      println(url)
       val baseDir = new File(cacheDir.toFile, url)
 
       val cloneOrPullFuture = if (!baseDir.exists()) {
@@ -194,10 +192,12 @@ class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
     }
   }
 
-  def file(uri: URI, version: Version, fileName: String): Future[String] = file(uri.toString, version, fileName)
+  def file(uri: AbsoluteUrl, version: Version, fileName: String): Future[String] = file(uri.toString, version, fileName)
 
   def file(gitRepo: String, tagCommitOrBranch: Version, fileName: String): Future[String] = {
+    println("checkout")
     cloneOrCheckout(gitRepo, tagCommitOrBranch).flatMap { baseDir =>
+      println(baseDir)
       Future.fromTry {
         val decoder = Codec.UTF8.decoder.onMalformedInput(CodingErrorAction.IGNORE)
         Using(Source.fromFile(new File(baseDir, fileName))(decoder))(_.mkString)

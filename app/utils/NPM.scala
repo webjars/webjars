@@ -1,5 +1,7 @@
 package utils
 
+import io.lemonlabs.uri.typesafe.dsl.urlToUrlDsl
+import io.lemonlabs.uri.{AbsoluteUrl, Url}
 import play.api.http.Status
 import play.api.i18n.{Langs, MessagesApi}
 import play.api.libs.concurrent.Futures
@@ -10,7 +12,6 @@ import utils.Deployable.{NameOrUrlish, Version}
 import utils.PackageInfo._
 
 import java.io.InputStream
-import java.net.{URI, URL}
 import java.util.zip.{GZIPInputStream, ZipException}
 import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
@@ -18,7 +19,7 @@ import scala.util.Try
 
 class NPM @Inject() (val ws: WSClient, val licenseDetector: LicenseDetector, val messages: MessagesApi, val langs: Langs, git: Git, gitHub: GitHub, maven: Maven, semVer: SemVer)(implicit ec: ExecutionContext) extends Deployable {
 
-  val BASE_URL = "https://registry.npmjs.org"
+  val BASE_URL: AbsoluteUrl = AbsoluteUrl.parse("https://registry.npmjs.org")
 
   override val name: String = "NPM"
 
@@ -45,16 +46,11 @@ class NPM @Inject() (val ws: WSClient, val licenseDetector: LicenseDetector, val
     }
   }
 
-  // a whole lot of WTF
-  private def registryMetadataUrl(packageName: String, maybeVersion: Option[Version] = None): String = {
+  def registryMetadataUrl(packageName: String, maybeVersion: Option[Version] = None): Url = {
     maybeVersion.fold {
-      // when a version is not specified an @ must not be encoded
-      val encodedPackageName = packageName.replace("/", "%2F")
-      s"$BASE_URL/$encodedPackageName"
+      BASE_URL / packageName
     } { version =>
-      // when a version is specified an @ must be encoded
-      val encodedPackageName = packageName.replace("/", "%2F").replace("@", "%40")
-      s"$BASE_URL/$encodedPackageName/$version"
+      BASE_URL / packageName / version
     }
   }
 
@@ -62,15 +58,15 @@ class NPM @Inject() (val ws: WSClient, val licenseDetector: LicenseDetector, val
     maybeScopeAndPackageName.contains('/') && maybeScopeAndPackageName.startsWith("@")
   }
 
-  private def registryTgzUrl(maybeScopeAndPackageName: String, version: Version): String = {
+  private def registryTgzUrl(maybeScopeAndPackageName: String, version: Version): Url = {
     if (isScoped(maybeScopeAndPackageName)) {
       val parts = maybeScopeAndPackageName.split('/')
       val scope = parts.head
       val packageName = parts.last
-      s"$BASE_URL/$scope/$packageName/-/$packageName-$version.tgz"
+      BASE_URL / scope / packageName / "-" / s"$packageName-$version.tgz"
     }
     else {
-      s"$BASE_URL/$maybeScopeAndPackageName/-/$maybeScopeAndPackageName-$version.tgz"
+      BASE_URL / maybeScopeAndPackageName / "-" / s"$maybeScopeAndPackageName-$version.tgz"
     }
   }
 
@@ -79,7 +75,7 @@ class NPM @Inject() (val ws: WSClient, val licenseDetector: LicenseDetector, val
       git.versions(packageNameOrGitRepo)
     }
     else {
-      ws.url(registryMetadataUrl(packageNameOrGitRepo)).get().flatMap { response =>
+      ws.url(registryMetadataUrl(packageNameOrGitRepo).toString()).get().flatMap { response =>
         response.status match {
           case Status.OK =>
             val versions = (response.json \ "versions").as[Map[String, JsObject]].keys.toSet
@@ -90,9 +86,10 @@ class NPM @Inject() (val ws: WSClient, val licenseDetector: LicenseDetector, val
     }
   }
 
-  override def info(packageNameOrGitRepo: NameOrUrlish, version: Version, maybeSourceUri: Option[URI] = None): Future[PackageInfo] = {
+  override def info(packageNameOrGitRepo: NameOrUrlish, version: Version, maybeSourceUri: Option[AbsoluteUrl] = None): Future[PackageInfo] = {
 
     def packageInfo(packageJson: JsValue): Future[PackageInfo] = {
+      println(packageJson)
 
       val maybeForkPackageJsonFuture = if (git.isGit(packageNameOrGitRepo)) {
         // this is a git repo so its package.json values might be wrong
@@ -146,15 +143,18 @@ class NPM @Inject() (val ws: WSClient, val licenseDetector: LicenseDetector, val
     }
 
     if (git.isGit(packageNameOrGitRepo)) {
+      println("isGit")
       git.file(packageNameOrGitRepo, version, "package.json").flatMap { packageJsonString =>
         packageInfo(Json.parse(packageJsonString))
       }
     }
     else {
+      println("not git")
       if (isScoped(packageNameOrGitRepo)) {
+        println("isScoped")
         // can no longer get info on specific versions of scoped packages
         // so get the info for all the versions and then get the specific version out of the full list
-        ws.url(registryMetadataUrl(packageNameOrGitRepo)).get().flatMap { response =>
+        ws.url(registryMetadataUrl(packageNameOrGitRepo).toString()).get().flatMap { response =>
           response.status match {
             case Status.OK =>
               val versionInfoLookup = response.json \ "versions" \ version
@@ -165,7 +165,8 @@ class NPM @Inject() (val ws: WSClient, val licenseDetector: LicenseDetector, val
         }
       }
       else {
-        ws.url(registryMetadataUrl(packageNameOrGitRepo, Some(version))).get().flatMap { response =>
+        println("notScoped")
+        ws.url(registryMetadataUrl(packageNameOrGitRepo, Some(version)).toString()).get().flatMap { response =>
           response.status match {
             case Status.OK =>
               packageInfo(response.json)
@@ -184,14 +185,14 @@ class NPM @Inject() (val ws: WSClient, val licenseDetector: LicenseDetector, val
     else {
       Future.fromTry {
         Try {
-          val url = new URL(registryTgzUrl(packageNameOrGitRepo, version))
+          val url = registryTgzUrl(packageNameOrGitRepo, version).toJavaURI.toURL
           val inputStream = url.openConnection().getInputStream
           val gzipInputStream = new GZIPInputStream(inputStream)
           gzipInputStream
         } recoverWith {
           case _: ZipException =>
             Try {
-              val url = new URL(registryTgzUrl(packageNameOrGitRepo, version))
+              val url = registryTgzUrl(packageNameOrGitRepo, version).toJavaURI.toURL
               url.openConnection().getInputStream
             }
         }
@@ -218,7 +219,7 @@ class NPM @Inject() (val ws: WSClient, val licenseDetector: LicenseDetector, val
   }
 
   def justDeps(nameOrUrlish: NameOrUrlish, version: Version): Future[Map[String, String]] = {
-    ws.url(registryMetadataUrl(nameOrUrlish, Some(version))).get().flatMap { response =>
+    ws.url(registryMetadataUrl(nameOrUrlish, Some(version)).toString()).get().flatMap { response =>
       response.status match {
         case Status.OK =>
           Future.successful {
@@ -315,7 +316,7 @@ object NPM {
     else if (repository.contains(":/")) {
       // host.xz:/another/repo.git
       // user@host.xz:/another/repo.git
-      "ssh://" + repository
+      "ssh://" + repository.replace(":/", "/")
     }
     else if (repository.contains(":")) {
       // host.xz:another/repo.git
@@ -332,15 +333,15 @@ object NPM {
 
   def repositoryUrlToJsString(repositoryUrl: String): JsString = JsString(uriIsh(repositoryUrl))
 
-  def repositoryToUri(uriIsh: String): Option[URI] = PackageInfo.readsUri.reads(repositoryUrlToJsString(uriIsh)).asOpt
+  def repositoryToUri(uriIsh: String): Option[AbsoluteUrl] = PackageInfo.readsUrl.reads(repositoryUrlToJsString(uriIsh)).asOpt
 
-  val homepageReader: Reads[Option[URL]] = {
-    (__ \ "homepage").readNullable[URL]
+  val homepageReader: Reads[Option[AbsoluteUrl]] = {
+    (__ \ "homepage").readNullable[AbsoluteUrl]
   }
 
-  val homepageToIssuesReader: Reads[URL] = {
+  val homepageToIssuesReader: Reads[AbsoluteUrl] = {
 
-    def issuesUrl(url: URL): Option[URL] = GitHub.gitHubIssuesUrl(url).orElse(Bitbucket.bitbucketIssuesUrl(url)).toOption
+    def issuesUrl(url: AbsoluteUrl): Option[AbsoluteUrl] = GitHub.gitHubIssuesUrl(url).orElse(Bitbucket.bitbucketIssuesUrl(url)).toOption
 
     val error = JsonValidationError("Could not figure out the issues URL.")
 
@@ -350,10 +351,10 @@ object NPM {
     }
   }
 
-  val bugsReaderNullable: Reads[Option[URL]] = {
+  val bugsReaderNullable: Reads[Option[AbsoluteUrl]] = {
     Reads.optionNoError {
-      (__ \ "bugs").read[URL]
-        .orElse((__ \ "bugs" \ "url").read[URL])
+      (__ \ "bugs").read[AbsoluteUrl]
+        .orElse((__ \ "bugs" \ "url").read[AbsoluteUrl])
         .orElse(homepageToIssuesReader)
     }
   }
@@ -361,7 +362,7 @@ object NPM {
   implicit val jsonReads: Reads[PackageInfo] = {
     val repositoryUrlReader: Reads[String] = (__ \ "repository").read[String].orElse((__ \ "repository" \ "url").read[String])
 
-    val sourceConnectionUriReader: Reads[URI] = repositoryUrlReader.map(repositoryUrlToJsString).andThen(PackageInfo.readsUri)
+    val sourceConnectionUriReader: Reads[AbsoluteUrl] = repositoryUrlReader.map(repositoryUrlToJsString).andThen(PackageInfo.readsUrl)
 
     val licenseReader = (__ \ "license").read[Seq[String]]
       .orElse((__ \ "license").read[String].map(Seq(_)))

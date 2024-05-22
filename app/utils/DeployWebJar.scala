@@ -1,10 +1,11 @@
 package utils
 
+import io.lemonlabs.uri.AbsoluteUrl
+import models.WebJarType
+import org.apache.commons.compress.archivers.{ArchiveEntry, ArchiveInputStream, ArchiveStreamFactory}
 import org.apache.pekko.stream.scaladsl.{Source, SourceQueueWithComplete}
 import org.apache.pekko.stream.{Materializer, OverflowStrategy}
 import org.apache.pekko.{Done, NotUsed}
-import models.WebJarType
-import org.apache.commons.compress.archivers.{ArchiveEntry, ArchiveInputStream, ArchiveStreamFactory}
 import play.api.Configuration
 import play.api.i18n.{Lang, Langs, MessagesApi}
 import play.api.inject.guice.GuiceApplicationBuilder
@@ -12,7 +13,6 @@ import play.api.libs.concurrent.Futures
 import utils.MavenCentral.GAV
 
 import java.io.{BufferedInputStream, FileNotFoundException, InputStream}
-import java.net.{URI, URL}
 import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
 import scala.io.StdIn
@@ -29,7 +29,7 @@ class DeployWebJar @Inject()(mavenCentral: MavenCentral, sourceLocator: SourceLo
     heroku.dynoCreate(app, cmd, "Standard-2X")
   }
 
-  def localDeploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, deployDependencies: Boolean, force: Boolean, maybeReleaseVersion: Option[String] = None, maybeSourceUri: Option[URI] = None, maybeLicense: Option[String] = None): Source[String, Future[NotUsed]] = {
+  def localDeploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, deployDependencies: Boolean, force: Boolean, maybeReleaseVersion: Option[String] = None, maybeSourceUri: Option[AbsoluteUrl] = None, maybeLicense: Option[String] = None): Source[String, Future[NotUsed]] = {
 
     def webJarNotYetDeployed(groupId: String, artifactId: String, version: String): Future[Unit] = {
       if (!force) {
@@ -162,7 +162,7 @@ class DeployWebJar @Inject()(mavenCentral: MavenCentral, sourceLocator: SourceLo
     }
   }
 
-  def deploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, deployDependencies: Boolean, preventFork: Boolean, force: Boolean, maybeReleaseVersion: Option[String] = None, maybeSourceUri: Option[URI] = None, maybeLicense: Option[String] = None): Source[String, Future[NotUsed]] = {
+  def deploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, deployDependencies: Boolean, preventFork: Boolean, force: Boolean, maybeReleaseVersion: Option[String] = None, maybeSourceUri: Option[AbsoluteUrl] = None, maybeLicense: Option[String] = None): Source[String, Future[NotUsed]] = {
     if (fork && !preventFork) {
       forkDeploy(deployable, nameOrUrlish, upstreamVersion, deployDependencies, true, force)
     }
@@ -224,7 +224,7 @@ object DeployWebJar extends App {
 
     val maybeReleaseVersion = if (releaseVersionIn.isEmpty) None else Some(releaseVersionIn)
 
-    val maybeSourceUri = if (sourceUriIn.isEmpty) None else Try(new URI(sourceUriIn)).toOption
+    val maybeSourceUri = if (sourceUriIn.isEmpty) None else AbsoluteUrl.parseOption(sourceUriIn)
 
     val maybeLicense = if (licenseIn.isEmpty) None else Some(licenseIn)
 
@@ -297,7 +297,7 @@ trait Deployable extends WebJarType {
 
   def pathPrefix(nameOrUrlish: NameOrUrlish, releaseVersion: Version, packageInfo: PackageInfo): Future[String]
 
-  def info(nameOrUrlish: NameOrUrlish, version: Version, maybeSourceUri: Option[URI] = None): Future[PackageInfo]
+  def info(nameOrUrlish: NameOrUrlish, version: Version, maybeSourceUri: Option[AbsoluteUrl] = None): Future[PackageInfo]
 
   def mavenDependencies(dependencies: Map[String, String]): Future[Set[(String, String, String)]]
 
@@ -365,14 +365,14 @@ trait Deployable extends WebJarType {
   def licenseReference(nameOrUrlish: NameOrUrlish, version: Version, license: String)(implicit ec: ExecutionContext): Future[Set[License]] = {
     if (license.startsWith("http://") || license.startsWith("https://")) {
       // we need to fetch the file and try to detect the license from the contents
-      licenseDetector.licenseDetect(new URL(license)).map(Set(_))
+      licenseDetector.licenseDetect(AbsoluteUrl.parse(license)).map(Set(_))
     }
     else if (license.startsWith("file://")) {
       file(nameOrUrlish, version, license.stripPrefix("file://")).flatMap { file =>
         licenseDetector.licenseDetect(file)
       }.recover {
         case _ =>
-          LicenseWithUrl(new URL(license))
+          LicenseWithUrl(AbsoluteUrl.parse(license))
       }.map(Set(_))
     }
     else if (license.startsWith("(") && license.endsWith(")") && !license.contains("AND")) {

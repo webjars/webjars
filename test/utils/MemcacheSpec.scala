@@ -1,7 +1,7 @@
 package utils
 
-import org.apache.pekko.util.Timeout
 import net.spy.memcached.transcoders.{SerializingTranscoder, Transcoder}
+import org.apache.pekko.util.Timeout
 import play.api.test._
 
 import java.util.UUID

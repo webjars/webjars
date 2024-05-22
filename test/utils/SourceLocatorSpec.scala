@@ -1,9 +1,9 @@
 package utils
 
+import io.lemonlabs.uri.AbsoluteUrl
 import org.apache.pekko.util.Timeout
 import play.api.test._
 
-import java.net.URI
 import scala.concurrent.duration._
 
 class SourceLocatorSpec extends PlaySpecification with GlobalApplication {
@@ -14,21 +14,21 @@ class SourceLocatorSpec extends PlaySpecification with GlobalApplication {
 
   "https://git-r3lab.uni.lu/Fractalis/fractal.js.git" should {
     "work" in {
-      val sourceUrl = await(sourceLocator.sourceUrl(new URI("https://git-r3lab.uni.lu/Fractalis/fractal.js.git")))
-      sourceUrl.toString must beEqualTo ("https://git-r3lab.uni.lu/Fractalis/fractal.js")
+      val sourceUrl = await(sourceLocator.sourceUrl(AbsoluteUrl.parse("https://git-r3lab.uni.lu/Fractalis/fractal.js.git")))
+      sourceUrl must beEqualTo (AbsoluteUrl.parse("https://git-r3lab.uni.lu/Fractalis/fractal.js"))
     }
   }
 
   "https://github.com/angular/bower-angular-touch.git" should {
     "work" in {
-      val sourceUrl = await(sourceLocator.sourceUrl(new URI("https://github.com/angular/bower-angular-touch.git")))
-      sourceUrl.toString must beEqualTo ("https://github.com/angular/bower-angular-touch")
+      val sourceUrl = await(sourceLocator.sourceUrl(AbsoluteUrl.parse("https://github.com/angular/bower-angular-touch.git")))
+      sourceUrl must beEqualTo (AbsoluteUrl.parse("https://github.com/angular/bower-angular-touch"))
     }
   }
 
   "an invalid URL" should {
     "not work" in {
-      await(sourceLocator.sourceUrl(new URI("asdf"))) should throwA[Exception]
+      await(sourceLocator.sourceUrl(AbsoluteUrl.parse("asdf"))) should throwA[Exception]
     }
   }
 

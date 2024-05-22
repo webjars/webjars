@@ -1,10 +1,11 @@
 package controllers
 
+import com.google.inject.ImplementedBy
+import io.lemonlabs.uri.AbsoluteUrl
+import models.{WebJar, WebJarType}
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.stream.scaladsl.{Flow, Source}
 import org.apache.pekko.util.ByteString
-import com.google.inject.ImplementedBy
-import models.{WebJar, WebJarType}
 import play.api.data.Forms._
 import play.api.data._
 import play.api.http.{ContentTypes, HttpEntity, MimeTypes}
@@ -17,7 +18,6 @@ import utils.MavenCentral.ExistingWebJarRequestException
 import utils._
 
 import java.io.FileNotFoundException
-import java.net.URL
 import java.util.concurrent.TimeoutException
 import javax.inject.Inject
 import scala.concurrent.duration._
@@ -293,7 +293,9 @@ class Application @Inject() (git: Git, cache: Cache, mavenCentral: MavenCentral,
     val licenseOverride = bodyAsJson.flatMap { json =>
       (json \ "license").asOpt[Map[String, String]].map { licenses =>
         licenses.map[License] { case (name, url) =>
-          LicenseWithNameAndUrl(name, new URL(url))
+          AbsoluteUrl.parseOption(url).fold[License](LicenseWithName(name)) { url =>
+            LicenseWithNameAndUrl(name, url)
+          }
         }.toSet
       }
     }

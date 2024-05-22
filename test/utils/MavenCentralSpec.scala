@@ -1,14 +1,14 @@
 package utils
 
-import org.apache.pekko.util.Timeout
+import io.lemonlabs.uri.AbsoluteUrl
 import models.{WebJar, WebJarType}
 import org.apache.commons.io.IOUtils
+import org.apache.pekko.util.Timeout
 import play.api.Environment
 import play.api.test._
 import utils.MavenCentral.{GAV, StagedRepo}
 
 import java.io.FileNotFoundException
-import java.net.{URI, URL}
 import java.time.LocalDateTime
 import scala.concurrent.Future
 import scala.concurrent.duration._
@@ -113,10 +113,10 @@ class MavenCentralSpec extends PlaySpecification {
           fileBytes
         }.get
 
-        val gitUri = new URI("https://githib.com/webjars/webjars.git")
-        val sourceUrl = new URL("https://github.com/webjars/webjars")
+        val gitUri = AbsoluteUrl.parse("https://githib.com/webjars/webjars.git")
+        val sourceUrl = AbsoluteUrl.parse("https://github.com/webjars/webjars")
         val version = "0.0.1" // Instant.now.getEpochSecond.toString
-        val licenses = Set[License](LicenseWithNameAndUrl("MIT", new URL("https://opensource.org/licenses/MIT")))
+        val licenses = Set[License](LicenseWithNameAndUrl("MIT", AbsoluteUrl.parse("https://opensource.org/licenses/MIT")))
 
         val packageInfo = PackageInfo("Test WebJar", version, None, gitUri, None, Seq.empty, Map.empty, Map.empty, None)
 

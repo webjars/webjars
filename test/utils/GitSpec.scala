@@ -1,14 +1,14 @@
 package utils
 
 
-import org.apache.pekko.util.Timeout
+import io.lemonlabs.uri.AbsoluteUrl
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
+import org.apache.pekko.util.Timeout
 import org.eclipse.jgit.api.{Git => GitApi}
 import play.api.test._
 
 import java.io.BufferedInputStream
-import java.net.URI
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
 
@@ -64,12 +64,12 @@ class GitSpec extends PlaySpecification with GlobalApplication {
       file.contains(""""version": "2.2.4"""") must beTrue
     }
     "fetch a file with a git url syntax" in {
-      val file = await(git.file(new URI("https://github.com/yiminghe/async-validator.git"), "v3.4.0", "LICENSE.md"))
+      val file = await(git.file(AbsoluteUrl.parse("https://github.com/yiminghe/async-validator.git"), "v3.4.0", "LICENSE.md"))
       file.length must beEqualTo (1083)
       file must contain ("The MIT License (MIT)")
     }
     "fetch a file with a git url and a commit" in {
-      val file = await(git.file(new URI("git://github.com/mdedetrich/requirejs-plugins"), "d9c103e7a0", "LICENSE.txt"))
+      val file = await(git.file(AbsoluteUrl.parse("git://github.com/mdedetrich/requirejs-plugins"), "d9c103e7a0", "LICENSE.txt"))
       file.length must beEqualTo(1082)
       file must contain("The MIT License (MIT)")
     }

@@ -1,9 +1,9 @@
 package actors
 
 
+import models.WebJarType
 import org.apache.pekko.actor.Actor
 import org.apache.pekko.pattern.pipe
-import models.WebJarType
 import utils.MavenCentral
 
 import javax.inject.Inject

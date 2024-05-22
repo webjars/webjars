@@ -1,5 +1,7 @@
 package utils
 
+import io.lemonlabs.uri.AbsoluteUrl
+import io.lemonlabs.uri.typesafe.dsl.{pathPartToUrlDsl, urlToUrlDsl}
 import play.api.http.Status
 import play.api.i18n.{Langs, MessagesApi}
 import play.api.libs.concurrent.Futures
@@ -8,7 +10,6 @@ import play.api.libs.ws.WSClient
 import utils.Deployable.{NameOrUrlish, Version}
 
 import java.io.{InputStream, StringReader}
-import java.net.{URI, URL}
 import java.util.Properties
 import javax.inject.Inject
 import scala.concurrent.duration.DurationInt
@@ -23,7 +24,7 @@ class Classic @Inject() (ws: WSClient, val licenseDetector: LicenseDetector, val
   case class Metadata(id: String, name: String, repo: String, requireJsMain: Option[String], baseDir: Option[String])
 
   def metadata(nameOrUrlish: NameOrUrlish): Future[Metadata] = {
-    gitHub.raw(new URL("https://github.com/webjars/webjars-classic"), "main", s"$nameOrUrlish.properties")
+    gitHub.raw(AbsoluteUrl.parse("https://github.com/webjars/webjars-classic"), "main", s"$nameOrUrlish.properties")
       .recoverWith {
         case _ =>
           Future.failed(
@@ -91,12 +92,12 @@ class Classic @Inject() (ws: WSClient, val licenseDetector: LicenseDetector, val
     }
   }
 
-  override def info(nameOrUrlish: NameOrUrlish, version: Version, maybeSourceUri: Option[URI]): Future[PackageInfo] = {
+  override def info(nameOrUrlish: NameOrUrlish, version: Version, maybeSourceUri: Option[AbsoluteUrl]): Future[PackageInfo] = {
     cache.get[Metadata](s"webjars-classic-$nameOrUrlish", 1.hour) {
       metadata(nameOrUrlish)
     }.flatMap { metadata =>
       val gitHubUrl = GitHub.gitHubUrl(s"https://github.com/${metadata.repo}")
-      gitHubUrl.flatMap(GitHub.gitHubGitUri).fold(Future.failed[PackageInfo], { gitHubGitUri =>
+      gitHubUrl.flatMap(GitHub.gitHubGitUrl).fold(Future.failed[PackageInfo], { gitHubGitUri =>
         license(metadata).map { license =>
           PackageInfo(
             metadata.name,
@@ -121,7 +122,7 @@ class Classic @Inject() (ws: WSClient, val licenseDetector: LicenseDetector, val
     cache.get[Metadata](s"webjars-classic-$nameOrUrlish", 1.hour) {
       metadata(nameOrUrlish)
     }.map { metadata =>
-      new URL(s"https://github.com/${metadata.repo}/archive/$version.zip").openStream()
+      ("https://github.com" / metadata.repo / "archive" / s"$version.zip").toJavaURI.toURL.openStream()
     }
   }
 

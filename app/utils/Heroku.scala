@@ -1,5 +1,6 @@
 package utils
 
+import io.lemonlabs.uri.AbsoluteUrl
 import org.apache.pekko.NotUsed
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.stream.scaladsl.{BidiFlow, Flow, Framing, Source, Tcp}
@@ -9,11 +10,10 @@ import play.api.http.{HeaderNames, Status}
 import play.api.libs.json.Json
 import play.api.libs.ws.{WSClient, WSRequest}
 
-import java.net.{InetSocketAddress, URI}
+import java.net.InetSocketAddress
 import javax.inject.Inject
 import javax.net.ssl.SSLContext
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.Try
 
 class Heroku @Inject() (ws: WSClient, config: Configuration) (implicit ec: ExecutionContext, actorSystem: ActorSystem) {
 
@@ -31,12 +31,12 @@ class Heroku @Inject() (ws: WSClient, config: Configuration) (implicit ec: Execu
   }
 
   def rendezvous(url: String): Source[String, NotUsed] = {
-    val maybeUri = Try(new URI(url))
+    val maybeUri = AbsoluteUrl.parseTry(url)
 
-    def connect(uri: URI): Source[String, NotUsed] = {
-      val secret = uri.getPath.stripPrefix("/")
+    def connect(uri: AbsoluteUrl): Source[String, NotUsed] = {
+      val secret = uri.path.toString().stripPrefix("/")
 
-      val address = InetSocketAddress.createUnresolved(uri.getHost, uri.getPort)
+      val address = InetSocketAddress.createUnresolved(uri.host.toString(), uri.port.get)
 
       val engine = () => {
         val engine = SSLContext.getDefault.createSSLEngine

@@ -1,5 +1,7 @@
 package utils
 
+import io.lemonlabs.uri.AbsoluteUrl
+import io.lemonlabs.uri.typesafe.dsl.{pathPartToUrlDsl, urlToUrlDsl}
 import play.api.http.Status
 import play.api.i18n.{Langs, MessagesApi}
 import play.api.libs.concurrent.Futures
@@ -11,7 +13,6 @@ import utils.Deployable._
 import utils.PackageInfo._
 
 import java.io.InputStream
-import java.net.{URI, URL}
 import javax.inject.Inject
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
@@ -19,9 +20,7 @@ import scala.util.Try
 
 class Bower @Inject() (ws: WSClient, val licenseDetector: LicenseDetector, val messages: MessagesApi, val langs: Langs, git: Git, gitHub: GitHub, maven: Maven, semVer: SemVer) (implicit ec: ExecutionContext) extends Deployable {
 
-  import Bower._
-
-  val BASE_URL = "https://bower-as-a-service.herokuapp.com"
+  val BASE_URL = AbsoluteUrl.parse("https://bower-as-a-service.herokuapp.com")
 
   override val name: String = "Bower"
 
@@ -63,7 +62,8 @@ class Bower @Inject() (ws: WSClient, val licenseDetector: LicenseDetector, val m
   }
 
   override def versions(packageNameOrGitRepo: NameOrUrlish): Future[Set[Version]] = {
-    ws.url(s"$BASE_URL/info").withQueryStringParameters("package" -> packageNameOrGitRepo).get().flatMap { response =>
+    val url = BASE_URL / "info"
+    ws.url(url.toString()).withQueryStringParameters("package" -> packageNameOrGitRepo).get().flatMap { response =>
       response.status match {
         case Status.OK =>
           val versions = (response.json \ "versions").as[Seq[String]]
@@ -76,7 +76,8 @@ class Bower @Inject() (ws: WSClient, val licenseDetector: LicenseDetector, val m
   }
 
   def rawJson(packageNameOrGitRepo: NameOrUrlish, version: Version): Future[JsValue] = {
-    ws.url(s"$BASE_URL/info").withQueryStringParameters("package" -> packageNameOrGitRepo, "version" -> version).get().flatMap { versionResponse =>
+    val url = BASE_URL / "info"
+    ws.url(url.toString()).withQueryStringParameters("package" -> packageNameOrGitRepo, "version" -> version).get().flatMap { versionResponse =>
       versionResponse.status match {
         case Status.OK =>
           Future.successful(versionResponse.json)
@@ -87,10 +88,10 @@ class Bower @Inject() (ws: WSClient, val licenseDetector: LicenseDetector, val m
   }
 
   def rawInfo(packageNameOrGitRepo: NameOrUrlish, version: Version): Future[PackageInfo] = {
-    rawJson(packageNameOrGitRepo, version).map(_.as[PackageInfo])
+    rawJson(packageNameOrGitRepo, version).map(_.as[PackageInfo](Bower.jsonReads))
   }
 
-  override def info(packageNameOrGitRepo: NameOrUrlish, version: Version, maybeSourceUri: Option[URI] = None): Future[PackageInfo] = {
+  override def info(packageNameOrGitRepo: NameOrUrlish, version: Version, maybeSourceUri: Option[AbsoluteUrl] = None): Future[PackageInfo] = {
     rawInfo(packageNameOrGitRepo, version).flatMap { initialInfo =>
       initialInfo.maybeGitHubUrl.fold(Future.successful(initialInfo)) { gitHubUrl =>
         gitHub.currentUrls(gitHubUrl).map {
@@ -108,8 +109,8 @@ class Bower @Inject() (ws: WSClient, val licenseDetector: LicenseDetector, val m
   override def archive(packageNameOrGitRepo: NameOrUrlish, version: Version): Future[InputStream] = {
     Future.fromTry {
       Try {
-        val url = new URL(s"$BASE_URL/download?package=$packageNameOrGitRepo&version=$version")
-        url.openConnection().getInputStream
+        val url = BASE_URL / "download" ? ("package" -> packageNameOrGitRepo) & ("version" -> version)
+        url.toJavaURI.toURL.openConnection().getInputStream
       }
     }
   }
@@ -132,23 +133,23 @@ class Bower @Inject() (ws: WSClient, val licenseDetector: LicenseDetector, val m
     }
   }
 
-  def lookup(packageNameOrGitRepo: NameOrUrlish): Future[URL] = {
-    val urlTry = Try {
-      val maybeUrl = if (packageNameOrGitRepo.contains("/") && !packageNameOrGitRepo.contains(":")) {
+  def lookup(packageNameOrGitRepo: NameOrUrlish): Future[AbsoluteUrl] = {
+    val urlTry = AbsoluteUrl.parseTry {
+      if (packageNameOrGitRepo.contains("/") && !packageNameOrGitRepo.contains(":")) {
         s"https://github.com/$packageNameOrGitRepo"
-       }
+      }
       else {
         packageNameOrGitRepo
       }
-      new URL(maybeUrl)
     }
 
     Future.fromTry(urlTry.flatMap(GitHub.gitHubUrl)).recoverWith {
       case _ =>
-        ws.url(s"$BASE_URL/lookup/$packageNameOrGitRepo").get().flatMap { response =>
+        val url = BASE_URL / "lookup" / packageNameOrGitRepo
+        ws.url(url.toString()).get().flatMap { response =>
           response.status match {
             case Status.OK =>
-              Future.fromTry(Try((response.json \ "url").as[URL]).flatMap(GitHub.gitHubUrl))
+              Future.fromTry(Try((response.json \ "url").as[AbsoluteUrl]).flatMap(GitHub.gitHubUrl))
             case _ =>
               Future.failed(new Exception(s"Could not find package: $packageNameOrGitRepo"))
           }
@@ -180,28 +181,28 @@ class Bower @Inject() (ws: WSClient, val licenseDetector: LicenseDetector, val m
 }
 
 object Bower {
-  val sourceReads: Reads[URI] = (__ \ "_source").read[URI]
+  val sourceReads: Reads[AbsoluteUrl] = (__ \ "_source").read[AbsoluteUrl]
 
-  val sourceToGitHubReads: Reads[URL] = {
+  val sourceToGitHubReads: Reads[AbsoluteUrl] = {
     val error = JsonValidationError("Could not convert source to GitHub URL")
     sourceReads.collect(error) {
       // todo: nasty
-      case uri: URI if GitHub.gitHubUrl(uri).isSuccess => GitHub.gitHubUrl(uri).get
+      case uri: AbsoluteUrl if GitHub.gitHubUrl(uri).isSuccess => GitHub.gitHubUrl(uri).get
     }
   }
 
-  val sourceToGitHubIssuesReads: Reads[URL] = {
+  val sourceToGitHubIssuesReads: Reads[AbsoluteUrl] = {
     val error = JsonValidationError("Could not convert source to GitHub Issues URL")
     sourceReads.collect(error) {
       // todo: nasty
-      case uri: URI if GitHub.gitHubIssuesUrl(uri).isSuccess => GitHub.gitHubIssuesUrl(uri).get
+      case uri: AbsoluteUrl if GitHub.gitHubIssuesUrl(uri).isSuccess => GitHub.gitHubIssuesUrl(uri).get
     }
   }
 
   implicit def jsonReads: Reads[PackageInfo] = (
     (__ \ "name").read[String] ~
     (__ \ "version").read[String].orElse((__ \ "_release").read[String]) ~
-    (__ \ "homepage").read[URL].orElse(sourceToGitHubReads).map(Some(_)) ~
+    (__ \ "homepage").read[AbsoluteUrl].orElse(sourceToGitHubReads).map(Some(_)) ~
     sourceReads ~
     sourceToGitHubIssuesReads.map(Some(_)) ~
     (__ \ "license").read[Seq[String]].orElse((__ \ "license").read[String].map(Seq(_))).orElse((__ \ "licenses").read[Seq[String]]).orElse(Reads.pure(Seq.empty[String])) ~

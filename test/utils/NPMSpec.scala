@@ -1,14 +1,14 @@
 package utils
 
-import org.apache.pekko.util.Timeout
+import io.lemonlabs.uri.{AbsoluteUrl, Host, Path}
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
+import org.apache.pekko.util.Timeout
 import play.api.libs.concurrent.Futures
 import play.api.libs.json._
 import play.api.test._
 
 import java.io.BufferedInputStream
-import java.net.{URI, URL}
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.util.Try
@@ -138,77 +138,75 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
   "npm info for git@github.com:yiminghe/async-validator.git" should {
     "have a uri format for the sourceConnectionUri" in {
       val info = await(npm.info("async-validator", "1.0.0"))
-      info.sourceConnectionUri.getScheme must beEqualTo("https")
-      info.sourceConnectionUri.getHost must beEqualTo("github.com")
-      info.sourceConnectionUri.getPath must beEqualTo("/yiminghe/async-validator.git")
+      info.sourceConnectionUri.scheme must beEqualTo("https")
+      info.sourceConnectionUri.host must beEqualTo(Host.parse("github.com"))
+      info.sourceConnectionUri.path must beEqualTo(Path.parse("/yiminghe/async-validator.git"))
     }
   }
 
   "repositoryToUri" should {
     "work with regular urls" in {
       val ssh = NPM.repositoryToUri("ssh://host.xz/another/repo.git").get
-      ssh.getScheme must beEqualTo("ssh")
-      ssh.getHost must beEqualTo("host.xz")
-      ssh.getPath must beEqualTo("/another/repo.git")
+      ssh.scheme must beEqualTo("ssh")
+      ssh.host must beEqualTo(Host.parse("host.xz"))
+      ssh.path must beEqualTo(Path.parse("/another/repo.git"))
 
       val git = NPM.repositoryToUri("git://host.xz/another/repo.git").get
-      git.getScheme must beEqualTo("git")
-      git.getHost must beEqualTo("host.xz")
-      git.getPath must beEqualTo("/another/repo.git")
+      git.scheme must beEqualTo("git")
+      git.host must beEqualTo(Host.parse("host.xz"))
+      git.path must beEqualTo(Path.parse("/another/repo.git"))
 
       val https = NPM.repositoryToUri("https://host.xz/another/repo.git").get
-      https.getScheme must beEqualTo("https")
-      https.getHost must beEqualTo("host.xz")
-      https.getPath must beEqualTo("/another/repo.git")
+      https.scheme must beEqualTo("https")
+      https.host must beEqualTo(Host.parse("host.xz"))
+      https.path must beEqualTo(Path.parse("/another/repo.git"))
     }
     "work with git ssh short syntax" in {
       val plain = NPM.repositoryToUri("host.xz:/another/repo.git").get
-      plain.getScheme must beEqualTo("ssh")
-      plain.getHost must beEqualTo("host.xz")
-      plain.getPath must beEqualTo("/another/repo.git")
+      plain.scheme must beEqualTo("ssh")
+      plain.host must beEqualTo(Host.parse("host.xz"))
+      plain.path must beEqualTo(Path.parse("/another/repo.git"))
 
       val another = NPM.repositoryToUri("host.xz:another/repo.git").get
-      another.getScheme must beEqualTo("ssh")
-      another.getAuthority must beEqualTo("host.xz")
-      another.getHost must beEqualTo("host.xz")
-      another.getPath must beEqualTo("/another/repo.git")
+      another.scheme must beEqualTo("ssh")
+      another.host must beEqualTo(Host.parse("host.xz"))
+      another.path must beEqualTo(Path.parse("/another/repo.git"))
 
       val user = NPM.repositoryToUri("user@host.xz:/another/repo.git").get
-      user.getScheme must beEqualTo("ssh")
-      user.getHost must beEqualTo("host.xz")
-      user.getPath must beEqualTo("/another/repo.git")
-      user.getUserInfo must beEqualTo("user")
+      user.scheme must beEqualTo("ssh")
+      user.host must beEqualTo(Host.parse("host.xz"))
+      user.path must beEqualTo(Path.parse("/another/repo.git"))
+      user.userInfo.map(_.user) must beSome("user")
 
       val anotherUser = NPM.repositoryToUri("user@host.xz:another/repo.git").get
-      anotherUser.getScheme must beEqualTo("ssh")
-      anotherUser.getAuthority must beEqualTo("user@host.xz")
-      anotherUser.getHost must beEqualTo("host.xz")
-      anotherUser.getPath must beEqualTo("/another/repo.git")
-      anotherUser.getUserInfo must beEqualTo("user")
+      anotherUser.scheme must beEqualTo("ssh")
+      anotherUser.host must beEqualTo(Host.parse("host.xz"))
+      anotherUser.path must beEqualTo(Path.parse("/another/repo.git"))
+      anotherUser.userInfo.map(_.user) must beSome("user")
     }
     "work with gist short syntax" in {
       val uri = NPM.repositoryToUri("gist:11081aaa281").get
-      uri.getScheme must beEqualTo("https")
-      uri.getHost must beEqualTo("gist.github.com")
-      uri.getPath must beEqualTo("/11081aaa281.git")
+      uri.scheme must beEqualTo("https")
+      uri.host must beEqualTo(Host.parse("gist.github.com"))
+      uri.path must beEqualTo(Path.parse("/11081aaa281.git"))
     }
     "work with bitbucket short syntax" in {
       val uri = NPM.repositoryToUri("bitbucket:another/repo").get
-      uri.getScheme must beEqualTo("https")
-      uri.getHost must beEqualTo("bitbucket.org")
-      uri.getPath must beEqualTo("/another/repo.git")
+      uri.scheme must beEqualTo("https")
+      uri.host must beEqualTo(Host.parse("bitbucket.org"))
+      uri.path must beEqualTo(Path.parse("/another/repo.git"))
     }
     "work with gitlab short syntax" in {
       val uri = NPM.repositoryToUri("gitlab:another/repo").get
-      uri.getScheme must beEqualTo("https")
-      uri.getHost must beEqualTo("gitlab.com")
-      uri.getPath must beEqualTo("/another/repo.git")
+      uri.scheme must beEqualTo("https")
+      uri.host must beEqualTo(Host.parse("gitlab.com"))
+      uri.path must beEqualTo(Path.parse("/another/repo.git"))
     }
     "work wuth github short syntax" in {
       val uri = NPM.repositoryToUri("another/repo").get
-      uri.getScheme must beEqualTo("https")
-      uri.getHost must beEqualTo("github.com")
-      uri.getPath must beEqualTo("/another/repo.git")
+      uri.scheme must beEqualTo("https")
+      uri.host must beEqualTo(Host.parse("github.com"))
+      uri.path must beEqualTo(Path.parse("/another/repo.git"))
     }
   }
 
@@ -246,59 +244,59 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
   "bugsReaderNullable" should {
     "not fail if there is no bugs path" in {
       val json = Json.obj()
-      val result = json.validate[Option[URL]](NPM.bugsReaderNullable)
-      result must beEqualTo(JsSuccess[Option[URL]](None))
+      val result = json.validate[Option[AbsoluteUrl]](NPM.bugsReaderNullable)
+      result must beEqualTo(JsSuccess[Option[AbsoluteUrl]](None))
     }
     "work if bugs is a url" in {
       val json = Json.obj(
-        "bugs" -> "http://webjars.org"
+        "bugs" -> "https://webjars.org"
       )
-      val result = json.validate[Option[URL]](NPM.bugsReaderNullable)
-      result.map(_.map(_.toString)) must beEqualTo(JsSuccess[Option[String]](Some("http://webjars.org"), __))
+      val result = json.validate[Option[AbsoluteUrl]](NPM.bugsReaderNullable)
+      result must beEqualTo(JsSuccess[Option[AbsoluteUrl]](AbsoluteUrl.parseOption("https://webjars.org"), __))
     }
     "work if bugs.url is a url" in {
       val json = Json.obj(
         "bugs" -> Json.obj(
-          "url" -> "http://webjars.org"
+          "url" -> "https://webjars.org"
         )
       )
-      val result = json.validate[Option[URL]](NPM.bugsReaderNullable)
-      result.map(_.map(_.toString)) must beEqualTo(JsSuccess[Option[String]](Some("http://webjars.org"), __))
+      val result = json.validate[Option[AbsoluteUrl]](NPM.bugsReaderNullable)
+      result must beEqualTo(JsSuccess[Option[AbsoluteUrl]](AbsoluteUrl.parseOption("https://webjars.org"), __))
     }
     "work if homepage has a GitHub url" in {
       val json = Json.obj(
-        "homepage" -> "http://github.com/webjars/webjars"
+        "homepage" -> "https://github.com/webjars/webjars"
       )
-      val result = json.validate[Option[URL]](NPM.bugsReaderNullable)
-      result.map(_.map(_.toString)) must beEqualTo(JsSuccess[Option[String]](Some("http://github.com/webjars/webjars/issues"), __))
+      val result = json.validate[Option[AbsoluteUrl]](NPM.bugsReaderNullable)
+      result must beEqualTo(JsSuccess[Option[AbsoluteUrl]](AbsoluteUrl.parseOption("https://github.com/webjars/webjars/issues"), __))
     }
     "work if homepage has a GitHub url and bugs.url is set" in {
       val json = Json.obj(
-        "homepage" -> "http://github.com/webjars/webjars",
+        "homepage" -> "https://github.com/webjars/webjars",
         "bugs" -> Json.obj(
-          "url" -> "http://webjars.org"
+          "url" -> "https://webjars.org"
         )
       )
-      val result = json.validate[Option[URL]](NPM.bugsReaderNullable)
-      result.map(_.map(_.toString)) must beEqualTo(JsSuccess[Option[String]](Some("http://webjars.org"), __))
+      val result = json.validate[Option[AbsoluteUrl]](NPM.bugsReaderNullable)
+      result must beEqualTo(JsSuccess[Option[AbsoluteUrl]](AbsoluteUrl.parseOption("https://webjars.org"), __))
     }
   }
 
   "homepageToIssuesReader" should {
     "work with missing homepage" in {
       val json = Json.obj()
-      val result = json.validate[URL](NPM.homepageToIssuesReader)
+      val result = json.validate[AbsoluteUrl](NPM.homepageToIssuesReader)
       result must beAnInstanceOf[JsError]
     }
     "work with unknown homepage" in {
-      val json = Json.obj("homepage" -> "http://webjars.org")
-      val result = json.validate[URL](NPM.homepageToIssuesReader)
+      val json = Json.obj("homepage" -> "https://webjars.org")
+      val result = json.validate[AbsoluteUrl](NPM.homepageToIssuesReader)
       result must beAnInstanceOf[JsError]
     }
     "work with github homepage" in {
-      val json = Json.obj("homepage" -> "http://github.com/webjars/webjars")
-      val result = json.validate[URL](NPM.homepageToIssuesReader)
-      result.map(_.toString) must beEqualTo(JsSuccess[String]("http://github.com/webjars/webjars/issues", __ \ "homepage"))
+      val json = Json.obj("homepage" -> "https://github.com/webjars/webjars")
+      val result = json.validate[AbsoluteUrl](NPM.homepageToIssuesReader)
+      result must beEqualTo(JsSuccess[AbsoluteUrl](AbsoluteUrl.parse("https://github.com/webjars/webjars/issues"), __ \ "homepage"))
     }
   }
 
@@ -307,9 +305,9 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
       await(npm.info("amdefine", "0.0.4")) must throwA[MissingMetadataException]
     }
     "work with a source override" in {
-      val uri = new URI("http://webjars.org")
+      val uri = AbsoluteUrl.parse("https://webjars.org")
       val info = await(npm.info("amdefine", "0.0.4", Some(uri)))
-      info.sourceConnectionUri must beEqualTo (uri)
+      info.sourceConnectionUri must beEqualTo(uri)
     }
   }
 
@@ -430,7 +428,7 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
 
   "convert github license URL to license" in {
     val result = await(npm.licenseReference("foo", "0.0.0", "https://github.com/facebook/flux/blob/master/LICENSE"))
-    result must be equalTo Set(LicenseWithNameAndUrl("BSD 3-Clause", new URL("https://github.com/facebook/flux/blob/master/LICENSE")))
+    result must be equalTo Set(LicenseWithNameAndUrl("BSD 3-Clause", AbsoluteUrl.parse("https://github.com/facebook/flux/blob/master/LICENSE")))
   }
 
   "have the right license for material-design-icons 2.2.3" in {
@@ -446,7 +444,7 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
   "mapbox-gl license" in {
     val packageInfo = await(npm.info("mapbox-gl", "2.15.0"))
     val licenses = await(npm.licenses("mapbox-gl", "2.15.0", packageInfo))
-    licenses mustEqual Set(LicenseWithUrl(new URL("file://LICENSE.txt")))
+    licenses mustEqual Set(LicenseWithUrl(AbsoluteUrl.parse("file://LICENSE.txt")))
   }
 
   "@headlessui/react ^1.7.15" in {
@@ -463,6 +461,11 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
     val packageInfo = await(npm.info("@xenova/transformers", "2.15.0"))
     val depGraph = await(npm.depGraph(packageInfo))
     depGraph.keys must contain ("@types/node")
+  }
+
+  "registryMetadataUrl" in {
+    npm.registryMetadataUrl("@reactivex/rxjs") must beEqualTo(AbsoluteUrl.parse("https://registry.npmjs.org/@reactivex/rxjs"))
+    npm.registryMetadataUrl("@reactivex/rxjs", Some("5.0.0-alpha.7")) must beEqualTo(AbsoluteUrl.parse("https://registry.npmjs.org/@reactivex/rxjs/5.0.0-alpha.7"))
   }
 
   /*

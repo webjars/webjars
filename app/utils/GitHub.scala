@@ -1,12 +1,13 @@
 package utils
 
+import io.lemonlabs.uri.typesafe.Fragment
+import io.lemonlabs.uri.{AbsoluteUrl, UrlPath}
 import org.eclipse.jgit.util.Base64
 import play.api.Configuration
 import play.api.http.{HeaderNames, HttpVerbs, MimeTypes, Status}
 import play.api.libs.json.{JsValue, Json}
 import play.api.libs.ws.{WSClient, WSRequest}
 
-import java.net.{URI, URL}
 import javax.inject.Inject
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
@@ -80,13 +81,13 @@ class GitHub @Inject() (configuration: Configuration, wsClient: WSClient, cache:
   }
 
   // todo: max redirects?
-  def currentUrls(url: URL): Future[(URL, URI, URL)] = {
-    cache.get[(URL, URI, URL)](url.toString, 1.day) {
+  def currentUrls(url: AbsoluteUrl): Future[(AbsoluteUrl, AbsoluteUrl, AbsoluteUrl)] = {
+    cache.get[(AbsoluteUrl, AbsoluteUrl, AbsoluteUrl)](url.toString, 1.day) {
 
       def urls(location: String) = {
         val newUrlsTry = for {
           gitHubUrl <- GitHub.gitHubUrl(location)
-          sourceConnectionUri <- GitHub.gitHubGitUri(gitHubUrl)
+          sourceConnectionUri <- GitHub.gitHubGitUrl(gitHubUrl)
           issuesUrl <- GitHub.gitHubIssuesUrl(gitHubUrl)
         } yield (gitHubUrl, sourceConnectionUri, issuesUrl)
 
@@ -103,10 +104,9 @@ class GitHub @Inject() (configuration: Configuration, wsClient: WSClient, cache:
         response.status match {
           case Status.MOVED_PERMANENTLY =>
             response.header(HeaderNames.LOCATION).fold {
-              Future.failed[(URL, URI, URL)](ServerError(s"GitHub said that $url was moved but did not provide a new location", response.status))
+              Future.failed[(AbsoluteUrl, AbsoluteUrl, AbsoluteUrl)](ServerError(s"GitHub said that $url was moved but did not provide a new location", response.status))
             } { locationString =>
-              val urlTry = Try(new URL(locationString))
-              urlTry match {
+              AbsoluteUrl.parseTry(locationString) match {
                 case Success(locationUrl) => currentUrls(locationUrl)
                 case Failure(error) => Future.failed(error)
               }
@@ -120,7 +120,7 @@ class GitHub @Inject() (configuration: Configuration, wsClient: WSClient, cache:
     }
   }
 
-  def raw(gitHubUrl: URL, tagCommitOrBranch: String, fileName: String): Future[String] = {
+  def raw(gitHubUrl: AbsoluteUrl, tagCommitOrBranch: String, fileName: String): Future[String] = {
     val url = gitHubUrl.toString + s"/raw/$tagCommitOrBranch/$fileName"
     wsClient.url(url).get().flatMap { response =>
       response.status match {
@@ -134,31 +134,46 @@ class GitHub @Inject() (configuration: Configuration, wsClient: WSClient, cache:
 
 object GitHub {
 
-  def gitHubUrl(url: URL): Try[URL] = Try(new URL(url.getProtocol, url.getHost, url.getPath.stripSuffix(".git").stripSuffix("/"))).filter(_.getHost.stripPrefix("www.") == "github.com")
+  def gitHubUrl(url: AbsoluteUrl): Try[AbsoluteUrl] =
+    if (url.apexDomain.contains("github.com")) {
+      Success(
+        url
+          .withScheme("https")
+          .withPath(UrlPath.parse(url.path.toString().stripSuffix(".git").stripSuffix("/")))
+          .withFragment(None)
+          .withUserInfo(None)
+      )
+    }
+    else {
+      Failure(new Error("Domain was not github.com"))
+    }
 
-  def gitHubUrl(uri: URI): Try[URL] = Try(new URL("https", uri.getHost, uri.getPath.stripSuffix("/"))).flatMap(gitHubUrl)
+  def gitHubUrl(s: String): Try[AbsoluteUrl] = AbsoluteUrl.parseTry(s).flatMap(gitHubUrl)
 
-  def gitHubUrl(s: String): Try[URL] = Try(new URI(s)).flatMap(gitHubUrl)
+  def gitHubGitUrl(url: AbsoluteUrl): Try[AbsoluteUrl] =
+    gitHubUrl(url).flatMap { gitHubUrl =>
+      gitHubUrl.path.parts match {
+        case Vector(org, repo) =>
+          Success(gitHubUrl.withPath(UrlPath.parse(s"/$org/$repo.git")))
+        case _ =>
+          Failure(new Error("Could not parse the GitHub URL"))
+      }
+    }
 
-  def gitHubGitUri(url: URL): Try[URI] = gitHubUrl(url).flatMap { gitHubUrl =>
-    val maybeOrgRepo = for {
-      org <- maybeGitHubOrg(Some(url))
-      repo <- maybeGitHubRepo(Some(url))
-    } yield org + "/" + repo
+  def gitHubIssuesUrl(url: AbsoluteUrl): Try[AbsoluteUrl] =
+    gitHubUrl(url).map { gitHubUrl =>
+      gitHubUrl.addPathPart("issues")
+    }
 
-    Try(new URI(gitHubUrl.getProtocol, gitHubUrl.getHost, "/" + maybeOrgRepo.get + ".git", null))
-  }
+  def maybeGitHubOrg(url: AbsoluteUrl):  Option[String] =
+    url.path.parts.headOption
 
-  def gitHubIssuesUrl(url: URL): Try[URL] = gitHubUrl(url).flatMap { gitHubUrl =>
-    Try(new URL(gitHubUrl.getProtocol, gitHubUrl.getHost, gitHubUrl.getPath + "/issues"))
-  }
+  def maybeGitHubRepo(url: AbsoluteUrl):  Option[String] =
+    url.path.parts match {
+      case _ +: repo +: _ => Some(repo)
+      case _ => None
+    }
 
-  def gitHubGitUri(uri: URI): Try[URI] = gitHubUrl(uri).flatMap(gitHubGitUri)
-
-  def gitHubIssuesUrl(uri: URI): Try[URL] = gitHubUrl(uri).flatMap(gitHubIssuesUrl)
-
-  def maybeGitHubOrg(maybeGitHubUrl: Option[URL]) = maybeGitHubUrl.map(_.getPath.split("/")(1))
-  def maybeGitHubRepo(maybeGitHubUrl: Option[URL]) = maybeGitHubUrl.map(_.getPath.split("/")(2).stripSuffix(".git"))
 }
 
 case class UnauthorizedError(message: String) extends Exception {

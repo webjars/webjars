@@ -1,24 +1,21 @@
 package utils
 
-import java.net.URL
+import io.lemonlabs.uri.AbsoluteUrl
+
 import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.Try
 
 class Maven @Inject() (git: Git, semVer: SemVer) (implicit ec: ExecutionContext) {
 
   def convertNpmBowerDependenciesToMaven(dependencies: Map[String, String]): Future[Map[String, String]] = {
     val maybeMavenDeps = dependencies.map { case (name, versionOrUrl) =>
 
-      val urlTry = Try(new URL(versionOrUrl)).filter(!_.getPath.endsWith(".git"))
+      val urlTry = AbsoluteUrl.parseTry(versionOrUrl).filter(!_.path.toString().endsWith(".git"))
 
-      val nameAndVersionFuture = if (urlTry.isSuccess) {
-        // a tgz which we currenty assume uses a github path syntax
-        val url = urlTry.get
-
-        if (url.getPath.contains("/tarball/")) {
-          val host = url.getHost.replaceAll("[^\\w\\d]", "-")
-          val parts = url.getPath.split("\\/tarball\\/")
+      val nameAndVersionFuture = urlTry.map { url =>
+        if (url.path.toString().contains("/tarball/")) {
+          val host = url.host.toString().replaceAll("[^\\w\\d]", "-")
+          val parts = url.path.toString().split("\\/tarball\\/")
           val path = parts(0).replaceAll("[^\\w\\d]", "-")
           val artifactId = host + path
           Future.successful(artifactId -> parts(1))
@@ -26,39 +23,40 @@ class Maven @Inject() (git: Git, semVer: SemVer) (implicit ec: ExecutionContext)
         else {
           Future.failed(new Exception(s"Could not get a version from the dependency string: $url"))
         }
-      }
-      else if (git.isGit(versionOrUrl)) {
-        val (url, maybeVersion) = if (versionOrUrl.contains("#")) {
-          val parts = versionOrUrl.split("#")
-          (parts.head, parts.lastOption)
-        }
-        else {
-          (versionOrUrl, None)
-        }
+      }.getOrElse {
+        if (git.isGit(versionOrUrl)) {
+          val (url, maybeVersion) = if (versionOrUrl.contains("#")) {
+            val parts = versionOrUrl.split("#")
+            (parts.head, parts.lastOption)
+          }
+          else {
+            (versionOrUrl, None)
+          }
 
-        git.artifactId(url).map(_.toLowerCase).flatMap { artifactId =>
-          maybeVersion.fold {
-            git.versions(url).flatMap { versions =>
-              versions.headOption.fold {
-                // could not get a tagged version so the latest commit instead
-                git.versionsOnBranch(url, "master").flatMap { commits =>
-                  commits.headOption.fold {
-                    Future.failed[(String, String)](new Exception(s"The dependency definition $name -> $versionOrUrl was not valid because it looked like a git repo reference but no version was specified."))
-                  } { latestCommit =>
-                    Future.successful(artifactId -> s"0.0.0-$latestCommit")
+          git.artifactId(url).map(_.toLowerCase).flatMap { artifactId =>
+            maybeVersion.fold {
+              git.versions(url).flatMap { versions =>
+                versions.headOption.fold {
+                  // could not get a tagged version so the latest commit instead
+                  git.versionsOnBranch(url, "master").flatMap { commits =>
+                    commits.headOption.fold {
+                      Future.failed[(String, String)](new Exception(s"The dependency definition $name -> $versionOrUrl was not valid because it looked like a git repo reference but no version was specified."))
+                    } { latestCommit =>
+                      Future.successful(artifactId -> s"0.0.0-$latestCommit")
+                    }
                   }
+                } { latestVersion =>
+                  Future.successful(artifactId -> latestVersion)
                 }
-              } { latestVersion =>
-                Future.successful(artifactId -> latestVersion)
               }
+            } { version =>
+              Future.successful(artifactId -> version)
             }
-          } { version =>
-            Future.successful(artifactId -> version)
           }
         }
-      }
-      else {
-        git.artifactId(name).map(_ -> versionOrUrl)
+        else {
+          git.artifactId(name).map(_ -> versionOrUrl)
+        }
       }
 
       nameAndVersionFuture.flatMap { case (artifactId, version) =>

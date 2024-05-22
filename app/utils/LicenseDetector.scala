@@ -1,10 +1,10 @@
 package utils
 
+import io.lemonlabs.uri.AbsoluteUrl
 import play.api.Logging
 import play.api.http.{HeaderNames, MimeTypes, Status}
 import play.api.libs.ws.WSClient
 
-import java.net.URL
 import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -21,11 +21,10 @@ class LicenseDetector @Inject() (ws: WSClient) (implicit ec: ExecutionContext) e
     }
   }
 
-  def licenseDetect(url: URL): Future[LicenseWithNameAndUrl] = {
+  def licenseDetect(url: AbsoluteUrl): Future[LicenseWithNameAndUrl] = {
     // sometimes this url points to the license on GitHub which can't be heuristically converted to an actual license so change the url to the raw content
-    val rawLicenseUrl = if (url.getHost.endsWith("github.com")) {
-      val path = url.getPath.replaceAll("/blob", "")
-      new URL(s"https://raw.githubusercontent.com$path")
+    val rawLicenseUrl = if (url.host.apexDomain.contains("github.com")) {
+      url.withHost("raw.githubusercontent.com").withPathParts(url.path.parts.filter(_ != "blob"))
     }
     else {
       url
@@ -57,7 +56,7 @@ sealed trait License {
     case LicenseWithNameAndUrl(name, _) => Some(name)
   }
 
-  val maybeUrl: Option[URL] = this match {
+  val maybeUrl: Option[AbsoluteUrl] = this match {
     case _: LicenseWithName => None
     case LicenseWithUrl(url) => Some(url)
     case LicenseWithNameAndUrl(_, url) => Some(url)
@@ -70,8 +69,8 @@ sealed trait License {
   }
 }
 case class LicenseWithName(name: String) extends License
-case class LicenseWithUrl(url: URL) extends License
-case class LicenseWithNameAndUrl(name: String, url: URL) extends License
+case class LicenseWithUrl(url: AbsoluteUrl) extends License
+case class LicenseWithNameAndUrl(name: String, url: AbsoluteUrl) extends License
 
 case class LicenseNotFoundException(message: String, cause: Exception = null) extends Exception(message, cause)
 case class NoValidLicenses() extends Exception("no valid licenses found")

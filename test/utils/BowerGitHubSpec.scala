@@ -1,13 +1,13 @@
 package utils
 
 
-import org.apache.pekko.util.Timeout
+import io.lemonlabs.uri.AbsoluteUrl
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
 import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream
+import org.apache.pekko.util.Timeout
 import play.api.test._
 
 import java.io.{BufferedInputStream, ByteArrayInputStream}
-import java.net.URI
 import scala.concurrent.duration._
 
 class BowerGitHubSpec extends PlaySpecification with GlobalApplication {
@@ -242,7 +242,7 @@ class BowerGitHubSpec extends PlaySpecification with GlobalApplication {
   }
 
   "releaseVersion" should {
-    val packageInfo = PackageInfo("foo", "3.2.1", None, new URI("foo://bar"), None, Seq.empty, Map.empty, Map.empty, None)
+    val packageInfo = PackageInfo("foo", "3.2.1", None, AbsoluteUrl.parse("foo://bar"), None, Seq.empty, Map.empty, Map.empty, None)
 
     "strip the v prefix" in {
       bowerGitHub.releaseVersion(Some("v1.2.3"), packageInfo) must beEqualTo ("1.2.3")
