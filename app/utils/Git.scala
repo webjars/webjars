@@ -125,7 +125,6 @@ class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
   // todo: only clone the specified version to speed things up
   def cloneOrCheckout(gitRepo: String, version: Version, retry: Boolean = true): Future[File] = {
     gitUrl(gitRepo).flatMap { url =>
-      println(url)
       val baseDir = new File(cacheDir.toFile, url)
 
       val cloneOrPullFuture = if (!baseDir.exists()) {
@@ -195,9 +194,7 @@ class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
   def file(uri: AbsoluteUrl, version: Version, fileName: String): Future[String] = file(uri.toString, version, fileName)
 
   def file(gitRepo: String, tagCommitOrBranch: Version, fileName: String): Future[String] = {
-    println("checkout")
     cloneOrCheckout(gitRepo, tagCommitOrBranch).flatMap { baseDir =>
-      println(baseDir)
       Future.fromTry {
         val decoder = Codec.UTF8.decoder.onMalformedInput(CodingErrorAction.IGNORE)
         Using(Source.fromFile(new File(baseDir, fileName))(decoder))(_.mkString)

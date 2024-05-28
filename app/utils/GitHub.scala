@@ -1,6 +1,5 @@
 package utils
 
-import io.lemonlabs.uri.typesafe.Fragment
 import io.lemonlabs.uri.{AbsoluteUrl, UrlPath}
 import org.eclipse.jgit.util.Base64
 import play.api.Configuration

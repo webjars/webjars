@@ -23,19 +23,19 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
 
   "inflight 1.0.4" should {
     "have the correct github url" in {
-      await(npm.info("inflight", "1.0.4")).maybeGitHubUrl.map(_.toString) must beSome("https://github.com/isaacs/inflight")
+      await(npm.info("inflight", "1.0.4")).maybeGitHubUrl must beSome(AbsoluteUrl.parse("https://github.com/isaacs/inflight-DEPRECATED-DO-NOT-USE"))
     }
   }
 
   "inherits 2.0.1" should {
     "have a homepage" in {
-      await(npm.info("inherits", "2.0.1")).maybeHomepageUrl.map(_.toString) must beSome ("https://github.com/isaacs/inherits")
+      await(npm.info("inherits", "2.0.1")).maybeHomepageUrl must beSome(AbsoluteUrl.parse("https://github.com/isaacs/inherits"))
     }
   }
 
   "simple-fmt" should {
     "have an issue tracking url" in {
-      await(npm.info("simple-fmt", "0.1.0")).maybeIssuesUrl.map(_.toString) must beSome ("https://github.com/olov/simple-fmt/issues")
+      await(npm.info("simple-fmt", "0.1.0")).maybeIssuesUrl must beSome(AbsoluteUrl.parse("https://github.com/olov/simple-fmt/issues"))
     }
   }
 
@@ -82,10 +82,10 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
       val info = await(npm.info("btford/route-recognizer", "0.1.1"))
       info.name must beEqualTo ("route-recognizer")
       info.version mustNotEqual ""
-      info.maybeHomepageUrl.map(_.toString) must beSome ("https://github.com/btford/route-recognizer")
-      info.sourceConnectionUri.toString must beEqualTo ("https://github.com/btford/route-recognizer.git")
-      info.maybeIssuesUrl.map(_.toString) must beSome ("https://github.com/btford/route-recognizer/issues")
-      info.maybeGitHubUrl.map(_.toString) must beSome ("https://github.com/btford/route-recognizer")
+      info.maybeHomepageUrl must beSome (AbsoluteUrl.parse("https://github.com/btford/route-recognizer"))
+      info.sourceConnectionUri must beEqualTo (AbsoluteUrl.parse("https://github.com/btford/route-recognizer.git"))
+      info.maybeIssuesUrl must beSome (AbsoluteUrl.parse("https://github.com/btford/route-recognizer/issues"))
+      info.maybeGitHubUrl must beSome (AbsoluteUrl.parse("https://github.com/btford/route-recognizer"))
     }
   }
 
@@ -94,10 +94,10 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
       val info = await(npm.info("git://github.com/btford/route-recognizer", "0.1.1"))
       info.name must beEqualTo ("route-recognizer")
       info.version mustNotEqual ""
-      info.maybeHomepageUrl.map(_.toString) must beSome ("https://github.com/btford/route-recognizer")
-      info.sourceConnectionUri.toString must beEqualTo ("https://github.com/btford/route-recognizer.git")
-      info.maybeIssuesUrl.map(_.toString) must beSome ("https://github.com/btford/route-recognizer/issues")
-      info.maybeGitHubUrl.map(_.toString) must beSome ("https://github.com/btford/route-recognizer")
+      info.maybeHomepageUrl must beSome (AbsoluteUrl.parse("https://github.com/btford/route-recognizer"))
+      info.sourceConnectionUri must beEqualTo (AbsoluteUrl.parse("https://github.com/btford/route-recognizer.git"))
+      info.maybeIssuesUrl must beSome (AbsoluteUrl.parse("https://github.com/btford/route-recognizer/issues"))
+      info.maybeGitHubUrl must beSome (AbsoluteUrl.parse("https://github.com/btford/route-recognizer"))
     }
   }
 
@@ -221,7 +221,7 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
   "quadkeytools" should {
     "work for 0.0.2" in {
       val info = await(npm.info("quadkeytools", "0.0.2"))
-      info.maybeIssuesUrl.map(_.toString) must beSome ("https://bitbucket.org/steele/quadkeytools/issues")
+      info.maybeIssuesUrl must beSome (AbsoluteUrl.parse("https://bitbucket.org/steele/quadkeytools/issues"))
     }
   }
 
@@ -328,7 +328,7 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
   "electron-to-chromium 1.3.28" should {
     "work" in {
       val packageInfo = await(npm.info("electron-to-chromium", "1.3.28"))
-      packageInfo.sourceConnectionUri.toString must beEqualTo ("https://github.com/kilian/electron-to-chromium.git")
+      packageInfo.sourceConnectionUri must beEqualTo (AbsoluteUrl.parse("https://github.com/kilian/electron-to-chromium.git"))
     }
   }
 
@@ -349,7 +349,7 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
   "babel crap" should {
     "work" in {
       val info = await(npm.info("@babel/runtime", "7.12.1"))
-      info.sourceConnectionUri.toString must beEqualTo ("https://github.com/babel/babel.git")
+      info.sourceConnectionUri must beEqualTo (AbsoluteUrl.parse("https://github.com/babel/babel.git"))
     }
   }
 
@@ -438,7 +438,7 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
 
   "libphonenumber-js 1.9.17" in {
     val packageInfo = await(npm.info("libphonenumber-js", "1.9.17"))
-    packageInfo.sourceConnectionUri.toString must beEqualTo("https://gitlab.com/catamphetamine/libphonenumber-js.git")
+    packageInfo.sourceConnectionUri must beEqualTo(AbsoluteUrl.parse("https://gitlab.com/catamphetamine/libphonenumber-js.git"))
   }
 
   "mapbox-gl license" in {

@@ -10,7 +10,9 @@ class Maven @Inject() (git: Git, semVer: SemVer) (implicit ec: ExecutionContext)
   def convertNpmBowerDependenciesToMaven(dependencies: Map[String, String]): Future[Map[String, String]] = {
     val maybeMavenDeps = dependencies.map { case (name, versionOrUrl) =>
 
-      val urlTry = AbsoluteUrl.parseTry(versionOrUrl).filter(!_.path.toString().endsWith(".git"))
+      val urlTry = AbsoluteUrl.parseTry(versionOrUrl).filter { url =>
+        !url.path.toString().endsWith(".git") && url.scheme != "git"
+      }
 
       val nameAndVersionFuture = urlTry.map { url =>
         if (url.path.toString().contains("/tarball/")) {

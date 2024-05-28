@@ -89,7 +89,6 @@ class NPM @Inject() (val ws: WSClient, val licenseDetector: LicenseDetector, val
   override def info(packageNameOrGitRepo: NameOrUrlish, version: Version, maybeSourceUri: Option[AbsoluteUrl] = None): Future[PackageInfo] = {
 
     def packageInfo(packageJson: JsValue): Future[PackageInfo] = {
-      println(packageJson)
 
       val maybeForkPackageJsonFuture = if (git.isGit(packageNameOrGitRepo)) {
         // this is a git repo so its package.json values might be wrong
@@ -143,15 +142,12 @@ class NPM @Inject() (val ws: WSClient, val licenseDetector: LicenseDetector, val
     }
 
     if (git.isGit(packageNameOrGitRepo)) {
-      println("isGit")
-      git.file(packageNameOrGitRepo, version, "package.json").flatMap { packageJsonString =>
+      file(packageNameOrGitRepo, version, "package.json").flatMap { packageJsonString =>
         packageInfo(Json.parse(packageJsonString))
       }
     }
     else {
-      println("not git")
       if (isScoped(packageNameOrGitRepo)) {
-        println("isScoped")
         // can no longer get info on specific versions of scoped packages
         // so get the info for all the versions and then get the specific version out of the full list
         ws.url(registryMetadataUrl(packageNameOrGitRepo).toString()).get().flatMap { response =>
@@ -165,7 +161,6 @@ class NPM @Inject() (val ws: WSClient, val licenseDetector: LicenseDetector, val
         }
       }
       else {
-        println("notScoped")
         ws.url(registryMetadataUrl(packageNameOrGitRepo, Some(version)).toString()).get().flatMap { response =>
           response.status match {
             case Status.OK =>
@@ -202,7 +197,12 @@ class NPM @Inject() (val ws: WSClient, val licenseDetector: LicenseDetector, val
 
   override def file(packageNameOrGitRepo: String, version: Version, filename: String): Future[String] = {
     if (git.isGit(packageNameOrGitRepo)) {
-      git.file(packageNameOrGitRepo, version, filename)
+      Future.fromTry(GitHub.gitHubUrl(packageNameOrGitRepo)).flatMap { url =>
+        gitHub.raw(url, version, filename)
+      }.recoverWith {
+        case _ =>
+          git.file(packageNameOrGitRepo, version, filename)
+      }
     }
     else {
       archiveFile(packageNameOrGitRepo, version, "package/" + filename)

@@ -1,7 +1,7 @@
 package controllers
 
-import org.apache.pekko.util.Timeout
 import models.WebJar
+import org.apache.pekko.util.Timeout
 import play.api.http.{ContentTypes, HeaderNames, Status}
 import play.api.inject.bind
 import play.api.inject.guice.GuiceApplicationBuilder
