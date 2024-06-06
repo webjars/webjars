@@ -267,7 +267,7 @@ class NPM @Inject() (val ws: WSClient, val licenseDetector: LicenseDetector, val
 
       resolveFuture.map { resolutions =>
         if (resolutions.isEmpty) {
-          (Map.empty[String, String], Map.empty[String, String])
+          (Map.empty[String, String], resolvedDeps)
         }
         else {
           resolutions.reduce { (acc, these) =>
