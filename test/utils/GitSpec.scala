@@ -117,7 +117,7 @@ class GitSpec extends PlaySpecification with GlobalApplication {
 
   "versionsOnBranch" should {
     "get the commits on a branch" in {
-      await(git.versionsOnBranch("git://github.com/mochajs/mocha.git", "master")) must contain("8a100df959")
+      await(git.versionsOnBranch("git://github.com/mochajs/mocha.git", "main")) must contain("8a100df959")
     }
     "fetch the versions" in {
       await(git.versionsOnBranch("git://github.com/mdedetrich/requirejs-plugins", "jsonSecurityVulnerability")) must contain ("d9c103e7a0")
