@@ -10,7 +10,7 @@ libraryDependencies ++= Seq(
   guice,
   filters,
   "net.spy" % "spymemcached" % "2.12.3",
-  "com.lihaoyi" %% "fastparse" % "3.1.0",
+  "com.lihaoyi" %% "fastparse" % "3.1.1",
   "org.apache.commons" % "commons-compress" % "1.26.2",
   "org.eclipse.jgit" % "org.eclipse.jgit" % "6.10.0.202406032230-r",
   "org.bouncycastle" % "bcpg-jdk18on" % "1.78.1",
