@@ -135,13 +135,20 @@ object GitHub {
 
   def gitHubUrl(url: AbsoluteUrl): Try[AbsoluteUrl] =
     if (url.apexDomain.contains("github.com")) {
-      Success(
-        url
-          .withScheme("https")
-          .withPath(UrlPath.parse(url.path.toString().stripSuffix(".git").stripSuffix("/")))
-          .withFragment(None)
-          .withUserInfo(None)
-      )
+      val path = UrlPath.parse(url.path.toString().stripSuffix(".git").stripSuffix("/"))
+      path.parts match {
+        case Vector(org, repo, _ @ _*) =>
+          Success(
+            url
+              .withScheme("https")
+              .withPathParts(Seq(org, repo))
+              .withFragment(None)
+              .withUserInfo(None)
+          )
+        case _ =>
+          Failure(new Error("Could not parse the GitHub URL"))
+      }
+
     }
     else {
       Failure(new Error("Domain was not github.com"))
@@ -150,13 +157,9 @@ object GitHub {
   def gitHubUrl(s: String): Try[AbsoluteUrl] = AbsoluteUrl.parseTry(s).flatMap(gitHubUrl)
 
   def gitHubGitUrl(url: AbsoluteUrl): Try[AbsoluteUrl] =
-    gitHubUrl(url).flatMap { gitHubUrl =>
-      gitHubUrl.path.parts match {
-        case Vector(org, repo) =>
-          Success(gitHubUrl.withPath(UrlPath.parse(s"/$org/$repo.git")))
-        case _ =>
-          Failure(new Error("Could not parse the GitHub URL"))
-      }
+    gitHubUrl(url).map { gitHubUrl =>
+      val newParts = Seq(gitHubUrl.path.parts.head, gitHubUrl.path.parts.last + ".git")
+      gitHubUrl.withPathParts(newParts)
     }
 
   def gitHubIssuesUrl(url: AbsoluteUrl): Try[AbsoluteUrl] =

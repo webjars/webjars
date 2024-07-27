@@ -468,6 +468,11 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
     npm.registryMetadataUrl("@reactivex/rxjs", Some("5.0.0-alpha.7")) must beEqualTo(AbsoluteUrl.parse("https://registry.npmjs.org/@reactivex/rxjs/5.0.0-alpha.7"))
   }
 
+  "@gip-recia/esco-content-menu-lit 0.2.0" in {
+    val packageInfo = await(npm.info("@gip-recia/esco-content-menu-lit", "0.2.0"))
+    packageInfo.maybeGitHubUrl must beSome (AbsoluteUrl.parse("https://github.com/GIP-RECIA/uPortal-web-components"))
+  }
+
   /*
   Broken. See: https://github.com/webjars/webjars/issues/1920
   "have the right license for hmrc-frontend 1.27.0" in {
