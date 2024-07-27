@@ -37,6 +37,8 @@ trait MavenCentral {
 
   def maybeOssUsername(configuration: Configuration): Option[String] = configuration.getOptional[String]("oss.username").filter(_.nonEmpty)
   def maybeOssPassword(configuration: Configuration): Option[String] = configuration.getOptional[String]("oss.password").filter(_.nonEmpty)
+  def maybeOssDeployUsername(configuration: Configuration): Option[String] = configuration.getOptional[String]("oss.deploy.username").filter(_.nonEmpty)
+  def maybeOssDeployPassword(configuration: Configuration): Option[String] = configuration.getOptional[String]("oss.deploy.password").filter(_.nonEmpty)
   def maybeOssGpgKey(configuration: Configuration): Option[String] = configuration.getOptional[String]("oss.gpg-key").filter(_.nonEmpty)
   def maybeOssGpgPass(configuration: Configuration): Option[String] = configuration.getOptional[String]("oss.gpg-pass").filter(_.nonEmpty)
 
@@ -84,6 +86,17 @@ class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, config
 
     maybeUsernameAndPassword.fold(Future.failed[T](new IllegalArgumentException("oss.username or oss.password not set"))) { case (ossUsername, ossPassword) =>
       f(ossUsername, ossPassword)
+    }
+  }
+
+  def withOssDeployCredentials[T](f: (String, String) => Future[T]): Future[T] = {
+    val maybeUsernameAndPassword = for {
+      ossDeployUsername <- maybeOssDeployUsername(configuration)
+      ossDeployPassword <- maybeOssDeployPassword(configuration)
+    } yield (ossDeployUsername, ossDeployPassword)
+
+    maybeUsernameAndPassword.fold(Future.failed[T](new IllegalArgumentException("oss.username or oss.password not set"))) { case (ossDeployUsername, ossDeployPassword) =>
+      f(ossDeployUsername, ossDeployPassword)
     }
   }
 
@@ -391,13 +404,11 @@ class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, config
   }
 
   def getStats(webJarType: WebJarType, dateTime: LocalDateTime): Future[Map[(String, String), Int]] = {
-     memcache.getWithMiss(s"stats-$webJarType", Expiration.In(1.day)) {
+    memcache.getWithMiss(s"stats-$webJarType", Expiration.In(1.day)) {
       groupIds(webJarType).flatMap { groupIds =>
         val futures = groupIds.map { groupId =>
           fetchStats(groupId, dateTime).recover {
             case _: EmptyStatsException => Map.empty[(String, String), Int]
-            case _: UnauthorizedError => Map.empty[(String, String), Int]
-            case _: UnavailableException => Map.empty[(String, String), Int]
           }
         }
         Future.reduceLeft(futures)(_ ++ _)
@@ -560,7 +571,7 @@ class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, config
   }
 
   def uploadStaging(stagedRepo: StagedRepo, gav: GAV, pom: String, jar: Array[Byte]): Future[Unit] = {
-    withOssCredentials { (username, password) =>
+    withOssDeployCredentials { (username, password) =>
       val fileUrl = s"https://oss.sonatype.org/service/local/staging/deployByRepositoryId/${stagedRepo.id}/${gav.path}"
 
       def upload[A](url: String, content: A)(implicit bodyWritable: BodyWritable[A]) = {

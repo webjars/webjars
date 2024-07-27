@@ -97,8 +97,8 @@ class MavenCentralSpec extends PlaySpecification {
     "create, upload, close, drop" in new WithApp() {
       val mavenCentral = app.injector.instanceOf[MavenCentral]
       if (
-        mavenCentral.maybeOssUsername(app.configuration).isEmpty ||
-        mavenCentral.maybeOssPassword(app.configuration).isEmpty ||
+        mavenCentral.maybeOssDeployUsername(app.configuration).isEmpty ||
+        mavenCentral.maybeOssDeployPassword(app.configuration).isEmpty ||
         mavenCentral.maybeOssGpgKey(app.configuration).isEmpty
       ) {
         skipped("skipped due to missing config")
