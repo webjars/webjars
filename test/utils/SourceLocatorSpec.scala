@@ -12,12 +12,15 @@ class SourceLocatorSpec extends PlaySpecification with GlobalApplication {
 
   lazy val sourceLocator: SourceLocator = application.injector.instanceOf[SourceLocator]
 
+  /*
+  // gone?
   "https://git-r3lab.uni.lu/Fractalis/fractal.js.git" should {
     "work" in {
       val sourceUrl = await(sourceLocator.sourceUrl(AbsoluteUrl.parse("https://git-r3lab.uni.lu/Fractalis/fractal.js.git")))
       sourceUrl must beEqualTo (AbsoluteUrl.parse("https://git-r3lab.uni.lu/Fractalis/fractal.js"))
     }
   }
+   */
 
   "https://github.com/angular/bower-angular-touch.git" should {
     "work" in {
