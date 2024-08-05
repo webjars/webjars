@@ -2,6 +2,7 @@ package utils
 
 import io.lemonlabs.uri.AbsoluteUrl
 import io.lemonlabs.uri.typesafe.dsl.{pathPartToUrlDsl, urlToUrlDsl}
+import play.api.Configuration
 import play.api.http.Status
 import play.api.i18n.{Langs, MessagesApi}
 import play.api.libs.concurrent.Futures
@@ -16,15 +17,17 @@ import scala.concurrent.duration.DurationInt
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
-class Classic @Inject() (ws: WSClient, val licenseDetector: LicenseDetector, val messages: MessagesApi, val langs: Langs, gitHub: GitHub, cache: Cache)(implicit ec: ExecutionContext) extends Deployable {
+class Classic @Inject() (ws: WSClient, val licenseDetector: LicenseDetector, val messages: MessagesApi, val langs: Langs, gitHub: GitHub, cache: Cache, configuration: Configuration)(implicit ec: ExecutionContext) extends Deployable {
   override val name: String = "Classic"
   override val groupIdQuery: String = "org.webjars"
   override def includesGroupId(groupId: String): Boolean = groupId.equalsIgnoreCase("org.webjars")
 
-  case class Metadata(id: String, name: String, repo: String, requireJsMain: Option[String], baseDir: Option[String])
+  private lazy val webJarsClassicBranch = configuration.getOptional[String]("webjars.classic.branch").getOrElse("main")
+
+  case class Metadata(id: String, name: String, repo: String, download: Option[String], requireJsMain: Option[String], baseDir: Option[String])
 
   def metadata(nameOrUrlish: NameOrUrlish): Future[Metadata] = {
-    gitHub.raw(AbsoluteUrl.parse("https://github.com/webjars/webjars-classic"), "main", s"$nameOrUrlish.properties")
+    gitHub.raw(AbsoluteUrl.parse("https://github.com/webjars/webjars-classic"), webJarsClassicBranch, s"$nameOrUrlish.properties")
       .recoverWith {
         case _ =>
           Future.failed(
@@ -41,13 +44,14 @@ class Classic @Inject() (ws: WSClient, val licenseDetector: LicenseDetector, val
         ).flatMap { properties =>
           val maybeName = Option(properties.getProperty("name"))
           val maybeRepo = Option(properties.getProperty("repo"))
+          val maybeDownload = Option(properties.getProperty("download"))
           val maybeRequireJsMain = Option(properties.getProperty("requirejs.main"))
           val maybeBaseDir = Option(properties.getProperty("base.dir"))
 
           val maybeMetadata = for {
             name <- maybeName
             repo <- maybeRepo
-          } yield Metadata(nameOrUrlish, name, repo, maybeRequireJsMain, maybeBaseDir)
+          } yield Metadata(nameOrUrlish, name, repo, maybeDownload, maybeRequireJsMain, maybeBaseDir)
 
           maybeMetadata.fold(Future.failed[Metadata](new Exception("properties file was invalid")))(Future.successful(_))
         }
@@ -121,9 +125,17 @@ class Classic @Inject() (ws: WSClient, val licenseDetector: LicenseDetector, val
   override def archive(nameOrUrlish: NameOrUrlish, version: Version): Future[InputStream] = {
     cache.get[Metadata](s"webjars-classic-$nameOrUrlish", 1.hour) {
       metadata(nameOrUrlish)
-    }.map { metadata =>
-      ("https://github.com" / metadata.repo / "archive" / s"$version.zip").toJavaURI.toURL.openStream()
-    }
+    }.flatMap { metadata =>
+      metadata.download.fold {
+        Future.successful {
+          ("https://github.com" / metadata.repo / "archive" / s"$version.zip")
+        }
+      } { download =>
+        Future.fromTry {
+          AbsoluteUrl.parseTry(download.replace("${version}", version))
+        }
+      }
+    }.map(_.toJavaURI.toURL.openStream())
   }
 
   override def file(nameOrUrlish: NameOrUrlish, version: Version, filename: String): Future[String] = {

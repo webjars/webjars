@@ -59,4 +59,17 @@ class ClassicSpec extends PlaySpecification with GlobalApplication {
     }
   }
 
+  "datatables-select" should {
+    "have versions" in {
+      val versions = await(classic.versions("datatables-select"))
+      versions should contain("2.0.4")
+    }
+    "have the files in the right place" in {
+      val inputStream = await(classic.archive("datatables-select", "2.0.4"))
+      val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new BufferedInputStream(inputStream))
+      val files = LazyList.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName)
+      files must contain ("Select-2.0.4/js/dataTables.select.min.js")
+    }
+  }
+
 }

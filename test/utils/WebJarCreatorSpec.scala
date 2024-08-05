@@ -248,6 +248,7 @@ class WebJarCreatorSpec extends PlaySpecification with GlobalApplication {
     WebJarCreator.removeGlobPath("*/dist", "asdf/") must beNone
     WebJarCreator.removeGlobPath("*/dist", "asdf/dist/asdf/foo") must beSome("asdf/foo")
     WebJarCreator.removeGlobPath("*/dist", "asdf/dist/asdf/foo/") must beSome("asdf/foo/")
+    WebJarCreator.removeGlobPath("*/", "Select-2.0.4/js/dataTables.select.min.js") must beSome("js/dataTables.select.min.js")
   }
 
 }
