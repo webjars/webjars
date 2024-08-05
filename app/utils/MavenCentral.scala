@@ -95,7 +95,7 @@ class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, config
       ossDeployPassword <- maybeOssDeployPassword(configuration)
     } yield (ossDeployUsername, ossDeployPassword)
 
-    maybeUsernameAndPassword.fold(Future.failed[T](new IllegalArgumentException("oss.username or oss.password not set"))) { case (ossDeployUsername, ossDeployPassword) =>
+    maybeUsernameAndPassword.fold(Future.failed[T](new IllegalArgumentException("oss.deploy.username or oss.deploy.password not set"))) { case (ossDeployUsername, ossDeployPassword) =>
       f(ossDeployUsername, ossDeployPassword)
     }
   }
@@ -417,7 +417,7 @@ class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, config
   }
 
   private def stagingRepo(stagedRepo: StagedRepo): Future[JsValue] = {
-    withOssCredentials { (username, password) =>
+    withOssDeployCredentials { (username, password) =>
       val url = s"https://oss.sonatype.org/service/local/staging/repository/${stagedRepo.id}"
       wsClient.url(url).withAuth(username, password, WSAuthScheme.BASIC).withHttpHeaders(HeaderNames.ACCEPT -> MimeTypes.JSON).get().flatMap { response =>
         if (response.status == Status.OK) {
@@ -463,7 +463,7 @@ class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, config
 
   private def stagingProfileReq(path: String, responseCode: Int)(f: WSRequest => Future[WSResponse]): Future[Option[JsValue]] = {
     maybeOssStagingProfileId.fold(Future.failed[Option[JsValue]](new Exception("Could not get staging profile id"))) { stagingProfileId =>
-      withOssCredentials { (username, password) =>
+      withOssDeployCredentials { (username, password) =>
         val url = s"https://oss.sonatype.org/service/local/staging/profiles/$stagingProfileId/$path"
         val req = wsClient.url(url).withAuth(username, password, WSAuthScheme.BASIC).withHttpHeaders(HeaderNames.ACCEPT -> MimeTypes.JSON)
         f(req).flatMap { response =>
