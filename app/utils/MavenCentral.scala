@@ -524,12 +524,16 @@ class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, config
   }
 
   def closeStaging(stagedRepo: StagedRepo, description: String): Future[Unit] = {
-    stagingTransitionWithWait("finish", stagedRepo, description)
+    stagingTransitionWithWait("finish", stagedRepo, description).recoverWith {
+      case _ => dropStaging(stagedRepo, description)
+    }
   }
 
   def promoteStaging(stagedRepo: StagedRepo, description: String): Future[Unit] = {
     if (!disableDeploy) {
-      stagingTransitionWithWait("promote", stagedRepo, description)
+      stagingTransitionWithWait("promote", stagedRepo, description).recoverWith {
+        case _ => dropStaging(stagedRepo, description)
+      }
     }
     else {
       Future.unit
