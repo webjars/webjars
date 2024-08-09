@@ -12,6 +12,7 @@ import java.io.FileNotFoundException
 import java.time.LocalDateTime
 import scala.concurrent.Future
 import scala.concurrent.duration._
+import scala.util.Try
 import scala.xml.Elem
 
 class MavenCentralSpec extends PlaySpecification {
@@ -97,8 +98,8 @@ class MavenCentralSpec extends PlaySpecification {
     "create, upload, close, drop" in new WithApp() {
       val mavenCentral = app.injector.instanceOf[MavenCentral]
       if (
-        mavenCentral.maybeOssDeployUsername(app.configuration).isEmpty ||
-        mavenCentral.maybeOssDeployPassword(app.configuration).isEmpty ||
+        mavenCentral.maybeOssUsername(app.configuration).isEmpty ||
+        mavenCentral.maybeOssPassword(app.configuration).isEmpty ||
         mavenCentral.maybeOssGpgKey(app.configuration).isEmpty
       ) {
         skipped("skipped due to missing config")
@@ -135,6 +136,14 @@ class MavenCentralSpec extends PlaySpecification {
 
         await(mavenCentral.dropStaging(stagingRepo, "test drop")) must beEqualTo(())
       }
+    }
+  }
+
+  "authtoken" should {
+    "work" in new WithApp() {
+      val mavenCentral = app.injector.instanceOf[MavenCentral]
+      val attempt = Try(await(mavenCentral.authToken()))
+      attempt must beASuccessfulTry
     }
   }
 
@@ -191,4 +200,7 @@ class MavenCentralMock extends MavenCentral {
     None
   }
 
+  override def authToken(): Future[(String, String)] = {
+    Future.successful("" -> "")
+  }
 }

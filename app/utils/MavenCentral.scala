@@ -37,8 +37,6 @@ trait MavenCentral {
 
   def maybeOssUsername(configuration: Configuration): Option[String] = configuration.getOptional[String]("oss.username").filter(_.nonEmpty)
   def maybeOssPassword(configuration: Configuration): Option[String] = configuration.getOptional[String]("oss.password").filter(_.nonEmpty)
-  def maybeOssDeployUsername(configuration: Configuration): Option[String] = configuration.getOptional[String]("oss.deploy.username").filter(_.nonEmpty)
-  def maybeOssDeployPassword(configuration: Configuration): Option[String] = configuration.getOptional[String]("oss.deploy.password").filter(_.nonEmpty)
   def maybeOssGpgKey(configuration: Configuration): Option[String] = configuration.getOptional[String]("oss.gpg-key").filter(_.nonEmpty)
   def maybeOssGpgPass(configuration: Configuration): Option[String] = configuration.getOptional[String]("oss.gpg-pass").filter(_.nonEmpty)
 
@@ -48,6 +46,8 @@ trait MavenCentral {
   def webJars(webJarType: WebJarType): Future[List[WebJar]]
   def webJarsSorted(maybeWebJarType: Option[WebJarType] = None, dateTime: LocalDateTime = LocalDateTime.now().minusMonths(1)): Future[List[WebJar]]
   def getStats(webJarType: WebJarType, dateTime: LocalDateTime): Future[Map[(String, String), Int]]
+
+  def authToken(): Future[(String, String)]
 
   def asc(toSign: Array[Byte]): Option[String]
   def createStaging(description: String): Future[StagedRepo]
@@ -89,14 +89,58 @@ class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, config
     }
   }
 
-  def withOssDeployCredentials[T](f: (String, String) => Future[T]): Future[T] = {
-    val maybeUsernameAndPassword = for {
-      ossDeployUsername <- maybeOssDeployUsername(configuration)
-      ossDeployPassword <- maybeOssDeployPassword(configuration)
-    } yield (ossDeployUsername, ossDeployPassword)
+  // docs: https://support.sonatype.com/hc/en-us/articles/213465878-How-to-retrieve-a-user-token-from-Nexus-Repository-using-REST
+  override def authToken(): Future[(String, String)] = {
+    withOssCredentials { (ossUsername, ossPassword) =>
+      val j = Json.obj(
+        "u" -> Base64.getEncoder.encodeToString(ossUsername.getBytes),
+        "p" -> Base64.getEncoder.encodeToString(ossPassword.getBytes)
+      )
 
-    maybeUsernameAndPassword.fold(Future.failed[T](new IllegalArgumentException("oss.deploy.username or oss.deploy.password not set"))) { case (ossDeployUsername, ossDeployPassword) =>
-      f(ossDeployUsername, ossDeployPassword)
+      val ticket = wsClient.url("https://oss.sonatype.org/service/siesta/wonderland/authenticate")
+        .withHttpHeaders(HeaderNames.ACCEPT -> MimeTypes.JSON)
+        .withAuth(ossUsername, ossPassword, WSAuthScheme.BASIC)
+        .post(j)
+
+      ticket.flatMap { ticketResponse =>
+        if (ticketResponse.status == Status.OK) {
+          (ticketResponse.json \ "t").asOpt[String].fold[Future[(String, String)]](
+            Future.failed(new Error("Could not get auth ticket"))
+          ) { ticket =>
+            wsClient.url("https://oss.sonatype.org/service/siesta/usertoken/current")
+              .withHttpHeaders(HeaderNames.ACCEPT -> MimeTypes.JSON, "X-NX-AuthTicket" -> ticket)
+              .withAuth(ossUsername, ossPassword, WSAuthScheme.BASIC)
+              .get()
+              .flatMap { response =>
+                if (response.status == Status.OK) {
+                  val maybeNameCode = (response.json \ "nameCode").asOpt[String]
+                  val maybePassCode = (response.json \ "passCode").asOpt[String]
+
+                  val maybeCredentials = for {
+                    nameCode <- maybeNameCode
+                    passCode <- maybePassCode
+                  } yield (nameCode, passCode)
+
+                  maybeCredentials.fold[Future[(String, String)]](Future.failed(new Error("Could not get auth token")))(Future.successful)
+                }
+                else {
+                  Future.failed(new Error("Could not get auth token"))
+                }
+              }
+          }
+        }
+        else {
+          Future.failed(new Error(ticketResponse.statusText))
+        }
+      }
+    }
+  }
+
+  lazy val authTokenFuture: Future[(String, String)] = authToken()
+
+  def withOssDeployCredentials[T](f: (String, String) => Future[T]): Future[T] = {
+    authTokenFuture.flatMap { case (username, password) =>
+      f(username, password)
     }
   }
 
