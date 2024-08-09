@@ -51,13 +51,17 @@
                                     <option data-numfiles="@version.numFiles">@version.number</option>
                                 }
                                 </select>
-                                @defining(
-                                    webjar.`type` match {
-                                        case "classic" => webjar.artifactId
-                                        case _ => webjar.name
+                                @if(!webjar.`type`.toLowerCase.contains("bower")) {
+                                    @defining(
+                                        webjar.`type` match {
+                                            case "classic" => webjar.artifactId
+                                            case _ => webjar.name
+                                        }
+                                    ) { dataArtifactId =>
+                                        <button title="Create a new version" type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#newWebJarModal" data-webjar-type="@{
+                                            webjar.`type`
+                                        }" data-group-id="@webjar.groupId" data-artifact-id="@dataArtifactId"><span class="glyphicon glyphicon-plus"></span></button>
                                     }
-                                ) { dataArtifactId =>
-                                    <button title="Create a new version" type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#newWebJarModal" data-webjar-type="@{webjar.`type`}" data-group-id="@webjar.groupId" data-artifact-id="@dataArtifactId"><span class="glyphicon glyphicon-plus"></span></button>
                                 }
                             </form>
                         </td>
