@@ -142,8 +142,13 @@ class MavenCentralSpec extends PlaySpecification {
   "authtoken" should {
     "work" in new WithApp() {
       val mavenCentral = app.injector.instanceOf[MavenCentral]
-      val attempt = Try(await(mavenCentral.authToken()))
-      attempt must beASuccessfulTry
+      if (mavenCentral.maybeOssUsername(app.configuration).isEmpty || mavenCentral.maybeOssPassword(app.configuration).isEmpty) {
+        skipped("skipped due to missing config")
+      }
+      else {
+        val attempt = Try(await(mavenCentral.authToken()))
+        attempt must beASuccessfulTry
+      }
     }
   }
 
