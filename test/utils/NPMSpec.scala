@@ -476,7 +476,6 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
   "firebase" should {
     "have versions" in {
       val versions = await(npm.versions("firebase"))
-      println(versions.size)
       versions must not be empty
       versions.contains("10.13.0") must beTrue
     }
