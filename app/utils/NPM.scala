@@ -2,7 +2,7 @@ package utils
 
 import io.lemonlabs.uri.typesafe.dsl.urlToUrlDsl
 import io.lemonlabs.uri.{AbsoluteUrl, Url}
-import play.api.http.Status
+import play.api.http.{HeaderNames, Status}
 import play.api.i18n.{Langs, MessagesApi}
 import play.api.libs.concurrent.Futures
 import play.api.libs.functional.syntax._
@@ -75,10 +75,12 @@ class NPM @Inject() (val ws: WSClient, val licenseDetector: LicenseDetector, val
       git.versions(packageNameOrGitRepo)
     }
     else {
-      ws.url(registryMetadataUrl(packageNameOrGitRepo).toString()).get().flatMap { response =>
+      // only lite metadata
+      // https://github.com/npm/registry/blob/main/docs/responses/package-metadata.md
+      ws.url(registryMetadataUrl(packageNameOrGitRepo).toString()).withHttpHeaders(HeaderNames.ACCEPT -> "application/vnd.npm.install-v1+json").get().flatMap { response =>
         response.status match {
           case Status.OK =>
-            val versions = (response.json \ "versions").as[Map[String, JsObject]].keys.toSet
+            val versions = (response.json \ "versions").as[JsObject].keys.toSet
             Future.successful(versions)
           case _ => Future.failed(new Exception(response.body))
         }

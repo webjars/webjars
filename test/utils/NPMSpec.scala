@@ -473,6 +473,15 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
     packageInfo.maybeGitHubUrl must beSome (AbsoluteUrl.parse("https://github.com/GIP-RECIA/uPortal-web-components"))
   }
 
+  "firebase" should {
+    "have versions" in {
+      val versions = await(npm.versions("firebase"))
+      println(versions.size)
+      versions must not be empty
+      versions.contains("10.13.0") must beTrue
+    }
+  }
+
   /*
   Broken. See: https://github.com/webjars/webjars/issues/1920
   "have the right license for hmrc-frontend 1.27.0" in {
