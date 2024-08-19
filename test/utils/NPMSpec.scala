@@ -481,6 +481,14 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
     }
   }
 
+  "npm" should {
+    "work" in {
+      val packageInfo = await(npm.info("npm", "10.8.2"))
+      val depGraph = await(npm.depGraph(packageInfo))
+      depGraph.get("string-width") must beSome("4.2.3")
+    }
+  }
+
   /*
   Broken. See: https://github.com/webjars/webjars/issues/1920
   "have the right license for hmrc-frontend 1.27.0" in {

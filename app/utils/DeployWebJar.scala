@@ -395,6 +395,11 @@ trait Deployable extends WebJarType {
 
       urlish -> version
     }
+    else if (versionish.startsWith("npm:")) {
+      val name = versionish.stripPrefix("npm:").takeWhile(_ != '@')
+      val version = versionish.stripPrefix(name).dropWhile(_ != '@').stripPrefix("@")
+      name -> version
+    }
     else {
       name -> versionish.vless
     }
