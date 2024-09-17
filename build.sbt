@@ -16,7 +16,7 @@ libraryDependencies ++= Seq(
   "org.bouncycastle" % "bcpg-jdk18on" % "1.78.1",
   "com.outr" %% "hasher" % "1.2.3",
   "io.lemonlabs" %% "scala-uri" % "4.0.3",
-  "org.webjars" %% "webjars-play" % "3.0.1",
+  "org.webjars" %% "webjars-play" % "3.0.2",
   "org.webjars.bower" % "bootstrap" % "3.4.1",
   "org.webjars.bower" % "jquery" % "3.7.1",
   "org.webjars.bower" % "select2" % "3.5.4",
