@@ -6,53 +6,55 @@
 
 @main("WebJars - Web Libraries in Jars") {
 
-    <div style="padding-left: 15px; padding-right: 15px;">
-        <h2 style="float: left">All Deployed WebJars</h2>
+    <div class="container page-wrapper">
+        <h1>All Deployed WebJars</h1>
 
-        <table class="table table-striped table-bordered table-condensed">
-            <thead>
-                <tr>
-                    <th>Name</th>
-                    <th>GroupId</th>
-                    <th>ArtifactId</th>
-                    <th>Versions</th>
-                </tr>
-            </thead>
-            <tbody>
-                @webjarsOrError match {
-                    case Right(error) => {
-                        <tr>
-                            <td colspan="4">@Html(error)</td>
-                        </tr>
-                    }
-                    case Left(webjars) => {
-                        @if(webjars.isEmpty) {
+        <div class="table-responsive">
+            <table class="table table-striped table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>GroupId</th>
+                        <th>ArtifactId</th>
+                        <th>Versions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @webjarsOrError match {
+                        case Right(error) => {
                             <tr>
-                                <td colspan="4">No WebJars were found.</td>
+                                <td colspan="4">@Html(error)</td>
                             </tr>
                         }
+                        case Left(webjars) => {
+                            @if(webjars.isEmpty) {
+                                <tr>
+                                    <td colspan="4">No WebJars were found.</td>
+                                </tr>
+                            }
 
-                        @for(webjar <- webjars) {
-                            <tr>
-                                <td style="vertical-align: middle;">
-                                    <a href="@webjar.sourceUrl"><strong>@webjar.name</strong></a>
-                                </td>
-                                <td style="vertical-align: middle;">
-                                    @webjar.groupId
-                                </td>
-                                <td style="vertical-align: middle;">
-                                    @webjar.artifactId
-                                </td>
-                                <td style="vertical-align: middle;">
-                                    @for(version <- webjar.versions) {
-                                        <a href="@routes.Application.listFiles(webjar.groupId, webjar.artifactId, URLEncoder.encode(version.number, "UTF-8"))">@version.number</a>
-                                    }
-                                </td>
-                            </tr>
+                            @for(webjar <- webjars) {
+                                <tr>
+                                    <td>
+                                        <a href="@webjar.sourceUrl"><strong>@webjar.name</strong></a>
+                                    </td>
+                                    <td>
+                                        @webjar.groupId
+                                    </td>
+                                    <td>
+                                        @webjar.artifactId
+                                    </td>
+                                    <td>
+                                        @for(version <- webjar.versions) {
+                                            <a href="@routes.Application.listFiles(webjar.groupId, webjar.artifactId, URLEncoder.encode(version.number, "UTF-8"))">@version.number</a>
+                                        }
+                                    </td>
+                                </tr>
+                            }
                         }
                     }
-                }
-            </tbody>
-        </table>
+                </tbody>
+            </table>
+        </div>
     </div>
 }

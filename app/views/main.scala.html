@@ -3,8 +3,7 @@
 @(title: String)(content: Html)
 
 <!DOCTYPE html>
-
-<html lang="en">
+<html lang="en" data-bs-theme="dark">
     <head>
         <meta charset="utf-8">
         <meta http-equiv="X-UA-Compatible" content="IE=edge">
@@ -13,19 +12,23 @@
         <link rel="shortcut icon" href="/favicon.ico" />
         <link rel="icon" type="image/png" href="@routes.Assets.versioned("logo.png")" />
 
+        <!-- Googlr fonts -->
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
 
-        @webJarsUtil.locate("bootstrap.min.css").css()
-        @webJarsUtil.locate("bootstrap-theme.min.css").css()
+        <!-- Styles -->
         @webJarsUtil.locate("select2.css").css()
         @webJarsUtil.locate("select2-bootstrap.css").css()
-        @webJarsUtil.locate("default.css").css()
-        <link rel="stylesheet" href='@routes.Assets.versioned("main.css")'>
+        @webJarsUtil.locate("atom-one-dark.min.css").css()
+        <link rel="stylesheet" href='@routes.Assets.versioned("stylesheets/main.css")'>
 
+        <!-- Scripts -->
         @webJarsUtil.locate("jquery.min.js").script()
-        @webJarsUtil.locate("bootstrap.min.js").script()
+        @webJarsUtil.locate("bootstrap.bundle.min.js").script()
         @webJarsUtil.locate("select2.min.js").script()
-        @webJarsUtil.locate("highlight.pack.min.js").script()
-        <script>hljs.initHighlightingOnLoad();</script>
+        @webJarsUtil.locate("highlight.min.js").script()
+        <script>hljs.highlightAll();</script>
 
         <!-- Google tag (gtag.js) -->
         <script async src="https://www.googletagmanager.com/gtag/js?id=G-EEV2YQX882"></script>
@@ -37,29 +40,12 @@
           gtag('config', 'G-EEV2YQX882');
         </script>
     </head>
+
     <body>
-        <nav class="navbar navbar-inverse navbar-fixed-top">
-            <div class="container-fluid">
-                <div class="navbar-header">
-                    <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#main-nav-links" aria-expanded="false">
-                        <span class="sr-only">Toggle navigation</span>
-                        <span class="icon-bar"></span>
-                        <span class="icon-bar"></span>
-                        <span class="icon-bar"></span>
-                    </button>
-                    <a class="navbar-brand" style="padding-top: 10px" href="@routes.Application.index()">
-                        <img alt="WebJars" src="@routes.Assets.versioned("logo.png")" height="30">
-                    </a>
-                    <a class="navbar-brand @if(title.indexOf("Web Libraries in Jars") > -1) { active }" href="@routes.Application.index()">WebJars</a>
-                </div>
-                <div class="collapse navbar-collapse" id="main-nav-links">
-                    <ul class="nav navbar-nav">
-                        <li @if(title.toLowerCase.indexOf("doc") > -1) { class="active" }><a href="@routes.Application.documentation()">Documentation</a></li>
-                    </ul>
-                </div>
-            </div>
-        </nav>
+        @partials.navbar()
 
         @content
+
+        @partials.footer()
     </body>
 </html>

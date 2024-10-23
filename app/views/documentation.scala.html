@@ -17,54 +17,65 @@
         });
     </script>
 
-    <div class="jumbotron" style="margin-bottom: 20px;">
-        <div class="container">
-            <h4><strong>WebJars work with most JVM-based containers and web frameworks. Using a WebJar requires:</strong></h4>
-            <ol>
-                <li>The WebJar needs to be a dependency of your application</li>
-                <li>The WebJar needs to be in your application's running CLASSPATH</li>
-                <li>Your container, web framework, or application needs to serve static assets from Jar files</li>
-            </ol>
-            <h4 style="padding-top: 15px;">Public CDN via <a href="http://www.jsdelivr.com" target="_blank">jsDelivr</a></h4>
-            All of the WebJar contents are available on the public <a href="http://www.jsdelivr.com" target="_blank">jsDelivr</a> CDN.
-            Just prefix <code>//cdn.jsdelivr.net/webjars/{groupId}</code> in front of your static asset URLs.  For instance, if using the <code>org.webjars : jquery</code> WebJar and your local URL to <code>jquery.js</code> is <code>/webjars/jquery/2.1.0/jquery.js</code> then the CDN URL would be: <code>//cdn.jsdelivr.net/webjars/org.webjars/jquery/2.1.0/jquery.js</code>
-        </div>
-    </div>
-
-    <div class="alert alert-warning" role="alert" style="margin-left: 15px; margin-right: 15px;">
-        Help improve these docs! <a href="https://github.com/webjars/webjars/blob/master/app/views/documentation.scala.html">Documentation Source</a> | <a href="https://github.com/webjars/webjars/issues/new">Create an Issue</a>
-    </div>
-
-    <div style="padding-left: 15px; padding-right: 15px;">
+<div class="container page-wrapper">
+    <h1>Documentation</h1>
 
     <div class="row">
 
-        <div class="col-sm-3 col-md-2">
-            <ul id="framework-tabs" class="nav nav-pills nav-stacked">
-                <li class="active"><a href="#play2" data-toggle="tab">Play Framework 2</a></li>
-                <li><a href="#xitrum" data-toggle="tab">Xitrum</a></li>
-                <li><a href="#servlet3" data-toggle="tab">Servlet 3</a></li>
-                <li><a href="#servlet2" data-toggle="tab">Servlet 2</a></li>
-                <li><a href="#jsf" data-toggle="tab">JSF</a></li>
-                <li><a href="#grails" data-toggle="tab">Grails</a></li>
-                <li><a href="#dropwizard" data-toggle="tab">Dropwizard</a></li>
-                <li><a href="#springboot" data-toggle="tab">Spring Boot</a></li>
-                <li><a href="#springmvc" data-toggle="tab">Spring MVC</a></li>
-                <li><a href="#tapestry" data-toggle="tab">Apache Tapestry</a></li>
-                <li><a href="#wicket" data-toggle="tab">Apache Wicket</a></li>
-                <li><a href="#pippo" data-toggle="tab">Pippo</a></li>
-                <li><a href="#ring" data-toggle="tab">Ring (Clojure)</a></li>
-                <li><a href="#dandelion" data-toggle="tab">Dandelion</a></li>
-                <li><a href="#vertx" data-toggle="tab">Vert.x Web</a></li>
-                <li><a href="#quarkus" data-toggle="tab">Quarkus</a></li>
-                <li><a href="#ktor" data-toggle="tab">Ktor</a></li>
-            </ul>
-        </div>
+        <aside class="col-lg-3 col-xl-2">
+            <div id="sidebar-nav" class="offcanvas-lg offcanvas-start" tabindex="-1" aria-labelledby="offcanvasExampleLabel">
+                <div class="offcanvas-header border-bottom">
+                    <h5 class="offcanvas-title" id="bdSidebarOffcanvasLabel">Browse docs</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close" data-bs-target="#sidebar-nav"></button>
+                </div>
 
-        <div class="col-sm-9 col-md-10 tab-content">
+                <div class="offcanvas-body">
+                    <nav class="nav-sidebar">
+                        <ul id="framework-tabs" class="nav nav-pills flex-column" role="tablist">
+                            <li class="nav-item" role="presentation"><a class="nav-link active" href="#usage" data-bs-toggle="tab">Usage</a></li>
+                            <li class="nav-item" role="presentation"><a class="nav-link" href="#play2" data-bs-toggle="tab">Play Framework 2</a></li>
+                            <li class="nav-item" role="presentation"><a class="nav-link" href="#xitrum" data-bs-toggle="tab">Xitrum</a></li>
+                            <li class="nav-item" role="presentation"><a class="nav-link" href="#servlet3" data-bs-toggle="tab">Servlet 3</a></li>
+                            <li class="nav-item" role="presentation"><a class="nav-link" href="#servlet2" data-bs-toggle="tab">Servlet 2</a></li>
+                            <li class="nav-item" role="presentation"><a class="nav-link" href="#jsf" data-bs-toggle="tab">JSF</a></li>
+                            <li class="nav-item" role="presentation"><a class="nav-link" href="#grails" data-bs-toggle="tab">Grails</a></li>
+                            <li class="nav-item" role="presentation"><a class="nav-link" href="#dropwizard" data-bs-toggle="tab">Dropwizard</a></li>
+                            <li class="nav-item" role="presentation"><a class="nav-link" href="#springboot" data-bs-toggle="tab">Spring Boot</a></li>
+                            <li class="nav-item" role="presentation"><a class="nav-link" href="#springmvc" data-bs-toggle="tab">Spring MVC</a></li>
+                            <li class="nav-item" role="presentation"><a class="nav-link" href="#tapestry" data-bs-toggle="tab">Apache Tapestry</a></li>
+                            <li class="nav-item" role="presentation"><a class="nav-link" href="#wicket" data-bs-toggle="tab">Apache Wicket</a></li>
+                            <li class="nav-item" role="presentation"><a class="nav-link" href="#pippo" data-bs-toggle="tab">Pippo</a></li>
+                            <li class="nav-item" role="presentation"><a class="nav-link" href="#ring" data-bs-toggle="tab">Ring (Clojure)</a></li>
+                            <li class="nav-item" role="presentation"><a class="nav-link" href="#dandelion" data-bs-toggle="tab">Dandelion</a></li>
+                            <li class="nav-item" role="presentation"><a class="nav-link" href="#vertx" data-bs-toggle="tab">Vert.x Web</a></li>
+                            <li class="nav-item" role="presentation"><a class="nav-link" href="#quarkus" data-bs-toggle="tab">Quarkus</a></li>
+                            <li class="nav-item" role="presentation"><a class="nav-link" href="#ktor" data-bs-toggle="tab">Ktor</a></li>
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+        </aside>
+
+        <div class="col col-lg-9 col-xl-10 tab-content">
+            <div class="alert alert-warning" role="alert">
+                Help improve these docs! <a href="https://github.com/webjars/webjars/blob/master/app/views/documentation.scala.html">Documentation Source</a> | <a href="https://github.com/webjars/webjars/issues/new">Create an Issue</a>
+            </div>
+
+            <!-- Usage -->
+            <div class="tab-pane active" id="usage">
+                <h4><strong>WebJars work with most JVM-based containers and web frameworks. Using a WebJar requires:</strong></h4>
+                <ol>
+                    <li>The WebJar needs to be a dependency of your application</li>
+                    <li>The WebJar needs to be in your application's running CLASSPATH</li>
+                    <li>Your container, web framework, or application needs to serve static assets from Jar files</li>
+                </ol>
+                <h4 style="padding-top: 15px;">Public CDN via <a href="http://www.jsdelivr.com" target="_blank">jsDelivr</a></h4>
+                All of the WebJar contents are available on the public <a href="http://www.jsdelivr.com" target="_blank">jsDelivr</a> CDN.
+                Just prefix <code>//cdn.jsdelivr.net/webjars/{groupId}</code> in front of your static asset URLs.  For instance, if using the <code>org.webjars : jquery</code> WebJar and your local URL to <code>jquery.js</code> is <code>/webjars/jquery/2.1.0/jquery.js</code> then the CDN URL would be: <code>//cdn.jsdelivr.net/webjars/org.webjars/jquery/2.1.0/jquery.js</code>
+            </div>
 
             <!-- Play Framework 2 -->
-            <div class="tab-pane active" id="play2">
+            <div class="tab-pane" id="play2">
                 <h3>Instructions for Play 2.6 (<a href="https://github.com/webjars/sample-play2">Sample Source</a>)</h3>
                 WebJars can be added as dependencies to an app by simply adding them to the <span class="label label-info">build.sbt</span> file like:<br>
                 <pre><code>libraryDependencies += "org.webjars" % "bootstrap" % "3.1.1-2"</code></pre>
@@ -870,3 +881,5 @@ val server = embeddedServer(CIO, port = 8080) {
     </div>
 
 }
+
+</div>

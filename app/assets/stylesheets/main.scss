@@ -1,0 +1,280 @@
+// 1. Include functions first (so you can manipulate colors, SVGs, calc, etc)
+@import "lib/bootstrap/scss/functions";
+
+// 2. Include any default variable overrides here
+$font-family-base: "Inter", sans-serif;
+
+// $primary: #ed6767;
+$primary: #6610f2;
+$secondary: #111113;
+
+$body-bg-dark: #111113;
+$card-bg: #161617;
+
+// 3. Include remainder of required Bootstrap stylesheets (including any separate color mode stylesheets)
+@import "lib/bootstrap/scss/variables";
+@import "lib/bootstrap/scss/variables-dark";
+
+// 4. Include any default map overrides here
+
+// 5. Include remainder of required parts
+@import "lib/bootstrap/scss/maps";
+@import "lib/bootstrap/scss/mixins";
+@import "lib/bootstrap/scss/root";
+
+// 6. Optionally include any other parts as needed
+@import "lib/bootstrap/scss/utilities";
+@import "lib/bootstrap/scss/reboot";
+@import "lib/bootstrap/scss/type";
+@import "lib/bootstrap/scss/images";
+@import "lib/bootstrap/scss/containers";
+@import "lib/bootstrap/scss/grid";
+@import "lib/bootstrap/scss/tables";
+@import "lib/bootstrap/scss/forms";
+@import "lib/bootstrap/scss/buttons";
+@import "lib/bootstrap/scss/transitions";
+@import "lib/bootstrap/scss/dropdown";
+@import "lib/bootstrap/scss/button-group";
+@import "lib/bootstrap/scss/nav";
+@import "lib/bootstrap/scss/navbar";
+@import "lib/bootstrap/scss/card";
+@import "lib/bootstrap/scss/accordion";
+@import "lib/bootstrap/scss/breadcrumb";
+@import "lib/bootstrap/scss/pagination";
+@import "lib/bootstrap/scss/badge";
+@import "lib/bootstrap/scss/alert";
+@import "lib/bootstrap/scss/progress";
+@import "lib/bootstrap/scss/list-group";
+@import "lib/bootstrap/scss/close";
+@import "lib/bootstrap/scss/toasts";
+@import "lib/bootstrap/scss/modal";
+@import "lib/bootstrap/scss/tooltip";
+@import "lib/bootstrap/scss/popover";
+@import "lib/bootstrap/scss/carousel";
+@import "lib/bootstrap/scss/spinners";
+@import "lib/bootstrap/scss/offcanvas";
+@import "lib/bootstrap/scss/placeholders";
+@import "lib/bootstrap/scss/helpers";
+
+// 7. Optionally include utilities API last to generate classes based on the Sass map in `_utilities.scss`
+@import "lib/bootstrap/scss/utilities/api";
+
+// 8. Add additional custom code here
+body {
+  position: relative;
+}
+
+a {
+  text-decoration: none;
+}
+
+ol,
+ul {
+  padding-left: 1rem;
+}
+
+.navbar {
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.card {
+  height: 100%;
+
+  &-title {
+    font-size: 1.125rem;
+    font-weight: 500;
+  }
+
+  &-body {
+    font-size: 0.75rem;
+    font-weight: 400;
+  }
+}
+
+.section-wrapper {
+  padding-top: 5rem;
+  padding-bottom: 5rem;
+
+  &-title {
+    text-align: center;
+    font-size: 1.75rem;
+    font-weight: 700;
+    margin-bottom: 2rem;
+  }
+}
+
+.page-wrapper {
+  padding-top: 5rem;
+  padding-bottom: 5rem;
+
+  h1 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 3rem;
+  }
+}
+
+.footer-content {
+  height: 5rem;
+}
+
+.hero-section {
+  &-title {
+    width: 100%;
+    max-width: 960px;
+    text-align: center;
+    font-size: 2.5rem;
+    font-weight: 700;
+  }
+}
+
+.home-bg {
+  position: relative;
+  overflow-x: hidden;
+  margin-top: -5rem;
+  padding-top: 5rem;
+
+  &:after {
+    content: "";
+    width: 10rem;
+    height: 40rem;
+    background: linear-gradient(90deg, $purple 30%, $indigo 100%);
+    filter: blur(150px);
+    position: absolute;
+    left: 15rem;
+    top: -10rem;
+    transform: rotate(45deg);
+    z-index: -1;
+  }
+
+  &:before {
+    content: "";
+    width: 15rem;
+    height: 50rem;
+    background: linear-gradient(90deg, $indigo 30%, $purple 100%);
+    filter: blur(150px);
+    position: absolute;
+    right: -10rem;
+    top: -2rem;
+    transform: rotate(45deg);
+    z-index: -1;
+  }
+}
+
+.search-input {
+  position: relative;
+  width: 100%;
+  max-width: 720px;
+}
+
+.features-list {
+  li {
+    line-height: 2;
+
+    &:before {
+      display: inline-block;
+      content: "";
+      vertical-align: -0.375rem;
+      background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" fill="%2320C997" class="bi bi-check-circle" viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/><path d="m10.97 4.97-.02.022-3.473 4.425-2.093-2.094a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-1.071-1.05"/></svg>');
+      background-repeat: no-repeat;
+      width: 1.5rem;
+      height: 1.5rem;
+      margin-right: 0.75rem;
+    }
+  }
+}
+
+.nav-sidebar {
+  max-height: calc(100vh - 160px);
+  overflow-y: auto;
+  position: sticky;
+  top: 5rem;
+}
+
+pre {
+  margin-bottom: 0;
+  margin-top: 3px;
+  padding-top: 2px;
+  padding-bottom: 2px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+.build-instructions pre {
+  border-style: none;
+  background: none;
+  padding: 0;
+  font-size: 10px;
+}
+
+.table-versions {
+  width: 240px;
+}
+
+.table-files {
+  width: 80px;
+}
+
+#clearSearch {
+  position: absolute;
+  top: 0;
+  color: #999999;
+  display: none;
+  right: 5px;
+  bottom: 0;
+  height: 14px;
+  margin: auto;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.tab-pane h3 {
+  margin-top: 0;
+}
+
+.select2-container .select2-choice {
+  height: 30px;
+  line-height: 30px;
+}
+
+.spin {
+  -webkit-animation: spin 1000ms infinite linear;
+  animation: spin 1000ms infinite linear;
+}
+
+@-webkit-keyframes spin {
+  0% {
+    -webkit-transform: rotate(0deg);
+    transform: rotate(0deg);
+  }
+  100% {
+    -webkit-transform: rotate(359deg);
+    transform: rotate(359deg);
+  }
+}
+
+@keyframes spin {
+  0% {
+    -webkit-transform: rotate(0deg);
+    transform: rotate(0deg);
+  }
+  100% {
+    -webkit-transform: rotate(359deg);
+    transform: rotate(359deg);
+  }
+}
+
+@media (min-width: 992px) {
+  .page-wrapper {
+    h1 {
+      font-size: 3rem;
+    }
+  }
+
+  .hero-section {
+    &-title {
+      font-size: 3rem;
+    }
+  }
+}

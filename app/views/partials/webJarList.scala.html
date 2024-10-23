@@ -1,0 +1,87 @@
+@(webjarsOrError: Either[Iterable[WebJar], String])
+
+@import java.net.URLEncoder
+
+<table class="table table-striped table-hover align-middle">
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th class="table-versions">Versions</th>
+            <th>Dependency</th>
+            <th class="table-files text-end">Files</th>
+        </tr>
+    </thead>
+
+    <tbody>
+        @webjarsOrError match {
+            case Right(error) => {
+                <tr>
+                    <td colspan="4">
+                        @Html(error)
+                    </td>
+                </tr>
+            }
+            case Left(webjars) => {
+                @if(webjars.isEmpty) {
+                    <tr>
+                        <td colspan="4">
+                            No WebJars were found.
+                        </td>
+                    </tr>
+                }
+
+                @for(webjar <- webjars) {
+                    <tr data-group="@webjar.groupId" data-artifact="@webjar.artifactId">
+                        <td>
+                            <a href="@webjar.sourceUrl"><strong>@webjar.name</strong></a>
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                <form role="form">
+                                    <select class="form-select form-select-sm versions" style="width: 200px" onchange="changeVersion(event)" name="@webjar.groupId:@webjar.artifactId">
+                                    @for(version <- webjar.versions) {
+                                        <option data-numfiles="@version.numFiles">@version.number</option>
+                                    }
+                                    </select>
+                                </form>
+
+                                @if(!webjar.`type`.toLowerCase.contains("bower")) {
+                                    @defining(
+                                        webjar.`type` match {
+                                            case "classic" => webjar.artifactId
+                                            case _ => webjar.name
+                                        }
+                                    ) { dataArtifactId =>
+                                        <button title="Create a new version" type="button" class="btn btn-primary d-flex align-items-center justify-content-center" data-bs-toggle="modal" data-bs-target="#newWebJarModal" data-webjar-type="@{
+                                            webjar.`type`
+                                        }" data-group-id="@webjar.groupId" data-artifact-id="@dataArtifactId">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-plus-lg" viewBox="0 0 16 16">
+                                                <path fill-rule="evenodd" d="M8 2a.5.5 0 0 1 .5.5v5h5a.5.5 0 0 1 0 1h-5v5a.5.5 0 0 1-1 0v-5h-5a.5.5 0 0 1 0-1h5v-5A.5.5 0 0 1 8 2"/>
+                                            </svg>
+                                        </button>
+                                    }
+                                }
+                            </div>
+                        </td>
+                        <td>
+                            <div class="build-instructions">
+                                <pre>"@webjar.groupId" % "@webjar.artifactId" % "@webjar.versions.head.number"</pre>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="files text-end @webjar.artifactId">
+                                <a href="@routes.Application.listFiles(webjar.groupId, webjar.artifactId, URLEncoder.encode(webjar.versions.head.number, "UTF-8"))" class="file-list-link">
+                                @if(webjar.versions.head.numFiles == 0) {
+                                    List Files
+                                } else {
+                                    @webjar.versions.head.numFiles Files
+                                }
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            }
+        }
+    </tbody>
+</table>

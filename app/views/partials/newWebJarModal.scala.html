@@ -1,0 +1,51 @@
+<div id="newWebJarModal" class="modal fade" tabindex="-1" aria-labelledby="newWebJarModalLabel">
+    <div class="modal-dialog modal-fullscreen">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title" id="newWebJarModalLabel">Add a New WebJar</h4>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <div class="modal-body">
+                <form class="form-inline" style="margin-bottom: 10px;">
+                    <div class="form-group">
+                        <span class="control-label" style="font-weight: bold">WebJar Type: </span>
+                        <label class="radio-inline">
+                            <input type="radio" name="new_webjar_catalog" value="npm" checked> NPM
+                        </label>
+                        <label class="radio-inline">
+                            <input type="radio" name="new_webjar_catalog" value="classic"> Classic
+                        </label>
+                    </div>
+                </form>
+
+                <div class="webjar-deploy">
+                    <form id="webjar-deploy" class="form-inline">
+                        <div class="form-group has-feedback">
+                            <input type="text" class="form-control input-sm" id="newWebJarName" aria-describedby="newWebJarNameStatus" style="width: 280px" placeholder="Package Name or Git Repo URL">
+                            <span id="newWebJarNameFeedback" class="glyphicon form-control-feedback hidden" aria-hidden="true"></span>
+                            <span id="newWebJarNameStatus" class="sr-only">(success)</span>
+                        </div>
+                        <div class="form-group">
+                            <label for="newWebJarVersion" class="control-label sr-only">Package Version</label>
+                            <input id="newWebJarVersion" type="text" style="width: 284px" disabled data-placeholder="Version"/>
+                        </div>
+                        <div id="classic-deploy-error" class="hidden invalid-feedback">
+                            <br/>
+                            <p><b>That Classic WebJar Can't Be Deployed This Way</b></p>
+                            <p>If you need a new version of an existing Classic WebJar, <a id="classic-error-url">create a request on the WebJar's repo</a>.</p>
+                            <p>If you need a new Classic WebJar, <a href="https://github.com/webjars/webjars-classic/issues/new">create a request to have it created</a>.</p>
+                        </div>
+                    </form>
+
+                    <h5>Deploy Log</h5>
+                    <pre id="deployLog" style="height: 200px; white-space: pre-line; word-break: normal;" disabled></pre>
+                </div>
+            </div>
+
+            <div class="modal-footer webjar-deploy">
+                <button id="deployButton" type="button" class="btn btn-default pull-left" disabled>Deploy!</button>
+            </div>
+        </div>
+    </div>
+</div>
