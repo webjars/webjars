@@ -1,10 +1,4 @@
-<script>
-$(document).ready(function() {
-    $('#main-nav-links').find('.nav-link').each(function() {
-        $(this).attr('href') === window.location.pathname ? $(this).addClass('active') : $(this).removeClass('active');
-    });
-});
-</script>
+@(currentPath: String)
 
 <nav class="navbar navbar-expand-lg shadow-sm sticky-top">
     <div class="container">
@@ -22,10 +16,10 @@ $(document).ready(function() {
         <div class="collapse navbar-collapse">
             <ul id="main-nav-links" class="navbar-nav">
                 <li class="nav-item">
-                    <a class="nav-link" href="@routes.Application.allWebJars()">All WebJars</a>
+                    <a class="nav-link @if(currentPath == routes.Application.allWebJars().toString()) { active }" href="@routes.Application.allWebJars()">All WebJars</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="@routes.Application.documentation()">Documentation</a>
+                    <a class="nav-link @if(currentPath == routes.Application.documentation().toString()) { active }" href="@routes.Application.documentation()">Documentation</a>
                 </li>
             </ul>
         </div>

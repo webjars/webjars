@@ -1,6 +1,6 @@
 @this(webJarsUtil: org.webjars.play.WebJarsUtil)
 
-@(title: String)(content: Html)
+@(title: String, currentPath: String = "/")(content: Html)
 
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="dark">
@@ -42,7 +42,7 @@
     </head>
 
     <body>
-        @partials.navbar()
+        @partials.navbar(currentPath)
 
         @content
 

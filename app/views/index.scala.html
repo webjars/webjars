@@ -2,7 +2,7 @@
 
 @(webjarsOrError: Either[Iterable[WebJar], String])
 
-@main("WebJars - Web Libraries in Jars") {
+@main(title = "WebJars - Web Libraries in Jars") {
     <!-- Scripts -->
     <script type="text/javascript" src="@routes.Assets.versioned("javascripts/index.js")"></script>
     @webJarsUtil.locate("jquery.typewatch.js").script()
