@@ -2,20 +2,20 @@
 
 @main(title = "WebJars - Documentation", currentPath = "/documentation") {
 
-    <script>
-        $(function() {
-            var frameworkTabs = $('#framework-tabs');
+<script>
+$(function() {
+    var frameworkTabs = $('#framework-tabs');
 
-            frameworkTabs.find('a').click(function (e) {
-                e.preventDefault();
-                $(this).tab('show');
-                var id = $(e.target).attr("href").substr(1);
-                window.history.pushState(null, null, '#' + id);
-            });
+    frameworkTabs.find('a').click(function (e) {
+        e.preventDefault();
+        $(this).tab('show');
+        var id = $(e.target).attr("href").substr(1);
+        window.history.pushState(null, null, '#' + id);
+    });
 
-            frameworkTabs.find('a[href="' + window.location.hash + '"]').tab('show');
-        });
-    </script>
+    frameworkTabs.find('a[href="' + window.location.hash + '"]').tab('show');
+});
+</script>
 
 <div class="container page-wrapper">
     <h1>Documentation</h1>
@@ -63,823 +63,97 @@
 
             <!-- Usage -->
             <div class="tab-pane active" id="usage">
-                <h4><strong>WebJars work with most JVM-based containers and web frameworks. Using a WebJar requires:</strong></h4>
-                <ol>
-                    <li>The WebJar needs to be a dependency of your application</li>
-                    <li>The WebJar needs to be in your application's running CLASSPATH</li>
-                    <li>Your container, web framework, or application needs to serve static assets from Jar files</li>
-                </ol>
-                <h4 style="padding-top: 15px;">Public CDN via <a href="http://www.jsdelivr.com" target="_blank">jsDelivr</a></h4>
-                All of the WebJar contents are available on the public <a href="http://www.jsdelivr.com" target="_blank">jsDelivr</a> CDN.
-                Just prefix <code>//cdn.jsdelivr.net/webjars/{groupId}</code> in front of your static asset URLs.  For instance, if using the <code>org.webjars : jquery</code> WebJar and your local URL to <code>jquery.js</code> is <code>/webjars/jquery/2.1.0/jquery.js</code> then the CDN URL would be: <code>//cdn.jsdelivr.net/webjars/org.webjars/jquery/2.1.0/jquery.js</code>
+                @documentations.usage()
             </div>
 
             <!-- Play Framework 2 -->
             <div class="tab-pane" id="play2">
-                <h3>Instructions for Play 2.6 (<a href="https://github.com/webjars/sample-play2">Sample Source</a>)</h3>
-                WebJars can be added as dependencies to an app by simply adding them to the <span class="label label-info">build.sbt</span> file like:<br>
-                <pre><code>libraryDependencies += "org.webjars" % "bootstrap" % "3.1.1-2"</code></pre>
-                <br>
-                Play automatically extracts the WebJar contents and makes them available via the <span class="label label-info">Assets</span> controller.  So, if you have a route like:
-                <pre><code>GET         /assets/*file           controllers.Assets.at(path="/public", file)</code></pre>
-                <br/>
-                Then a WebJar file like <code>bootstrap.css</code> is available at:
-                <pre><code>/assets/lib/bootstrap/css/bootstrap.css</code></pre>
-                <br/>
-
-                There is also a helper library named <span class="label label-info">webjars-play</span> that makes it easy to reference WebJar assets.  Here is an example <span class="label label-info">build.sbt</span> file with <span class="label label-info">webjars-play</span> and the <span class="label label-info">bootstrap</span> WebJar as dependencies:<br>
-                <pre><code>libraryDependencies ++= Seq(
-  "org.webjars" %% "webjars-play" % "2.6.3",
-  "org.webjars" % "bootstrap" % "3.1.1-2"
-)</code></pre>
-                <br>
-                After changing the dependencies you will need to restart Play.<br>
-                <br>
-
-                The <span class="label label-info">webjars-play</span> helper library has a wrapper around the Play Static Asset Controller that can locate and serve WebJar assets.  A new route import needs to be added to the <span class="label label-info">conf/routes</span> file:
-                <pre><code>-&gt;          /webjars                webjars.Routes</code></pre>
-                <br>
-                The <span class="label label-info">org.webjars.play.WebJarsUtil</span> class has a number of helpful methods for locating and loading assets.  <a href="https://javadoccentral.herokuapp.com/org.webjars/webjars-play_2.12/2.6.3/org/webjars/play/WebJarsUtil.html">Check out the JavaDoc</a>.  To use it you need to inject an instance of <span class="label label-info">WebJarsUtil</span> - usually into a template.  For example:
-                <pre><code>@@this(webJarsUtil: org.webjars.play.WebJarsUtil)
-
-... HTML page ...
-
-@@webJarsUtil.locate("bootstrap.min.css").css()
-@@webJarsUtil.locate("bootstrap.min.js").script()</code></pre>
-                <br/>
-                WebJars have out-of-the-box support for RequireJS.  To use it in a template, call the <span class="label label-info">webJarsUtil.requireJs</span> method with a reverse route to the main JavaScript app:
-                <pre><code>@@webJarsUtil.requireJs(routes.Assets.versioned("javascripts/index.js"))</code></pre>
-                <br/>
-
-                If you need to override the default RequireJS config you can use a lower-level <code>RequireJS</code> API to setup the config, for example:
-                <pre><code>&lt;script&gt;
-  var require = {
-    callback: function() {
-      // default requirejs configs
-      @@for(webJarJson <- org.webjars.RequireJS.getSetupJson(routes.WebJarAssets.at("").url).values()) {
-        @@if(webJarJson != null) {
-          requirejs.config(@@Html(webJarJson.toString));
-        }
-      }
-
-      // example custom requirejs config
-      requirejs.config({
-        paths: {
-          jquery: "//code.jquery.com/jquery-1.11.1.min"
-        },
-        shim: {
-          bootstrap: []
-        }
-      });
-    }
-  };
-&lt;/script&gt;
-@@webJarsUtil.locate("requirejs", "require.min.js").script(Map("data-main" -> routes.Assets.versioned("javascripts/index.js").url))</code></pre>
-                <br>
-                You can load WebJar assets from a CDN by setting the following config:<br>
-                <pre><code>webjars.use-cdn=true
-play.filters.headers.contentSecurityPolicy = "default-src 'self' https://cdn.jsdelivr.net"</code></pre>
+                @documentations.playFramework()
             </div>
-
 
             <!-- Xitrum -->
             <div class="tab-pane" id="xitrum">
-                <h3>Instructions for Xitrum</h3>
-
-                <p><a href="http://xitrum-framework.github.io/">Xitrum</a>
-                from 3.13 has <a href="http://xitrum-framework.github.io/guide/static.html#serve-resource-files-in-classpath-with-webjars-convention">built-in</a>
-                support for WebJars. If you have a dependency like this:</p>
-
-                <pre><code>libraryDependencies += "org.webjars" % "underscorejs" % "1.6.0-3"</code></pre>
-
-                <p>In you <a href="http://scalate.fusesource.org/">Scalate</a>
-                view template file, you can write like this (the below examples
-                use <a href="http://scalate.fusesource.org/documentation/jade.html">Jade</a>
-                syntax):</p>
-
-                <pre><code>script(src={webJarsUrl("underscorejs/1.6.0", "underscore.js", "underscore-min.js")})</code></pre>
-
-                <p>Xitrum will automatically use <code>underscore.js</code> for
-                development environment and <code>underscore-min.js</code> for
-                production environment.</p>
-
-                <p>The result will look like this:</p>
-
-                <pre><code>&lt;script src=&quot;/webjars/underscorejs/1.6.0/underscore.js?XOKgP8_KIpqz9yUqZ1aVzw&quot;&gt;&lt;/script&gt;</code></pre>
-
-                <p>If you want to use the same file for both environments:</p>
-
-                <pre><code>script(src={webJarsUrl("underscorejs/1.6.0/underscore.js")})</code></pre>
-
-                <p>For examples, see
-                <a href="https://github.com/xitrum-framework/xitrum-new">xitrum-new</a>
-                and
-                <a href="https://github.com/xitrum-framework/xitrum-demos">xitrum-demos</a>
-                (<a href="http://ec2-54-249-135-186.ap-northeast-1.compute.amazonaws.com:8151/">online</a>).</p>
+                @documentations.xitrum()
             </div>
-
 
             <!-- Servlet 3 -->
             <div class="tab-pane" id="servlet3">
-                <h3>Instructions for Servlet 3</h3>
-
-                With any Servlet 3 compatible container, the WebJars that are in the <span class="label label-info">WEB-INF/lib</span> directory are automatically made available as static resources.  This works because anything in a <span class="label label-info">META-INF/resources</span> directory in a JAR in <span class="label label-info">WEB-INF/lib</span> is automatically exposed as a static resource. Please note that in case of Tomcat the JarScanner should not be configured to skip the WebJars (e.g. when jarsToSkip is set to * add the WebJars to jarsToScan).
-
-                <h4>Maven Example (<a href="https://github.com/webjars/sample-jetty_war">example app</a>)</h4>
-
-                First add a WebJar as a dependency of your application in the <span class="label label-info">pom.xml</span> file, like:
-                <pre><code>&lt;dependencies&gt;
-    &lt;dependency&gt;
-        &lt;groupId&gt;org.webjars&lt;/groupId&gt;
-        &lt;artifactId&gt;bootstrap&lt;/artifactId&gt;
-        &lt;version&gt;3.1.0&lt;/version&gt;
-    &lt;/dependency&gt;
-&lt;/dependencies&gt;</code></pre>
-                <br>
-                Then simply reference the resource like:
-                <pre><code>&lt;link rel='stylesheet' href='webjars/bootstrap/3.1.0/css/bootstrap.min.css'&gt;</code></pre>
-
-                <h4>Making dependencies version agnostic</h4>
-
-                Use the WebjarsServlet to make dependencies version agnostic, see Servlet 2.
-
+                @documentations.servlet3()
             </div>
 
-                <!-- Servlet 2 -->
+            <!-- Servlet 2 -->
             <div class="tab-pane" id="servlet2">
-                <h3>Instructions for Servlet 2</h3>
-
-                WebjarsServlet allows Webjars resources to be referenced in legacy apps that are still running on Servlet containers that are not compliant with the Servlet 3 specification (e.g. Tomcat 6). It can also be used to make dependencies version agnostic in both Servlet 2 and Servlet 3 compatible containers.
-
-                <h4>Usage</h4>
-
-                <ol>
-                    <li>
-                        Register our webjars-servlet-2.x Maven dependency in your web application:
-                        <pre><code>&lt;dependency&gt;
-    &lt;groupId&gt;org.webjars&lt;/groupId&gt;
-    &lt;artifactId&gt;webjars-servlet-2.x&lt;/artifactId&gt;
-    &lt;version&gt;1.1&lt;/version&gt;
-&lt;/dependency&gt;</code></pre>
-                    </li>
-                    <li>
-                        Register <strong>WebjarsServlet</strong> in your web.xml:
-                        <pre><code>&lt;!--Webjars Servlet--&gt;
-&lt;servlet&gt;
-    &lt;servlet-name&gt;WebjarsServlet&lt;/servlet-name&gt;
-    &lt;servlet-class&gt;org.webjars.servlet.WebjarsServlet&lt;/servlet-class&gt;
-    &lt;load-on-startup&gt;2&lt;/load-on-startup&gt;
-&lt;/servlet&gt;
-&lt;servlet-mapping&gt;
-    &lt;servlet-name&gt;WebjarsServlet&lt;/servlet-name&gt;
-    &lt;url-pattern&gt;/webjars/*&lt;/url-pattern&gt;
-&lt;/servlet-mapping&gt;</code></pre>
-                    </li>
-                </ol>
-
-                By default the Webjars resources will be cached by your browser. If for whatever reason you need to disable the cache, you can do so by using the <strong>disableCache</strong> configuration property like this:
-
-                <pre><code>&lt;!--Webjars Servlet--&gt;
-&lt;servlet&gt;
-    &lt;servlet-name&gt;WebjarsServlet&lt;/servlet-name&gt;
-    &lt;servlet-class&gt;org.webjars.servlet.WebjarsServlet&lt;/servlet-class&gt;
-    &lt;init-param&gt;
-        &lt;param-name&gt;disableCache&lt;/param-name&gt;
-        &lt;param-value&gt;true&lt;/param-value&gt;
-    &lt;/init-param&gt;
-    &lt;load-on-startup&gt;2&lt;/load-on-startup&gt;
-&lt;/servlet&gt;</code></pre>
-
-                It is off course also possible to instantiate the WebjarsServlet programmatically (e.g. with Spring Boot's ServletRegistrationBean).
-
-                <h4>Making dependencies version agnostic</h4>
-
-                When using WebjarsServlet version 1.6 or higher, it will automatically detect the <code>webjars-locator-core</code> library on the classpath and use it to automatically resolve the version of any WebJar assets for you.
-                In order to enable this feature, you will need to add the webjars-locator-core library as a dependency of your application in the <span class="label label-info">pom.xml</span> file, like:
-                <pre><code>&lt;dependencies&gt;
-    &lt;dependency&gt;
-        &lt;groupId&gt;org.webjars&lt;/groupId&gt;
-        &lt;artifactId&gt;webjars-locator-core&lt;/artifactId&gt;
-        &lt;version&gt;0.48&lt;/version&gt;
-    &lt;/dependency&gt;
-&lt;/dependencies&gt;</code></pre>
-                <br>
-                Then you may reference a WebJar asset in your template like this:
-                <pre><code>&lt;link rel='stylesheet' href='/webjars/bootstrap/css/bootstrap.min.css'&gt;</code></pre>
-                <br>
-                <div class="alert alert-danger" role="alert">Be sure to remove <strong>ONLY</strong> the version from the path, otherwise relative imports may not work.</div>
-                <br>
-
+                @documentations.servlet2()
             </div>
-
 
             <!-- JSF -->
             <div class="tab-pane" id="jsf">
-                <h3>Instructions for JSF</h3>
-
-                With JSF, the WebJars that are in the <span class="label label-info">WEB-INF/lib</span> directory are automatically made available as resource libraries. This works because WebJars are compatible with the JSF resource identifier format.<br>
-                <br>
-                <a href="http://www.mkyong.com/jsf2/resources-library-in-jsf-2-0/">More Information about JSF resources</a>
-
-                <h4>Maven Example (<a href="https://github.com/arend-von-reinersdorff/samplejsfwithwebjars">example app</a>)</h4>
-
-                First add a WebJar as a dependency of your application in the <span class="label label-info">pom.xml</span> file, like:
-                <pre><code>&lt;dependencies&gt;
-    &lt;dependency&gt;
-        &lt;groupId&gt;org.webjars&lt;/groupId&gt;
-        &lt;artifactId&gt;bootstrap&lt;/artifactId&gt;
-        &lt;version&gt;3.1.0&lt;/version&gt;
-    &lt;/dependency&gt;
-&lt;/dependencies&gt;</code></pre>
-                <br>
-                Then simply reference the resource like:
-                <pre><code>&lt;h:outputStylesheet library="webjars" name="bootstrap/3.1.0/css/bootstrap.min-jsf.css" /&gt;
-&lt;h:outputScript library="webjars" name="jquery/1.11.2/jquery.js" /&gt;</code></pre>
+                @documentations.jsf()
             </div>
-
 
             <!-- Grails -->
             <div class="tab-pane" id="grails">
-                <h3>Instructions for Grails (<a href="https://github.com/webjars/sample-grails">example app</a>)</h3>
-
-                Grails manages static resources (such as javascript and css files) with the resources plugin.  The resources plugin manages static resources via modules, like the Jquery Module, that define via a config file which static resources a module requires. For a more details explanation see the <a href="http://grails.org/doc/latest/guide/theWebLayer.html#resources">Grails docs on using Static Resource</a>.
-
-                <br><br>The <a href="https://github.com/groovydev/modules-manager-grails-plugin">Grails Modules Manager plugin</a> allows dependencies on web libraries to be declared in the Grails build configuration file, <span class="label label-info">BuildConfig.groovy</span>.  It resolves theses dependencies and creates modules that can be used by the resources plugin.  It does this by downloading the jar files from webjars.org and extracting the web libraries from the jar files.  It then creates grails specific resource modules from these web libraries.
-                </br><h4>Steps for using the plugin:</h4>
-                <ul>
-                    <li>Clone the modules manager plugin from
-                        <pre><code>https://github.com/groovydev/modules-manager-grails-plugin.git</code></pre>
-                    </li>
-                    <br>
-                    <li>Build the plugin:
-                        <pre><code>grails package-plugin</code></pre>
-                    </li>
-                    <br>
-                    <li>Install the plugin into your grails project from the file system - this assumes the plugin is in
-                        the same parent directory as the project:
-                        <pre><code>grails install-plugin ../modules-manager-grails-plugin/grails-modules-manager-0.2.1.zip</code></pre>
-                    </li>
-                    <br>
-                    <li>Define the javascript and css dependencies. In <span class="label label-info">grails-app/config/BuildConfig.groovy</span>
-                        add:
-                        <pre><code>dependencies {
-    compile 'org.webjars:bootstrap:3.1.0'
-}</code></pre>
-                    </li>
-                    <br>
-                    <li>Run the refresh modules command which will download the necessary javascript and css dependencies:
-                        <pre><code>grails refresh-modules</code></pre>
-                    </li>
-                    <br>
-                    <li>Notice how the plugin added the file <span class="label label-info">conf/ModulesBootstrapResources.groovy</span>.  This module config file is used by the resources plugin to define the module dependencies and static resources.
-                    </li>
-                    <br>
-                    <li>Add the module dependencies to the web page (see the example in <a href="https://github.com/webjars/sample-grails/blob/master/grails-app/views/index.gsp">views/index.gsp</a>).  This is done by adding the require tag to the html page to include the static resource modules.  Also note that it is necessary to add the layoutResources tag twice to the page.
-                        <br></br>In the head tag add:
-                        <pre><code>&lt;head&gt;
-&lt;r:require modules="jquery, bootstrap"/&gt;
-&lt;r:layoutResources/&gt;</code></pre>
-                        </br>And then at the bottom of the page right before the body add:
-                        <pre><code>&lt;r:layoutResources/&gt;
-&lt;/body&gt;</code></pre>
-                    </li>
-                    <br>
-                    <li>The resource manager then optimizes when the javascript is load by when it is need in the page and by default includes the javascript at the bottom of the page.  For this reason it is necessary to put the javascript in a &lt;r:script&gt; tag so that the necessary dependencies will be included when the layoutResources tag is called.  For example to use a jquery initialization function add the following to the page:
-                       <pre><code>&lt;r:script&gt;
-$(function (){ ... } </code></pre>
-                    </li>
-                </ul>
+                @documentations.grails()
             </div>
-
 
             <!-- Dropwizard -->
             <div class="tab-pane" id="dropwizard">
-                <h3>Instructions for Dropwizard (<a href="https://github.com/webjars/sample-dropwizard">example app</a>)</h3>
-
-                With Dropwizard you can easily expose WebJars through the <span class="label label-info">AssetsBundle</span>.  In your startup service's constructor setup the <span class="label label-info">AssetsBundle</span> to map static asset requests in a <span class="label label-info">/META-INF/resources/webjars</span> directory in JARs on the CLASSPATH to the <span class="label label-info">/webjars</span> URL, for example:
-                <pre><code>package org.webjars;
-
-import com.yammer.dropwizard.Service;
-import com.yammer.dropwizard.bundles.AssetsBundle;
-import com.yammer.dropwizard.config.Configuration;
-import com.yammer.dropwizard.config.Environment;
-
-public class MainService extends Service<Configuration> {
-
-    public static void main(String[] args) throws Exception {
-        new MainService().run(args);
-    }
-
-    private MainService() {
-        super("sample-dropwizard");
-        addBundle(new AssetsBundle("/META-INF/resources/webjars", 0, "/webjars"));
-    }
-
-}</code></pre>
-                <br>
-                Now you can reference a WebJar asset like:
-                <pre><code>&lt;link rel='stylesheet' href='/webjars/bootstrap/3.1.0/css/bootstrap.min.css'&gt;</code></pre>
+                @documentations.dropwizard()
             </div>
 
             <!-- Spring Boot -->
             <div class="tab-pane" id="springboot">
-                <h3>Instructions for Spring Boot (<a href="https://github.com/webjars/sample-spring_boot">example app</a>)</h3>
-
-                Spring Boot automatically configures Spring to map requests for <span class="label label-info">/webjars</span> to the <span class="label label-info">/META-INF/resources/webjars</span> directory of all the JARs in the CLASSPATH.
-                <br>
-
-                <h4>Maven Example</h4>
-
-                First add a WebJar as a dependency of your application in the <span class="label label-info">pom.xml</span> file, like:
-                <pre><code>&lt;dependencies&gt;
-    &lt;dependency&gt;
-        &lt;groupId&gt;org.webjars&lt;/groupId&gt;
-        &lt;artifactId&gt;bootstrap&lt;/artifactId&gt;
-        &lt;version&gt;3.1.0&lt;/version&gt;
-    &lt;/dependency&gt;
-&lt;/dependencies&gt;</code></pre>
-                <br>
-                Then reference a WebJar asset like:
-                <pre><code>&lt;link rel='stylesheet' href='/webjars/bootstrap/3.1.0/css/bootstrap.min.css'&gt;</code></pre>
-
-                <h4>Making dependencies version agnostic</h4>
-
-                When using Spring Boot, it will automatically detect the <code>webjars-locator-core</code> library on the classpath and use it to automatically resolve the version of any WebJar assets for you.
-                In order to enable this feature, you will need to add the webjars-locator-core library as a dependency of your application in the <span class="label label-info">pom.xml</span> file, like:
-                <pre><code>&lt;dependencies&gt;
-    &lt;dependency&gt;
-        &lt;groupId&gt;org.webjars&lt;/groupId&gt;
-        &lt;artifactId&gt;webjars-locator-core&lt;/artifactId&gt;
-        &lt;version&gt;0.48&lt;/version&gt;
-    &lt;/dependency&gt;
-&lt;/dependencies&gt;</code></pre>
-                <br>
-                (Spring Boot manages the version if you use its BOM feature.) Then you may reference a WebJar asset in your template like this:
-                <pre><code>&lt;link rel='stylesheet' href='/webjars/bootstrap/css/bootstrap.min.css'&gt;</code></pre>
-                <br>
-                <div class="alert alert-danger" role="alert">Be sure to remove <strong>ONLY</strong> the version from the path, otherwise relative imports may not work.</div>
-                <br>
-                <div class="alert alert-danger" role="alert">Customising the web layer with `@@EnableWebMvc` or `@@EnableWebFlux` will result in disabling the static content mapping configured by Spring Boot, including the webjars handling. There are usually other extension points that you can use instead.</div>
-
-                <h4>Enhanced support for RequireJS</h4>
-                <a href="http://www.requirejs.org" target="_blank">RequireJS</a> is a popular implementation of the <a href="https://github.com/amdjs/amdjs-api/wiki/AMD">AMD</a>
-                specification - a means by which JavaScript applications can be modularised. The easiest way of thinking
-                about AMD is that it is JavaScript's equivalent of package and import statements (or namespace and
-                include statements depending on your preferences!). These instructions assume basic knowledge of
-                RequireJS.
-
-                <br><br>
-
-                The <span class="label label-info">webjars-locator</span> library has built-in support for RequireJS.  To setup RequireJS use the <code>webjars-locator</code> library like this:
-                <pre><code>@@ResponseBody
-@@RequestMapping(value = "/webjarsjs", produces = "application/javascript")
-public String webjarjs() {
-    return RequireJS.getSetupJavaScript("/webjars/");
-}</code></pre>
-
-                <span class="label label-success">Note</span> The <code>RequestMapping</code> must not be the same as given to the <code>ResourceHandler</code>
-                <br>
-                <span class="label label-success">Note</span> The url given to <code>getSetupJavaScript</code> has to be the url given to <code>ResourceHandler</code> and end with a <span>/</span>
-                <br><br>
-                This <code>RequestMapping</code> returns the setup code for your webjars and requirejs. It has to be included in your template before loading RequireJS. A basic setup looks like this:
-                <pre><code>&lt;script src="/webjarsjs"&gt;&lt;/script&gt;
-&lt;script data-main="/js/app" src="/webjars/requirejs/require.min.js"&gt;&lt;/script&gt;</code></pre>
-                This loads the WebJars RequireJS configuration from <span class="label label-info">webjars-locator</span> and the RequireJS with a main JavaScript of <span class="label label-info">js/app</span>.
-                <br><br>
-                Underneath the covers each WebJar can have a RequireJS configuration file that sets up the modules, shims, exports, etc.  These files is named <span class="label label-info">webjars-requirejs.js</span> and are automatically added to the page via the <code>RequireJS.setup</code> helper.
-
-                Some of the WebJars may not be updated to the new WebJars RequireJS syntax so if you experience problems please file issues on the WebJars you are using.
+                @documentations.springboot()
             </div>
 
             <!-- Spring MVC -->
             <div class="tab-pane" id="springmvc">
-                <h3>Instructions for Spring MVC</h3>
-
-                Spring MVC makes it easy to expose static assets in JAR files using <span class="label label-info">ResourceHandlers</span>.
-
-                <h4>Maven Example (<a href="https://github.com/webjars/sample-jetty_war">example app</a>)</h4>
-
-                First add a WebJar as a dependency of your application in the <span class="label label-info">pom.xml</span> file, like:
-                <pre><code>&lt;dependencies&gt;
-    &lt;dependency&gt;
-        &lt;groupId&gt;org.webjars&lt;/groupId&gt;
-        &lt;artifactId&gt;bootstrap&lt;/artifactId&gt;
-        &lt;version&gt;3.1.0&lt;/version&gt;
-    &lt;/dependency&gt;
-&lt;/dependencies&gt;</code></pre>
-                <br>
-                Then configure Spring to map requests for <span class="label label-info">/webjars</span> to the <span class="label label-info">/META-INF/resources/webjars</span> directory of all the JARs in the CLASSPATH.  This can be done either via XML config:
-                <pre><code>&lt;mvc:resources mapping="/webjars/**" location="classpath:/META-INF/resources/webjars/"/&gt;</code></pre>
-                <br>
-                <span class="label label-success">Note</span> In a Servlet 3 container this can be simplified to:
-                <pre><code>&lt;mvc:resources mapping="/webjars/**" location="/webjars/"/&gt;</code></pre>
-                <br>
-                Or Java config:
-                <pre><code>@@Configuration
-@@EnableWebMvc
-public class WebConfig extends WebMvcConfigurerAdapter {
-
-  @@Override
-  public void addResourceHandlers(ResourceHandlerRegistry registry) {
-    registry.addResourceHandler("/webjars/**").addResourceLocations("classpath:/META-INF/resources/webjars/");
-  }
-
-}</code></pre>
-                <br>
-
-                <span class="label label-success">Note</span> In a Servlet 3 container the <span class="label label-info">registry.addResourceHandler</span> line can be simplified to:
-                <pre><code>registry.addResourceHandler("/webjars/**").addResourceLocations("/webjars/");</code></pre>
-                <br>
-                Then reference a WebJar asset like:
-                <pre><code>&lt;link rel='stylesheet' href='/webjars/bootstrap/3.1.0/css/bootstrap.min.css'&gt;</code></pre>
-
-                <h4>Making dependencies version agnostic</h4>
-
-                When using Spring Framework version 4.2 or higher, it will automatically detect the <code>webjars-locator-core</code> library on the classpath and use it to automatically resolve the version of any WebJar assets for you.
-                In order to enable this feature, you will need to add the webjars-locator-core library as a dependency of your application in the <span class="label label-info">pom.xml</span> file, like:
-                <pre><code>&lt;dependencies&gt;
-    &lt;dependency&gt;
-        &lt;groupId&gt;org.webjars&lt;/groupId&gt;
-        &lt;artifactId&gt;webjars-locator-core&lt;/artifactId&gt;
-        &lt;version&gt;0.30&lt;/version&gt;
-    &lt;/dependency&gt;
-&lt;/dependencies&gt;</code></pre>
-                <br>
-                And extend your XML config with a resource-chain element:
-                <pre><code>&lt;mvc:resources mapping="/webjars/**" location="/webjars/"&gt;
-    &lt;mvc:resource-chain resource-cache="true"/&gt;
-&lt;/mvc:resources&gt;</code></pre>
-                <br>
-                Or in case of Java config add the resourceChain() method and the WebJarsResourceResolver:
-                <pre><code>registry.addResourceHandler("/webjars/**").addResourceLocations("/webjars/").setCachePeriod(CACHE_PERIOD).resourceChain(true).addResolver(new WebJarsResourceResolver());</code></pre>
-                <br>
-                Then you may reference a WebJar asset in your template like this:
-                <pre><code>&lt;link rel='stylesheet' href='/webjars/bootstrap/css/bootstrap.min.css'&gt;</code></pre>
-                <br>
-                <div class="alert alert-danger" role="alert">Be sure to remove <strong>ONLY</strong> the version from the path, otherwise relative imports may not work.</div>
-
-                <h4>Enhanced support for RequireJS</h4>
-                <a href="http://www.requirejs.org" target="_blank">RequireJS</a> is a popular implementation of the <a href="https://github.com/amdjs/amdjs-api/wiki/AMD">AMD</a>
-                specification - a means by which JavaScript applications can be modularised. The easiest way of thinking
-                about AMD is that it is JavaScript's equivalent of package and import statements (or namespace and
-                include statements depending on your preferences!). These instructions assume basic knowledge of
-                RequireJS.
-
-                <br><br>
-
-                The <span class="label label-info">webjars-locator</span> library has built-in support for RequireJS.  To setup RequireJS use the <code>webjars-locator</code> library like this:
-                <pre><code>@@ResponseBody
-@@RequestMapping(value = "/webjarsjs", produces = "application/javascript")
-public String webjarjs() {
-    return RequireJS.getSetupJavaScript("/webjars/");
-}</code></pre>
-
-                <span class="label label-success">Note</span> The <code>RequestMapping</code> must not be the same as given to the <code>ResourceHandler</code>
-                <br>
-                <span class="label label-success">Note</span> The url given to <code>getSetupJavaScript</code> has to be the url given to <code>ResourceHandler</code> and end with a <span>/</span>
-                <br><br>
-                This <code>RequestMapping</code> returns the setup code for your webjars and requirejs. It has to be included in your template before loading RequireJS. A basic setup looks like this:
-                <pre><code>&lt;script src="/webjarsjs"&gt;&lt;/script&gt;
-&lt;script data-main="/js/app" src="/webjars/requirejs/require.min.js"&gt;&lt;/script&gt;</code></pre>
-                This loads the WebJars RequireJS configuration from <span class="label label-info">webjars-locator</span> and the RequireJS with a main JavaScript of <span class="label label-info">js/app</span>.
-                <br><br>
-                Underneath the covers each WebJar can have a RequireJS configuration file that sets up the modules, shims, exports, etc.  These files is named <span class="label label-info">webjars-requirejs.js</span> and are automatically added to the page via the <code>RequireJS.setup</code> helper.
-
-                Some of the WebJars may not be updated to the new WebJars RequireJS syntax so if you experience problems please file issues on the WebJars you are using.
+                @documentations.springmvc()
             </div>
-
 
             <!-- Apache Tapestry -->
             <div class="tab-pane" id="tapestry">
-                <h3>Instructions for Apache Tapestry</h3>
-
-                Apache Tapestry makes it easy to expose static assets in JAR files using <span class="label label-info">contributeClasspathAssetAliasManager</span>.
-
-                <h4>Maven Example (<a href="https://github.com/webjars/sample-tapestry">example app</a>)</h4>
-
-                First add a WebJar as a dependency of your application in the <span class="label label-info">pom.xml</span> file, like:
-                <pre><code>&lt;dependencies&gt;
-    &lt;dependency&gt;
-        &lt;groupId&gt;org.webjars&lt;/groupId&gt;
-        &lt;artifactId&gt;bootstrap&lt;/artifactId&gt;
-        &lt;version&gt;3.1.0&lt;/version&gt;
-    &lt;/dependency&gt;
-&lt;/dependencies&gt;</code></pre>
-                <br>
-                Then configure the <span class="label label-info">contributeClasspathAssetAliasManager</span> in your <span class="label label-info">AppModule</span> to look for assets in <span class="label label-info">META-INF/resources/webjars</span> directories:
-                <pre><code>public class AppModule {
-    public static void contributeClasspathAssetAliasManager(MappedConfiguration<String, String> configuration) {
-        configuration.add("webjars", "META-INF/resources/webjars");
-    }
-}</code></pre>
-                <br>
-                Then simply reference WebJars assets in your Tapestry templates like:
-                <pre><code>&lt;link rel='stylesheet' media='screen'
-    href='${asset:classpath:/META-INF/resources/webjars/bootstrap/3.1.0/css/bootstrap.min.css}'&gt;&lt;/link&gt;
-&lt;script type='text/javascript'
-    src='${asset:classpath:/META-INF/resources/webjars/jquery/1.9.0/jquery.min.js}'&gt;&lt;/script&gt;</pre></code>
+                @documentations.tapestry()
             </div>
-
 
             <!-- Apache Wicket -->
             <div class="tab-pane" id="wicket">
-                <h3>Instructions for Apache Wicket</h3>
-
-                The Wicket integration of Webjars uses a special <span class="label label-info">IResourceFinder</span> implementation to map
-                Webjars resources.
-
-                <h4>Maven Example (<a href="https://github.com/webjars/sample-wicket">example app</a>)</h4>
-
-                First you have to add wicket-webjars as dependency to your application in the <span class="label label-info">pom.xml</span> file, like:
-                <pre><code>&lt;dependencies&gt;
-    &lt;dependency&gt;
-        &lt;groupId&gt;de.agilecoders.wicket.webjars&lt;/groupId&gt;
-        &lt;artifactId&gt;wicket-webjars&lt;/artifactId&gt;
-        &lt;version&gt;0.3.4&lt;/version&gt;
-    &lt;/dependency&gt;
-&lt;/dependencies&gt;</code></pre>
-                <br>
-
-                And a WebJar dependency like:
-
-                <pre><code>&lt;dependencies&gt;
-    &lt;dependency&gt;
-        &lt;groupId&gt;org.webjars&lt;/groupId&gt;
-        &lt;artifactId&gt;jquery&lt;/artifactId&gt;
-        &lt;version&gt;1.11.0&lt;/version&gt;
-    &lt;/dependency&gt;
-&lt;/dependencies&gt;</code></pre>
-                <br>
-
-                Then configure your wicket application to map requests for <span class="label label-info">/webjars</span> and instances of
-                <span class="label label-info">IWebjarsResourceReference</span> to the <span class="label label-info">/META-INF/resources/webjars</span>
-                directory of all the JARs in the CLASSPATH. This can be done in <span class="label label-info">Application.init</span>:
-                <pre><code>/**
-* @@see org.apache.wicket.Application#init()
-*/
-@@Override
-public void init() {
-   super.init();
-   WicketWebjars.install(this);
-}</code></pre>
-                <br>
-                Then simply reference the resource like:
-                <pre><code>&lt;link rel='stylesheet' href='/webjars/jquery/1.11.0/jquery.js'&gt;</code></pre>
-                <br>
-                Or add a <span class="label label-info">Webjars*ResourceReference</span> to your component:
-                <pre><code>@@Override
-public void renderHead(IHeaderResponse response) {
-    super.renderHead(response);
-    response.render(JavaScriptHeaderItem.forReference(
-            new WebjarsJavaScriptResourceReference("jquery/1.11.0/jquery.js")));
-}
-                </code></pre>
-                <br>
-                To always use the most recent version of a WebJar asset, simply replace the version in path with
-                the <span class="label label-info">"current"</span> string. When a resource name is resolved this string will be replaced with the most recent available version in classpath:
-
-                <pre><code>@@Override
-public void renderHead(IHeaderResponse response) {
-    super.renderHead(response);
-
-    // current will be replaced with "1.11.0"
-    response.render(JavaScriptHeaderItem.forReference(
-                    new WebjarsJavaScriptResourceReference("jquery/current/jquery.js")));
-}
-</code></pre>
+                @documentations.wicket()
             </div>
 
-	<!-- Pippo -->
+	        <!-- Pippo -->
             <div class="tab-pane" id="pippo">
-                <h3>Instructions for Pippo</h3>
+                @documentations.pippo()
+            </div>
 
-                The <a href="http://www.pippo.ro">Pippo</a> integration of Webjars is pretty straightforward.
-
-                <h4>Maven Example (<a href="https://github.com/decebals/pippo-demo/tree/master/pippo-demo-ajax">example app</a>)</h4>
-		You should first add the dependecies to the webjars in Maven description file like this:
-
-		<pre><code>&lt;dependencies&gt;
-    &lt;dependency&gt;
-        &lt;groupId&gt;org.webjars&lt;/groupId&gt;
-        &lt;artifactId&gt;jquery&lt;/artifactId&gt;
-        &lt;version&gt;2.1.4&lt;/version&gt;
-    &lt;/dependency&gt;
-    &lt;dependency&gt;
-        &lt;groupId&gt;org.webjars&lt;/groupId&gt;
-        &lt;artifactId&gt;bootstrap&lt;/artifactId&gt;
-        &lt;version&gt;3.3.4&lt;/version&gt;
-    &lt;/dependency&gt;
-&lt;/dependencies&gt;</code></pre>
-                <br>
-                Afterwards you have to let Pippo know you are using webjars. This can be done in <span class="label label-info">Application.onInit method</span>:
-                <pre><code>
-public class AjaxApplication extends Application {
-
-    @@Override
-    protected void onInit() {
-        addWebjarsResourceRoute();
-        //business code here
-    }
-}</code></pre>
-                <br>
-                Then simply reference the resource like
-                <pre><code>&lt;link href="${webjarsAt('bootstrap/3.3.1/css/bootstrap.min.css')}" rel="stylesheet"&gt;</code></pre>
-		for css or
-		<pre><code>&lt;script src="${webjarsAt('intercooler-js/0.4.10/src/intercooler.js')}"&gt;&lt;/script&gt;</code></pre>
-		for js.
-                <br>
-		For examples on using webjars in several template language for Pippo you can check out this link <a href="http://www.pippo.ro/doc/templates.html">here</a>
-		<br>
-                </div>
             <!-- Ring (Clojure) -->
             <div class="tab-pane" id="ring">
-                <h3>Instructions for Ring (<a href="https://github.com/webjars/sample-clojure">example app</a>)</h3>
-
-                Ring makes it easy to expose WebJars through the <span class="label label-info">wrap-resource</span> function.
-
-                First add a Webjar as dependency to your application in the <span class="label label-info">project.clj</span> file, like:
-                  <pre><code>:dependencies [[org.webjars/bootstrap "3.1.0"]]</code></pre>
-                  <br>
-
-                Then change your wrapper sequence to setup <span class="label label-info">wrap-resource</span> to look for assets in <span class="label label-info">/META-INF/resources</span> directories in JARs on the CLASSPATH:
-
-                <pre><code>(def app
-  (-> handler
-    (wrap-resource "/META-INF/resources")))
-
-(defn -main []
-  (run-jetty app {:port (Integer/parseInt (or (System/getenv "PORT") "8080"))}))</code></pre>
-                <br>
-                Now you can reference a WebJar asset like:
-                <pre><code>&lt;link rel='stylesheet' href='/webjars/bootstrap/3.1.0/css/bootstrap.min.css'&gt;</code></pre>
-
-                <h3>Using clj-webjars</h3>
-
-                Alternatively you can use <a href="https://github.com/jeluard/clj-webjars">clj-webjars</a> to simplify assets integration.
-                By relying on <span class="label label-info">wrap-webjars</span> ring middleware you can reference a WebJar asset like:
-
-                <pre><code>&lt;link rel='stylesheet' href='assets/css/bootstrap.min.css'&gt;</code></pre>
-
-                The right asset will be transparently accessed and served with proper HTTP caching behavior.
+                @documentations.ring()
             </div>
 
             <!-- Dandelion -->
             <div class="tab-pane" id="dandelion">
-                <h3>Instructions for Dandelion</h3>
-
-                When writing bundles, you can configure assets to be fetched from multiple locations: <code>webapp</code>, <code>classpath</code> and more.
-                <br>
-                <a href="http://dandelion.github.io/">Dandelion</a> also provides a WebJars integration via a dedicated locator for WebJars.
-                <br><br>
-                First, you have to add dandelion-webjars as dependency to your application in the <span class="label label-info">pom.xml</span> file:
-                <pre><code>&lt;dependencies&gt;
-    &lt;dependency&gt;
-        &lt;groupId&gt;com.github.dandelion&lt;/groupId&gt;
-        &lt;artifactId&gt;dandelion-webjars&lt;/artifactId&gt;
-        &lt;version&gt;1.1.0&lt;/version&gt;
-    &lt;/dependency&gt;
-&lt;/dependencies&gt;</code></pre>
-                <br>
-
-                And a WebJar dependency like:
-
-                <pre><code>&lt;dependencies&gt;
-    &lt;dependency&gt;
-        &lt;groupId&gt;org.webjars&lt;/groupId&gt;
-        &lt;artifactId&gt;jquery&lt;/artifactId&gt;
-        &lt;version&gt;1.11.3&lt;/version&gt;
-    &lt;/dependency&gt;
-&lt;/dependencies&gt;</code></pre>
-                <br>
-
-                Then, in your bundle definition, configure the asset as follows:
-                <pre><code>{
-    "assets": [
-        {
-            "version": "1.11.3",
-            "locations": {
-                "webjar": "jquery.js"
-            }
-        }
-    ]
-}</code></pre>
-                <span class="label label-success">Note</span>
-                Note the usage of the <code>webjar</code> location key, that tells Dandelion to fetch the asset from a WebJar.
-                <br>
-                <span class="label label-success">Note</span>
-                Since Dandelion uses <a href="https://github.com/webjars/webjars-locator/">webjars-locator</a> internally, you just need to specify the name of the asset, path excluded but extension included.
-                <br><br>
-                Dandelion will finally generate the following client-side HTML markup:
-                <pre><code>&lt;script src="/[contextPath]/webjars/jquery/1.11.3/jquery.js"&gt;&lt;/script&gt;</code></pre>
-
-                <br>
-                A sample application is available <a href="https://github.com/dandelion/dandelion-core-samples/tree/master/core-thymeleaf-webjars">here</a>.
+                @documentations.dandelion()
             </div>
 
-          <!-- Vert.x Web -->
-          <div class="tab-pane" id="vertx">
-            <h3>Instructions for Vert.x Web</h3>
+            <!-- Vert.x Web -->
+            <div class="tab-pane" id="vertx">
+                @documentations.vertx()
+            </div>
 
-            The Vert.x Web <span class="label label-info"><a href="https://vertx.io/docs/vertx-web/java/#_serving_static_resources">StaticHandler</a></span> can resolve file paths from both the filesystem and the classpath.
-            Therefore, it requires very little configuration to serve assets packaged in a WebJar.
+            <!-- Quarkus -->
+            <div class="tab-pane" id="quarkus">
+                @documentations.quarkus()
+            </div>
 
-            <h4>Maven Example</h4>
-
-            First add a WebJar as a dependency of your application in the <span class="label label-info">pom.xml</span> file, like:
-            <pre><code>&lt;dependencies&gt;
-    &lt;dependency&gt;
-        &lt;groupId&gt;org.webjars&lt;/groupId&gt;
-        &lt;artifactId&gt;bootstrap&lt;/artifactId&gt;
-        &lt;version&gt;3.1.0&lt;/version&gt;
-    &lt;/dependency&gt;
-&lt;/dependencies&gt;</code></pre>
-            <br>
-            In your code, create a <span class="label label-info">StaticHandler</span> and assign it to a <span class="label label-info">Route</span>:
-            <pre><code>Router router = Router.router(vertx);
-router.route("/assets/lib/*").handler(StaticHandler.create("META-INF/resources/webjars"));</code></pre>
-            <br>
-            Then simply reference the resource like:
-            <pre><code>&lt;link rel='stylesheet' href='assets/lib/bootstrap/3.1.0/css/bootstrap.min.css'&gt;</code></pre>
-          </div>
-
-          <!-- Quarkus -->
-          <div class="tab-pane" id="quarkus">
-            <h3>Instructions for Quarkus</h3>
-
-            Quarkus support the use of WebJars by default and also adds a <a href="https://quarkus.io/guides/http-reference#webjar-locator-support">WebJar Locator</a> to reference
-            WebJars without the version.
-
-            <h4>Maven Example</h4>
-
-            First add a WebJar as a dependency of your application in the <span class="label label-info">pom.xml</span> file, like:
-            <pre><code>&lt;dependencies&gt;
-    &lt;dependency&gt;
-        &lt;groupId&gt;org.webjars&lt;/groupId&gt;
-        &lt;artifactId&gt;bootstrap&lt;/artifactId&gt;
-        &lt;version&gt;3.1.0&lt;/version&gt;
-    &lt;/dependency&gt;
-&lt;/dependencies&gt;</code></pre>
-            <br>
-            Then simply reference the resource like:
-            <pre><code>&lt;link rel='stylesheet' href='/webjars/bootstrap/3.1.0/css/bootstrap.min.css'&gt;</code></pre>
-
-            <h4>Maven Example with locator</h4>
-
-            If you also want to use the locator, also add this to your <span class="label label-info">pom.xml</span> file :
-            <pre><code>&lt;dependencies&gt;
-    &lt;dependency&gt;
-        &lt;groupId&gt;io.quarkus&lt;/groupId&gt;
-        &lt;artifactId&gt;quarkus-webjars-locator&lt;/artifactId&gt&gt;
-    &lt;/dependency&gt;
-&lt;/dependencies&gt;</code></pre>
-            <br>
-            Now you can reference the resource without the version:
-            <pre><code>&lt;link rel='stylesheet' href='/webjars/bootstrap/css/bootstrap.min.css'&gt;</code></pre>
-
-          </div>
-
-
-          <!-- Ktor -->
-          <div class="tab-pane" id="ktor">
-            <h3>Instructions for Ktor (<a href="https://github.com/webjars/sample-ktor">Sample Source</a>)</h3>
-
-            <p>
-            Add the <a href="https://github.com/webjars/webjars-locator-lite">webjars-locator-lite</a> dependency, i.e. in Gradle:
-            <pre><code>implementation("org.webjars:webjars-locator-lite:0.0.4")</code></pre>
-            </p>
-
-            <p>
-            Add your WebJars, i.e. in Gradle:
-            <pre><code>runtimeOnly("org.webjars:bootstrap:5.3.2")</code></pre>
-            </p>
-
-            <p>
-            Define a routing path, an extension function that handles route resolution with the locator, create a shared / singleton instance of the locator, and configure the routing:
-            <pre><code>val WEBJARS_PATH = "/webjars"
-fun WebJarVersionLocator.route(webJar: String, path: String) = run {
-    path(webJar, path)?.let {
-        "$WEBJARS_PATH/$it"
-    }
-}
-val server = embeddedServer(CIO, port = 8080) {
-    val webJarVersionLocator = WebJarVersionLocator()
-    install(CallLogging)
-    routing {
-        staticResources(WEBJARS_PATH, "META-INF/resources/webjars")
-        // other routes
-    }
-}</code></pre>
-            </p>
-
-            <p>
-            Use the <code>webjarVersionLocator</code> i.e. in <code>kotlinx.html</code>:
-            <pre><code>link(webJarVersionLocator.route("bootstrap", "css/bootstrap.min.css"), rel = "stylesheet")</code></pre>
-            </p>
-          </div>
+            <!-- Ktor -->
+            <div class="tab-pane" id="ktor">
+                @documentations.ktor()
+            </div>
         </div>
-      </div>
+
     </div>
 
-}
-
 </div>
+
+}

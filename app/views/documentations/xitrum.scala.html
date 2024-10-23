@@ -1,0 +1,31 @@
+<h2>Instructions for Xitrum</h2>
+
+<p>
+    <a href="http://xitrum-framework.github.io/">Xitrum</a> from 3.13 has
+    <a href="http://xitrum-framework.github.io/guide/static.html#serve-resource-files-in-classpath-with-webjars-convention">
+    built-in</a> support for WebJars. If you have a dependency like this:
+</p>
+<pre><code>libraryDependencies += "org.webjars" % "underscorejs" % "1.6.0-3"</code></pre>
+
+<p>
+    In you <a href="http://scalate.fusesource.org/">Scalate</a> view template file, you can write like this (the below examples
+    use <a href="http://scalate.fusesource.org/documentation/jade.html">Jade</a> syntax):
+</p>
+<pre><code>script(src={webJarsUrl("underscorejs/1.6.0", "underscore.js", "underscore-min.js")})</code></pre>
+
+<p>
+    Xitrum will automatically use <code>underscore.js</code> for development environment and <code>underscore-min.js</code> for
+    production environment.
+</p>
+
+<p>The result will look like this:</p>
+<pre><code>&lt;script src=&quot;/webjars/underscorejs/1.6.0/underscore.js?XOKgP8_KIpqz9yUqZ1aVzw&quot;&gt;&lt;/script&gt;</code></pre>
+
+<p>If you want to use the same file for both environments:</p>
+<pre><code>script(src={webJarsUrl("underscorejs/1.6.0/underscore.js")})</code></pre>
+
+<p>
+    For examples, see <a href="https://github.com/xitrum-framework/xitrum-new">xitrum-new</a> and
+    <a href="https://github.com/xitrum-framework/xitrum-demos">xitrum-demos</a>
+    (<a href="http://ec2-54-249-135-186.ap-northeast-1.compute.amazonaws.com:8151/">online</a>).
+</p>

@@ -1,0 +1,80 @@
+<h2>Instructions for Servlet 2</h2>
+
+<p>
+    WebjarsServlet allows Webjars resources to be referenced in legacy apps that are still running on Servlet containers that
+    are not compliant with the Servlet 3 specification (e.g. Tomcat 6). It can also be used to make dependencies version agnostic
+    in both Servlet 2 and Servlet 3 compatible containers.
+</p>
+
+<h3>Usage</h3>
+
+<ol>
+    <li>
+        Register our webjars-servlet-2.x Maven dependency in your web application:
+        <pre><code>&lt;dependency&gt;
+    &lt;groupId&gt;org.webjars&lt;/groupId&gt;
+    &lt;artifactId&gt;webjars-servlet-2.x&lt;/artifactId&gt;
+    &lt;version&gt;1.1&lt;/version&gt;
+&lt;/dependency&gt;</code></pre>
+    </li>
+
+    <li>
+        Register <strong>WebjarsServlet</strong> in your web.xml:
+        <pre><code>&lt;!--Webjars Servlet--&gt;
+&lt;servlet&gt;
+    &lt;servlet-name&gt;WebjarsServlet&lt;/servlet-name&gt;
+    &lt;servlet-class&gt;org.webjars.servlet.WebjarsServlet&lt;/servlet-class&gt;
+    &lt;load-on-startup&gt;2&lt;/load-on-startup&gt;
+&lt;/servlet&gt;
+&lt;servlet-mapping&gt;
+    &lt;servlet-name&gt;WebjarsServlet&lt;/servlet-name&gt;
+    &lt;url-pattern&gt;/webjars/*&lt;/url-pattern&gt;
+&lt;/servlet-mapping&gt;</code></pre>
+    </li>
+</ol>
+
+<p>
+    By default the Webjars resources will be cached by your browser. If for whatever reason you need to disable the cache,
+    you can do so by using the <strong>disableCache</strong> configuration property like this:
+</p>
+<pre><code>&lt;!--Webjars Servlet--&gt;
+&lt;servlet&gt;
+    &lt;servlet-name&gt;WebjarsServlet&lt;/servlet-name&gt;
+    &lt;servlet-class&gt;org.webjars.servlet.WebjarsServlet&lt;/servlet-class&gt;
+    &lt;init-param&gt;
+        &lt;param-name&gt;disableCache&lt;/param-name&gt;
+        &lt;param-value&gt;true&lt;/param-value&gt;
+    &lt;/init-param&gt;
+    &lt;load-on-startup&gt;2&lt;/load-on-startup&gt;
+&lt;/servlet&gt;
+</code></pre>
+
+<p>
+    It is off course also possible to instantiate the WebjarsServlet programmatically (e.g. with Spring Boot's ServletRegistrationBean).
+</p>
+
+<h3>Making dependencies version agnostic</h3>
+
+<p>
+    When using WebjarsServlet version 1.6 or higher, it will automatically detect the <code>webjars-locator-core</code> library on
+    the classpath and use it to automatically resolve the version of any WebJar assets for you.
+    In order to enable this feature, you will need to add the webjars-locator-core library as a dependency of your application in
+    the <code>pom.xml</code> file, like:
+</p>
+<pre><code>&lt;dependencies&gt;
+    &lt;dependency&gt;
+        &lt;groupId&gt;org.webjars&lt;/groupId&gt;
+        &lt;artifactId&gt;webjars-locator-core&lt;/artifactId&gt;
+        &lt;version&gt;0.48&lt;/version&gt;
+    &lt;/dependency&gt;
+&lt;/dependencies&gt;
+</code></pre>
+
+<p>
+    Then you may reference a WebJar asset in your template like this:
+</p>
+<pre><code>&lt;link rel='stylesheet' href='/webjars/bootstrap/css/bootstrap.min.css'&gt;</code></pre>
+
+<div class="callout callout-danger">
+    Be sure to remove <strong>ONLY</strong> the version from the path, otherwise relative imports may not work.
+</div>

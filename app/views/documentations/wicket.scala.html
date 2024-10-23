@@ -1,0 +1,78 @@
+<h2>Instructions for Apache Wicket</h2>
+
+<p>
+    The Wicket integration of Webjars uses a special <code>IResourceFinder</code> implementation to map Webjars resources.
+</p>
+
+<h3>
+    Maven Example
+    (<a href="https://github.com/webjars/sample-wicket" target="_blank" rel="noopener noreferrer">example app</a>)
+</h3>
+
+<p>
+    First you have to add wicket-webjars as dependency to your application in the <code>pom.xml</code> file, like:
+</p>
+<pre><code>&lt;dependencies&gt;
+    &lt;dependency&gt;
+        &lt;groupId&gt;de.agilecoders.wicket.webjars&lt;/groupId&gt;
+        &lt;artifactId&gt;wicket-webjars&lt;/artifactId&gt;
+        &lt;version&gt;0.3.4&lt;/version&gt;
+    &lt;/dependency&gt;
+&lt;/dependencies&gt;
+</code></pre>
+
+<p>
+    And a WebJar dependency like:
+</p>
+<pre><code>&lt;dependencies&gt;
+    &lt;dependency&gt;
+        &lt;groupId&gt;org.webjars&lt;/groupId&gt;
+        &lt;artifactId&gt;jquery&lt;/artifactId&gt;
+        &lt;version&gt;1.11.0&lt;/version&gt;
+    &lt;/dependency&gt;
+&lt;/dependencies&gt;</code></pre>
+
+<p>
+    Then configure your wicket application to map requests for <code>/webjars</code> and instances of
+    <code>IWebjarsResourceReference</code> to the <code>/META-INF/resources/webjars</code> directory of all the JARs in
+    the CLASSPATH. This can be done in <code>Application.init</code>:
+</p>
+<pre><code>/**
+* @@see org.apache.wicket.Application#init()
+*/
+@@Override
+public void init() {
+   super.init();
+   WicketWebjars.install(this);
+}
+</code></pre>
+
+<p>
+    Then simply reference the resource like:
+</p>
+<pre><code>&lt;link rel='stylesheet' href='/webjars/jquery/1.11.0/jquery.js'&gt;</code></pre>
+
+<p>
+    Or add a <code>Webjars*ResourceReference</code> to your component:
+</p>
+<pre><code>@@Override
+public void renderHead(IHeaderResponse response) {
+    super.renderHead(response);
+    response.render(JavaScriptHeaderItem.forReference(
+            new WebjarsJavaScriptResourceReference("jquery/1.11.0/jquery.js")));
+}
+</code></pre>
+
+<p>
+    To always use the most recent version of a WebJar asset, simply replace the version in path with the <code>"current"</code>
+    string. When a resource name is resolved this string will be replaced with the most recent available version in classpath:
+</p>
+<pre><code>@@Override
+public void renderHead(IHeaderResponse response) {
+    super.renderHead(response);
+
+    // current will be replaced with "1.11.0"
+    response.render(JavaScriptHeaderItem.forReference(
+                    new WebjarsJavaScriptResourceReference("jquery/current/jquery.js")));
+}
+</code></pre>

@@ -1,0 +1,44 @@
+<h2>Instructions for Quarkus</h2>
+
+<p>
+    Quarkus support the use of WebJars by default and also adds a
+    <a href="https://quarkus.io/guides/http-reference#webjar-locator-support" target="_blank" rel="noopener noreferrer">WebJar Locator</a>
+    to reference WebJars without the version.
+</p>
+
+<h3>Maven Example</h3>
+
+<p>
+    First add a WebJar as a dependency of your application in the <code>pom.xml</code> file, like:
+</p>
+<pre><code>&lt;dependencies&gt;
+    &lt;dependency&gt;
+        &lt;groupId&gt;org.webjars&lt;/groupId&gt;
+        &lt;artifactId&gt;bootstrap&lt;/artifactId&gt;
+        &lt;version&gt;3.1.0&lt;/version&gt;
+    &lt;/dependency&gt;
+&lt;/dependencies&gt;
+</code></pre>
+
+<p>
+    Then simply reference the resource like:
+</p>
+<pre><code>&lt;link rel='stylesheet' href='/webjars/bootstrap/3.1.0/css/bootstrap.min.css'&gt;</code></pre>
+
+<h3>Maven Example with locator</h3>
+
+<p>
+    If you also want to use the locator, also add this to your <code>pom.xml</code> file:
+</p>
+<pre><code>&lt;dependencies&gt;
+    &lt;dependency&gt;
+        &lt;groupId&gt;io.quarkus&lt;/groupId&gt;
+        &lt;artifactId&gt;quarkus-webjars-locator&lt;/artifactId&gt&gt;
+    &lt;/dependency&gt;
+&lt;/dependencies&gt;
+</code></pre>
+
+<p>
+    Now you can reference the resource without the version:
+</p>
+<pre><code>&lt;link rel='stylesheet' href='/webjars/bootstrap/css/bootstrap.min.css'&gt;</code></pre>

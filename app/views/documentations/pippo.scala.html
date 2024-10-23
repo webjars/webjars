@@ -1,0 +1,54 @@
+<h2>Instructions for Pippo</h2>
+
+<p>
+    The <a href="http://www.pippo.ro" target="_blank" rel="noopener noreferrer">Pippo</a> integration of Webjars is pretty straightforward.
+</p>
+
+<h3>
+    Maven Example
+    (<a href="https://github.com/decebals/pippo-demo/tree/master/pippo-demo-ajax" target="_blank" rel="noopener noreferrer">example app</a>)
+</h3>
+
+<p>
+    You should first add the dependecies to the webjars in Maven description file like this:
+</p>
+<pre><code>&lt;dependencies&gt;
+    &lt;dependency&gt;
+        &lt;groupId&gt;org.webjars&lt;/groupId&gt;
+        &lt;artifactId&gt;jquery&lt;/artifactId&gt;
+        &lt;version&gt;2.1.4&lt;/version&gt;
+    &lt;/dependency&gt;
+    &lt;dependency&gt;
+        &lt;groupId&gt;org.webjars&lt;/groupId&gt;
+        &lt;artifactId&gt;bootstrap&lt;/artifactId&gt;
+        &lt;version&gt;3.3.4&lt;/version&gt;
+    &lt;/dependency&gt;
+&lt;/dependencies&gt;</code></pre>
+
+<p>
+    Afterwards you have to let Pippo know you are using webjars. This can be done in <code>Application.onInit method</code>:
+</p>
+<pre><code>
+public class AjaxApplication extends Application {
+
+    @@Override
+    protected void onInit() {
+        addWebjarsResourceRoute();
+        //business code here
+    }
+}</code></pre>
+
+<p>
+    Then simply reference the resource for css:
+</p>
+<pre><code>&lt;link href="${webjarsAt('bootstrap/3.3.1/css/bootstrap.min.css')}" rel="stylesheet"&gt;</code></pre>
+
+<p>
+    or for js:
+</p>
+<pre><code>&lt;script src="${webjarsAt('intercooler-js/0.4.10/src/intercooler.js')}"&gt;&lt;/script&gt;</code></pre>
+
+<p>
+    For examples on using webjars in several template language for Pippo you can check out this link
+    <a href="http://www.pippo.ro/doc/templates.html">here</a>
+</p>

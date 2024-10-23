@@ -1,0 +1,35 @@
+<h2>
+    Instructions for Dropwizard
+    (<a href="https://github.com/webjars/sample-dropwizard" target="_blank" rel="noopener noreferrer">example app</a>)
+</h2>
+
+<p>
+    With Dropwizard you can easily expose WebJars through the <code>AssetsBundle</code>.  In your startup service's
+    constructor setup the <code>AssetsBundle</code> to map static asset requests in a <code>/META-INF/resources/webjars</code>
+    directory in JARs on the CLASSPATH to the <code>/webjars</code> URL, for example:
+</p>
+<pre><code>package org.webjars;
+
+import com.yammer.dropwizard.Service;
+import com.yammer.dropwizard.bundles.AssetsBundle;
+import com.yammer.dropwizard.config.Configuration;
+import com.yammer.dropwizard.config.Environment;
+
+public class MainService extends Service<Configuration> {
+
+    public static void main(String[] args) throws Exception {
+        new MainService().run(args);
+    }
+
+    private MainService() {
+        super("sample-dropwizard");
+        addBundle(new AssetsBundle("/META-INF/resources/webjars", 0, "/webjars"));
+    }
+
+}
+</code></pre>
+
+<p>
+    Now you can reference a WebJar asset like:
+</p>
+<pre><code>&lt;link rel='stylesheet' href='/webjars/bootstrap/3.1.0/css/bootstrap.min.css'&gt;</code></pre>

@@ -1,0 +1,147 @@
+<h2>Instructions for Spring MVC</h2>
+
+<p>
+    Spring MVC makes it easy to expose static assets in JAR files using <code>ResourceHandlers</code>.
+</p>
+
+<h3>
+    Maven Example
+    (<a href="https://github.com/webjars/sample-jetty_war" target="_blank" rel="noopener noreferrer">example app</a>)
+</h3>
+
+<p>
+    First add a WebJar as a dependency of your application in the <code>pom.xml</code> file, like:
+</p>
+<pre><code>&lt;dependencies&gt;
+    &lt;dependency&gt;
+        &lt;groupId&gt;org.webjars&lt;/groupId&gt;
+        &lt;artifactId&gt;bootstrap&lt;/artifactId&gt;
+        &lt;version&gt;3.1.0&lt;/version&gt;
+    &lt;/dependency&gt;
+&lt;/dependencies&gt;</code></pre>
+
+<p>
+    Then configure Spring to map requests for <code>/webjars</code> to the <code>/META-INF/resources/webjars</code> directory
+    of all the JARs in the CLASSPATH.  This can be done either via XML config:
+</p>
+<pre><code>&lt;mvc:resources mapping="/webjars/**" location="classpath:/META-INF/resources/webjars/"/&gt;</code></pre>
+
+<div class="callout callout-info">
+    Note: In a Servlet 3 container this can be simplified to:
+    <pre><code>&lt;mvc:resources mapping="/webjars/**" location="/webjars/"/&gt;</code></pre>
+</div>
+
+<p>
+    Or Java config:
+</p>
+<pre><code>@@Configuration
+@@EnableWebMvc
+public class WebConfig extends WebMvcConfigurerAdapter {
+
+  @@Override
+  public void addResourceHandlers(ResourceHandlerRegistry registry) {
+    registry.addResourceHandler("/webjars/**").addResourceLocations("classpath:/META-INF/resources/webjars/");
+  }
+
+}</code></pre>
+
+<div class="callout callout-info">
+    Note: In a Servlet 3 container the <code>registry.addResourceHandler</code> line can be simplified to:
+    <pre><code>registry.addResourceHandler("/webjars/**").addResourceLocations("/webjars/");</code></pre>
+</div>
+
+<p>
+    Then reference a WebJar asset like:
+</p>
+<pre><code>&lt;link rel='stylesheet' href='/webjars/bootstrap/3.1.0/css/bootstrap.min.css'&gt;</code></pre>
+
+<h3>Making dependencies version agnostic</h3>
+
+<p>
+    When using Spring Framework version 4.2 or higher, it will automatically detect the <code>webjars-locator-core</code>
+    library on the classpath and use it to automatically resolve the version of any WebJar assets for you. In order to enable
+    this feature, you will need to add the webjars-locator-core library as a dependency of your application in the <code>pom.xml</code>
+    file, like:
+</p>
+<pre><code>&lt;dependencies&gt;
+    &lt;dependency&gt;
+        &lt;groupId&gt;org.webjars&lt;/groupId&gt;
+        &lt;artifactId&gt;webjars-locator-core&lt;/artifactId&gt;
+        &lt;version&gt;0.30&lt;/version&gt;
+    &lt;/dependency&gt;
+&lt;/dependencies&gt;
+</code></pre>
+
+<p>
+    And extend your XML config with a resource-chain element:
+</p>
+<pre><code>&lt;mvc:resources mapping="/webjars/**" location="/webjars/"&gt;
+    &lt;mvc:resource-chain resource-cache="true"/&gt;
+&lt;/mvc:resources&gt;
+</code></pre>
+
+<p>
+    Or in case of Java config add the resourceChain() method and the WebJarsResourceResolver:
+</p>
+<pre><code>registry.addResourceHandler("/webjars/**").addResourceLocations("/webjars/").setCachePeriod(CACHE_PERIOD).resourceChain(true).addResolver(new WebJarsResourceResolver());</code></pre>
+
+<p>
+    Then you may reference a WebJar asset in your template like this:
+</p>
+<pre><code>&lt;link rel='stylesheet' href='/webjars/bootstrap/css/bootstrap.min.css'&gt;</code></pre>
+
+<div class="callout callout-danger">
+    Be sure to remove <strong>ONLY</strong> the version from the path, otherwise relative imports may not work.
+</div>
+
+<h3>Enhanced support for RequireJS</h3>
+
+<p>
+    <a href="http://www.requirejs.org" target="_blank" rel="noopener noreferrer">RequireJS</a> is a popular implementation
+    of the <a href="https://github.com/amdjs/amdjs-api/wiki/AMD" target="_blank" rel="noopener noreferrer">AMD</a>
+    specification - a means by which JavaScript applications can be modularised. The easiest way of thinking about AMD is
+    that it is JavaScript's equivalent of package and import statements (or namespace and include statements depending on
+    your preferences!). These instructions assume basic knowledge of RequireJS.
+</p>
+
+<p>
+    The <code>webjars-locator</code> library has built-in support for RequireJS. To setup RequireJS use the <code>webjars-locator</code>
+    library like this:
+</p>
+<pre><code>@@ResponseBody
+@@RequestMapping(value = "/webjarsjs", produces = "application/javascript")
+public String webjarjs() {
+    return RequireJS.getSetupJavaScript("/webjars/");
+}
+</code></pre>
+
+<div class="callout callout-info">
+    Note: The <code>RequestMapping</code> must not be the same as given to the <code>ResourceHandler</code>
+</div>
+<div class="callout callout-info">
+    Note: The url given to <code>getSetupJavaScript</code> has to be the url given to <code>ResourceHandler</code> and end with
+    a <span>/</span>
+</div>
+
+<p>
+    This <code>RequestMapping</code> returns the setup code for your webjars and requirejs. It has to be included in your template
+    before loading RequireJS. A basic setup looks like this:
+</p>
+<pre><code>&lt;script src="/webjarsjs"&gt;&lt;/script&gt;
+&lt;script data-main="/js/app" src="/webjars/requirejs/require.min.js"&gt;&lt;/script&gt;</code></pre>
+
+<p>
+    This loads the WebJars RequireJS configuration from <code>webjars-locator</code> and the RequireJS with a main JavaScript of
+    <code>js/app</code>.
+</p>
+
+<p>
+    Underneath the covers each WebJar can have a RequireJS configuration file that sets up the modules, shims, exports, etc.
+    These files is named <code>webjars-requirejs.js</code> and are automatically added to the page via the <code>RequireJS.setup</code>
+    helper.
+</p>
+
+<p>
+    Some of the WebJars may not be updated to the new WebJars RequireJS syntax so if you experience problems please file issues on
+    the WebJars you are using.
+</p>

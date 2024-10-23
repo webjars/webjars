@@ -1,0 +1,43 @@
+<h2>
+    Instructions for Ring
+    (<a href="https://github.com/webjars/sample-clojure" target="_blank" rel="noopener noreferrer">example app</a>)
+</h2>
+
+<p>
+    Ring makes it easy to expose WebJars through the <code>wrap-resource</code> function.
+</p>
+
+<p>
+    First add a Webjar as dependency to your application in the <code>project.clj</code> file, like:
+</p>
+<pre><code>:dependencies [[org.webjars/bootstrap "3.1.0"]]</code></pre>
+
+<p>
+    Then change your wrapper sequence to setup <code>wrap-resource</code> to look for assets in <code>/META-INF/resources</code>
+    directories in JARs on the CLASSPATH:
+</p>
+
+<pre><code>(def app
+  (-> handler
+    (wrap-resource "/META-INF/resources")))
+
+(defn -main []
+  (run-jetty app {:port (Integer/parseInt (or (System/getenv "PORT") "8080"))}))
+</code></pre>
+
+<p>
+    Now you can reference a WebJar asset like:
+</p>
+<pre><code>&lt;link rel='stylesheet' href='/webjars/bootstrap/3.1.0/css/bootstrap.min.css'&gt;</code></pre>
+
+<h3>Using clj-webjars</h3>
+
+<p>
+    Alternatively you can use <a href="https://github.com/jeluard/clj-webjars" target="_blank" rel="noopener noreferrer">clj-webjars</a>
+    to simplify assets integration. By relying on <code>wrap-webjars</code> ring middleware you can reference a WebJar asset like:
+</p>
+<pre><code>&lt;link rel='stylesheet' href='assets/css/bootstrap.min.css'&gt;</code></pre>
+
+<p>
+    The right asset will be transparently accessed and served with proper HTTP caching behavior.
+</p>

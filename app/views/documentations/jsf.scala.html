@@ -1,0 +1,33 @@
+<h2>Instructions for JSF</h2>
+
+<p>
+    With JSF, the WebJars that are in the <code>WEB-INF/lib</code> directory are automatically made available as resource
+    libraries. This works because WebJars are compatible with the JSF resource identifier format.
+    <a href="http://www.mkyong.com/jsf2/resources-library-in-jsf-2-0/" target="_blank" rel="noopener noreferrer">
+        More Information about JSF resources.
+    </a>
+</p>
+
+<h3>
+    Maven Example
+    (<a href="https://github.com/arend-von-reinersdorff/samplejsfwithwebjars" target="_blank" rel="noopener noreferrer">example app</a>)
+</h3>
+
+<p>
+    First add a WebJar as a dependency of your application in the <code>pom.xml</code> file, like:
+</p>
+<pre><code>&lt;dependencies&gt;
+    &lt;dependency&gt;
+        &lt;groupId&gt;org.webjars&lt;/groupId&gt;
+        &lt;artifactId&gt;bootstrap&lt;/artifactId&gt;
+        &lt;version&gt;3.1.0&lt;/version&gt;
+    &lt;/dependency&gt;
+&lt;/dependencies&gt;
+</code></pre>
+
+<p>
+    Then simply reference the resource like:
+</p>
+<pre><code>&lt;h:outputStylesheet library="webjars" name="bootstrap/3.1.0/css/bootstrap.min-jsf.css" /&gt;
+&lt;h:outputScript library="webjars" name="jquery/1.11.2/jquery.js" /&gt;
+</code></pre>
