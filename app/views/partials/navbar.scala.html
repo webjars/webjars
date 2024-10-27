@@ -1,5 +1,17 @@
 @(currentPath: String)
 
+@if(currentPath == routes.Application.documentation().toString()) {
+    <div class="alert alert-warning rounded-0 text-center mb-0" role="alert">
+        Help improve these docs!
+        <a class="alert-link text-decoration-underline" href="https://github.com/webjars/webjars/blob/master/app/views/documentation.scala.html" target="_blank" rel="noopener noreferrer">
+            Documentation Source
+        </a> |
+        <a class="alert-link text-decoration-underline" href="https://github.com/webjars/webjars/issues/new" target="_blank" rel="noopener noreferrer">
+            Create an Issue
+        </a>
+    </div>
+}
+
 <nav class="navbar navbar-expand-lg shadow-sm sticky-top">
     <div class="container">
         <div class="d-flex align-items-center gap-2">
@@ -42,18 +54,20 @@
                 </li>
             </ul>
 
-            <button class="navbar-toggler border-0" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebar-nav" aria-controls="sidebar-nav" aria-label="Toggle sidebar navigation">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-three-dots-vertical" viewBox="0 0 16 16">
-                    <path d="M9.5 13a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0m0-5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0m0-5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0"/>
-                </svg>
-            </button>
+            @if(currentPath == routes.Application.documentation().toString()) {
+                <button class="navbar-toggler border-0" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebar-nav" aria-controls="sidebar-nav" aria-label="Toggle sidebar navigation">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-three-dots-vertical" viewBox="0 0 16 16">
+                        <path d="M9.5 13a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0m0-5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0m0-5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0"/>
+                    </svg>
+                </button>
+            }
         </div>
     </div>
 </nav>
 
-<div id="main-nav" class="offcanvas offcanvas-start" tabindex="-1" aria-labelledby="offcanvasExampleLabel">
+<div id="main-nav" class="offcanvas offcanvas-start" tabindex="-1" aria-labelledby="mainOffcanvasLabel">
     <div class="offcanvas-header border-bottom">
-        <h5 class="offcanvas-title">Menu</h5>
+        <h5 id="mainOffcanvasLabel" class="offcanvas-title">Menu</h5>
         <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
     </div>
 

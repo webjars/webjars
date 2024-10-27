@@ -2,20 +2,7 @@
 
 @main(title = "WebJars - Documentation", currentPath = "/documentation") {
 
-<script>
-$(function() {
-    var frameworkTabs = $('#framework-tabs');
-
-    frameworkTabs.find('a').click(function (e) {
-        e.preventDefault();
-        $(this).tab('show');
-        var id = $(e.target).attr("href").substr(1);
-        window.history.pushState(null, null, '#' + id);
-    });
-
-    frameworkTabs.find('a[href="' + window.location.hash + '"]').tab('show');
-});
-</script>
+<script defer src="@routes.Assets.versioned("javascripts/docs.js")"></script>
 
 <div class="container page-wrapper">
     <h1>Documentation</h1>
@@ -23,33 +10,105 @@ $(function() {
     <div class="row">
 
         <aside class="col-lg-3 col-xl-2">
-            <div id="sidebar-nav" class="offcanvas-lg offcanvas-start" tabindex="-1" aria-labelledby="offcanvasExampleLabel">
+            <div id="sidebar-nav" class="offcanvas-lg offcanvas-end" tabindex="-1" aria-labelledby="docsSidebarOffcanvasLabel">
                 <div class="offcanvas-header border-bottom">
-                    <h5 class="offcanvas-title" id="bdSidebarOffcanvasLabel">Browse docs</h5>
+                    <h5 id="docsSidebarOffcanvasLabel" class="offcanvas-title">Browse docs</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close" data-bs-target="#sidebar-nav"></button>
                 </div>
 
-                <div class="offcanvas-body">
-                    <nav class="nav-sidebar">
+                <div class="offcanvas-body position-relative">
+                    <nav aria-label="Docs navigation">
                         <ul id="framework-tabs" class="nav nav-pills flex-column" role="tablist">
-                            <li class="nav-item" role="presentation"><a class="nav-link active" href="#usage" data-bs-toggle="tab">Usage</a></li>
-                            <li class="nav-item" role="presentation"><a class="nav-link" href="#play2" data-bs-toggle="tab">Play Framework 2</a></li>
-                            <li class="nav-item" role="presentation"><a class="nav-link" href="#xitrum" data-bs-toggle="tab">Xitrum</a></li>
-                            <li class="nav-item" role="presentation"><a class="nav-link" href="#servlet3" data-bs-toggle="tab">Servlet 3</a></li>
-                            <li class="nav-item" role="presentation"><a class="nav-link" href="#servlet2" data-bs-toggle="tab">Servlet 2</a></li>
-                            <li class="nav-item" role="presentation"><a class="nav-link" href="#jsf" data-bs-toggle="tab">JSF</a></li>
-                            <li class="nav-item" role="presentation"><a class="nav-link" href="#grails" data-bs-toggle="tab">Grails</a></li>
-                            <li class="nav-item" role="presentation"><a class="nav-link" href="#dropwizard" data-bs-toggle="tab">Dropwizard</a></li>
-                            <li class="nav-item" role="presentation"><a class="nav-link" href="#springboot" data-bs-toggle="tab">Spring Boot</a></li>
-                            <li class="nav-item" role="presentation"><a class="nav-link" href="#springmvc" data-bs-toggle="tab">Spring MVC</a></li>
-                            <li class="nav-item" role="presentation"><a class="nav-link" href="#tapestry" data-bs-toggle="tab">Apache Tapestry</a></li>
-                            <li class="nav-item" role="presentation"><a class="nav-link" href="#wicket" data-bs-toggle="tab">Apache Wicket</a></li>
-                            <li class="nav-item" role="presentation"><a class="nav-link" href="#pippo" data-bs-toggle="tab">Pippo</a></li>
-                            <li class="nav-item" role="presentation"><a class="nav-link" href="#ring" data-bs-toggle="tab">Ring (Clojure)</a></li>
-                            <li class="nav-item" role="presentation"><a class="nav-link" href="#dandelion" data-bs-toggle="tab">Dandelion</a></li>
-                            <li class="nav-item" role="presentation"><a class="nav-link" href="#vertx" data-bs-toggle="tab">Vert.x Web</a></li>
-                            <li class="nav-item" role="presentation"><a class="nav-link" href="#quarkus" data-bs-toggle="tab">Quarkus</a></li>
-                            <li class="nav-item" role="presentation"><a class="nav-link" href="#ktor" data-bs-toggle="tab">Ktor</a></li>
+                            <li class="nav-item" role="presentation">
+                                <a class="nav-link active" href="#usage" data-bs-toggle="tab" data-bs-target="#usage" role="tab" aria-controls="usage" aria-selected="true">
+                                    Usage
+                                </a>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <a class="nav-link" href="#play2" data-bs-toggle="tab" data-bs-target="#play2" role="tab" aria-controls="play2" aria-selected="false">
+                                    Play Framework 2
+                                </a>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <a class="nav-link" href="#xitrum" data-bs-toggle="tab" data-bs-target="#xitrum" role="tab" aria-controls="xitrum" aria-selected="false">
+                                    Xitrum
+                                </a>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <a class="nav-link" href="#servlet3" data-bs-toggle="tab" data-bs-target="#servlet3" role="tab" aria-controls="servlet3" aria-selected="false">
+                                    Servlet 3
+                                </a>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <a class="nav-link" href="#servlet2" data-bs-toggle="tab" data-bs-target="#servlet2" role="tab" aria-controls="servlet2" aria-selected="false">
+                                    Servlet 2
+                                </a>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <a class="nav-link" href="#jsf" data-bs-toggle="tab" data-bs-target="#jsf" role="tab" aria-controls="jsf" aria-selected="false">
+                                    JSF
+                                </a>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <a class="nav-link" href="#grails" data-bs-toggle="tab" data-bs-target="#grails" role="tab" aria-controls="grails" aria-selected="false">
+                                    Grails
+                                </a>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <a class="nav-link" href="#dropwizard" data-bs-toggle="tab" data-bs-target="#dropwizard" role="tab" aria-controls="dropwizard" aria-selected="false">
+                                    Dropwizard
+                                </a>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <a class="nav-link" href="#springboot" data-bs-toggle="tab" data-bs-target="#springboot" role="tab" aria-controls="springboot" aria-selected="false">
+                                    Spring Boot
+                                </a>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <a class="nav-link" href="#springmvc" data-bs-toggle="tab" data-bs-target="#springmvc" role="tab" aria-controls="springmvc" aria-selected="false">
+                                    Spring MVC
+                                </a>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <a class="nav-link" href="#tapestry" data-bs-toggle="tab" data-bs-target="#tapestry" role="tab" aria-controls="tapestry" aria-selected="false">
+                                    Apache Tapestry
+                                </a>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <a class="nav-link" href="#wicket" data-bs-toggle="tab" data-bs-target="#wicket" role="tab" aria-controls="wicket" aria-selected="false">
+                                    Apache Wicket
+                                </a>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <a class="nav-link" href="#pippo" data-bs-toggle="tab" data-bs-target="#pippo" role="tab" aria-controls="pippo" aria-selected="false">
+                                    Pippo
+                                </a>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <a class="nav-link" href="#ring" data-bs-toggle="tab" data-bs-target="#ring" role="tab" aria-controls="ring" aria-selected="false">
+                                    Ring (Clojure)
+                                </a>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <a class="nav-link" href="#dandelion" data-bs-toggle="tab" data-bs-target="#dandelion" role="tab" aria-controls="dandelion" aria-selected="false">
+                                    Dandelion
+                                </a>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <a class="nav-link" href="#vertx" data-bs-toggle="tab" data-bs-target="#vertx" role="tab" aria-controls="vertx" aria-selected="false">
+                                    Vert.x Web
+                                </a>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <a class="nav-link" href="#quarkus" data-bs-toggle="tab" data-bs-target="#quarkus" role="tab" aria-controls="quarkus" aria-selected="false">
+                                    Quarkus
+                                </a>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <a class="nav-link" href="#ktor" data-bs-toggle="tab" data-bs-target="#ktor" role="tab" aria-controls="ktor" aria-selected="false">
+                                    Ktor
+                                </a>
+                            </li>
                         </ul>
                     </nav>
                 </div>
@@ -57,10 +116,6 @@ $(function() {
         </aside>
 
         <div class="col col-lg-9 col-xl-10 tab-content">
-            <div class="alert alert-warning" role="alert">
-                Help improve these docs! <a href="https://github.com/webjars/webjars/blob/master/app/views/documentation.scala.html">Documentation Source</a> | <a href="https://github.com/webjars/webjars/issues/new">Create an Issue</a>
-            </div>
-
             <!-- Usage -->
             <div class="tab-pane active" id="usage">
                 @documentations.usage()

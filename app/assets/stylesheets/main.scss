@@ -185,13 +185,6 @@ ul {
   }
 }
 
-.nav-sidebar {
-  max-height: calc(100vh - 160px);
-  overflow-y: auto;
-  position: sticky;
-  top: 5rem;
-}
-
 .callout {
   --bs-link-color-rgb: var(--bd-callout-link);
   --bs-code-color: var(--bd-callout-code-color);
