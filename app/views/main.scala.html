@@ -42,10 +42,14 @@
     </head>
 
     <body>
-        @partials.navbar(currentPath)
+        <div class="min-vh-100 h-full d-flex flex-column justify-content-between">
+            @partials.navbar(currentPath)
 
-        @content
-
-        @partials.footer()
+            <div class="flex-grow-1">
+                @content
+            </div>
+    
+            @partials.footer()
+        </div>
     </body>
 </html>
