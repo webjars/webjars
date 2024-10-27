@@ -219,14 +219,27 @@ ul {
   background: none;
   padding: 0;
   font-size: 10px;
+  margin-bottom: 0;
+  margin-top: 3px;
+}
+
+.table-name {
+  width: 240px;
+  min-width: 240px;
 }
 
 .table-versions {
   width: 240px;
+  min-width: 240px;
 }
 
 .table-files {
   width: 80px;
+  min-width: 80px;
+}
+
+.versions {
+  width: 200px;
 }
 
 #clearSearch {
