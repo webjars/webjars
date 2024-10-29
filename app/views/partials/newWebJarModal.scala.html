@@ -1,50 +1,53 @@
-<div id="newWebJarModal" class="modal fade" tabindex="-1" aria-labelledby="newWebJarModalLabel">
-    <div class="modal-dialog modal-fullscreen">
+<div id="newWebJarModal" class="modal fade" tabindex="-1" aria-labelledby="newWebJarModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h4 class="modal-title" id="newWebJarModalLabel">Add a New WebJar</h4>
+                <h1 id="newWebJarModalLabel" class="modal-title fs-5">Add a New WebJar</h1>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
 
             <div class="modal-body">
-                <form class="form-inline" style="margin-bottom: 10px;">
-                    <div class="form-group">
-                        <span class="control-label" style="font-weight: bold">WebJar Type: </span>
-                        <label class="radio-inline">
-                            <input type="radio" name="new_webjar_catalog" value="npm" checked> NPM
-                        </label>
-                        <label class="radio-inline">
-                            <input type="radio" name="new_webjar_catalog" value="classic"> Classic
-                        </label>
-                    </div>
+                <form>
+                    <fieldset class="d-inline-flex flex-row align-items-center gap-3 mb-3">
+                        <legend class="col-form-label">WebJar Type:</legend>
+                        <div class="form-check mb-0">
+                            <input id="npm" class="form-check-input" type="radio" name="new_webjar_catalog" value="npm" checked>
+                            <label class="form-check-label" for="npm">NPM</label>
+                        </div>
+                        <div class="form-check mb-0">
+                            <input id="classic" class="form-check-input" type="radio" name="new_webjar_catalog" value="classic">
+                            <label class="form-check-label" for="classic">Classic</label>
+                        </div>
+                    </fieldset>
                 </form>
 
                 <div class="webjar-deploy">
-                    <form id="webjar-deploy" class="form-inline">
-                        <div class="form-group has-feedback">
-                            <input type="text" class="form-control input-sm" id="newWebJarName" aria-describedby="newWebJarNameStatus" style="width: 280px" placeholder="Package Name or Git Repo URL">
-                            <span id="newWebJarNameFeedback" class="glyphicon form-control-feedback hidden" aria-hidden="true"></span>
-                            <span id="newWebJarNameStatus" class="sr-only">(success)</span>
+                    <form id="webjar-deploy" class="row g-3 mb-3">
+                        <div class="col-md-6 position-relative">
+                            <input id="newWebJarName" type="text" class="form-control form-control-sm" aria-describedby="newWebJarNameStatus" placeholder="Package Name or Git Repo URL">
+                            <span id="newWebJarNameSpinner" class="spinner-border-sm" aria-hidden="true"></span>
                         </div>
-                        <div class="form-group">
-                            <label for="newWebJarVersion" class="control-label sr-only">Package Version</label>
-                            <input id="newWebJarVersion" type="text" style="width: 284px" disabled data-placeholder="Version"/>
-                        </div>
-                        <div id="classic-deploy-error" class="hidden invalid-feedback">
-                            <br/>
-                            <p><b>That Classic WebJar Can't Be Deployed This Way</b></p>
-                            <p>If you need a new version of an existing Classic WebJar, <a id="classic-error-url">create a request on the WebJar's repo</a>.</p>
-                            <p>If you need a new Classic WebJar, <a href="https://github.com/webjars/webjars-classic/issues/new">create a request to have it created</a>.</p>
+                        <div class="col-md-6">
+                            <label for="newWebJarVersion" class="control-label visually-hidden">Package Version</label>
+                            <select id="newWebJarVersion" class="form-select form-select-sm" disabled data-placeholder="Version"></select>
                         </div>
                     </form>
 
-                    <h5>Deploy Log</h5>
-                    <pre id="deployLog" style="height: 200px; white-space: pre-line; word-break: normal;" disabled></pre>
+                    <div id="classicDeployError" class="d-none mb-3">
+                        <p><b>That Classic WebJar Can't Be Deployed This Way</b></p>
+                        <p>If you need a new version of an existing Classic WebJar, <a id="classicErrorUrl" target="_blank" rel="noopener noreferrer">create a request on the WebJar's repo</a>.</p>
+                        <p>If you need a new Classic WebJar, <a href="https://github.com/webjars/webjars-classic/issues/new" target="_blank" rel="noopener noreferrer">create a request to have it created</a>.</p>
+                    </div>
+
+                    <div>
+                        <h2 class="fs-6 mb-2">Deploy Log</h2>
+                        <pre id="deployLog" disabled></pre>
+                    </div>
                 </div>
             </div>
 
             <div class="modal-footer webjar-deploy">
-                <button id="deployButton" type="button" class="btn btn-default pull-left" disabled>Deploy!</button>
+                <button id="deployButton" type="button" class="btn btn-primary" disabled>Deploy!</button>
             </div>
         </div>
     </div>
