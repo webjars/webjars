@@ -232,7 +232,7 @@ class Application @Inject() (git: Git, cache: Cache, mavenCentral: MavenCentral,
     Action.async { implicit request =>
       webJarsFileService.getFileList(groupId, artifactId, version).map { fileList =>
         render {
-          case Accepts.Html() => Ok(views.html.partials.filelist(groupId, artifactId, version, fileList))
+          case Accepts.Html() => Ok(views.html.filelist(groupId, artifactId, version, fileList))
           case Accepts.Json() => Ok(Json.toJson(fileList))
         }
       } recover {
