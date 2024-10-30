@@ -17,11 +17,13 @@ libraryDependencies ++= Seq(
   "com.outr" %% "hasher" % "1.2.3",
   "io.lemonlabs" %% "scala-uri" % "4.0.3",
   "org.webjars" %% "webjars-play" % "3.0.2",
-  "org.webjars" % "bootstrap" % "5.3.3",
+  // brought in transatively via select2-bootstrap-5-theme
+  //"org.webjars" % "bootstrap" % "5.3.3",
   "org.webjars" % "highlightjs" % "11.10.0",
   "org.webjars" % "jquery" % "3.7.1",
   "org.webjars" % "select2" % "4.0.13",
-  "org.webjars.bower" % "jquery-typewatch" % "2.2.1",
+  "org.webjars.npm" % "select2-bootstrap-5-theme" % "1.3.0",
+  "org.webjars.npm" % "jquery.typewatch" % "2.1.0",
   specs2 % Test
 )
 

@@ -12,7 +12,7 @@
         <link rel="shortcut icon" href="/favicon.ico" />
         <link rel="icon" type="image/png" href="@routes.Assets.versioned("logo.png")" />
 
-        <!-- Googlr fonts -->
+        <!-- Google fonts -->
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
         <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
@@ -20,11 +20,11 @@
         <!-- Styles -->
         <link rel="stylesheet" href='@routes.Assets.versioned("stylesheets/main.css")'>
         @webJarsUtil.locate("select2.min.css").css()
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@@1.3.0/dist/select2-bootstrap-5-theme.min.css" />
+        @webJarsUtil.locate("select2-bootstrap-5-theme.min.css").css()
         @webJarsUtil.locate("atom-one-dark.min.css").css()
 
         <!-- Scripts -->
-        @webJarsUtil.locate("jquery/3.7.1/jquery.min.js").script()
+        @webJarsUtil.locate("jquery.min.js").script()
         @webJarsUtil.locate("bootstrap.bundle.min.js").script()
         @webJarsUtil.locate("select2.full.min.js").script()
         @webJarsUtil.locate("highlight.min.js").script()
@@ -51,7 +51,7 @@
             <div class="flex-grow-1">
                 @content
             </div>
-    
+
             @partials.footer()
         </div>
     </body>
