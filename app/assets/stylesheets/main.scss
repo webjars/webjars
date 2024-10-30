@@ -110,23 +110,23 @@ pre {
 }
 
 .section-wrapper {
-  padding-top: 5rem;
-  padding-bottom: 5rem;
+  padding-top: 3.5rem;
+  padding-bottom: 3.5rem;
 
   &-title {
     text-align: center;
-    font-size: 1.75rem;
+    font-size: 1.5rem;
     font-weight: 700;
     margin-bottom: 2rem;
   }
 }
 
 .page-wrapper {
-  padding-top: 5rem;
-  padding-bottom: 5rem;
+  padding-top: 3.5rem;
+  padding-bottom: 3.5rem;
 
   h1 {
-    font-size: 2.5rem;
+    font-size: 2rem;
     font-weight: 700;
     margin-bottom: 3rem;
   }
@@ -141,7 +141,7 @@ pre {
     width: 100%;
     max-width: 960px;
     text-align: center;
-    font-size: 2.5rem;
+    font-size: 2rem;
     font-weight: 700;
   }
 }
@@ -377,13 +377,13 @@ html[data-bs-theme="dark"]
 @media (min-width: 992px) {
   .page-wrapper {
     h1 {
-      font-size: 3rem;
+      font-size: 2.5rem;
     }
   }
 
   .hero-section {
     &-title {
-      font-size: 3rem;
+      font-size: 2.75rem;
     }
   }
 
