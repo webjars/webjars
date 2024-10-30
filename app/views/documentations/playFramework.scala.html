@@ -1,0 +1,94 @@
+<h2>Instructions for Play 2.6 (<a href="https://github.com/webjars/sample-play2" target="_blank" rel="noopener noreferrer">Sample Source</a>)</h2>
+
+<p>
+    WebJars can be added as dependencies to an app by simply adding them to the <code>build.sbt</code> file like:
+</p>
+<pre><code>libraryDependencies += "org.webjars" % "bootstrap" % "3.1.1-2"</code></pre>
+
+<p>
+    Play automatically extracts the WebJar contents and makes them available via the <code>Assets</code> controller.
+    So, if you have a route like:
+</p>
+<pre><code>GET         /assets/*file           controllers.Assets.at(path="/public", file)</code></pre>
+
+<p>
+    Then a WebJar file like <code>bootstrap.css</code> is available at:
+</p>
+<pre><code>/assets/lib/bootstrap/css/bootstrap.css</code></pre>
+
+<p>
+    There is also a helper library named <code>webjars-play</code> that makes it easy to reference WebJar assets.
+    Here is an example <code>build.sbt</code> file with <code>webjars-play</code> and the <code>bootstrap</code>
+    WebJar as dependencies:
+</p>
+<pre><code>libraryDependencies ++= Seq(
+  "org.webjars" %% "webjars-play" % "2.6.3",
+  "org.webjars" % "bootstrap" % "3.1.1-2"
+)
+</code></pre>
+
+<p>
+    After changing the dependencies you will need to restart Play.<br>
+</p>
+
+<p>
+    The <code>webjars-play</code> helper library has a wrapper around the Play Static Asset Controller that can locate
+    and serve WebJar assets. A new route import needs to be added to the <code>conf/routes</code> file:
+</p>
+<pre><code>-&gt;          /webjars                webjars.Routes</code></pre>
+
+<p>
+    The <code>org.webjars.play.WebJarsUtil</code> class has a number of helpful methods for locating and loading assets.
+    <a href="https://javadoccentral.herokuapp.com/org.webjars/webjars-play_2.12/2.6.3/org/webjars/play/WebJarsUtil.html">
+    Check out the JavaDoc</a>. To use it you need to inject an instance of <code>WebJarsUtil</code> - usually into a template.
+    For example:
+</p>
+<pre><code>@@this(webJarsUtil: org.webjars.play.WebJarsUtil)
+
+... HTML page ...
+
+@@webJarsUtil.locate("bootstrap.min.css").css()
+@@webJarsUtil.locate("bootstrap.min.js").script()
+</code></pre>
+
+<p>
+    WebJars have out-of-the-box support for RequireJS.  To use it in a template, call the <code>webJarsUtil.requireJs</code>
+    method with a reverse route to the main JavaScript app:
+</p>
+<pre><code>@@webJarsUtil.requireJs(routes.Assets.versioned("javascripts/index.js"))</code></pre>
+
+<p>
+    If you need to override the default RequireJS config you can use a lower-level <code>RequireJS</code> API to setup the config,
+    for example:
+</p>
+<pre><code>&lt;script&gt;
+  var require = {
+    callback: function() {
+      // default requirejs configs
+      @@for(webJarJson <- org.webjars.RequireJS.getSetupJson(routes.WebJarAssets.at("").url).values()) {
+        @@if(webJarJson != null) {
+          requirejs.config(@@Html(webJarJson.toString));
+        }
+      }
+
+      // example custom requirejs config
+      requirejs.config({
+        paths: {
+          jquery: "//code.jquery.com/jquery-1.11.1.min"
+        },
+        shim: {
+          bootstrap: []
+        }
+      });
+    }
+  };
+&lt;/script&gt;
+@@webJarsUtil.locate("requirejs", "require.min.js").script(Map("data-main" -> routes.Assets.versioned("javascripts/index.js").url))
+</code></pre>
+
+<p>
+    You can load WebJar assets from a CDN by setting the following config:
+</p>
+<pre><code>webjars.use-cdn=true
+play.filters.headers.contentSecurityPolicy = "default-src 'self' https://cdn.jsdelivr.net"
+</code></pre>

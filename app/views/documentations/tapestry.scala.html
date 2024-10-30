@@ -1,0 +1,41 @@
+<h2>Instructions for Apache Tapestry</h2>
+
+<p>
+    Apache Tapestry makes it easy to expose static assets in JAR files using <code>contributeClasspathAssetAliasManager</code>.
+</p>
+
+<h3>
+    Maven Example
+    (<a href="https://github.com/webjars/sample-tapestry" target="_blank" rel="noopener noreferrer">example app</a>)
+</h3>
+
+<p>
+    First add a WebJar as a dependency of your application in the <code>pom.xml</code> file, like:
+</p>
+<pre><code>&lt;dependencies&gt;
+    &lt;dependency&gt;
+        &lt;groupId&gt;org.webjars&lt;/groupId&gt;
+        &lt;artifactId&gt;bootstrap&lt;/artifactId&gt;
+        &lt;version&gt;3.1.0&lt;/version&gt;
+    &lt;/dependency&gt;
+&lt;/dependencies&gt;
+</code></pre>
+
+<p>
+    Then configure the <code>contributeClasspathAssetAliasManager</code> in your <code>AppModule</code> to look for assets
+    in <code>META-INF/resources/webjars</code> directories:
+</p>
+<pre><code>public class AppModule {
+    public static void contributeClasspathAssetAliasManager(MappedConfiguration<String, String> configuration) {
+        configuration.add("webjars", "META-INF/resources/webjars");
+    }
+}</code></pre>
+
+<p>
+    Then simply reference WebJars assets in your Tapestry templates like:
+</p>
+<pre><code>&lt;link rel='stylesheet' media='screen'
+    href='${asset:classpath:/META-INF/resources/webjars/bootstrap/3.1.0/css/bootstrap.min.css}'&gt;&lt;/link&gt;
+&lt;script type='text/javascript'
+    src='${asset:classpath:/META-INF/resources/webjars/jquery/1.9.0/jquery.min.js}'&gt;&lt;/script&gt;
+</pre></code>

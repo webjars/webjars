@@ -1,0 +1,8 @@
+@import java.time.format.DateTimeFormatter
+@import java.time.LocalDate
+
+<footer>
+    <div class="container d-flex align-items-center justify-content-center footer-content">
+        <span>&copy; @DateTimeFormatter.ofPattern("YYYY").format(LocalDate.now) WebJars</span>
+    </div>
+</footer>

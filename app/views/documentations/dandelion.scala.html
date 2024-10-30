@@ -1,0 +1,71 @@
+<h2>Instructions for Dandelion</h2>
+
+<p>
+    When writing bundles, you can configure assets to be fetched from multiple locations: <code>webapp</code>, <code>classpath</code>
+    and more.
+</p>
+
+<p>
+    <a href="http://dandelion.github.io/" target="_blank" rel="noopener noreferrer">Dandelion</a> also provides a WebJars integration
+    via a dedicated locator for WebJars.
+</p>
+
+<p>
+    First, you have to add dandelion-webjars as dependency to your application in the <code>pom.xml</code> file:
+</p>
+<pre><code>&lt;dependencies&gt;
+    &lt;dependency&gt;
+        &lt;groupId&gt;com.github.dandelion&lt;/groupId&gt;
+        &lt;artifactId&gt;dandelion-webjars&lt;/artifactId&gt;
+        &lt;version&gt;1.1.0&lt;/version&gt;
+    &lt;/dependency&gt;
+&lt;/dependencies&gt;
+</code></pre>
+
+<p>
+    And a WebJar dependency like:
+</p>
+<pre><code>&lt;dependencies&gt;
+    &lt;dependency&gt;
+        &lt;groupId&gt;org.webjars&lt;/groupId&gt;
+        &lt;artifactId&gt;jquery&lt;/artifactId&gt;
+        &lt;version&gt;1.11.3&lt;/version&gt;
+    &lt;/dependency&gt;
+&lt;/dependencies&gt;
+</code></pre>
+
+<p>
+    Then, in your bundle definition, configure the asset as follows:
+</p>
+<pre><code>{
+    "assets": [
+        {
+            "version": "1.11.3",
+            "locations": {
+                "webjar": "jquery.js"
+            }
+        }
+    ]
+}
+</code></pre>
+
+<div class="callout callout-info">
+    Note: Usage of the <code>webjar</code> location key, that tells Dandelion to fetch the asset from a WebJar.
+</div>
+<div class="callout callout-info">
+    Note: Since Dandelion uses
+    <a href="https://github.com/webjars/webjars-locator/" target="_blank" rel="noopener noreferrer">webjars-locator</a> internally,
+    you just need to specify the name of the asset, path excluded but extension included.
+</div>
+
+<p>
+    Dandelion will finally generate the following client-side HTML markup:
+</p>
+<pre><code>&lt;script src="/[contextPath]/webjars/jquery/1.11.3/jquery.js"&gt;&lt;/script&gt;</code></pre>
+
+<p>
+    A sample application is available
+    <a href="https://github.com/dandelion/dandelion-core-samples/tree/master/core-thymeleaf-webjars" target="_blank" rel="noopener noreferrer">
+        here
+    </a>.
+</p>

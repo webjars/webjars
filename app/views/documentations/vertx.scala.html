@@ -1,0 +1,38 @@
+<h2>Instructions for Vert.x Web</h2>
+
+<p>
+    The Vert.x Web
+    <code>
+        <a href="https://vertx.io/docs/vertx-web/java/#_serving_static_resources" target="_blank" rel="noopener noreferrer">
+            StaticHandler
+        </a>
+    </code>
+    can resolve file paths from both the filesystem and the classpath. Therefore, it requires very little configuration
+    to serve assets packaged in a WebJar.
+</p>
+
+<h3>Maven Example</h3>
+
+<p>
+    First add a WebJar as a dependency of your application in the <code>pom.xml</code> file, like:
+</p>
+<pre><code>&lt;dependencies&gt;
+    &lt;dependency&gt;
+        &lt;groupId&gt;org.webjars&lt;/groupId&gt;
+        &lt;artifactId&gt;bootstrap&lt;/artifactId&gt;
+        &lt;version&gt;3.1.0&lt;/version&gt;
+    &lt;/dependency&gt;
+&lt;/dependencies&gt;
+</code></pre>
+
+<p>
+    In your code, create a <code>StaticHandler</code> and assign it to a <code>Route</code>:
+</p>
+<pre><code>Router router = Router.router(vertx);
+router.route("/assets/lib/*").handler(StaticHandler.create("META-INF/resources/webjars"));
+</code></pre>
+
+<p>
+    Then simply reference the resource like:
+</p>
+<pre><code>&lt;link rel='stylesheet' href='assets/lib/bootstrap/3.1.0/css/bootstrap.min.css'&gt;</code></pre>

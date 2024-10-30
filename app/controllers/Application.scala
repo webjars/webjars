@@ -106,7 +106,7 @@ class Application @Inject() (git: Git, cache: Cache, mavenCentral: MavenCentral,
     sortedMostPopularWebJars.map { popularWebJars =>
       render {
         case Accepts.Html() =>
-          maybeCached(request, (webJars: Seq[WebJar]) => Ok(views.html.webJarList(Left(webJars))))(popularWebJars)
+          maybeCached(request, (webJars: Seq[WebJar]) => Ok(views.html.partials.webJarList(Left(webJars))))(popularWebJars)
         case Accepts.Json() =>
           Ok(Json.toJson(popularWebJars))
       }
@@ -114,7 +114,7 @@ class Application @Inject() (git: Git, cache: Cache, mavenCentral: MavenCentral,
       case _: Exception =>
         render {
           case Accepts.Html() =>
-            InternalServerError(views.html.webJarList(Right(WEBJAR_FETCH_ERROR)))
+            InternalServerError(views.html.partials.webJarList(Right(WEBJAR_FETCH_ERROR)))
           case Accepts.Json() =>
             InternalServerError(WEBJAR_FETCH_ERROR)
         }
@@ -138,14 +138,14 @@ class Application @Inject() (git: Git, cache: Cache, mavenCentral: MavenCentral,
 
     matchesFuture.map { matchingWebJars =>
       render {
-        case Accepts.Html() => Ok(views.html.webJarList(Left(matchingWebJars)))
+        case Accepts.Html() => Ok(views.html.partials.webJarList(Left(matchingWebJars)))
         case Accepts.Json() => Ok(Json.toJson(matchingWebJars))
       }
     } recover {
       case e: Exception =>
         logger.error("searchWebJars failed", e)
         render {
-          case Accepts.Html() => InternalServerError(views.html.webJarList(Right(WEBJAR_FETCH_ERROR)))
+          case Accepts.Html() => InternalServerError(views.html.partials.webJarList(Right(WEBJAR_FETCH_ERROR)))
           case Accepts.Json() => InternalServerError(Json.toJson(Seq.empty[WebJar]))
         }
     }
