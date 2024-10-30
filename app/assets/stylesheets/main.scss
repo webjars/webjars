@@ -4,14 +4,14 @@
 // 2. Include any default variable overrides here
 :root {
   --bd-card-bg: var(--bs-body-bg);
-  --bd-home-bg-after: 230px;
-  --bd-home-bg-before: 280px;
+  --bd-home-bg-after: 250px;
+  --bd-home-bg-before: 300px;
 }
 
 html[data-bs-theme="dark"] {
   --bd-card-bg: #161617;
-  --bd-home-bg-after: 150px;
-  --bd-home-bg-before: 150px;
+  --bd-home-bg-after: 160px;
+  --bd-home-bg-before: 200px;
 }
 
 $font-family-base: "Inter", sans-serif;
@@ -158,7 +158,7 @@ pre {
 
   &:after {
     content: "";
-    width: 10rem;
+    width: 12rem;
     height: 40rem;
     background: linear-gradient(90deg, $purple 30%, $indigo 100%);
     filter: blur(var(--bd-home-bg-after));
@@ -173,7 +173,7 @@ pre {
     content: "";
     width: 15rem;
     height: 50rem;
-    background: linear-gradient(90deg, $indigo 30%, $purple 100%);
+    background: linear-gradient(90deg, $purple 30%, $indigo 100%);
     filter: blur(var(--bd-home-bg-before));
     position: absolute;
     right: -25rem;
@@ -289,6 +289,10 @@ pre {
   right: 1.125rem;
 }
 
+#webJarList {
+  max-height: 50vh;
+}
+
 /* Select 2 bootstrap-5 theme override */
 html[data-bs-theme="dark"] .select2-container--bootstrap-5 .select2-selection {
   background-color: transparent !important;
@@ -376,8 +380,8 @@ html[data-bs-theme="dark"]
     }
 
     &:before {
-      right: -12rem;
-      top: 3rem;
+      right: -5rem;
+      top: 5rem;
     }
   }
 }
