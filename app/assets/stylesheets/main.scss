@@ -2,16 +2,12 @@
 @import "lib/bootstrap/scss/functions";
 
 // 2. Include any default variable overrides here
-:root {
+:root, html[data-bs-theme="light"] {
   --bd-card-bg: var(--bs-body-bg);
-  --bd-home-bg-after: 250px;
-  --bd-home-bg-before: 300px;
 }
 
 html[data-bs-theme="dark"] {
   --bd-card-bg: #161617;
-  --bd-home-bg-after: 160px;
-  --bd-home-bg-before: 200px;
 }
 
 $font-family-base: "Inter", sans-serif;
@@ -158,10 +154,10 @@ pre {
 
   &:after {
     content: "";
-    width: 12rem;
-    height: 40rem;
+    width: 6rem;
+    height: 35rem;
     background: linear-gradient(90deg, $purple 30%, $indigo 100%);
-    filter: blur(var(--bd-home-bg-after));
+    filter: blur(250px);
     position: absolute;
     left: -15rem;
     top: -10rem;
@@ -171,15 +167,33 @@ pre {
 
   &:before {
     content: "";
-    width: 15rem;
-    height: 50rem;
+    width: 8rem;
+    height: 40rem;
     background: linear-gradient(90deg, $purple 30%, $indigo 100%);
-    filter: blur(var(--bd-home-bg-before));
+    filter: blur(300px);
     position: absolute;
     right: -25rem;
     top: -2rem;
     transform: rotate(45deg);
     z-index: -1;
+  }
+}
+
+html[data-bs-theme="dark"] {
+  .home-bg {
+    &:after {
+      width: 12rem;
+      height: 40rem;
+      background: linear-gradient(90deg, $purple 30%, $indigo 100%);
+      filter: blur(150px);
+    }
+
+    &:before {
+      width: 15rem;
+      height: 50rem;
+      background: linear-gradient(90deg, $indigo 40%, $purple 100%);
+      filter: blur(160px);
+    }
   }
 }
 
