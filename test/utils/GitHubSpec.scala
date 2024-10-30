@@ -39,7 +39,7 @@ class GitHubSpec extends PlaySpecification with GlobalApplication {
       await(gitHub.currentUrls(url)) must throwA[ServerError]
     }
     "work for sub paths" in {
-      val url = AbsoluteUrl.parse("https://github.com/GIP-RECIA/uPortal-web-components/tree/gip-recia-esco-content-menu-lit/@uportal/esco-content-menu-lit")
+      val url = AbsoluteUrl.parse("https://github.com/GIP-RECIA/uPortal-web-components/tree/esco-content-menu-lit-dev-build/@uportal/esco-content-menu-lit")
       val (homepage, gitUrl, issuesUrl) = await(gitHub.currentUrls(url))
       homepage must beEqualTo (AbsoluteUrl.parse("https://github.com/GIP-RECIA/uPortal-web-components"))
       gitUrl must beEqualTo (AbsoluteUrl.parse("https://github.com/GIP-RECIA/uPortal-web-components.git"))
