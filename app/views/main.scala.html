@@ -3,7 +3,7 @@
 @(title: String, currentPath: String = "/")(content: Html)
 
 <!DOCTYPE html>
-<html lang="en" data-bs-theme="dark">
+<html lang="en" data-bs-theme="auto">
     <head>
         <meta charset="utf-8">
         <meta http-equiv="X-UA-Compatible" content="IE=edge">
@@ -29,6 +29,7 @@
         @webJarsUtil.locate("select2.full.min.js").script()
         @webJarsUtil.locate("highlight.min.js").script()
         <script>hljs.highlightAll();</script>
+        <script src="@routes.Assets.versioned("javascripts/color-modes.js")"></script>
 
         <!-- Google tag (gtag.js) -->
         <script async src="https://www.googletagmanager.com/gtag/js?id=G-EEV2YQX882"></script>
@@ -42,6 +43,8 @@
     </head>
 
     <body>
+        @partials.icons()
+
         <div class="min-vh-100 h-full d-flex flex-column justify-content-between">
             @partials.navbar(currentPath)
 

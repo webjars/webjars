@@ -2,14 +2,25 @@
 @import "lib/bootstrap/scss/functions";
 
 // 2. Include any default variable overrides here
+:root {
+  --bd-card-bg: var(--bs-body-bg);
+  --bd-home-bg-after: 230px;
+  --bd-home-bg-before: 280px;
+}
+
+html[data-bs-theme="dark"] {
+  --bd-card-bg: #161617;
+  --bd-home-bg-after: 150px;
+  --bd-home-bg-before: 150px;
+}
+
 $font-family-base: "Inter", sans-serif;
 
-// $primary: #ed6767;
 $primary: #6610f2;
-// $secondary: #111113;
 
+$body-bg: #e6e6fc;
 $body-bg-dark: #111113;
-$card-bg: #161617;
+$card-bg: var(--bd-card-bg);
 
 // 3. Include remainder of required Bootstrap stylesheets (including any separate color mode stylesheets)
 @import "lib/bootstrap/scss/variables";
@@ -38,19 +49,19 @@ $card-bg: #161617;
 @import "lib/bootstrap/scss/nav";
 @import "lib/bootstrap/scss/navbar";
 @import "lib/bootstrap/scss/card";
-@import "lib/bootstrap/scss/accordion";
-@import "lib/bootstrap/scss/breadcrumb";
-@import "lib/bootstrap/scss/pagination";
+// @import "lib/bootstrap/scss/accordion";
+// @import "lib/bootstrap/scss/breadcrumb";
+// @import "lib/bootstrap/scss/pagination";
 @import "lib/bootstrap/scss/badge";
 @import "lib/bootstrap/scss/alert";
-@import "lib/bootstrap/scss/progress";
+// @import "lib/bootstrap/scss/progress";
 @import "lib/bootstrap/scss/list-group";
 @import "lib/bootstrap/scss/close";
-@import "lib/bootstrap/scss/toasts";
+// @import "lib/bootstrap/scss/toasts";
 @import "lib/bootstrap/scss/modal";
 @import "lib/bootstrap/scss/tooltip";
 @import "lib/bootstrap/scss/popover";
-@import "lib/bootstrap/scss/carousel";
+// @import "lib/bootstrap/scss/carousel";
 @import "lib/bootstrap/scss/spinners";
 @import "lib/bootstrap/scss/offcanvas";
 @import "lib/bootstrap/scss/placeholders";
@@ -75,6 +86,12 @@ ul {
 
 pre {
   border-radius: $card-border-radius;
+}
+
+.bi {
+  width: 1em;
+  height: 1em;
+  fill: currentColor;
 }
 
 .navbar {
@@ -144,9 +161,9 @@ pre {
     width: 10rem;
     height: 40rem;
     background: linear-gradient(90deg, $purple 30%, $indigo 100%);
-    filter: blur(150px);
+    filter: blur(var(--bd-home-bg-after));
     position: absolute;
-    left: 15rem;
+    left: -15rem;
     top: -10rem;
     transform: rotate(45deg);
     z-index: -1;
@@ -157,9 +174,9 @@ pre {
     width: 15rem;
     height: 50rem;
     background: linear-gradient(90deg, $indigo 30%, $purple 100%);
-    filter: blur(150px);
+    filter: blur(var(--bd-home-bg-before));
     position: absolute;
-    right: -10rem;
+    right: -25rem;
     top: -2rem;
     transform: rotate(45deg);
     z-index: -1;
@@ -349,6 +366,18 @@ html[data-bs-theme="dark"]
   .hero-section {
     &-title {
       font-size: 3rem;
+    }
+  }
+
+  .home-bg {
+    &:after {
+      left: 8rem;
+      top: -10rem;
+    }
+
+    &:before {
+      right: -12rem;
+      top: 3rem;
     }
   }
 }
