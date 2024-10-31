@@ -152,30 +152,30 @@ pre {
   margin-top: -5rem;
   padding-top: 5rem;
 
-  &:after {
+  &:after, &:before {
     content: "";
-    width: 6rem;
-    height: 35rem;
-    background: linear-gradient(90deg, $purple 30%, $indigo 100%);
-    filter: blur(250px);
+    will-change: transform;
     position: absolute;
-    left: -15rem;
-    top: -10rem;
     transform: rotate(45deg);
     z-index: -1;
   }
 
+  &:after {
+    width: 6rem;
+    height: 35rem;
+    background: linear-gradient(90deg, $purple 30%, $indigo 100%);
+    filter: blur(250px);
+    left: -15rem;
+    top: -10rem;
+  }
+
   &:before {
-    content: "";
     width: 8rem;
     height: 40rem;
     background: linear-gradient(90deg, $purple 30%, $indigo 100%);
     filter: blur(300px);
-    position: absolute;
     right: -25rem;
     top: -2rem;
-    transform: rotate(45deg);
-    z-index: -1;
   }
 }
 
@@ -305,6 +305,10 @@ html[data-bs-theme="dark"] {
 
 #webJarList {
   max-height: 50vh;
+}
+
+#buildtoolselect {
+  min-width: max-content;
 }
 
 /* Select 2 bootstrap-5 theme override */
