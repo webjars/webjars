@@ -1,6 +1,6 @@
 @(currentPath: String)
 
-@if(currentPath == routes.Application.documentation().toString()) {
+@if(currentPath == routes.Application.documentation().toString) {
     <div class="alert alert-warning rounded-0 text-center mb-0" role="alert">
         Help improve these docs!
         <a class="alert-link text-decoration-underline" href="https://github.com/webjars/webjars/blob/master/app/views/documentation.scala.html" target="_blank" rel="noopener noreferrer">
@@ -9,6 +9,12 @@
         <a class="alert-link text-decoration-underline" href="https://github.com/webjars/webjars/issues/new" target="_blank" rel="noopener noreferrer">
             Create an Issue
         </a>
+    </div>
+}
+@if(currentPath == routes.Application.index().toString) {
+    <div class="alert alert-warning rounded-0 text-center mb-0" role="alert">
+        Bower WebJars are no longer maintained
+        (<a class="alert-link text-decoration-underline" href="https://github.com/webjars/webjars/issues/2039" target="_blank" rel="noopener noreferrer">Details</a>)
     </div>
 }
 
@@ -28,10 +34,10 @@
         <div class="d-none d-lg-flex flex-grow-1">
             <ul id="main-nav-links" class="navbar-nav">
                 <li class="nav-item">
-                    <a class="nav-link @if(currentPath == routes.Application.allWebJars().toString()) { active }" href="@routes.Application.allWebJars()">All WebJars</a>
+                    <a class="nav-link @if(currentPath == routes.Application.allWebJars().toString) { active }" href="@routes.Application.allWebJars()">All WebJars</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link @if(currentPath == routes.Application.documentation().toString()) { active }" href="@routes.Application.documentation()">Documentation</a>
+                    <a class="nav-link @if(currentPath == routes.Application.documentation().toString) { active }" href="@routes.Application.documentation()">Documentation</a>
                 </li>
             </ul>
         </div>
@@ -83,7 +89,7 @@
                     </li>
                 </ul>
             </li>
-            @if(currentPath == routes.Application.documentation().toString()) {
+            @if(currentPath == routes.Application.documentation().toString) {
                 <li class="d-lg-none nav-item">
                     <button class="btn px-1 nav-link" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebar-nav" aria-controls="sidebar-nav" aria-label="Toggle sidebar navigation">
                         <svg class="bi bi-three-dots-vertical"><use href="#three-dots-vertical"></use></svg>
