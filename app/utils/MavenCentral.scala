@@ -600,7 +600,7 @@ class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, config
 
       val signerBuilder = new JcaPGPContentSignerBuilder(secretKeyRing.getPublicKey().getAlgorithm, HashAlgorithmTags.SHA1)
 
-      val sGen = new PGPSignatureGenerator(signerBuilder)
+      val sGen = new PGPSignatureGenerator(signerBuilder, secretKeyRing.getPublicKey())
       sGen.init(PGPSignature.BINARY_DOCUMENT, privKey)
 
       val bos = new ByteArrayOutputStream()
