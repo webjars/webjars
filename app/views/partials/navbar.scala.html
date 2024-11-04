@@ -1,7 +1,7 @@
 @(currentPath: String)
 
 @if(currentPath == routes.Application.documentation().toString) {
-    <div class="alert alert-warning rounded-0 text-center mb-0" role="alert">
+    <div class="alert alert-warning banner" role="alert">
         Help improve these docs!
         <a class="alert-link text-decoration-underline" href="https://github.com/webjars/webjars/blob/master/app/views/documentation.scala.html" target="_blank" rel="noopener noreferrer">
             Documentation Source
@@ -12,7 +12,7 @@
     </div>
 }
 @if(currentPath == routes.Application.index().toString) {
-    <div class="alert alert-warning rounded-0 text-center mb-0" role="alert">
+    <div class="alert alert-warning banner" role="alert">
         Bower WebJars are no longer maintained
         (<a class="alert-link text-decoration-underline" href="https://github.com/webjars/webjars/issues/2039" target="_blank" rel="noopener noreferrer">Details</a>)
     </div>
