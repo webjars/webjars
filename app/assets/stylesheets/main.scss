@@ -4,10 +4,12 @@
 // 2. Include any default variable overrides here
 :root, html[data-bs-theme="light"] {
   --bd-card-bg: var(--bs-body-bg);
+  --bd-input-bg: #f5f5fd;
 }
 
 html[data-bs-theme="dark"] {
   --bd-card-bg: #161617;
+  --bd-input-bg: #111113;
 }
 
 $font-family-base: "Inter", sans-serif;
@@ -17,6 +19,7 @@ $primary: #6610f2;
 $body-bg: #e6e6fc;
 $body-bg-dark: #111113;
 $card-bg: var(--bd-card-bg);
+$input-bg: var(--bd-input-bg);
 
 // 3. Include remainder of required Bootstrap stylesheets (including any separate color mode stylesheets)
 @import "lib/bootstrap/scss/variables";
