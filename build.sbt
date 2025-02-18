@@ -12,7 +12,7 @@ libraryDependencies ++= Seq(
   "net.spy" % "spymemcached" % "2.12.3",
   "com.lihaoyi" %% "fastparse" % "3.1.1",
   "org.apache.commons" % "commons-compress" % "1.27.1",
-  "org.eclipse.jgit" % "org.eclipse.jgit" % "7.0.0.202409031743-r",
+  "org.eclipse.jgit" % "org.eclipse.jgit" % "7.1.0.202411261347-r",
   "org.bouncycastle" % "bcpg-jdk18on" % "1.80",
   "com.outr" %% "hasher" % "1.2.3",
   "io.lemonlabs" %% "scala-uri" % "4.0.3",
