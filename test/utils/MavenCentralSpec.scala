@@ -4,12 +4,18 @@ import io.lemonlabs.uri.AbsoluteUrl
 import models.{WebJar, WebJarType}
 import org.apache.commons.io.IOUtils
 import org.apache.pekko.util.Timeout
+import org.bouncycastle.bcpg.{HashAlgorithmTags, PublicKeyAlgorithmTags, PublicKeyPacket, SymmetricKeyAlgorithmTags}
+import org.bouncycastle.jce.provider.BouncyCastleProvider
+import org.bouncycastle.openpgp.operator.jcajce.{JcaPGPContentSignerBuilder, JcaPGPDigestCalculatorProviderBuilder, JcaPGPKeyPair, JcePBESecretKeyEncryptorBuilder}
+import org.bouncycastle.openpgp.{PGPSecretKey, PGPSignature}
 import play.api.Environment
 import play.api.test._
 import utils.MavenCentral.{GAV, StagedRepo}
 
 import java.io.FileNotFoundException
+import java.security.{KeyPairGenerator, Security}
 import java.time.LocalDateTime
+import java.util.{Base64, Date}
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.util.Try
@@ -84,16 +90,35 @@ class MavenCentralSpec extends PlaySpecification {
     }
   }
 
+  def generateKey(): String = {
+    Security.addProvider(new BouncyCastleProvider())
+
+    val keyPairGenerator = KeyPairGenerator.getInstance("RSA", "BC")
+    keyPairGenerator.initialize(2048)
+    val keyPair = keyPairGenerator.generateKeyPair()
+
+    val pgpKeyPair = new JcaPGPKeyPair(PublicKeyPacket.VERSION_4, PublicKeyAlgorithmTags.RSA_GENERAL, keyPair, new Date())
+
+    val sha1Calc = new JcaPGPDigestCalculatorProviderBuilder().build().get(HashAlgorithmTags.SHA1)
+
+    val passphrase = "test"
+    val identity = "Test User <test@example.com>"
+
+    val signerBuilder = new JcaPGPContentSignerBuilder(pgpKeyPair.getPublicKey.getAlgorithm, HashAlgorithmTags.SHA1)
+
+    val secretKeyEncryptionBuilder = new JcePBESecretKeyEncryptorBuilder(SymmetricKeyAlgorithmTags.CAST5, sha1Calc).setProvider("BC").build(passphrase.toArray)
+
+    val secretKey = new PGPSecretKey(PGPSignature.DEFAULT_CERTIFICATION, pgpKeyPair, identity, sha1Calc, null, null, signerBuilder, secretKeyEncryptionBuilder)
+
+    Base64.getEncoder.encodeToString(secretKey.getEncoded)
+  }
+
+  class WithAppAndKey extends WithApplication(_.configure("oss.gpg-key" -> generateKey(), "oss.gpg-pass" -> "test"))
+
   "deploy" should {
-    "asc" in new WithApp() {
+    "asc" in new WithAppAndKey() {
       val mavenCentral = app.injector.instanceOf[MavenCentral]
-      if (mavenCentral.maybeOssGpgKey(app.configuration).isEmpty) {
-        skipped("skipped due to missing config")
-      }
-      else {
-        val mavenCentral = app.injector.instanceOf[MavenCentral]
-        mavenCentral.asc("foo".getBytes) must beSome
-      }
+      mavenCentral.asc("foo".getBytes) must beSome
     }
     "create, upload, close, drop" in new WithApp() {
       val mavenCentral = app.injector.instanceOf[MavenCentral]

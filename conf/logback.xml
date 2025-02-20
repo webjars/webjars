@@ -1,22 +1,20 @@
-<!-- https://www.playframework.com/documentation/latest/SettingsLogger -->
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE configuration>
 <configuration>
+    <import class="ch.qos.logback.classic.encoder.PatternLayoutEncoder"/>
+    <import class="ch.qos.logback.core.ConsoleAppender"/>
 
-    <conversionRule conversionWord="coloredLevel" converterClass="play.api.libs.logback.ColoredLevel" />
-
-    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
-        <encoder>
-            <pattern>%coloredLevel %logger{15} - %message%n%xException{10}</pattern>
+    <appender name="STDOUT" class="ConsoleAppender">
+        <encoder class="PatternLayoutEncoder">
+            <pattern>%highlight(%-5level) %logger{15} - %message%n%xException{10}</pattern>
         </encoder>
-    </appender>
-
-    <appender name="ASYNCSTDOUT" class="ch.qos.logback.classic.AsyncAppender">
-        <appender-ref ref="STDOUT" />
     </appender>
 
     <logger name="play" level="WARN" />
     <logger name="net.spy.memcached" level="WARN" />
     <logger name="org.apache.pekko" level="WARN" />
     <logger name="application" level="INFO" />
+
     <logger name="org.eclipse.jgit.internal.transport.http.NetscapeCookieFile" level="ERROR" />
     <!-- todo: investigate
     p.s.a.i.n.c.AbstractChannel - Force-closing a channel whose registration task was not accepted by an event loop:
@@ -50,7 +48,7 @@
     -->
 
     <root level="INFO">
-        <appender-ref ref="ASYNCSTDOUT" />
+        <appender-ref ref="STDOUT"/>
     </root>
 
 </configuration>
