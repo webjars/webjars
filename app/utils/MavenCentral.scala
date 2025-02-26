@@ -239,6 +239,7 @@ class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, config
   def fetchWebJars(groupId: GroupId): Future[Set[WebJar]] = {
     logger.info(s"Getting $groupId WebJars")
 
+    // todo: needs work
     fetchGAVs(groupId).flatMap { gavs =>
       Future.sequence {
         gavs.groupBy { gav =>
@@ -246,13 +247,14 @@ class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, config
         }.map { case ((groupId, artifactId), artifactGavs) =>
           gavsToWebJarVersion(artifactGavs).flatMap { versions =>
             val sorted = versions.toSeq.sortBy(_.number)(VersionStringOrdering.compare).reverse
-
-            getWebJarNameAndUrl(GAV(groupId, artifactId, sorted.head.number)).map { case (name, url) =>
-              WebJar(groupId, artifactId, name, url, sorted)
+            sorted.headOption.fold(Future.successful(Set.empty[WebJar])) { latest =>
+              getWebJarNameAndUrl(GAV(groupId, artifactId, latest.number)).map { case (name, url) =>
+                Set(WebJar(groupId, artifactId, name, url, sorted))
+              }
             }
           }
         }.toSet
-      }
+      }.map(_.flatten)
     }.map { webJars =>
       logger.info(s"Retrieved ${webJars.size} $groupId WebJars")
       webJars
