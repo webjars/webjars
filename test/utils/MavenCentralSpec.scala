@@ -163,6 +163,14 @@ class MavenCentralSpec extends PlaySpecification {
     }
   }
 
+  "getNumFiles" should {
+    "return none for a nonexistant webjar" in new WithApp() {
+      val mavenCentral = app.injector.instanceOf[MavenCentralLive]
+
+      await(mavenCentral.getNumFiles(GAV("org.webjars", "es6-promise-parent", "4.2.8"))) must beNone
+    }
+  }
+
 }
 
 class MavenCentralMock extends MavenCentral {

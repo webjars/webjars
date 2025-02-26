@@ -61,7 +61,7 @@ class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, config
                                  (implicit ec: ExecutionContext, actorSystem: ActorSystem) extends MavenCentral with Logging {
   import MavenCentral._
 
-  private implicit val transcoderInt: Transcoder[Int] = new IntegerTranscoder().asInstanceOf[Transcoder[Int]]
+  private implicit val transcoderOptionalInt: Transcoder[Option[Int]] = new SerializingTranscoder().asInstanceOf[Transcoder[Option[Int]]]
   private implicit val transcoderNameUrl: Transcoder[(String, String)] = new SerializingTranscoder().asInstanceOf[Transcoder[(String, String)]]
   private implicit val transcoderStats: Transcoder[Map[(String, String), Int]] = new SerializingTranscoder().asInstanceOf[Transcoder[Map[(String, String), Int]]]
 
@@ -182,14 +182,15 @@ class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, config
     }
   }
 
+  // cache filenotfounds so we don't keep looking them up
   def getNumFiles(gav: GAV): Future[Option[Int]] = {
     val cacheKey = s"numfiles-${gav.groupId}-${gav.artifactId}-${gav.version}"
-    memcache.getWithMiss[Int](cacheKey) {
-      webJarsFileService.getNumFiles(gav.groupId, gav.artifactId, gav.version)
-    } map { numFiles =>
-      Some(numFiles)
-    } recover {
-      case _: FileNotFoundException => None
+    memcache.getWithMiss[Option[Int]](cacheKey) {
+      webJarsFileService.getNumFiles(gav.groupId, gav.artifactId, gav.version).map { numFiles =>
+        Some(numFiles)
+      } recover {
+        case _: FileNotFoundException => None
+      }
     }
   }
 
