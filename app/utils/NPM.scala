@@ -9,6 +9,7 @@ import play.api.libs.functional.syntax._
 import play.api.libs.json._
 import play.api.libs.ws.WSClient
 import utils.Deployable.{NameOrUrlish, Version}
+import utils.MavenCentral.GroupId
 import utils.PackageInfo._
 
 import java.io.InputStream
@@ -23,11 +24,7 @@ class NPM @Inject() (val ws: WSClient, val licenseDetector: LicenseDetector, val
 
   override val name: String = "NPM"
 
-  override val groupIdQuery: String = "org.webjars.npm"
-
-  override def includesGroupId(groupId: String): Boolean = groupId.equalsIgnoreCase(groupIdQuery)
-
-  override def groupId(nameOrUrlish: NameOrUrlish, version: Version): Future[String] = Future.successful(groupIdQuery)
+  override val groupId: GroupId = "org.webjars.npm"
 
   override def artifactId(nameOrUrlish: NameOrUrlish, version: Version): Future[String] = git.artifactId(nameOrUrlish)
 
@@ -212,7 +209,7 @@ class NPM @Inject() (val ws: WSClient, val licenseDetector: LicenseDetector, val
   }
 
   override def mavenDependencies(dependencies: Map[String, String]): Future[Set[(String, String, String)]] = {
-    maven.convertNpmBowerDependenciesToMaven(dependencies).map { mavenDependencies =>
+    maven.convertNpmDependenciesToMaven(dependencies).map { mavenDependencies =>
       mavenDependencies.map {
         case (artifactId, version) =>
           ("org.webjars.npm", artifactId, version)

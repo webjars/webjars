@@ -224,7 +224,7 @@ $(function () {
           }
 
           const results = data.map(item => ({ id: item, text: item }));
-          
+
           return { results };
         }
       },
@@ -271,16 +271,25 @@ $(function () {
     $("#deployButton").attr("disabled", true);
     $("input[type=radio][name=new_webjar_catalog]:checked").trigger("change");
 
+    var groupId = $(event.relatedTarget).data("group-id");
     var artifactId = $(event.relatedTarget).data("artifact-id");
-    var webJarType = $(event.relatedTarget).data("webjar-type");
-    if (webJarType !== undefined) {
-      $("input[type=radio][name=new_webjar_catalog]").prop("checked", false);
-      $("input[type=radio][name=new_webjar_catalog][value='" + webJarType + "']").prop("checked", true).trigger("change");
+    var name = $(event.relatedTarget).data("name");
+    var input = undefined;
+
+    $("input[type=radio][name=new_webjar_catalog]").prop("checked", false);
+
+    if (groupId === "org.webjars") {
+      $("input[type=radio][name=new_webjar_catalog][value='classic']").prop("checked", true).trigger("change");
+      input = artifactId;
+    }
+    else if (groupId === "org.webjars.npm") {
+      $("input[type=radio][name=new_webjar_catalog][value='npm']").prop("checked", true).trigger("change");
+      input = name;
     }
 
-    if (artifactId !== undefined) {
-      $("#newWebJarName").val(artifactId);
-      checkPackageName(artifactId);
+    if (input !== undefined) {
+      $("#newWebJarName").val(input);
+      checkPackageName(input);
     } else {
       $("#newWebJarName").val("");
       $("#newWebJarName").removeClass("is-valid").removeClass("is-invalid");

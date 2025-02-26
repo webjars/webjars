@@ -3,7 +3,7 @@ package models
 import play.api.libs.json.{Format, Json}
 import utils.VersionStringOrdering
 
-case class WebJar(`type`: String, groupId: String, artifactId: String, name: String, sourceUrl: String, versions: List[WebJarVersion]) extends Serializable
+case class WebJar(groupId: String, artifactId: String, name: String, sourceUrl: String, versions: Seq[WebJarVersion]) extends Serializable
 
 case class WebJarVersion(number: String, numFiles: Int = 0)
 

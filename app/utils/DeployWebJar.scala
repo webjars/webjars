@@ -1,7 +1,6 @@
 package utils
 
 import io.lemonlabs.uri.AbsoluteUrl
-import models.WebJarType
 import org.apache.commons.compress.archivers.{ArchiveEntry, ArchiveInputStream, ArchiveStreamFactory}
 import org.apache.pekko.stream.scaladsl.{Source, SourceQueueWithComplete}
 import org.apache.pekko.stream.{Materializer, OverflowStrategy}
@@ -10,7 +9,7 @@ import play.api.Configuration
 import play.api.i18n.{Lang, Langs, MessagesApi}
 import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.libs.concurrent.Futures
-import utils.MavenCentral.GAV
+import utils.MavenCentral.{ArtifactId, GAV, GroupId}
 
 import java.io.{BufferedInputStream, FileNotFoundException, InputStream}
 import javax.inject.Inject
@@ -25,7 +24,7 @@ class DeployWebJar @Inject()(mavenCentral: MavenCentral, sourceLocator: SourceLo
 
   def forkDeploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, deployDependencies: Boolean, preventFork: Boolean, force: Boolean): Source[String, Future[NotUsed]] = {
     val app = configuration.get[String]("deploy.herokuapp")
-    val cmd = s"deploy ${WebJarType.toString(deployable)} $nameOrUrlish $upstreamVersion $deployDependencies $preventFork $force"
+    val cmd = s"deploy ${deployable.name} $nameOrUrlish $upstreamVersion $deployDependencies $preventFork $force"
     heroku.dynoCreate(app, cmd, "Standard-2X")
   }
 
@@ -89,7 +88,7 @@ class DeployWebJar @Inject()(mavenCentral: MavenCentral, sourceLocator: SourceLo
     Source.queue[String](Int.MaxValue, OverflowStrategy.backpressure).mapMaterializedValue { queue =>
       val future = for {
         packageInfo <- deployable.info(nameOrUrlish, upstreamVersion, maybeSourceUri)
-        groupId <- deployable.groupId(nameOrUrlish, upstreamVersion)
+        groupId = deployable.groupId
         artifactId <- deployable.artifactId(nameOrUrlish, upstreamVersion)
 
         releaseVersion = deployable.releaseVersion(maybeReleaseVersion, packageInfo)
@@ -176,7 +175,7 @@ class DeployWebJar @Inject()(mavenCentral: MavenCentral, sourceLocator: SourceLo
 
     for {
       packageInfo <- deployable.info(nameOrUrlish, upstreamVersion)
-      groupId <- groupIdOverride.map(Future.successful).getOrElse(deployable.groupId(nameOrUrlish, upstreamVersion))
+      groupId = groupIdOverride.getOrElse(deployable.groupId)
       artifactId <- deployable.artifactId(nameOrUrlish, upstreamVersion)
 
       releaseVersion = upstreamVersion.vless
@@ -247,15 +246,9 @@ object DeployWebJar extends App {
 
     val deployWebJar = app.injector.instanceOf[DeployWebJar]
 
-    val classic = app.injector.instanceOf[Classic]
-    val npm = app.injector.instanceOf[NPM]
-    val bower = app.injector.instanceOf[Bower]
-    val bowerGitHub = app.injector.instanceOf[BowerGitHub]
+    val allDeployables = app.injector.instanceOf[AllDeployables]
 
-    val allDeployables = Set(classic, npm, bower, bowerGitHub)
-
-
-    val deployFuture = WebJarType.fromString(webJarType, allDeployables).fold[Future[Done]] {
+    val deployFuture = allDeployables.fromGroupId(webJarType).fold[Future[Done]] {
       Future.failed(new Exception(s"Specified WebJar type '$webJarType' can not be deployed"))
     } { deployable =>
       deployWebJar.deploy(deployable, nameOrUrlish, upstreamVersion, deployDependencies, preventFork, force, maybeReleaseVersion, maybeSourceUri, maybeLicense).runForeach(println)
@@ -267,7 +260,7 @@ object DeployWebJar extends App {
 
 }
 
-trait Deployable extends WebJarType {
+trait Deployable {
 
   import Deployable._
 
@@ -283,9 +276,11 @@ trait Deployable extends WebJarType {
     def vwith: Version = if (s.startsWith("v")) s else "v" + s
   }
 
-  def groupId(nameOrUrlish: NameOrUrlish, version: Version): Future[String]
+  val name: String
 
-  def artifactId(nameOrUrlish: NameOrUrlish, version: Version): Future[String]
+  val groupId: GroupId
+
+  def artifactId(nameOrUrlish: NameOrUrlish, version: Version): Future[ArtifactId]
 
   def releaseVersion(maybeVersion: Option[Version], packageInfo: PackageInfo): String = maybeVersion.getOrElse(packageInfo.version).vless
 
@@ -412,4 +407,26 @@ trait Deployable extends WebJarType {
 object Deployable {
   type NameOrUrlish = String
   type Version = String
+}
+
+class AllDeployables @Inject() (classic: Classic, npm: NPM) {
+
+  def fromGroupId(groupId: String): Option[Deployable] =
+    if (groupId == classic.groupId)
+      Some(classic)
+    else if (groupId == npm.groupId)
+      Some(npm)
+    else
+      None
+
+  def groupIds(): Set[String] = Set(classic.groupId, npm.groupId)
+
+  def fromName(name: String): Option[Deployable] =
+    if (name.equalsIgnoreCase(classic.name))
+      Some(classic)
+    else if (name.equalsIgnoreCase(npm.name))
+      Some(npm)
+    else
+      None
+
 }

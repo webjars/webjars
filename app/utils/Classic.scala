@@ -9,6 +9,7 @@ import play.api.libs.concurrent.Futures
 import play.api.libs.json.JsObject
 import play.api.libs.ws.WSClient
 import utils.Deployable.{NameOrUrlish, Version}
+import utils.MavenCentral.ArtifactId
 
 import java.io.{InputStream, StringReader}
 import java.util.Properties
@@ -19,8 +20,7 @@ import scala.util.Try
 
 class Classic @Inject() (ws: WSClient, val licenseDetector: LicenseDetector, val messages: MessagesApi, val langs: Langs, gitHub: GitHub, cache: Cache, configuration: Configuration)(implicit ec: ExecutionContext) extends Deployable {
   override val name: String = "Classic"
-  override val groupIdQuery: String = "org.webjars"
-  override def includesGroupId(groupId: String): Boolean = groupId.equalsIgnoreCase("org.webjars")
+  override val groupId: String = "org.webjars"
 
   private lazy val webJarsClassicBranch = configuration.getOptional[String]("webjars.classic.branch").getOrElse("main")
 
@@ -58,9 +58,7 @@ class Classic @Inject() (ws: WSClient, val licenseDetector: LicenseDetector, val
     }
   }
 
-  override def groupId(nameOrUrlish: NameOrUrlish, version: Version): Future[String] = Future.successful("org.webjars")
-
-  override def artifactId(nameOrUrlish: NameOrUrlish, version: Version): Future[String] = {
+  override def artifactId(nameOrUrlish: NameOrUrlish, version: Version): Future[ArtifactId] = {
     cache.get[Metadata](s"webjars-classic-$nameOrUrlish", 1.hour) {
       metadata(nameOrUrlish)
     }.map(_.id)

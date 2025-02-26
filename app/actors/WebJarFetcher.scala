@@ -1,7 +1,6 @@
 package actors
 
 
-import models.WebJarType
 import org.apache.pekko.actor.Actor
 import org.apache.pekko.pattern.pipe
 import utils.MavenCentral
@@ -17,4 +16,4 @@ class WebJarFetcher @Inject() (mavenCentral: MavenCentral) (implicit executionCo
 
 }
 
-case class FetchWebJars(webJarType: WebJarType)
+case class FetchWebJars(groupId: String)

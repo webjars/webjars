@@ -7,7 +7,7 @@ import scala.concurrent.{ExecutionContext, Future}
 
 class Maven @Inject() (git: Git, semVer: SemVer) (implicit ec: ExecutionContext) {
 
-  def convertNpmBowerDependenciesToMaven(dependencies: Map[String, String]): Future[Map[String, String]] = {
+  def convertNpmDependenciesToMaven(dependencies: Map[String, String]): Future[Map[String, String]] = {
     val maybeMavenDeps = dependencies.map { case (name, versionOrUrl) =>
 
       val urlTry = AbsoluteUrl.parseTry(versionOrUrl).filter { url =>

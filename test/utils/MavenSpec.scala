@@ -17,7 +17,7 @@ class MavenSpec extends PlaySpecification with GlobalApplication {
       val deps = Map(
         "traceur" -> "^0.0.72"
       )
-      val mavenDeps = await(maven.convertNpmBowerDependenciesToMaven(deps))
+      val mavenDeps = await(maven.convertNpmDependenciesToMaven(deps))
       mavenDeps.get("traceur") must beSome ("[0.0.72,0.0.73-0)")
     }
     "work with versionless git npm deps" in {
@@ -25,7 +25,7 @@ class MavenSpec extends PlaySpecification with GlobalApplication {
         "route-recognizer" -> "git://github.com/btford/route-recognizer",
         "HTML5-Desktop-Notifications" -> "https://github.com/ttsvetko/HTML5-Desktop-Notifications.git"
       )
-      val mavenDeps = await(maven.convertNpmBowerDependenciesToMaven(deps))
+      val mavenDeps = await(maven.convertNpmDependenciesToMaven(deps))
       mavenDeps.get("github-com-btford-route-recognizer") must beSome ("0.1.1")
       mavenDeps.get("github-com-ttsvetko-html5-desktop-notifications") must beSome ("3.0.0")
     }
@@ -34,7 +34,7 @@ class MavenSpec extends PlaySpecification with GlobalApplication {
         "route-recognizer" -> "git://github.com/btford/route-recognizer#0.1.1",
         "react-tools" -> "git://github.com/facebook/react.git#b4e74e38e43ac53af8acd62c78c9213be0194245"
       )
-      val mavenDeps = await(maven.convertNpmBowerDependenciesToMaven(deps))
+      val mavenDeps = await(maven.convertNpmDependenciesToMaven(deps))
       mavenDeps.get("github-com-btford-route-recognizer") must beSome ("0.1.1")
       mavenDeps.get("github-com-facebook-react") must beSome ("b4e74e38e43ac53af8acd62c78c9213be0194245")
     }
@@ -43,7 +43,7 @@ class MavenSpec extends PlaySpecification with GlobalApplication {
         "route-recognizer" -> "btford/route-recognizer#0.1.1",
         "react-tools" -> "github:facebook/react#b4e74e3"
       )
-      val mavenDeps = await(maven.convertNpmBowerDependenciesToMaven(deps))
+      val mavenDeps = await(maven.convertNpmDependenciesToMaven(deps))
       mavenDeps.get("github-com-btford-route-recognizer") must beSome ("0.1.1")
       mavenDeps.get("github-com-facebook-react") must beSome ("b4e74e3")
     }
@@ -51,14 +51,14 @@ class MavenSpec extends PlaySpecification with GlobalApplication {
       val deps = Map(
         "iron-a11y-announcer" -> "PolymerElements/iron-a11y-announcer#^1.0.0"
       )
-      val mavenDeps = await(maven.convertNpmBowerDependenciesToMaven(deps))
+      val mavenDeps = await(maven.convertNpmDependenciesToMaven(deps))
       mavenDeps.get("github-com-polymerelements-iron-a11y-announcer") must beSome ("[1.0.0,2.0.0-0)")
     }
     "work with scoped deps" in {
       val deps = Map(
         "@reactivex/rxjs" -> "5.0.0-alpha.7"
       )
-      val mavenDeps = await(maven.convertNpmBowerDependenciesToMaven(deps))
+      val mavenDeps = await(maven.convertNpmDependenciesToMaven(deps))
       mavenDeps.get("reactivex__rxjs") must beSome ("5.0.0-alpha.7")
     }
     "not work with invalid value" in {
@@ -66,7 +66,7 @@ class MavenSpec extends PlaySpecification with GlobalApplication {
       val deps = Map(
         "semantic" -> "semantic-ui#~2.1.4"
       )
-      await(maven.convertNpmBowerDependenciesToMaven(deps)) must throwA[Exception]
+      await(maven.convertNpmDependenciesToMaven(deps)) must throwA[Exception]
     }
 
     "work with a tgz" in {
@@ -74,7 +74,7 @@ class MavenSpec extends PlaySpecification with GlobalApplication {
         "wrench" -> "https://github.com/derekslife/wrench-js/tarball/156eaceed68ed31ffe2a3ecfbcb2be6ed1417fb2"
       )
 
-      val mavenDeps = await(maven.convertNpmBowerDependenciesToMaven(deps))
+      val mavenDeps = await(maven.convertNpmDependenciesToMaven(deps))
       mavenDeps.get("github-com-derekslife-wrench-js") must beSome ("156eaceed68ed31ffe2a3ecfbcb2be6ed1417fb2")
     }
   }

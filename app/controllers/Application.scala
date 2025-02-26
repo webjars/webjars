@@ -2,7 +2,7 @@ package controllers
 
 import com.google.inject.ImplementedBy
 import io.lemonlabs.uri.AbsoluteUrl
-import models.{WebJar, WebJarType}
+import models.WebJar
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.stream.scaladsl.{Flow, Source}
 import org.apache.pekko.util.ByteString
@@ -14,7 +14,7 @@ import play.api.libs.concurrent.Futures
 import play.api.libs.json.Json
 import play.api.mvc._
 import play.api.{Environment, Logging, Mode}
-import utils.MavenCentral.ExistingWebJarRequestException
+import utils.MavenCentral.{ExistingWebJarRequestException, GroupId}
 import utils._
 
 import java.io.FileNotFoundException
@@ -26,12 +26,10 @@ import scala.util.hashing.MurmurHash3
 import scala.util.{Failure, Random}
 
 class Application @Inject() (git: Git, cache: Cache, mavenCentral: MavenCentral, deployWebJar: DeployWebJar, webJarsFileService: WebJarsFileService, actorSystem: ActorSystem, environment: Environment, futures: Futures)
-                            (classic: Classic, bower: Bower, npm: NPM, bowerGitHub: BowerGitHub)
+                            (allDeployables: AllDeployables)
                             (allView: views.html.all, indexView: views.html.index, documentationView: views.html.documentation)
                             (fetchConfig: FetchConfig)
                             (implicit ec: ExecutionContext) extends InjectedController with Logging {
-
-  private val allWebJarTypes = Set(classic, bowerGitHub, bower, npm)
 
   private[controllers] val MAX_POPULAR_WEBJARS = 20
 
@@ -57,20 +55,17 @@ class Application @Inject() (git: Git, cache: Cache, mavenCentral: MavenCentral,
     }
   }
 
-  private val allDeployables = Set(classic, npm, bower, bowerGitHub)
-
-  private def webJarsWithTimeout(maybeWebJarType: Option[WebJarType] = None): Future[List[WebJar]] = {
-    // todo: de-dupe caches?
-    val fetcher = maybeWebJarType.fold {
-      cache.get[List[WebJar]]("webjars-all", 1.hour) {
-        mavenCentral.webJarsSorted()
-      }
-    } { webJarType =>
+  private def webJarsWithTimeout(maybeGroupId: Option[GroupId] = None): Future[List[WebJar]] = {
+    def getWebJars(groupId: GroupId): Future[List[WebJar]] = {
       val jitter = (Random.nextInt(10) + 55).minutes
-      cache.get[List[WebJar]](s"webjars-$webJarType", jitter) {
-        mavenCentral.webJarsSorted(Some(webJarType))
+      cache.get[List[WebJar]](s"webjars-$groupId", jitter) {
+        mavenCentral.webJarsSorted(Some(groupId))
       }
     }
+
+    val fetcher = maybeGroupId.fold {
+      Future.reduceLeft(allDeployables.groupIds().map(getWebJars))(_ ++ _)
+    } { getWebJars }
 
     val future = TimeoutFuture(fetchConfig.timeout)(fetcher)
     future.onComplete {
@@ -121,7 +116,7 @@ class Application @Inject() (git: Git, cache: Cache, mavenCentral: MavenCentral,
     }
   }
 
-  def searchWebJars(query: String, groupIds: List[String]) = Action.async { implicit request =>
+  def searchWebJars(query: String, groupIds: List[GroupId]) = Action.async { implicit request =>
     val queryLowerCase = query.toLowerCase.stripPrefix("org.webjars").stripPrefix("webjars")
 
     def filter(webJar: WebJar): Boolean = {
@@ -132,7 +127,7 @@ class Application @Inject() (git: Git, cache: Cache, mavenCentral: MavenCentral,
 
     val matchesFuture = Future.reduceLeft {
       groupIds.map { groupId =>
-        webJarsWithTimeout(WebJarType.fromGroupId(groupId, allWebJarTypes)).map(_.filter(filter))
+        webJarsWithTimeout(Some(groupId)).map(_.filter(filter))
       }
     } (_ ++ _)
 
@@ -151,8 +146,8 @@ class Application @Inject() (git: Git, cache: Cache, mavenCentral: MavenCentral,
     }
   }
 
-  def webJarList(groupId: String) = Action.async { implicit request =>
-    webJarsWithTimeout(WebJarType.fromGroupId(groupId, allWebJarTypes)).map {
+  def webJarList(groupId: GroupId) = Action.async { implicit request =>
+    webJarsWithTimeout(Some(groupId)).map {
       maybeCached(request, webJars => Ok(Json.toJson(webJars)))
     } recover {
       case _: Exception =>
@@ -164,17 +159,13 @@ class Application @Inject() (git: Git, cache: Cache, mavenCentral: MavenCentral,
     Redirect(routes.Application.index())
   }
 
-  def bowerList = Action {
-    Redirect(routes.Application.index())
-  }
-
   def npmList = Action {
     Redirect(routes.Application.index())
   }
 
   def packageExists(webJarType: String, packageNameOrGitRepo: String) = Action.async {
-    WebJarType.fromString(webJarType, allDeployables).fold {
-      Future.successful(BadRequest(s"Specified WebJar type '$webJarType' can not be deployed"))
+    allDeployables.fromName(webJarType).fold {
+      Future.successful(BadRequest(s"Specified WebJar type '$webJarType' does not exist"))
     } { deployable =>
       deployable.versions(packageNameOrGitRepo).map { _ =>
         Ok(<root></root>)
@@ -185,8 +176,8 @@ class Application @Inject() (git: Git, cache: Cache, mavenCentral: MavenCentral,
   }
 
   def packageVersions(webJarType: String, packageNameOrGitRepo: String, maybeBranch: Option[String]) = Action.async {
-    WebJarType.fromString(webJarType, allDeployables).fold {
-      Future.successful(BadRequest(s"Specified WebJar type '$webJarType' can not be deployed"))
+    allDeployables.fromName(webJarType).fold {
+      Future.successful(BadRequest(s"Specified WebJar type '$webJarType' does not exist"))
     } { deployable =>
 
       val packageVersionsFuture = maybeBranch.fold {
@@ -259,7 +250,7 @@ class Application @Inject() (git: Git, cache: Cache, mavenCentral: MavenCentral,
   }
 
   def deploy(webJarType: String, nameOrUrlish: String, version: String): Action[AnyContent] = Action { implicit request =>
-    WebJarType.fromString(webJarType, allDeployables).fold {
+    allDeployables.fromName(webJarType).fold {
       BadRequest(s"Specified WebJar type '$webJarType' can not be deployed")
     } { deployable =>
       val source = deployWebJar.deploy(deployable, nameOrUrlish, version, true, false, false).recover {
@@ -303,8 +294,8 @@ class Application @Inject() (git: Git, cache: Cache, mavenCentral: MavenCentral,
       (json \ "groupId").asOpt[String]
     }
 
-    WebJarType.fromString(webJarType, allDeployables).fold {
-      Future.successful(BadRequest(s"Specified WebJar type '$webJarType' can not be deployed"))
+    allDeployables.fromName(webJarType).fold {
+      Future.successful(BadRequest(s"Specified WebJar type '$webJarType' can not be created"))
     } { deployable =>
       deployWebJar.create(deployable, nameOrUrlish, version, licenseOverride, groupIdOverride).map { case (name, bytes) =>
         val filename = name + ".jar"

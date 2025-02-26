@@ -44,21 +44,9 @@
                                     }
                                     </select>
                                 </form>
-
-                                @if(!webjar.`type`.toLowerCase.contains("bower")) {
-                                    @defining(
-                                        webjar.`type` match {
-                                            case "classic" => webjar.artifactId
-                                            case _ => webjar.name
-                                        }
-                                    ) { dataArtifactId =>
-                                        <button title="Create a new version" type="button" class="btn btn-primary d-flex align-items-center justify-content-center" data-bs-toggle="modal" data-bs-target="#newWebJarModal" data-webjar-type="@{
-                                            webjar.`type`
-                                        }" data-group-id="@webjar.groupId" data-artifact-id="@dataArtifactId">
-                                            <svg class="bi bi-plus-lg"><use href="#plus-lg"></use></svg>
-                                        </button>
-                                    }
-                                }
+                                <button title="Create a new version" type="button" class="btn btn-primary d-flex align-items-center justify-content-center" data-bs-toggle="modal" data-bs-target="#newWebJarModal" data-group-id="@webjar.groupId" data-artifact-id="@webjar.artifactId" data-name="@webjar.name">
+                                    <svg class="bi bi-plus-lg"><use href="#plus-lg"></use></svg>
+                                </button>
                             </div>
                         </td>
                         <td>
