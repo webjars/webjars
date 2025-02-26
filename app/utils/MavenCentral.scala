@@ -197,7 +197,7 @@ class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, config
 
 
   def fetchGAVs(groupId: GroupId): Future[Set[GAV]] = {
-//    println(s"fetching init page for $groupId")
+    println(s"fetching init page for $groupId")
     // 200 seems to be the max for search.maven.org
     val maxPageSize = 200
 
@@ -209,14 +209,14 @@ class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, config
     req.addQueryStringParameters("rows" -> "0").get().flatMap { numResponse =>
       numResponse.status match {
         case Status.OK =>
-//          println(numResponse.uri)
+          println(numResponse.uri)
           val numFound = (numResponse.json \ "response" \ "numFound").as[Int]
-//          println(s"numFound = $numFound")
+          println(s"numFound = $numFound")
           val toFetch = maybeLimit.getOrElse(numFound)
-//          println(s"toFetch = $toFetch")
+          println(s"toFetch = $toFetch")
 
           val pages = (0 until toFetch).by(pageSize).map { start =>
-//            println(s"fetching $groupId page start = $start")
+            println(s"fetching $groupId page start = $start")
 
             def fetchPage(): Future[Seq[GAV]] = {
               req.addQueryStringParameters("rows" -> pageSize.toString, "start" -> start.toString).get().flatMap { response =>
