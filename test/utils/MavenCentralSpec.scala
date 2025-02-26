@@ -36,13 +36,21 @@ class MavenCentralSpec extends PlaySpecification {
       val mavenCentral = app.injector.instanceOf[MavenCentral]
       val npm = app.injector.instanceOf[NPM]
       val webJars = await(mavenCentral.fetchWebJars(npm.groupId))
-      webJars.isEmpty should beFalse
       webJars.forall(_.groupId == "org.webjars.npm") should beTrue
+      webJars.size should beEqualTo(limit)
+      webJars.foldLeft(0)(_ + _.versions.size) should beGreaterThan (0)
     }
   }
 
-  // todo: how to do with a fetch limit?
-  /*
+  "artifactIds" should {
+    "does not include artifact versions in artifacts" in new WithApplication() { // no limit
+      val mavenCentral = app.injector.instanceOf[MavenCentralLive]
+      val artifactIds = await(mavenCentral.artifactIds("org.webjars.npm"))
+      artifactIds.contains("1.3.26") must beFalse
+      artifactIds.size must beGreaterThan(5000)
+    }
+  }
+
   "webJarsSorted" should {
     "be ordered correctly" in new WithApp() {
       val mavenCentral = app.injector.instanceOf[MavenCentral]
@@ -59,7 +67,6 @@ class MavenCentralSpec extends PlaySpecification {
       }
     }
   }
-   */
 
   "getStats" should {
     "get the stats for a given date" in new WithApp() {

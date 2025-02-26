@@ -4,6 +4,7 @@ import actors.{FetchWebJars, WebJarFetcher}
 import com.google.inject.ImplementedBy
 import com.roundeights.hasher.Implicits._
 import models.{WebJar, WebJarVersion}
+import net.ruippeixotog.scalascraper.browser.JsoupBrowser
 import net.spy.memcached.transcoders.{SerializingTranscoder, Transcoder}
 import org.apache.pekko.actor._
 import org.apache.pekko.pattern.{after, ask}
@@ -28,6 +29,7 @@ import javax.inject.{Inject, Singleton}
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.language.postfixOps
+import scala.util.matching.Regex
 import scala.util.{Failure, Success, Try}
 import scala.xml.Elem
 
@@ -72,6 +74,7 @@ class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, config
   private lazy val ossProject = configuration.get[String]("oss.project")
   private lazy val disableDeploy = configuration.getOptional[Boolean]("oss.disable-deploy").getOrElse(false)
 
+  val browser = JsoupBrowser()
 
   def withOssCredentials[T](f: (String, String) => Future[T]): Future[T] = {
     val maybeUsernameAndPassword = for {
@@ -195,61 +198,53 @@ class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, config
     }
   }
 
+  // this is trash but it is more reliable than search.maven.org
+  //  because that site does severe rate limiting and has a low page size which results in lots of reqs needed to fetch the list of webjars
+  //  and you'll get denied. and it won't feel good after you've spent hours writing this awfulness only to realize it won't work in production
 
-  def fetchGAVs(groupId: GroupId): Future[Set[GAV]] = {
-    println(s"fetching init page for $groupId")
-    // 200 seems to be the max for search.maven.org
-    val maxPageSize = 200
+  def fetchDirs(url: String): Future[Set[String]] = {
+    import net.ruippeixotog.scalascraper.dsl.DSL._
+    import net.ruippeixotog.scalascraper.dsl.DSL.Extract._
 
-    val pageSize = maybeLimit.map(Math.min(maxPageSize, _)).getOrElse(maxPageSize)
+    Future.fromTry {
+      Try {
+        val lines = browser.get(url) >> texts("a")
+        lines.filter(_.endsWith("/")).map(_.stripSuffix("/")).toSet
+      }
+    }
+  }
 
-    val req = wsClient.url("https://search.maven.org/solrsearch/select")
-      .withQueryStringParameters("q" -> s"g:$groupId", "wt" -> "json", "core" -> "gav")
+  def versions(groupId: GroupId, artifactId: ArtifactId): Future[Set[String]] = {
+    val groupPath = groupId.split('.').mkString("/")
+    val url = s"https://repo1.maven.org/maven2/$groupPath/$artifactId/maven-metadata.xml"
 
-    req.addQueryStringParameters("rows" -> "0").get().flatMap { numResponse =>
-      numResponse.status match {
+    wsClient.url(url).get().flatMap { response =>
+      response.status match {
         case Status.OK =>
-          println(numResponse.uri)
-          val numFound = (numResponse.json \ "response" \ "numFound").as[Int]
-          println(s"numFound = $numFound")
-          val toFetch = maybeLimit.getOrElse(numFound)
-          println(s"toFetch = $toFetch")
-
-          val pages = (0 until toFetch).by(pageSize).map { start =>
-            println(s"fetching $groupId page start = $start")
-
-            def fetchPage(): Future[Seq[GAV]] = {
-              req.addQueryStringParameters("rows" -> pageSize.toString, "start" -> start.toString).get().flatMap { response =>
-                response.status match {
-                  case Status.OK =>
-                    Future.successful {
-                      (response.json \ "response" \ "docs").as[Seq[JsObject]].map { doc =>
-                        val artifactId = (doc \ "a").as[String]
-                        val version = (doc \ "v").as[String]
-                        GAV(groupId, artifactId, version)
-                      }
-                    }
-                  case Status.TOO_MANY_REQUESTS =>
-                    // todo: limit recursion or will this all eventually timeout?
-                    futures.delayed(5.seconds) {
-                      fetchPage()
-                    }
-                  case _ =>
-                    Future.failed(ServerError(response.body, response.status))
-                }
-              }
+          Future.fromTry {
+            Try {
+              (response.xml \\ "version").map(_.text).toSet
             }
-
-            fetchPage()
           }
-
-          Future.reduceLeft(pages)(_ ++ _).map { gavs =>
-            // ignore webjar libraries
-            gavs.filterNot(_.artifactId.startsWith("webjars-")).toSet
-          }
-
         case _ =>
-          Future.failed(new Error(numResponse.statusText))
+          Future.failed(ServerError(response.body, response.status))
+      }
+    }
+  }
+
+  def artifactIds(groupId: GroupId): Future[Set[String]] = {
+    val groupPath = groupId.split('.').mkString("", "/", "/")
+    val groupUrl = s"https://repo1.maven.org/maven2/$groupPath"
+
+    fetchDirs(groupUrl).flatMap { dirs =>
+      val artifactIds = dirs.filterNot(_.startsWith("webjars-")).filterNot(_ == "2.11.2").filterNot(_ == "..") // workarounds
+
+      val parentParts = groupId.split('.')
+      versions(parentParts.init.mkString("."), parentParts.last).map { maybeNotArtifacts =>
+        val good = artifactIds -- maybeNotArtifacts
+
+        // with the limit, sort before taking so the output is more stable
+        maybeLimit.fold(good)(good.toList.sortBy(_.toLowerCase).take(_).toSet)
       }
     }
   }
@@ -270,24 +265,38 @@ class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, config
     }.map(_.flatten)
   }
 
+  def convertToFutureOption[A](opt: Option[Future[A]])(implicit ec: ExecutionContext): Future[Option[A]] = {
+    opt match {
+      case Some(future) => future.map(Some(_))
+      case None => Future.successful(None)
+    }
+  }
+
+  def fetchDetails(groupId: GroupId, artifactId: ArtifactId): Future[Option[WebJar]] = {
+    versions(groupId, artifactId).flatMap { versions =>
+      val gavs = versions.map(GAV(groupId, artifactId, _))
+
+      gavsToWebJarVersion(gavs).flatMap { versions =>
+        val sorted = versions.toSeq.sortBy(_.number)(VersionStringOrdering.compare).reverse
+        convertToFutureOption {
+          sorted.headOption.map { latest =>
+            getWebJarNameAndUrl(GAV(groupId, artifactId, latest.number)).map { case (name, url) =>
+              WebJar(groupId, artifactId, name, url, sorted)
+            }
+          }
+        }
+      }
+    }
+  }
+
   def fetchWebJars(groupId: GroupId): Future[Set[WebJar]] = {
     logger.info(s"Getting $groupId WebJars")
 
-    // todo: needs work
-    fetchGAVs(groupId).flatMap { gavs =>
+    artifactIds(groupId).flatMap { artifactIds =>
       Future.sequence {
-        gavs.groupBy { gav =>
-          gav.groupId -> gav.artifactId
-        }.map { case ((groupId, artifactId), artifactGavs) =>
-          gavsToWebJarVersion(artifactGavs).flatMap { versions =>
-            val sorted = versions.toSeq.sortBy(_.number)(VersionStringOrdering.compare).reverse
-            sorted.headOption.fold(Future.successful(Set.empty[WebJar])) { latest =>
-              getWebJarNameAndUrl(GAV(groupId, artifactId, latest.number)).map { case (name, url) =>
-                Set(WebJar(groupId, artifactId, name, url, sorted))
-              }
-            }
-          }
-        }.toSet
+        artifactIds.map { artifactId =>
+          fetchDetails(groupId, artifactId)
+        }
       }.map(_.flatten)
     }.map { webJars =>
       logger.info(s"Retrieved ${webJars.size} $groupId WebJars")
@@ -295,7 +304,8 @@ class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, config
     }
   }
 
-  def webJars(groupId: GroupId): Future[List[WebJar]] = {
+
+    def webJars(groupId: GroupId): Future[List[WebJar]] = {
     actorSystem.actorSelection("user/" + groupId).resolveOne(1.second).flatMap { _ =>
       // in-flight request exists
       Future.failed(new ExistingWebJarRequestException(groupId))
