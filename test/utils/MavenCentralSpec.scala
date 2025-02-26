@@ -48,6 +48,7 @@ class MavenCentralSpec extends PlaySpecification {
       val artifactIds = await(mavenCentral.artifactIds("org.webjars.npm"))
       artifactIds.contains("1.3.26") must beFalse
       artifactIds.size must beGreaterThan(5000)
+      artifactIds.contains("github-com-sindresorhus-copy-text-to-clipboard") must beTrue // long name
     }
   }
 

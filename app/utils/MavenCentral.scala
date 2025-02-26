@@ -208,8 +208,9 @@ class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, config
 
     Future.fromTry {
       Try {
-        val lines = browser.get(url) >> texts("a")
-        lines.filter(_.endsWith("/")).map(_.stripSuffix("/")).toSet
+        val as = browser.get(url) >> elementList("a")
+        val hrefs = as.map(_.attr("href"))
+        hrefs.filter(_.endsWith("/")).map(_.stripSuffix("/")).toSet
       }
     }
   }
@@ -226,6 +227,8 @@ class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, config
               (response.xml \\ "version").map(_.text).toSet
             }
           }
+        case Status.NOT_FOUND =>
+          Future.failed(new FileNotFoundException(url))
         case _ =>
           Future.failed(ServerError(response.body, response.status))
       }
@@ -286,6 +289,10 @@ class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, config
           }
         }
       }
+    } recover {
+      // if we couldn't find versions, this isn't a valid WebJar
+      case _: FileNotFoundException =>
+        None
     }
   }
 
@@ -304,8 +311,7 @@ class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, config
     }
   }
 
-
-    def webJars(groupId: GroupId): Future[List[WebJar]] = {
+  def webJars(groupId: GroupId): Future[List[WebJar]] = {
     actorSystem.actorSelection("user/" + groupId).resolveOne(1.second).flatMap { _ =>
       // in-flight request exists
       Future.failed(new ExistingWebJarRequestException(groupId))
