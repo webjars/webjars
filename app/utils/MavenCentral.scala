@@ -4,7 +4,7 @@ import actors.{FetchWebJars, WebJarFetcher}
 import com.google.inject.ImplementedBy
 import com.roundeights.hasher.Implicits._
 import models.{WebJar, WebJarVersion}
-import net.spy.memcached.transcoders.{IntegerTranscoder, SerializingTranscoder, Transcoder}
+import net.spy.memcached.transcoders.{SerializingTranscoder, Transcoder}
 import org.apache.pekko.actor._
 import org.apache.pekko.pattern.{after, ask}
 import org.apache.pekko.util.Timeout
@@ -12,6 +12,7 @@ import org.bouncycastle.bcpg.{ArmoredOutputStream, BCPGOutputStream, HashAlgorit
 import org.bouncycastle.openpgp.operator.jcajce.{JcaKeyFingerprintCalculator, JcaPGPContentSignerBuilder, JcePBESecretKeyDecryptorBuilder}
 import org.bouncycastle.openpgp.{PGPSecretKeyRing, PGPSignature, PGPSignatureGenerator}
 import play.api.http.{HeaderNames, MimeTypes, Status}
+import play.api.libs.concurrent.Futures
 import play.api.libs.functional.syntax._
 import play.api.libs.json._
 import play.api.libs.ws.{BodyWritable, WSAuthScheme, WSClient, WSRequest, WSResponse}
@@ -56,7 +57,7 @@ trait MavenCentral {
 }
 
 @Singleton
-class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, configuration: Configuration, webJarsFileService: WebJarsFileService, environment: Environment)
+class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, configuration: Configuration, webJarsFileService: WebJarsFileService, environment: Environment, futures: Futures)
                                  (allDeployables: AllDeployables)
                                  (implicit ec: ExecutionContext, actorSystem: ActorSystem) extends MavenCentral with Logging {
   import MavenCentral._
@@ -194,32 +195,61 @@ class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, config
     }
   }
 
+
   def fetchGAVs(groupId: GroupId): Future[Set[GAV]] = {
+//    println(s"fetching init page for $groupId")
     // 200 seems to be the max for search.maven.org
     val maxPageSize = 200
 
     val pageSize = maybeLimit.map(Math.min(maxPageSize, _)).getOrElse(maxPageSize)
 
     val req = wsClient.url("https://search.maven.org/solrsearch/select")
-      .withQueryStringParameters("q" -> s"g:$groupId", "wt" -> "json")
+      .withQueryStringParameters("q" -> s"g:$groupId", "wt" -> "json", "core" -> "gav")
 
     req.addQueryStringParameters("rows" -> "0").get().flatMap { numResponse =>
-      val numFound = (numResponse.json \ "response" \ "numFound").as[Int]
-      val toFetch = maybeLimit.getOrElse(numFound)
+      numResponse.status match {
+        case Status.OK =>
+//          println(numResponse.uri)
+          val numFound = (numResponse.json \ "response" \ "numFound").as[Int]
+//          println(s"numFound = $numFound")
+          val toFetch = maybeLimit.getOrElse(numFound)
+//          println(s"toFetch = $toFetch")
 
-      val pages = (0 until toFetch).by(pageSize).map { start =>
-        req.addQueryStringParameters("core" -> "gav", "rows" -> pageSize.toString, "start" -> start.toString).get().map { response =>
-          (response.json \ "response" \ "docs").as[Seq[JsObject]].map { doc =>
-            val artifactId = (doc \ "a").as[String]
-            val version = (doc \ "v").as[String]
-            GAV(groupId, artifactId, version)
+          val pages = (0 until toFetch).by(pageSize).map { start =>
+//            println(s"fetching $groupId page start = $start")
+
+            def fetchPage(): Future[Seq[GAV]] = {
+              req.addQueryStringParameters("rows" -> pageSize.toString, "start" -> start.toString).get().flatMap { response =>
+                response.status match {
+                  case Status.OK =>
+                    Future.successful {
+                      (response.json \ "response" \ "docs").as[Seq[JsObject]].map { doc =>
+                        val artifactId = (doc \ "a").as[String]
+                        val version = (doc \ "v").as[String]
+                        GAV(groupId, artifactId, version)
+                      }
+                    }
+                  case Status.TOO_MANY_REQUESTS =>
+                    // todo: limit recursion or will this all eventually timeout?
+                    futures.delayed(5.seconds) {
+                      fetchPage()
+                    }
+                  case _ =>
+                    Future.failed(ServerError(response.body, response.status))
+                }
+              }
+            }
+
+            fetchPage()
           }
-        }
-      }
 
-      Future.reduceLeft(pages)(_ ++ _).map { gavs =>
-        // ignore webjar libraries
-        gavs.filterNot(_.artifactId.startsWith("webjars-")).toSet
+          Future.reduceLeft(pages)(_ ++ _).map { gavs =>
+            // ignore webjar libraries
+            gavs.filterNot(_.artifactId.startsWith("webjars-")).toSet
+          }
+
+        case _ =>
+          Future.failed(new Error(numResponse.statusText))
       }
     }
   }
@@ -229,8 +259,12 @@ class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, config
       gavs.map { gav =>
         getNumFiles(gav).map { maybeNumFiles =>
           maybeNumFiles.map { numFiles =>
-            WebJarVersion(gav.version, numFiles)
+            WebJarVersion(gav.version, Some(numFiles))
           }
+        } recover {
+          // include errors since we don't know yet if it is a valid webjar
+          case _: Exception =>
+            Some(WebJarVersion(gav.version, None))
         }
       }
     }.map(_.flatten)

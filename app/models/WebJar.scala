@@ -5,7 +5,7 @@ import utils.VersionStringOrdering
 
 case class WebJar(groupId: String, artifactId: String, name: String, sourceUrl: String, versions: Seq[WebJarVersion]) extends Serializable
 
-case class WebJarVersion(number: String, numFiles: Int = 0)
+case class WebJarVersion(number: String, numFiles: Option[Int] = None)
 
 object WebJar {
   implicit val webJarVersionFormat: Format[WebJarVersion] = Json.format[WebJarVersion]

@@ -2,6 +2,10 @@
 
 @import java.net.URLEncoder
 
+@displayNumFiles(maybeNumFiles: Option[Int]) = {
+    @maybeNumFiles.fold("List")(_.toString)
+}
+
 <table class="table table-striped table-hover align-middle">
     <thead>
         <tr>
@@ -40,7 +44,7 @@
                                 <form role="form">
                                     <select class="form-select form-select-sm versions" onchange="changeVersion(event)" name="@webjar.groupId:@webjar.artifactId">
                                     @for(version <- webjar.versions) {
-                                        <option data-numfiles="@version.numFiles">@version.number</option>
+                                        <option data-numfiles="@displayNumFiles(version.numFiles)">@version.number</option>
                                     }
                                     </select>
                                 </form>
@@ -57,11 +61,7 @@
                         <td>
                             <div class="files text-end @webjar.artifactId">
                                 <a href="@routes.Application.listFiles(webjar.groupId, webjar.artifactId, URLEncoder.encode(webjar.versions.head.number, "UTF-8"))" class="file-list-link">
-                                @if(webjar.versions.head.numFiles == 0) {
-                                    List Files
-                                } else {
-                                    @webjar.versions.head.numFiles Files
-                                }
+                                @displayNumFiles(webjar.versions.head.numFiles) Files
                                 </a>
                             </div>
                         </td>
