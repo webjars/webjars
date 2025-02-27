@@ -248,7 +248,7 @@ object DeployWebJar extends App {
 
     val allDeployables = app.injector.instanceOf[AllDeployables]
 
-    val deployFuture = allDeployables.fromGroupId(webJarType).fold[Future[Done]] {
+    val deployFuture = allDeployables.fromName(webJarType).fold[Future[Done]] {
       Future.failed(new Exception(s"Specified WebJar type '$webJarType' can not be deployed"))
     } { deployable =>
       deployWebJar.deploy(deployable, nameOrUrlish, upstreamVersion, deployDependencies, preventFork, force, maybeReleaseVersion, maybeSourceUri, maybeLicense).runForeach(println)
