@@ -137,9 +137,20 @@ class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, config
   lazy val authTokenFuture: Future[(String, String)] = authToken()
 
   def withOssDeployCredentials[T](f: (String, String) => Future[T]): Future[T] = {
+    val maybeUsernamePassword = for {
+      deployUsername <- configuration.getOptional[String]("oss.deploy.username")
+      deployPassword <- configuration.getOptional[String]("oss.deploy.password")
+    } yield (deployUsername, deployPassword)
+
+    maybeUsernamePassword.fold[Future[T]](Future.failed(new IllegalStateException("deploy username or password not specified"))) { case (username, password) =>
+      f(username, password)
+    }
+
+    /*
     authTokenFuture.flatMap { case (username, password) =>
       f(username, password)
     }
+     */
   }
 
   def fetchWebJarNameAndUrl(gav: GAV): Future[(String, String)] = {
