@@ -1,4 +1,4 @@
-<div id="newWebJarModal" class="modal fade" tabindex="-1" aria-labelledby="newWebJarModalLabel" aria-hidden="true">
+<div id="newWebJarModal" class="modal fade" tabindex="-1" aria-labelledby="newWebJarModalLabel" aria-hidden="true" data-bs-backdrop="static">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
@@ -22,7 +22,7 @@
                 </form>
 
                 <div class="webjar-deploy">
-                    <form id="webjar-deploy" class="row g-3 mb-3">
+                    <form id="webjar-deploy" class="row g-3 mb-3" onsubmit="return false;">
                         <div class="col-md-6 position-relative">
                             <input id="newWebJarName" type="text" class="form-control form-control-sm" aria-describedby="newWebJarNameStatus" placeholder="Package Name or Git Repo URL">
                             <span id="newWebJarNameSpinner" class="spinner-border-sm" aria-hidden="true"></span>
