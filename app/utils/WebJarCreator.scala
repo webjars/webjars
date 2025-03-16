@@ -95,7 +95,7 @@ object WebJarCreator extends Logging {
     val file = Path.of(dir.toString, "module-info.java")
     Files.writeString(file, moduleContents)
     val javac = ToolProvider.findFirst("javac").orElseThrow
-    val exitCode = javac.run(System.out, System.err, "--release", "9", file.toString)
+    val exitCode = javac.run(System.out, System.err, "--release", "9", "-proc:none", file.toString)
     Option.when(exitCode == 0)(Path.of(dir.toString, "module-info.class"))
   }
 
