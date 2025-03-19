@@ -13,6 +13,7 @@ import utils.MavenCentral.ArtifactId
 
 import java.io.{InputStream, StringReader}
 import java.util.Properties
+import java.util.zip.GZIPInputStream
 import javax.inject.Inject
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{ExecutionContext, Future}
@@ -53,7 +54,7 @@ class Classic @Inject() (ws: WSClient, val licenseDetector: LicenseDetector, val
             repo <- maybeRepo
           } yield Metadata(nameOrUrlish, name, repo, maybeDownload, maybeRequireJsMain, maybeBaseDir)
 
-          maybeMetadata.fold(Future.failed[Metadata](new Exception("properties file was invalid")))(Future.successful(_))
+          maybeMetadata.fold(Future.failed[Metadata](new Exception("properties file was invalid")))(Future.successful)
         }
     }
   }
@@ -120,20 +121,43 @@ class Classic @Inject() (ws: WSClient, val licenseDetector: LicenseDetector, val
   override def mavenDependencies(dependencies: Map[String, String]): Future[Set[(String, String, String)]] =
     Future.successful(Set.empty)
 
+  private def downloadExists(url: String): Future[AbsoluteUrl] = {
+    Future.fromTry {
+      AbsoluteUrl.parseTry(url)
+    }.flatMap { absoluteUrl =>
+      ws.url(url).head().flatMap { response =>
+        response.status match {
+          case Status.OK => Future.successful(absoluteUrl)
+          case _ => Future.failed(new Exception(s"$absoluteUrl does not exist"))
+        }
+      }
+    }
+  }
+
+  private def validDownload(download: String, version: Version): Future[AbsoluteUrl] = {
+    downloadExists(download.replace("${version}", version)).fallbackTo {
+      downloadExists(download.replace("${version}", version.vless))
+    }
+  }
+
   override def archive(nameOrUrlish: NameOrUrlish, version: Version): Future[InputStream] = {
     cache.get[Metadata](s"webjars-classic-$nameOrUrlish", 1.hour) {
       metadata(nameOrUrlish)
     }.flatMap { metadata =>
       metadata.download.fold {
-        Future.successful {
-          ("https://github.com" / metadata.repo / "archive" / s"$version.zip")
-        }
+        downloadExists(("https://github.com" / metadata.repo / "archive" / s"$version.zip").toString())
       } { download =>
-        Future.fromTry {
-          AbsoluteUrl.parseTry(download.replace("${version}", version))
-        }
+        validDownload(download, version)
       }
-    }.map(_.toJavaURI.toURL.openStream())
+    }.map { absoluteUrl =>
+      val is = absoluteUrl.toJavaURI.toURL.openStream()
+      if (absoluteUrl.toString().endsWith("tgz")) {
+        new GZIPInputStream(is)
+      }
+      else {
+        is
+      }
+    }
   }
 
   override def file(nameOrUrlish: NameOrUrlish, version: Version, filename: String): Future[String] = {

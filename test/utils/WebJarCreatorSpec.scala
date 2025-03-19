@@ -188,7 +188,7 @@ class WebJarCreatorSpec extends PlaySpecification with GlobalApplication {
     allNames must contain(s"META-INF/resources/webjars/swagger-ui/$version/swagger-ui.js")
   }
 
-  "work for classic from deployable" in {
+  "work for classic from deployable from zip" in {
     val name = "swagger-ui"
     val version = "v5.15.2"
     lazy val classic: Classic = application.injector.instanceOf[Classic]
@@ -205,6 +205,25 @@ class WebJarCreatorSpec extends PlaySpecification with GlobalApplication {
 
     val allNames = LazyList.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName)
     allNames must contain(s"META-INF/resources/webjars/swagger-ui/$releaseVersion/swagger-ui.js")
+  }
+
+  "work for classic from deployable from tgz" in {
+    val name = "vega"
+    val version = "v5.32.0"
+    lazy val classic: Classic = application.injector.instanceOf[Classic]
+    val info = await(classic.info(name, version))
+    val archive = await(classic.archive(name, version))
+    val maybeBaseGlob = await(classic.maybeBaseDirGlob(name))
+    val excludes = await(classic.excludes(name, version))
+    val releaseVersion = classic.releaseVersion(Some(version), info)
+    val pathPrefix = await(classic.pathPrefix(name, releaseVersion, info))
+
+    val webJar = WebJarCreator.createWebJar(archive, maybeBaseGlob, excludes, "", "Test", Set.empty, "org.webjars", "vega", releaseVersion, pathPrefix)
+
+    val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new ByteArrayInputStream(webJar))
+
+    val allNames = LazyList.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName)
+    allNames must contain(s"META-INF/resources/webjars/vega/$releaseVersion/vega.min.js")
   }
 
   "work with osgi" in {

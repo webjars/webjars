@@ -1,7 +1,9 @@
 package utils
 
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
+import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream
+import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
 import org.apache.pekko.util.Timeout
 import play.api.test._
 
@@ -39,6 +41,12 @@ class ClassicSpec extends PlaySpecification with GlobalApplication {
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new BufferedInputStream(inputStream))
 
       LazyList.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName) must contain ("swagger-ui-5.15.1/dist/swagger-ui.js")
+    }
+    "work when download url does not have a v" in {
+      val inputStream = await(classic.archive("vega", "v5.32.0"))
+      val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[TarArchiveInputStream](new BufferedInputStream(inputStream))
+
+      LazyList.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName) must contain ("package/build/vega.min.js")
     }
   }
 
