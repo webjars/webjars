@@ -16,7 +16,7 @@ libraryDependencies ++= Seq(
   "org.bouncycastle" % "bcpg-jdk18on" % "1.80",
   "org.bouncycastle" % "bcutil-jdk18on" % "1.80",
   "com.outr" %% "hasher" % "1.2.3",
-  "io.lemonlabs" %% "scala-uri" % "4.0.3",
+  "com.indoorvivants" %% "scala-uri" % "4.2.0",
   "net.ruippeixotog" %% "scala-scraper" % "3.1.3",
   "org.webjars" %% "webjars-play" % "3.0.2",
   // brought in transatively via select2-bootstrap-5-theme
