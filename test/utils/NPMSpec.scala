@@ -447,14 +447,21 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
     licenses mustEqual Set(LicenseWithUrl(AbsoluteUrl.parse("file://LICENSE.txt")))
   }
 
-  "@headlessui/react ^1.7.15" in {
-    val latest = await(npm.latestDep("@headlessui/react", "^1.7.15"))
-    latest mustEqual "1.7.19"
-  }
+  "latestDep" should {
+    "@headlessui/react ^1.7.15" in {
+      val latest = await(npm.latestDep("@headlessui/react", "^1.7.15"))
+      latest mustEqual "1.7.19"
+    }
 
-  "@types/node latestDep" in {
-    val latest = Try(await(npm.latestDep("@types/node", ">=13.7.0")))
-    latest must beASuccessfulTry
+    "@types/node" in {
+      val latest = Try(await(npm.latestDep("@types/node", ">=13.7.0")))
+      latest must beASuccessfulTry
+    }
+
+    "react-compiler-runtime 19.0.0-beta-37ed2a7-20241206" in {
+      val version = await(npm.latestDep("react-compiler-runtime", "19.0.0-beta-37ed2a7-20241206"))
+      version mustEqual "19.0.0-beta-37ed2a7-20241206"
+    }
   }
 
   "@xenova/transformers depGraph" in {

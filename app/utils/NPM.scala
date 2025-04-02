@@ -85,6 +85,39 @@ class NPM @Inject() (val ws: WSClient, val licenseDetector: LicenseDetector, val
     }
   }
 
+  def versionJson(packageNameOrGitRepo: NameOrUrlish, version: Version): Future[JsValue] = {
+    // note: it seems we can now get the metadata we need with a scoped package
+    /*
+    if (isScoped(packageNameOrGitRepo)) {
+      println("scoped")
+      // can no longer get info on specific versions of scoped packages
+      // so get the info for all the versions and then get the specific version out of the full list
+      val url = registryMetadataUrl(packageNameOrGitRepo)
+      ws.url(url.toString()).get().flatMap { response =>
+        response.status match {
+          case Status.OK =>
+            (response.json \ "versions" \ version).toOption.fold(Future.failed[JsValue](new Exception(s"Could not get version info $packageNameOrGitRepo $version")))(Future.successful)
+          case _ =>
+            Future.failed(new Exception(response.body))
+        }
+      }
+    }
+    else {
+
+    }
+     */
+
+    val url = registryMetadataUrl(packageNameOrGitRepo, Some(version))
+    ws.url(url.toString()).get().flatMap { response =>
+      response.status match {
+        case Status.OK =>
+          Future.successful(response.json)
+        case _ =>
+          Future.failed(new Exception(response.body))
+      }
+    }
+  }
+
   override def info(packageNameOrGitRepo: NameOrUrlish, version: Version, maybeSourceUri: Option[AbsoluteUrl] = None): Future[PackageInfo] = {
 
     def packageInfo(packageJson: JsValue): Future[PackageInfo] = {
@@ -146,29 +179,7 @@ class NPM @Inject() (val ws: WSClient, val licenseDetector: LicenseDetector, val
       }
     }
     else {
-      if (isScoped(packageNameOrGitRepo)) {
-        // can no longer get info on specific versions of scoped packages
-        // so get the info for all the versions and then get the specific version out of the full list
-        ws.url(registryMetadataUrl(packageNameOrGitRepo).toString()).get().flatMap { response =>
-          response.status match {
-            case Status.OK =>
-              val versionInfoLookup = response.json \ "versions" \ version
-              versionInfoLookup.toOption.fold(Future.failed[PackageInfo](new Exception(s"Could not parse: ${response.body}")))(packageInfo)
-            case _ =>
-              Future.failed(new Exception(response.body))
-          }
-        }
-      }
-      else {
-        ws.url(registryMetadataUrl(packageNameOrGitRepo, Some(version)).toString()).get().flatMap { response =>
-          response.status match {
-            case Status.OK =>
-              packageInfo(response.json)
-            case _ =>
-              Future.failed(new Exception(response.body))
-          }
-        }
-      }
+      versionJson(packageNameOrGitRepo, version).flatMap(packageInfo)
     }
   }
 
@@ -218,25 +229,24 @@ class NPM @Inject() (val ws: WSClient, val licenseDetector: LicenseDetector, val
   }
 
   def justDeps(nameOrUrlish: NameOrUrlish, version: Version): Future[Map[String, String]] = {
-    ws.url(registryMetadataUrl(nameOrUrlish, Some(version)).toString()).get().flatMap { response =>
-      response.status match {
-        case Status.OK =>
-          Future.successful {
-            (response.json \ "dependencies").asOpt[Map[String, String]].getOrElse(Map.empty)
-          }
-        case _ =>
-          Future.failed(new Exception(response.body))
-      }
+    versionJson(nameOrUrlish, version).map { json =>
+      (json \ "dependencies").asOpt[Map[String, String]].getOrElse(Map.empty)
     }
   }
 
   def latestDep(nameOrUrlish: NameOrUrlish, version: Version)(implicit ec: ExecutionContext): Future[Version] = {
-    versions(nameOrUrlish).flatMap { availableVersions =>
-      semVer.validRange(version).flatMap { maybeRange =>
-        maybeRange.fold(Future.failed[Version](new Exception(s"For $nameOrUrlish could not convert $version to range"))) { range =>
-          semVer.maxSatisfying(availableVersions, range).flatMap { maybeVersion =>
-            maybeVersion.fold(Future.failed[Version](new Exception(s"For $nameOrUrlish could not find a satisfying version in range $range"))) { version =>
-              Future.successful(version)
+    semVer.validRange(version).flatMap { maybeRange =>
+      maybeRange.fold(Future.failed[Version](new Exception(s"For $nameOrUrlish could not convert $version to range"))) { range =>
+        // not a range
+        if ((range == version) && (!range.startsWith(">")) && (!range.startsWith("=")) && (!range.startsWith("<"))) {
+          Future.successful(version)
+        }
+        else {
+          versions(nameOrUrlish).flatMap { availableVersions =>
+            semVer.maxSatisfying(availableVersions, range).flatMap { maybeVersion =>
+              maybeVersion.fold(Future.failed[Version](new Exception(s"For $nameOrUrlish could not find a satisfying version in range $range"))) { version =>
+                Future.successful(version)
+              }
             }
           }
         }
