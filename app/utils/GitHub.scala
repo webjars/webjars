@@ -4,8 +4,9 @@ import io.lemonlabs.uri.{AbsoluteUrl, UrlPath}
 import org.eclipse.jgit.util.Base64
 import play.api.Configuration
 import play.api.http.{HeaderNames, HttpVerbs, MimeTypes, Status}
-import play.api.libs.json.{JsValue, Json}
-import play.api.libs.ws.{WSClient, WSRequest}
+import play.api.libs.json.{JsObject, JsValue}
+import play.api.libs.ws.{WSClient, WSRequest, WSResponse}
+import utils.Deployable.Version
 
 import javax.inject.Inject
 import scala.concurrent.duration._
@@ -66,19 +67,6 @@ class GitHub @Inject() (configuration: Configuration, wsClient: WSClient, cache:
     }
   }
 
-  def createIssue(accessToken: String, owner: String, repo: String, title: String, body: String): Future[JsValue] = {
-    val json = Json.obj(
-      "title" -> title,
-      "body" -> body
-    )
-    ws(s"repos/$owner/$repo/issues", accessToken).post(json).flatMap { response =>
-      response.status match {
-        case Status.CREATED => Future.successful(response.json)
-        case _ => Future.failed(ServerError(response.body, response.status))
-      }
-    }
-  }
-
   // todo: max redirects?
   def currentUrls(url: AbsoluteUrl): Future[(AbsoluteUrl, AbsoluteUrl, AbsoluteUrl)] = {
     cache.get[(AbsoluteUrl, AbsoluteUrl, AbsoluteUrl)](url.toString, 1.day) {
@@ -126,6 +114,45 @@ class GitHub @Inject() (configuration: Configuration, wsClient: WSClient, cache:
         case Status.OK => Future.successful(response.body)
         case _ => Future.failed(new Exception(response.body))
       }
+    }
+  }
+
+  def allPages[T](path: String, accumulator: Set[T] = Set.empty[T])(mapFunction: WSResponse => Future[Set[T]]): Future[Set[T]] = {
+    val request = maybeAuthToken.fold(
+      wsClient.url(s"https://api.github.com/$path")
+    )( accessToken =>
+      ws(path, accessToken)
+    )
+
+    request.get().flatMap { response =>
+      response.status match {
+        case Status.OK =>
+          mapFunction(response).flatMap { these =>
+            val all = accumulator ++ these
+            // Link -> List(<https://api.github.com/repositories/2055965/tags?page=1>; rel="prev", <https://api.github.com/repositories/2055965/tags?page=3>; rel="next", <https://api.github.com/repositories/2055965/tags?page=14>; rel="last", <https://api.github.com/repositories/2055965/tags?page=1>; rel="first")
+            // Link -> List(<https://api.github.com/repositories/2055965/tags?page=2>; rel="next", <https://api.github.com/repositories/2055965/tags?page=14>; rel="last")
+            val maybeLink = response.header(HeaderNames.LINK).flatMap { link =>
+              link.split(", ").find(_.contains("rel=\"next\"")).map { link =>
+                link.stripPrefix("<https://api.github.com/").stripSuffix(">; rel=\"next\"")
+              }
+            }
+            maybeLink.fold(Future.successful(all)) { path =>
+              allPages(path, all)(mapFunction)
+            }
+          }
+        case _ =>
+          Future.failed(ServerError(response.body, response.status))
+      }
+    }
+  }
+
+  def tags(repo: String): Future[Set[Version]] = {
+    allPages(s"repos/$repo/tags") { response =>
+      Future.successful(
+        response.json.as[List[JsObject]].map { versionJson =>
+          (versionJson \ "name").as[Version]
+        }.toSet
+      )
     }
   }
 

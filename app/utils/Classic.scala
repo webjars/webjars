@@ -6,7 +6,6 @@ import play.api.Configuration
 import play.api.http.Status
 import play.api.i18n.{Langs, MessagesApi}
 import play.api.libs.concurrent.Futures
-import play.api.libs.json.JsObject
 import play.api.libs.ws.WSClient
 import utils.Deployable.{NameOrUrlish, Version}
 import utils.MavenCentral.ArtifactId
@@ -174,23 +173,7 @@ class Classic @Inject() (ws: WSClient, val licenseDetector: LicenseDetector, val
     cache.get[Metadata](s"webjars-classic-$nameOrUrlish", 1.hour) {
       metadata(nameOrUrlish)
     }.flatMap { metadata =>
-      val req = gitHub.maybeAuthToken.fold(
-          ws.url(s"https://api.github.com/repos/${metadata.repo}/tags")
-      )( accessToken =>
-        gitHub.ws(s"repos/${metadata.repo}/tags", accessToken)
-      )
-      req.get().flatMap { response =>
-        response.status match {
-          case Status.OK =>
-            Future.successful(
-              response.json.as[List[JsObject]].map { versionJson =>
-                (versionJson \ "name").as[Version]
-              }.toSet
-            )
-          case _ =>
-            Future.failed(ServerError(response.body, response.status))
-        }
-      }
+      gitHub.tags(metadata.repo)
     }
   }
 

@@ -29,7 +29,6 @@ import javax.inject.{Inject, Singleton}
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.language.postfixOps
-import scala.util.matching.Regex
 import scala.util.{Failure, Success, Try}
 import scala.xml.Elem
 
@@ -214,8 +213,8 @@ class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, config
   //  and you'll get denied. and it won't feel good after you've spent hours writing this awfulness only to realize it won't work in production
 
   def fetchDirs(url: String): Future[Set[String]] = {
-    import net.ruippeixotog.scalascraper.dsl.DSL._
     import net.ruippeixotog.scalascraper.dsl.DSL.Extract._
+    import net.ruippeixotog.scalascraper.dsl.DSL._
 
     Future.fromTry {
       Try {

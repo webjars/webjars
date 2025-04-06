@@ -55,4 +55,11 @@ class GitHubSpec extends PlaySpecification with GlobalApplication {
     }
   }
 
+  "tags" should {
+    "work with paging" in {
+      val versions = await(gitHub.tags("swagger-api/swagger-ui"))
+      versions.size must beGreaterThanOrEqualTo(413)
+    }
+  }
+
 }
