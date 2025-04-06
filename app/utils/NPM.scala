@@ -238,7 +238,8 @@ class NPM @Inject() (val ws: WSClient, val licenseDetector: LicenseDetector, val
     semVer.validRange(version).flatMap { maybeRange =>
       maybeRange.fold(Future.failed[Version](new Exception(s"For $nameOrUrlish could not convert $version to range"))) { range =>
         // not a range
-        if ((range == version) && (!range.startsWith(">")) && (!range.startsWith("=")) && (!range.startsWith("<"))) {
+        // todo: should move to semver
+        if ((range == version) && (!range.startsWith(">")) && (!range.startsWith("=")) && (!range.startsWith("<")) && (range != "*")) {
           Future.successful(version)
         }
         else {
