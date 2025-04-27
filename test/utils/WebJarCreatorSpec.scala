@@ -100,7 +100,7 @@ class WebJarCreatorSpec extends PlaySpecification with GlobalApplication {
 
       val excludes = Set("**/test.js")
 
-      val webJar = WebJarCreator.createWebJar(inputStream, Some("*/"), excludes, "", "Test", Set.empty, "", "", "", "vaadin-grid/")
+      val webJar = WebJarCreator.createWebJar(inputStream, Some("*/"), excludes, "", "Test", Set.empty, "test", "test", "", "vaadin-grid/")
 
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new ByteArrayInputStream(webJar))
 
@@ -114,7 +114,7 @@ class WebJarCreatorSpec extends PlaySpecification with GlobalApplication {
 
       val excludes = Set("*.js")
 
-      val webJar = WebJarCreator.createWebJar(inputStream, Some("*/"), excludes, "", "Test", Set.empty, "", "", "", "vaadin-grid/")
+      val webJar = WebJarCreator.createWebJar(inputStream, Some("*/"), excludes, "", "Test", Set.empty, "test", "test", "", "vaadin-grid/")
 
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new ByteArrayInputStream(webJar))
 
@@ -128,7 +128,7 @@ class WebJarCreatorSpec extends PlaySpecification with GlobalApplication {
 
       val excludes = Set("**/.*")
 
-      val webJar = WebJarCreator.createWebJar(inputStream, Some("*/"), excludes, "", "Test", Set.empty, "", "", "", "vaadin-grid/")
+      val webJar = WebJarCreator.createWebJar(inputStream, Some("*/"), excludes, "", "Test", Set.empty, "test", "test", "", "vaadin-grid/")
 
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new ByteArrayInputStream(webJar))
 
@@ -184,7 +184,7 @@ class WebJarCreatorSpec extends PlaySpecification with GlobalApplication {
     val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new ByteArrayInputStream(webJar))
 
     val allNames = LazyList.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName)
-    allNames.size mustEqual 26
+    allNames.size mustEqual 27
     allNames must contain(s"META-INF/resources/webjars/swagger-ui/$version/swagger-ui.js")
   }
 
@@ -268,6 +268,13 @@ class WebJarCreatorSpec extends PlaySpecification with GlobalApplication {
     WebJarCreator.removeGlobPath("*/dist", "asdf/dist/asdf/foo") must beSome("asdf/foo")
     WebJarCreator.removeGlobPath("*/dist", "asdf/dist/asdf/foo/") must beSome("asdf/foo/")
     WebJarCreator.removeGlobPath("*/", "Select-2.0.4/js/dataTables.select.min.js") must beSome("js/dataTables.select.min.js")
+  }
+
+  "normalizeModuleName" in {
+    WebJarCreator.normalizeModuleName("org.webjars", "react-native") mustEqual "org.webjars._react_native"
+    WebJarCreator.normalizeModuleName("org.webjars", "alchemy.js") mustEqual "org.webjars._alchemy_js"
+    WebJarCreator.normalizeModuleName("org.webjars", "3rdwavemedia-themes-developer") mustEqual "org.webjars._3rdwavemedia_themes_developer"
+    WebJarCreator.normalizeModuleName("org.webjars.npm", "vue__shared") mustEqual "org.webjars.npm._vue__shared"
   }
 
 }
