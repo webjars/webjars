@@ -55,7 +55,7 @@ class DeployWebJar @Inject()(mavenCentral: MavenCentral, sourceLocator: SourceLo
             "No dependencies."
           }
           else {
-            "Deploying these dependencies: " + depGraph.map(dep => dep._1 + "#" + dep._2).mkString(" ")
+            "Deploying these dependencies:\n  " + depGraph.map(dep => dep._1 + "#" + dep._2).mkString("\n  ")
           }
 
           queue.offer(deployDepGraphMessage)
@@ -66,6 +66,7 @@ class DeployWebJar @Inject()(mavenCentral: MavenCentral, sourceLocator: SourceLo
             }
             else {
               val (nameish, version) = deps.head
+              queue.offer(s"Deploying Dependency: $deployable $nameish $version")
               deploy(deployable, nameish, version, false, false, force).runForeach(queue.offer).recover {
                 // ignore failures
                 case e =>
