@@ -66,7 +66,7 @@ class DeployWebJar @Inject()(mavenCentral: MavenCentral, sourceLocator: SourceLo
             }
             else {
               val (nameish, version) = deps.head
-              queue.offer(s"Deploying Dependency: $deployable $nameish $version")
+              queue.offer(s"Deploying Dependency: ${deployable.name} $nameish $version")
               deploy(deployable, nameish, version, false, false, force).runForeach(queue.offer).recover {
                 // ignore failures
                 case e =>

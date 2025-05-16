@@ -257,7 +257,10 @@ $(function () {
 
     source.addEventListener("message", function (e) {
       if (e.data.length > 0) {
-        var message = e.data + "\n";
+        var message = e.data;
+        if (!e.data.endsWith("\n")) {
+          message = message + "\n";
+        }
         log(message);
       }
     });
