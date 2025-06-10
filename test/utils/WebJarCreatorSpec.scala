@@ -6,6 +6,7 @@ import play.api.test._
 
 import java.io.ByteArrayInputStream
 import java.net.URI
+import java.util.jar.JarInputStream
 import java.util.zip.GZIPInputStream
 import scala.concurrent.ExecutionContext
 
@@ -241,17 +242,17 @@ class WebJarCreatorSpec extends PlaySpecification with GlobalApplication {
 
     val webJar = WebJarCreator.createWebJar(archive, maybeBaseGlob, excludes, "", info.name, licenses, "org.webjars", "swagger-ui", releaseVersion, pathPrefix)
 
-    val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new ByteArrayInputStream(webJar))
+    // test using the actual JarInputStream/Manifest used by the JVM
+    // to make sure it is really valid (first entry in jar, ends with CRLF, etc.)
+    val archiveStream = new JarInputStream(new ByteArrayInputStream(webJar))
+    val manifest = archiveStream.getManifest.getMainAttributes
 
-    LazyList.continually(archiveStream.getNextEntry).find(_.getName == "META-INF/MANIFEST.MF").get
-
-    val manifest = new String(archiveStream.readAllBytes())
-    manifest must contain("Bundle-Description: WebJar for Swagger UI")
-    manifest must contain("Bundle-License: Apache-2.0")
-    manifest must contain("Bundle-SymbolicName: org.webjars.swagger-ui")
-    manifest must contain("Bundle-Name: Swagger UI")
-    manifest must contain("Bundle-Version: 5.15.2")
-    manifest must contain("Bundle-ManifestVersion: 2")
+    manifest.getValue("Bundle-Description") mustEqual "WebJar for Swagger UI"
+    manifest.getValue("Bundle-License") mustEqual "Apache-2.0"
+    manifest.getValue("Bundle-SymbolicName") mustEqual "org.webjars.swagger-ui"
+    manifest.getValue("Bundle-Name") mustEqual "Swagger UI"
+    manifest.getValue("Bundle-Version") mustEqual "5.15.2"
+    manifest.getValue("Bundle-ManifestVersion") mustEqual "2"
   }
 
   "removeGlobPath" in {
