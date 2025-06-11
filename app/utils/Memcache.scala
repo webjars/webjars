@@ -65,6 +65,8 @@ class MemcacheLive @Inject() (configuration: Configuration, lifecycle: Applicati
     operationFuture.addListener { gettableFuture =>
       if (gettableFuture.getStatus.isSuccess)
         promise.complete(Try(gettableFuture.get().asInstanceOf[A]))
+      else if (gettableFuture.getStatus.getStatusCode == StatusCode.TIMEDOUT)
+        promise.failure(new TimeoutException(gettableFuture.getStatus.getMessage))
       else
         promise.failure(new Throwable(gettableFuture.getStatus.getMessage))
     }
@@ -109,7 +111,11 @@ class MemcacheLive @Inject() (configuration: Configuration, lifecycle: Applicati
 
   def set[A](cacheKey: String, value: A, expiration: Expiration = Expiration.Inf)(implicit transcoder: Transcoder[A]): Future[Unit] = {
     Expiration.toMemcache(expiration).flatMap { exp =>
-      operationFutureToScalaFuture(instance.set(cacheKey, exp, value, transcoder)).filter(_ == true).map(_ => ())
+      operationFutureToScalaFuture(instance.set(cacheKey, exp, value, transcoder)).filter(_ == true).map(_ => ()).recoverWith {
+        case _: TimeoutException =>
+          // todo: this could infinitely timeout
+          set(cacheKey, value, expiration)
+      }
     }
   }
 
