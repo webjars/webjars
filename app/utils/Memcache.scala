@@ -10,7 +10,7 @@ import play.api.Configuration
 import play.api.inject.ApplicationLifecycle
 
 import java.time.{LocalDateTime, ZoneOffset}
-import java.util.concurrent.TimeUnit
+import java.util.concurrent.{TimeUnit, TimeoutException}
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future, Promise}
@@ -81,6 +81,8 @@ class MemcacheLive @Inject() (configuration: Configuration, lifecycle: Applicati
       else
         if (gettableFuture.getStatus.getStatusCode == StatusCode.ERR_NOT_FOUND)
           promise.failure(Miss)
+        else if (gettableFuture.getStatus.getStatusCode == StatusCode.TIMEDOUT)
+          promise.failure(new TimeoutException(gettableFuture.getStatus.getMessage))
         else
           promise.failure(new Throwable(gettableFuture.getStatus.getMessage))
     }
@@ -99,6 +101,9 @@ class MemcacheLive @Inject() (configuration: Configuration, lifecycle: Applicati
           value <- miss
           _ <- set(cacheKey, value, expiration)
         } yield value
+      case _: TimeoutException =>
+        // todo: this could infinitely timeout
+        getWithMiss(cacheKey, expiration)(miss)
     }
   }
 
