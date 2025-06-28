@@ -1,7 +1,10 @@
 package utils
 
+import com.lumidion.sonatype.central.client.core.DeploymentState.{PUBLISHING, VALIDATED}
+import com.lumidion.sonatype.central.client.core.{CheckStatusResponse, DeploymentId}
 import io.lemonlabs.uri.AbsoluteUrl
 import org.apache.commons.compress.archivers.{ArchiveEntry, ArchiveInputStream, ArchiveStreamFactory}
+import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.stream.scaladsl.{Source, SourceQueueWithComplete}
 import org.apache.pekko.stream.{Materializer, OverflowStrategy}
 import org.apache.pekko.{Done, NotUsed}
@@ -18,7 +21,7 @@ import scala.io.StdIn
 import scala.util.{Failure, Try, Using}
 
 
-class DeployWebJar @Inject()(mavenCentral: MavenCentral, sourceLocator: SourceLocator, configuration: Configuration, heroku: Heroku)(implicit ec: ExecutionContext, futures: Futures, materializer: Materializer) {
+class DeployWebJar @Inject()(mavenCentral: MavenCentral, sourceLocator: SourceLocator, configuration: Configuration, heroku: Heroku)(implicit ec: ExecutionContext, futures: Futures, materializer: Materializer, actorSystem: ActorSystem) {
 
   val fork = configuration.getOptional[Boolean]("deploy.fork").getOrElse(false)
 
@@ -134,17 +137,19 @@ class DeployWebJar @Inject()(mavenCentral: MavenCentral, sourceLocator: SourceLo
 
         gav = GAV(groupId, artifactId, releaseVersion)
 
-        stagedRepo <- mavenCentral.createStaging(gav.toString)
-        _ <- queue.offer(s"Created ${stagedRepo.id} on Maven Central for $gav")
+        _ <- queue.offer(s"Creating Maven Central Release for $gav")
 
-        _ <- mavenCentral.uploadStaging(stagedRepo, gav, pom, jar)
-        _ <- queue.offer(s"Uploaded artifacts to ${stagedRepo.id} to Maven Central for $gav")
+        (deploymentId, checker) <- mavenCentral.upload(gav, jar, pom).fold(Future.failed[(DeploymentId, () => Option[CheckStatusResponse])](new IllegalStateException(s"Could not upload $gav")))(Future.successful)
 
-        _ <- mavenCentral.closeStaging(stagedRepo, gav.toString)
-        _ <- queue.offer(s"Closed ${stagedRepo.id} on Maven Central for $gav")
+        _ <- queue.offer(s"Uploaded Maven Central Release for $gav")
 
-        _ <- mavenCentral.promoteStaging(stagedRepo, gav.toString)
-        _ <- queue.offer(s"Promoted ${stagedRepo.id} on Maven Central for $gav")
+        _ <- mavenCentral.waitForDeploymentState(VALIDATED, checker)
+
+        _ <- queue.offer(s"Validated Maven Central Release for $gav")
+
+        _ <- mavenCentral.publish(deploymentId).fold(Future.failed[Unit](new IllegalStateException(s"Could not publish $gav")))(Future.successful)
+
+        _ <- mavenCentral.waitForDeploymentState(PUBLISHING, checker)
 
         _ <- queue.offer(s"""Deployed!
                           |It will take a few hours for the Maven Central index to update but you should be able to start using the ${deployable.name} WebJar shortly.

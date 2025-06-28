@@ -2,6 +2,9 @@ package utils
 
 import actors.{FetchWebJars, WebJarFetcher}
 import com.google.inject.ImplementedBy
+import com.lumidion.sonatype.central.client.core.PublishingType.USER_MANAGED
+import com.lumidion.sonatype.central.client.core._
+import com.lumidion.sonatype.central.client.requests.SyncSonatypeClient
 import com.roundeights.hasher.Implicits._
 import models.{WebJar, WebJarVersion}
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser
@@ -14,9 +17,9 @@ import org.bouncycastle.openpgp.operator.jcajce.{JcaKeyFingerprintCalculator, Jc
 import org.bouncycastle.openpgp.{PGPSecretKeyRing, PGPSignature, PGPSignatureGenerator}
 import play.api.http.{HeaderNames, MimeTypes, Status}
 import play.api.libs.concurrent.Futures
-import play.api.libs.functional.syntax._
+import play.api.libs.concurrent.Futures.FutureOps
 import play.api.libs.json._
-import play.api.libs.ws.{BodyWritable, WSAuthScheme, WSClient, WSRequest, WSResponse}
+import play.api.libs.ws.{WSAuthScheme, WSClient}
 import play.api.{Configuration, Environment, Logging, Mode}
 import utils.Memcache.Expiration
 
@@ -24,12 +27,11 @@ import java.io.{ByteArrayOutputStream, FileNotFoundException}
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Base64
-import java.util.concurrent.TimeoutException
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.language.postfixOps
-import scala.util.{Failure, Success, Try}
+import scala.util.Try
 import scala.xml.Elem
 
 @ImplementedBy(classOf[MavenCentralLive])
@@ -38,6 +40,8 @@ trait MavenCentral {
 
   def maybeOssUsername(configuration: Configuration): Option[String] = configuration.getOptional[String]("oss.username").filter(_.nonEmpty)
   def maybeOssPassword(configuration: Configuration): Option[String] = configuration.getOptional[String]("oss.password").filter(_.nonEmpty)
+  def maybeOssDeployUsername(configuration: Configuration): Option[String] = configuration.getOptional[String]("oss.deploy.username").filter(_.nonEmpty)
+  def maybeOssDeployPassword(configuration: Configuration): Option[String] = configuration.getOptional[String]("oss.deploy.password").filter(_.nonEmpty)
   def maybeOssGpgKey(configuration: Configuration): Option[String] = configuration.getOptional[String]("oss.gpg-key").filter(_.nonEmpty)
   def maybeOssGpgPass(configuration: Configuration): Option[String] = configuration.getOptional[String]("oss.gpg-pass").filter(_.nonEmpty)
 
@@ -47,14 +51,24 @@ trait MavenCentral {
   def webJarsSorted(maybeGroupdId: Option[GroupId] = None, dateTime: LocalDateTime = LocalDateTime.now().minusMonths(1)): Future[List[WebJar]]
   def getStats(groupId: GroupId, dateTime: LocalDateTime): Future[Map[(String, String), Int]]
 
-  def authToken(): Future[(String, String)]
-
   def asc(toSign: Array[Byte]): Option[String]
-  def createStaging(description: String): Future[StagedRepo]
-  def uploadStaging(stagedRepo: StagedRepo, gav: GAV, pom: String, jar: Array[Byte]): Future[Unit]
-  def closeStaging(stagedRepo: StagedRepo, description: String): Future[Unit]
-  def promoteStaging(stagedRepo: StagedRepo, description: String): Future[Unit]
-  def dropStaging(stagedRepo: StagedRepo, description: String): Future[Unit]
+
+  def upload(gav: GAV, jar: Array[Byte], pom: String): Option[(DeploymentId, () => Option[CheckStatusResponse])]
+  def publish(deploymentId: DeploymentId): Option[Unit]
+
+  val maxwait = 1.minute
+  val poll = 5.seconds
+
+  def waitForDeploymentState(deploymentState: DeploymentState, f: () => Option[CheckStatusResponse])(implicit futures: Futures, actorSystem: ActorSystem): Future[Unit] = {
+    val future = f() match {
+      case Some(checkStatusResponse) if checkStatusResponse.deploymentState == deploymentState => Future.successful(())
+      case Some(checkStatusResponse) if checkStatusResponse.deploymentState == DeploymentState.FAILED => Future.failed(new IllegalStateException("Failed to deploy"))
+      case _ => after(poll)(waitForDeploymentState(deploymentState, f))
+    }
+
+    future.withTimeout(maxwait)
+  }
+
 }
 
 @Singleton
@@ -69,7 +83,6 @@ class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, config
 
   private lazy val maybeLimit = configuration.getOptional[Int]("mavencentral.limit").orElse(Option.when(environment.mode == Mode.Dev)(5))
 
-  private lazy val maybeOssStagingProfileId = configuration.getOptional[String]("oss.staging-profile")
   private lazy val ossProject = configuration.get[String]("oss.project")
   private lazy val disableDeploy = configuration.getOptional[Boolean]("oss.disable-deploy").getOrElse(false)
 
@@ -86,70 +99,12 @@ class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, config
     }
   }
 
-  // docs: https://support.sonatype.com/hc/en-us/articles/213465878-How-to-retrieve-a-user-token-from-Nexus-Repository-using-REST
-  override def authToken(): Future[(String, String)] = {
-    withOssCredentials { (ossUsername, ossPassword) =>
-      val j = Json.obj(
-        "u" -> Base64.getEncoder.encodeToString(ossUsername.getBytes),
-        "p" -> Base64.getEncoder.encodeToString(ossPassword.getBytes)
-      )
-
-      val ticket = wsClient.url("https://oss.sonatype.org/service/siesta/wonderland/authenticate")
-        .withHttpHeaders(HeaderNames.ACCEPT -> MimeTypes.JSON)
-        .withAuth(ossUsername, ossPassword, WSAuthScheme.BASIC)
-        .post(j)
-
-      ticket.flatMap { ticketResponse =>
-        if (ticketResponse.status == Status.OK) {
-          (ticketResponse.json \ "t").asOpt[String].fold[Future[(String, String)]](
-            Future.failed(new Error("Could not get auth ticket"))
-          ) { ticket =>
-            wsClient.url("https://oss.sonatype.org/service/siesta/usertoken/current")
-              .withHttpHeaders(HeaderNames.ACCEPT -> MimeTypes.JSON, "X-NX-AuthTicket" -> ticket)
-              .withAuth(ossUsername, ossPassword, WSAuthScheme.BASIC)
-              .get()
-              .flatMap { response =>
-                if (response.status == Status.OK) {
-                  val maybeNameCode = (response.json \ "nameCode").asOpt[String]
-                  val maybePassCode = (response.json \ "passCode").asOpt[String]
-
-                  val maybeCredentials = for {
-                    nameCode <- maybeNameCode
-                    passCode <- maybePassCode
-                  } yield (nameCode, passCode)
-
-                  maybeCredentials.fold[Future[(String, String)]](Future.failed(new Error("Could not get auth token")))(Future.successful)
-                }
-                else {
-                  Future.failed(new Error("Could not get auth token"))
-                }
-              }
-          }
-        }
-        else {
-          Future.failed(new Error(ticketResponse.statusText))
-        }
-      }
-    }
-  }
-
-  lazy val authTokenFuture: Future[(String, String)] = authToken()
-
-  def withOssDeployCredentials[T](f: (String, String) => Future[T]): Future[T] = {
-    val maybeUsernamePassword = for {
-      deployUsername <- configuration.getOptional[String]("oss.deploy.username")
-      deployPassword <- configuration.getOptional[String]("oss.deploy.password")
-    } yield (deployUsername, deployPassword)
-
-    maybeUsernamePassword.fold[Future[T]](Future.failed(new IllegalStateException("deploy username or password not specified"))) { case (username, password) =>
-      f(username, password)
-    }
-
-    /*
-    authTokenFuture.flatMap { case (username, password) =>
-      f(username, password)
-    }
-     */
+  def withOssDeployCredentials[T](f: (String, String) => Option[T]): Option[T] = {
+    for {
+      deployUsername <- maybeOssDeployUsername(configuration)
+      deployPassword <- maybeOssDeployPassword(configuration)
+      result <- f(deployUsername, deployPassword)
+    } yield result
   }
 
   def fetchWebJarNameAndUrl(gav: GAV): Future[(String, String)] = {
@@ -441,133 +396,7 @@ class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, config
     }
   }
 
-  private def stagingRepo(stagedRepo: StagedRepo): Future[JsValue] = {
-    withOssDeployCredentials { (username, password) =>
-      val url = s"https://oss.sonatype.org/service/local/staging/repository/${stagedRepo.id}"
-      wsClient.url(url).withAuth(username, password, WSAuthScheme.BASIC).withHttpHeaders(HeaderNames.ACCEPT -> MimeTypes.JSON).get().flatMap { response =>
-        if (response.status == Status.OK) {
-          Future.fromTry {
-            Try {
-              response.json
-            }
-          }
-        }
-        else {
-          Future.failed(ServerError(response.body, response.status))
-        }
-      }
-    }
-  }
 
-  // kudos: https://nami.me/2015/01/20/scala-futures-with-timeout/
-  implicit class FutureExtensions[T](f: Future[T]) {
-    def withTimeout(duration: FiniteDuration)(implicit system: ActorSystem): Future[T] = {
-      val max = after(duration, system.scheduler)(Future.failed(new TimeoutException(s"Operation did not complete in $duration")))
-      Future.firstCompletedOf(Seq(f, max))
-    }
-  }
-
-  private val maxwait = 10.minutes
-  private val poll = 5.seconds
-
-  // todo: errors
-  private def stagingWait(stagedRepo: StagedRepo): Future[JsValue] = {
-    def tryAgain(): Future[JsValue] = {
-      stagingRepo(stagedRepo).flatMap { json =>
-        if ((json \ "transitioning").as[Boolean]) {
-          after(poll, actorSystem.scheduler)(tryAgain())
-        }
-        else {
-          Future.successful(json)
-        }
-      }
-    }
-
-    tryAgain().withTimeout(maxwait)
-  }
-
-  private def stagingProfileReq(path: String, responseCode: Int)(f: WSRequest => Future[WSResponse]): Future[Option[JsValue]] = {
-    maybeOssStagingProfileId.fold(Future.failed[Option[JsValue]](new Exception("Could not get staging profile id"))) { stagingProfileId =>
-      withOssDeployCredentials { (username, password) =>
-        val url = s"https://oss.sonatype.org/service/local/staging/profiles/$stagingProfileId/$path"
-        val req = wsClient.url(url).withAuth(username, password, WSAuthScheme.BASIC).withHttpHeaders(HeaderNames.ACCEPT -> MimeTypes.JSON)
-        f(req).flatMap { response =>
-          val result = if (response.status == responseCode && response.contentType.startsWith(MimeTypes.JSON)) {
-            Try {
-              Some(response.json)
-            }
-          }
-          else if (response.status == responseCode && response.bodyAsBytes.isEmpty) {
-            Success(None)
-          }
-          else {
-            Failure(ServerError(response.body, response.status))
-          }
-
-          Future.fromTry(result)
-        }
-      }
-    }
-  }
-
-  private def stagingTransition(state: String, stagedRepo: StagedRepo, description: String): Future[Unit] = {
-    stagingProfileReq(state, Status.CREATED) { req =>
-      val body = Json.obj(
-        "data" -> Json.obj(
-          "stagedRepositoryId" -> stagedRepo.id,
-          "targetRepositoryId" -> ossProject,
-          "description" -> description,
-        )
-      )
-
-      req.post(body)
-    } collect {
-      case None => ()
-    }
-  }
-
-  private def stagingTransitionWithWait(state: String, stagedRepo: StagedRepo, description: String): Future[Unit] = {
-    stagingTransition(state, stagedRepo, description).flatMap { _ =>
-      stagingWait(stagedRepo).map(_ => ())
-    }
-  }
-
-  def createStaging(description: String): Future[StagedRepo] = {
-    stagingProfileReq("start", Status.CREATED) { req =>
-      val body = Json.obj(
-        "data" -> Json.obj(
-          "description" -> description
-        )
-      )
-
-      req.post(body)
-    } collect {
-      case Some(jsValue) => jsValue
-    } flatMap { jsValue =>
-      (jsValue \ "data").asOpt[StagedRepo].fold(Future.failed[StagedRepo](new Exception("Could not parse response")))(Future.successful)
-    }
-  }
-
-  def closeStaging(stagedRepo: StagedRepo, description: String): Future[Unit] = {
-    stagingTransitionWithWait("finish", stagedRepo, description).recoverWith {
-      case _ => dropStaging(stagedRepo, description)
-    }
-  }
-
-  def promoteStaging(stagedRepo: StagedRepo, description: String): Future[Unit] = {
-    if (!disableDeploy) {
-      stagingTransitionWithWait("promote", stagedRepo, description).recoverWith {
-        case _ => dropStaging(stagedRepo, description)
-      }
-    }
-    else {
-      Future.unit
-    }
-  }
-
-  def dropStaging(stagedRepo: StagedRepo, description: String): Future[Unit] = {
-    stagingTransition("drop", stagedRepo, description)
-  }
 
   def asc(toSign: Array[Byte]): Option[String] = {
     maybeOssGpgKey(configuration).map { gpgKey =>
@@ -599,37 +428,75 @@ class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, config
     }
   }
 
-  def uploadStaging(stagedRepo: StagedRepo, gav: GAV, pom: String, jar: Array[Byte]): Future[Unit] = {
+  import java.io.ByteArrayOutputStream
+  import java.util.zip.{ZipEntry, ZipOutputStream}
+
+  private def createZip(files: Map[String, Array[Byte]]): Array[Byte] = {
+    val baos = new ByteArrayOutputStream()
+    val zos = new ZipOutputStream(baos)
+
+    files.foreach { case (filename, content) =>
+      zos.putNextEntry(new ZipEntry(filename))
+      zos.write(content)
+      zos.closeEntry()
+    }
+
+    zos.close()
+    baos.toByteArray
+  }
+
+  private def withSonatypeClient[T](f: SyncSonatypeClient => Option[T]): Option[T] = {
     withOssDeployCredentials { (username, password) =>
-      val fileUrl = s"https://oss.sonatype.org/service/local/staging/deployByRepositoryId/${stagedRepo.id}/${gav.path}"
+      val credentials = SonatypeCredentials(username, password)
+      val client = new SyncSonatypeClient(credentials)
+      f(client)
+    }
+  }
 
-      def upload[A](url: String, content: A)(implicit bodyWritable: BodyWritable[A]) = {
-        wsClient.url(url).withAuth(username, password, WSAuthScheme.BASIC).put(content).collect(_.status == Status.CREATED)
-      }
-
-      val maybeAscs = for {
+  override def upload(gav: GAV, jar: Array[Byte], pom: String): Option[(DeploymentId, () => Option[CheckStatusResponse])] = {
+    withSonatypeClient { client =>
+      for {
         pomAsc <- asc(pom.getBytes)
         jarAsc <- asc(jar)
-      } yield (pomAsc, jarAsc)
+      } yield {
+        val deploymentName = DeploymentName(gav.toString)
 
-      maybeAscs.fold(Future.failed[Unit](new Exception("Could not create ascs"))) { case (pomAsc, jarAsc) =>
-        Future.sequence(
-          Seq(
-            upload(fileUrl + ".pom", pom),
-            upload(fileUrl + ".pom.sha1", pom.sha1.hex),
-            upload(fileUrl + ".pom.md5", pom.md5.hex),
-            upload(fileUrl + ".pom.asc", pomAsc),
+        val files = Map(
+          s"${gav.path}.jar" -> jar,
+          s"${gav.path}.jar.sha1" -> jar.sha1.hex.getBytes,
+          s"${gav.path}.jar.md5" -> jar.md5.hex.getBytes,
+          s"${gav.path}.jar.asc" -> jarAsc.getBytes,
 
-            upload(fileUrl + ".jar", jar),
-            upload(fileUrl + ".jar.sha1", jar.sha1.hex),
-            upload(fileUrl + ".jar.md5", jar.md5.hex),
-            upload(fileUrl + ".jar.asc", jarAsc),
+          s"${gav.path}.pom" -> pom.getBytes,
+          s"${gav.path}.pom.sha1" -> pom.sha1.hex.getBytes,
+          s"${gav.path}.pom.md5" -> pom.md5.hex.getBytes,
+          s"${gav.path}.pom.asc" -> pomAsc.getBytes,
+        )
+
+        val zip = createZip(files)
+
+        val deploymentId = client
+          .uploadBundleFromBytes(
+            zip,
+            deploymentName,
+            Some(USER_MANAGED)
           )
-        ).map(_ => ())
+
+        deploymentId -> { () => client.checkStatus(deploymentId) }
       }
     }
   }
 
+  override def publish(deploymentId: DeploymentId): Option[Unit] = {
+    if (disableDeploy) {
+      None
+    }
+    else {
+      withSonatypeClient { client =>
+        client.publishValidatedDeployment(deploymentId)
+      }
+    }
+  }
 }
 
 
@@ -648,14 +515,5 @@ object MavenCentral {
     lazy val cacheKey = s"$groupId-$artifactId-$version"
 
     override def toString: String = s"$groupId:$artifactId:$version"
-  }
-
-  case class StagedRepo(id: String, description: String)
-
-  object StagedRepo {
-    implicit val jsonReads: Reads[StagedRepo] = (
-      (__ \ "stagedRepositoryId").read[String] ~
-        (__ \ "description").read[String]
-      ).apply(StagedRepo(_, _))
   }
 }

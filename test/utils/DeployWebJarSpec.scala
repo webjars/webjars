@@ -39,7 +39,7 @@ class DeployWebJarSpec extends PlaySpecification {
 
       val output = await(deployWebJar.localDeploy(npm, "material-design-icons", "2.2.3", true, false).toMat(Sink.seq)(Keep.right).run())
       output(4) must contain("Resolved Licenses: CC-BY-4.0")
-      output(15) must contain("Deployed!")
+      output(14) must contain("Deployed!")
     }
     "work with Classic" in new WithMocks() {
       val deployWebJar: DeployWebJar = app.injector.instanceOf[DeployWebJar]

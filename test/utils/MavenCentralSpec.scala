@@ -1,16 +1,19 @@
 package utils
 
+import com.lumidion.sonatype.central.client.core.{CheckStatusResponse, DeploymentId, DeploymentName, DeploymentState, PublishingType}
 import io.lemonlabs.uri.AbsoluteUrl
 import models.WebJar
 import org.apache.commons.io.IOUtils
+import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.util.Timeout
 import org.bouncycastle.bcpg.{HashAlgorithmTags, PublicKeyAlgorithmTags, PublicKeyPacket, SymmetricKeyAlgorithmTags}
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.bouncycastle.openpgp.operator.jcajce.{JcaPGPContentSignerBuilder, JcaPGPDigestCalculatorProviderBuilder, JcaPGPKeyPair, JcePBESecretKeyEncryptorBuilder}
 import org.bouncycastle.openpgp.{PGPSecretKey, PGPSignature}
 import play.api.Environment
+import play.api.libs.concurrent.Futures
 import play.api.test._
-import utils.MavenCentral.{GAV, GroupId, StagedRepo}
+import utils.MavenCentral.{GAV, GroupId}
 
 import java.io.FileNotFoundException
 import java.security.{KeyPairGenerator, Security}
@@ -18,7 +21,6 @@ import java.time.LocalDateTime
 import java.util.{Base64, Date}
 import scala.concurrent.Future
 import scala.concurrent.duration._
-import scala.util.Try
 import scala.xml.Elem
 
 // todo: there is some brittle stuff here (maven central search, oss stats, memcache, maven central itself)
@@ -114,11 +116,11 @@ class MavenCentralSpec extends PlaySpecification {
       val mavenCentral = app.injector.instanceOf[MavenCentral]
       mavenCentral.asc("foo".getBytes) must beSome
     }
-    "create, upload, close, drop" in new WithApp() {
+    "upload" in new WithApp() {
       val mavenCentral = app.injector.instanceOf[MavenCentral]
       if (
-        mavenCentral.maybeOssUsername(app.configuration).isEmpty ||
-        mavenCentral.maybeOssPassword(app.configuration).isEmpty ||
+        mavenCentral.maybeOssDeployUsername(app.configuration).isEmpty ||
+        mavenCentral.maybeOssDeployPassword(app.configuration).isEmpty ||
         mavenCentral.maybeOssGpgKey(app.configuration).isEmpty
       ) {
         skipped("skipped due to missing config")
@@ -135,38 +137,24 @@ class MavenCentralSpec extends PlaySpecification {
 
         val gitUri = AbsoluteUrl.parse("https://githib.com/webjars/webjars.git")
         val sourceUrl = AbsoluteUrl.parse("https://github.com/webjars/webjars")
-        val version = "0.0.1" // Instant.now.getEpochSecond.toString
+        val version = "0.0.3" // Instant.now.getEpochSecond.toString
         val licenses = Set[License](LicenseWithNameAndUrl("MIT", AbsoluteUrl.parse("https://opensource.org/licenses/MIT")))
 
         val packageInfo = PackageInfo("Test WebJar", version, None, gitUri, None, Seq.empty, Map.empty, Map.empty, None)
 
-        val gav = GAV("org.webjars", "_test", version)
+        val gav = GAV("com.happypathprogramming", "_test", version)
 
         val pom = templates.xml.pom(gav.groupId, gav.artifactId, gav.version, packageInfo, sourceUrl, Set.empty, Set.empty, licenses).toString()
 
-        val stagingRepo = await(mavenCentral.createStaging("test create"))
-        stagingRepo.description mustEqual "test create"
+        val (_, checker) = mavenCentral.upload(gav, jar, pom).get
 
-        await(mavenCentral.uploadStaging(stagingRepo, gav, pom, jar))
+        await(mavenCentral.waitForDeploymentState(DeploymentState.VALIDATED, checker)(app.injector.instanceOf[Futures], app.injector.instanceOf[ActorSystem]))
 
-        await(mavenCentral.closeStaging(stagingRepo, "test close")) must beEqualTo(())
+//        mavenCentral.publish(deploymentId).get
 
-        //await(mavenCentral.promoteStaging(stagingProfile, "test promote")) must not(throwAn[Exception])
+//        await(mavenCentral.waitForDeploymentState(DeploymentState.PUBLISHING, checker)(app.injector.instanceOf[Futures], app.injector.instanceOf[ActorSystem]))
 
-        await(mavenCentral.dropStaging(stagingRepo, "test drop")) must beEqualTo(())
-      }
-    }
-  }
-
-  "authtoken" should {
-    "work" in new WithApp() {
-      val mavenCentral = app.injector.instanceOf[MavenCentral]
-      if (mavenCentral.maybeOssUsername(app.configuration).isEmpty || mavenCentral.maybeOssPassword(app.configuration).isEmpty) {
-        skipped("skipped due to missing config")
-      }
-      else {
-        val attempt = Try(await(mavenCentral.authToken()))
-        attempt must beASuccessfulTry
+        success
       }
     }
   }
@@ -200,26 +188,6 @@ class MavenCentralMock extends MavenCentral {
     Future.successful(List.empty)
   }
 
-  override def createStaging(description: String): Future[MavenCentral.StagedRepo] = {
-    Future.successful(StagedRepo("test", "test"))
-  }
-
-  override def uploadStaging(stagedRepo: MavenCentral.StagedRepo, gav: GAV, pom: String, jar: Array[Byte]): Future[Unit] = {
-    Future.unit
-  }
-
-  override def closeStaging(stagedRepo: MavenCentral.StagedRepo, description: String): Future[Unit] = {
-    Future.unit
-  }
-
-  override def promoteStaging(stagedRepo: MavenCentral.StagedRepo, description: String): Future[Unit] = {
-    Future.unit
-  }
-
-  override def dropStaging(stagedRepo: MavenCentral.StagedRepo, description: String): Future[Unit] = {
-    Future.unit
-  }
-
   override def getStats(groupId: GroupId, dateTime: LocalDateTime): Future[Map[(String, String), Port]] = {
     Future.successful(Map.empty)
   }
@@ -228,7 +196,20 @@ class MavenCentralMock extends MavenCentral {
     None
   }
 
-  override def authToken(): Future[(String, String)] = {
-    Future.successful("" -> "")
+  // first is in the Validated state, then switches to publishing
+  // todo: do it per gav
+  override def upload(gav: GAV, jar: Array[Byte], pom: GroupId): Option[(DeploymentId, () => Option[CheckStatusResponse])] = {
+    var state: DeploymentState = DeploymentState.VALIDATED
+
+    def checkStatusResponse(): Option[CheckStatusResponse] = {
+      val result = Some(CheckStatusResponse(DeploymentId(gav.toString), DeploymentName(gav.toString), state, Vector.empty))
+      state = DeploymentState.PUBLISHING
+      result
+    }
+
+    Some((DeploymentId(gav.toString), checkStatusResponse))
   }
+
+  override def publish(deploymentId: DeploymentId): Option[Unit] =
+    Some(())
 }
