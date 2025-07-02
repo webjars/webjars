@@ -1,4 +1,4 @@
-addSbtPlugin("org.playframework" % "sbt-plugin" % "3.0.7")
+addSbtPlugin("org.playframework" % "sbt-plugin" % "3.0.8")
 
 addSbtPlugin("com.github.sbt" % "sbt-digest" % "2.1.0")
 
