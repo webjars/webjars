@@ -21,7 +21,7 @@ import scala.io.StdIn
 import scala.util.{Failure, Try, Using}
 
 
-class DeployWebJar @Inject()(mavenCentral: MavenCentral, sourceLocator: SourceLocator, configuration: Configuration, heroku: Heroku)(implicit ec: ExecutionContext, futures: Futures, materializer: Materializer, actorSystem: ActorSystem) {
+class DeployWebJar @Inject()(mavenCentral: MavenCentral, mavenCentralDeployer: MavenCentralDeployer, sourceLocator: SourceLocator, configuration: Configuration, heroku: Heroku)(implicit ec: ExecutionContext, futures: Futures, materializer: Materializer, actorSystem: ActorSystem) {
 
   val fork = configuration.getOptional[Boolean]("deploy.fork").getOrElse(false)
 
@@ -139,17 +139,17 @@ class DeployWebJar @Inject()(mavenCentral: MavenCentral, sourceLocator: SourceLo
 
         _ <- queue.offer(s"Creating Maven Central Release for $gav")
 
-        (deploymentId, checker) <- mavenCentral.upload(gav, jar, pom).fold(Future.failed[(DeploymentId, () => Option[CheckStatusResponse])](new IllegalStateException(s"Could not upload $gav")))(Future.successful)
+        (deploymentId, checker) <- mavenCentralDeployer.upload(gav, jar, pom).fold(Future.failed[(DeploymentId, () => Option[CheckStatusResponse])](new IllegalStateException(s"Could not upload $gav")))(Future.successful)
 
         _ <- queue.offer(s"Uploaded Maven Central Release for $gav")
 
-        _ <- mavenCentral.waitForDeploymentState(VALIDATED, checker)
+        _ <- mavenCentralDeployer.waitForDeploymentState(VALIDATED, checker)
 
         _ <- queue.offer(s"Validated Maven Central Release for $gav")
 
-        _ <- mavenCentral.publish(deploymentId).fold(Future.failed[Unit](new IllegalStateException(s"Could not publish $gav")))(Future.successful)
+        _ <- mavenCentralDeployer.publish(deploymentId).fold(Future.failed[Unit](new IllegalStateException(s"Could not publish $gav")))(Future.successful)
 
-        _ <- mavenCentral.waitForDeploymentState(PUBLISHING, checker)
+        _ <- mavenCentralDeployer.waitForDeploymentState(PUBLISHING, checker)
 
         _ <- queue.offer(s"""Deployed!
                           |It will take a few hours for the Maven Central index to update but you should be able to start using the ${deployable.name} WebJar shortly.

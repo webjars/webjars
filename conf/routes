@@ -19,8 +19,6 @@ POST           /deploy                                                    contro
 GET            /deploy                                                    controllers.Application.deploy(webJarType, nameOrUrlish, version)
 POST           /create                                                    controllers.Application.create(webJarType, nameOrUrlish, version)
 
-GET            /mockcentral/searchgroup                                   controllers.MockCentral.searchGroup()
-
 GET            /files/org.webjars/:artifactId/:version/*file              controllers.Application.file(groupId = "org.webjars", artifactId, version, file)
 GET            /files/org.webjars.bower/:artifactId/:version/*file        controllers.Application.file(groupId = "org.webjars.bower", artifactId, version, file)
 GET            /files/org.webjars.npm/:artifactId/:version/*file          controllers.Application.file(groupId = "org.webjars.npm", artifactId, version, file)

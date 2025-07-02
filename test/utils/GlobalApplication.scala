@@ -8,7 +8,7 @@ import play.api.test.WithApplication
 trait GlobalApplication extends AfterAll {
 
   lazy val application = new GuiceApplicationBuilder()
-    .overrides(bind[Memcache].to[MemcacheMock], bind[MavenCentral].to[MavenCentralMock])
+    .overrides(bind[Memcache].to[MemcacheMock], bind[MavenCentral].to[MavenCentralMock], bind[MavenCentralDeployer].to[MavenCentralDeployerMock])
     .configure("webjars.classic.branch" -> "dev")
     .build()
 
@@ -19,5 +19,5 @@ trait GlobalApplication extends AfterAll {
 }
 
 class WithMocks extends WithApplication(
-  _.overrides(bind[Memcache].to[MemcacheMock], bind[MavenCentral].to[MavenCentralMock])
+  _.overrides(bind[Memcache].to[MemcacheMock], bind[MavenCentral].to[MavenCentralMock], bind[MavenCentralDeployer].to[MavenCentralDeployerMock])
 )

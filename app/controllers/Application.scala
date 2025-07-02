@@ -59,7 +59,7 @@ class Application @Inject() (git: Git, cache: Cache, mavenCentral: MavenCentral,
     def getWebJars(groupId: GroupId): Future[List[WebJar]] = {
       val jitter = (Random.nextInt(10) + 55).minutes
       cache.get[List[WebJar]](s"webjars-$groupId", jitter) {
-        mavenCentral.webJarsSorted(Some(groupId))
+        mavenCentral.webJars(groupId)
       }
     }
 

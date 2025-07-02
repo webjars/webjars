@@ -6,7 +6,7 @@ import play.api.http.{ContentTypes, HeaderNames, Status}
 import play.api.inject.bind
 import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.test.{FakeRequest, PlaySpecification, WithApplication}
-import utils.{MavenCentral, Memcache, MemcacheMock}
+import utils.MavenCentral
 
 import scala.concurrent.duration._
 
@@ -27,49 +27,22 @@ class ApplicationSpec extends PlaySpecification {
   "sortedMostPopularWebJars" should {
     "only include the max number" in new WithApp {
       val mavenCentral = app.injector.instanceOf[MavenCentral]
-      if (mavenCentral.maybeOssPassword(app.configuration).isEmpty) {
-        skipped("skipped due to missing config")
-      }
-      else {
-        val applicationController = app.injector.instanceOf[Application]
+      val applicationController = app.injector.instanceOf[Application]
 
-        val sorted = await(applicationController.sortedMostPopularWebJars)
+      val sorted = await(applicationController.sortedMostPopularWebJars)
 
-        sorted must not be empty
+      sorted must not be empty
 
-        val grouped = sorted.groupBy(_.groupId)
+      val grouped = sorted.groupBy(_.groupId)
 
-        grouped.getOrElse("org.webjars", Seq.empty[WebJar]).length must beLessThanOrEqualTo(applicationController.MAX_POPULAR_WEBJARS)
-        grouped.getOrElse("org.webjars.npm", Seq.empty[WebJar]).length must beLessThanOrEqualTo(applicationController.MAX_POPULAR_WEBJARS)
-      }
+      grouped.getOrElse("org.webjars", Seq.empty[WebJar]).length must beLessThanOrEqualTo(applicationController.MAX_POPULAR_WEBJARS)
+      grouped.getOrElse("org.webjars.npm", Seq.empty[WebJar]).length must beLessThanOrEqualTo(applicationController.MAX_POPULAR_WEBJARS)
     }
   }
 
   "searchWebJars" should {
     "work with a classic webjar" in new WithApp {
       val mavenCentral = app.injector.instanceOf[MavenCentral]
-      if (mavenCentral.maybeOssPassword(app.configuration).isEmpty) {
-        skipped("skipped due to missing config")
-      }
-      else {
-        val applicationController = app.injector.instanceOf[Application]
-
-        val request = FakeRequest().withHeaders(HeaderNames.ACCEPT -> ContentTypes.JSON)
-
-        val webJars = contentAsJson(applicationController.webJarList("org.webjars")(request)).as[Seq[WebJar]]
-
-        val possibleMatches = webJars.filter(_.artifactId.toLowerCase.contains("openui5"))
-
-        val resultFuture = applicationController.searchWebJars("openui5", List("org.webjars"))(request)
-
-        status(resultFuture) must beEqualTo(Status.OK)
-
-        contentAsJson(resultFuture).as[Seq[WebJar]] must containTheSameElementsAs(possibleMatches)
-
-        // todo: verify that the ordering was correct (i.e. the stats worked)
-      }
-    }
-    "work when stats can't be fetched" in new WithApplication(withOverrides.andThen(_.configure("oss.username" -> "asdf", "oss.password" -> "asdf")).andThen(_.overrides(bind[Memcache].to[MemcacheMock]))) { // use MemcacheMock otherwise the stats get pulled from memcache
       val applicationController = app.injector.instanceOf[Application]
 
       val request = FakeRequest().withHeaders(HeaderNames.ACCEPT -> ContentTypes.JSON)
@@ -80,7 +53,11 @@ class ApplicationSpec extends PlaySpecification {
 
       val resultFuture = applicationController.searchWebJars("openui5", List("org.webjars"))(request)
 
+      status(resultFuture) must beEqualTo(Status.OK)
+
       contentAsJson(resultFuture).as[Seq[WebJar]] must containTheSameElementsAs(possibleMatches)
+
+      // todo: verify that the ordering was correct (i.e. the stats worked)
     }
   }
 
