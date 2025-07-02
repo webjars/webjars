@@ -18,7 +18,7 @@ libraryDependencies ++= Seq(
   "com.outr" %% "hasher" % "1.2.3",
   "com.indoorvivants" %% "scala-uri" % "4.2.0",
   "net.ruippeixotog" %% "scala-scraper" % "3.2.0",
-  "com.lumidion"  %%  "sonatype-central-client-requests"  %  "0.5.0",
+  "com.lumidion"  %%  "sonatype-central-client-requests"  %  "0.6.0",
   "org.webjars" %% "webjars-play" % "3.0.2",
   // brought in transatively via select2-bootstrap-5-theme
   //"org.webjars" % "bootstrap" % "5.3.3",
