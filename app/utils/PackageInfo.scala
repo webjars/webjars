@@ -6,13 +6,19 @@ import play.api.libs.json._
 
 import scala.util.Success
 
+sealed trait LicenseMetadata
+
+case class SpdxLicense(id: String) extends LicenseMetadata
+case class ProvidedLicense(license: License) extends LicenseMetadata
+case object UnresolvedLicense extends LicenseMetadata
+
 case class PackageInfo(
                         name: String,
                         version: String,
                         maybeHomepageUrl: Option[AbsoluteUrl],
                         sourceConnectionUri: AbsoluteUrl,
                         maybeIssuesUrl: Option[AbsoluteUrl],
-                        metadataLicenses: Seq[String],
+                        metadataLicenses: Seq[LicenseMetadata],
                         dependencies: Map[String, String],
                         optionalDependencies: Map[String, String],
                         maybeTag: Option[String],
@@ -38,6 +44,7 @@ object PackageInfo {
 
   implicit val writesUrl: Writes[AbsoluteUrl] = Writes[AbsoluteUrl](url => JsString(url.toString))
 
+  /*
   implicit def jsonWrites: Writes[PackageInfo] = (
     (__ \ "name").write[String] and
     (__ \ "version").write[String] and
@@ -49,6 +56,7 @@ object PackageInfo {
     (__ \ "optionalDependencies").write[Map[String, String]] and
     (__ \ "tag").writeNullable[String]
   )(unlift(PackageInfo.unapply))
+   */
 
   implicit val readsUrl: Reads[AbsoluteUrl] = Reads[AbsoluteUrl] {
     case JsString(s) =>

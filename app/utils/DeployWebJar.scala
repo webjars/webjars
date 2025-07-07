@@ -318,17 +318,22 @@ trait Deployable {
       }
     }
 
-    val normalizedLicenses = packageInfo.metadataLicenses.map { license =>
-      val replacedDotSlash = if (license.startsWith("./")) {
-        license.replace("./", "file://")
-      }
-      else {
-        license
-      }
+    val normalizedLicenses = packageInfo.metadataLicenses.map {
+      case SpdxLicense(spdxLicense) =>
+        val replacedDotSlash = if (spdxLicense.startsWith("./")) {
+          spdxLicense.replace("./", "file://")
+        }
+        else {
+          spdxLicense
+        }
 
-      val replacedSeeLicenseIn = replacedDotSlash.replace("SEE LICENSE IN ", "file://")
+        val replacedSeeLicenseIn = replacedDotSlash.replace("SEE LICENSE IN ", "file://")
 
-      licenseReference(nameOrUrlish, version, replacedSeeLicenseIn)
+        licenseReference(nameOrUrlish, version, replacedSeeLicenseIn)
+      case ProvidedLicense(licenseMetadata) =>
+        Future.successful(Set(licenseMetadata))
+      case UnresolvedLicense =>
+        Future.successful(Set.empty)
     }
 
     val resolvedLicenses = Future.foldLeft(normalizedLicenses)(Set.empty[License])(_ ++ _)

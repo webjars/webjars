@@ -1,5 +1,6 @@
 package utils
 
+import io.lemonlabs.uri.AbsoluteUrl
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream
@@ -17,7 +18,7 @@ class ClassicSpec extends PlaySpecification with GlobalApplication {
 
   "metadata" should {
     "work" in {
-      await(classic.metadata("swagger-ui")).name must beEqualTo ("Swagger UI")
+      await(classic.metadata("swagger-ui")).asInstanceOf[classic.MetadataNormal].name must beEqualTo ("Swagger UI")
     }
     "fail when WebJar metadata not found" in {
       await(classic.metadata("does-not-exist")) must throwA[Exception]
@@ -30,7 +31,7 @@ class ClassicSpec extends PlaySpecification with GlobalApplication {
       info.name shouldEqual "Swagger UI"
       info.version shouldEqual "5.15.1"
       info.sourceConnectionUri.toString shouldEqual "https://github.com/swagger-api/swagger-ui.git"
-      info.metadataLicenses should contain("Apache-2.0")
+      info.metadataLicenses should contain(SpdxLicense("Apache-2.0"))
     }
   }
 
@@ -76,6 +77,31 @@ class ClassicSpec extends PlaySpecification with GlobalApplication {
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new BufferedInputStream(inputStream))
       val files = LazyList.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName)
       files must contain ("Select-2.0.4/js/dataTables.select.min.js")
+    }
+  }
+
+  "flexmonster" should {
+    "have versions" in {
+      val versions = await(classic.versions("flexmonster"))
+      versions should contain("2.9.107")
+    }
+    "have info" in {
+      val info = await(classic.info("flexmonster", "2.9.107"))
+      info.name must beEqualTo("flexmonster")
+      info.version must beEqualTo("2.9.107")
+      info.dependencies must beEmpty
+      info.maybeGitHubUrl must beSome(AbsoluteUrl.parse("https://github.com/flexmonster/js-pivot-table"))
+      info.metadataLicenses must contain(ProvidedLicense(LicenseWithNameAndUrl("Flexmonster Terms and Conditions", AbsoluteUrl.parse("https://www.flexmonster.com/terms/Flexmonster-Terms-and-Conditions.pdf"))))
+    }
+    "have the files in the right place" in {
+      val inputStream = await(classic.archive("flexmonster", "2.9.107"))
+      val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[TarArchiveInputStream](new BufferedInputStream(inputStream))
+      val files = LazyList.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName)
+      files must contain ("package/flexmonster.js")
+    }
+    "basedirglob" in {
+      val baseDirGlob = await(classic.maybeBaseDirGlob("flexmonster"))
+      baseDirGlob must beSome("*/")
     }
   }
 
