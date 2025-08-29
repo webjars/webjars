@@ -136,11 +136,13 @@ object WebJarCreator {
     // todo: if the globber doesn't match on any files, likely there is a bug and we should produce an error
     // copy zip to jar
     LazyList.continually(archive.getNextEntry).takeWhile(_ != null).foreach { ze =>
-      val maybeName = maybeBaseDirGlob.fold[Option[String]](Some(ze.getName)) { baseDirGlob =>
-        removeGlobPath(baseDirGlob, ze.getName)
+      val maybeNames = maybeBaseDirGlob.fold[Array[String]](Array(ze.getName)) { baseDirGlobs =>
+        baseDirGlobs.split(',').flatMap { baseDirGlob =>
+          removeGlobPath(baseDirGlob, ze.getName)
+        }
       }
 
-      maybeName.foreach { name =>
+      maybeNames.foreach { name =>
         if (!isExcluded(exclude, name, ze.isDirectory)) {
           val path = webJarPrefix + name
           val nze = new ZipArchiveEntry(path)

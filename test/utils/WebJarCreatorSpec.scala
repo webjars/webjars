@@ -138,6 +138,20 @@ class WebJarCreatorSpec extends PlaySpecification with GlobalApplication {
       allNames must not contain "META-INF/resources/webjars/vaadin-grid/.eslintrc.json"
       allNames must not contain "META-INF/resources/webjars/vaadin-grid/test/.eslintrc.json"
     }
+    "multi-base" in {
+      val url = new URI("https://github.com/moment/moment/archive/2.30.1.zip").toURL
+      val inputStream = url.openConnection().getInputStream
+
+      val baseDir = Some("*/dist,*/min")
+
+      val webJar = WebJarCreator.createWebJar(inputStream, baseDir, Set.empty, "", "Test", Set.empty, "", "", "", "moment/")
+
+      val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new ByteArrayInputStream(webJar))
+
+      val allNames = LazyList.continually(archiveStream.getNextEntry).takeWhile(_ != null).map(_.getName).toSet
+      allNames must contain ("META-INF/resources/webjars/moment/moment.min.js")
+      allNames must contain ("META-INF/resources/webjars/moment/moment.js")
+    }
   }
 
   "vaadin-ordered-layout-1.0.0-alpha3" should {
