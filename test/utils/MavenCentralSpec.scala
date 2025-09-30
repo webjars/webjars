@@ -57,7 +57,7 @@ class MavenCentralMock extends MavenCentral {
   }
 
   // this makes it so the mock says the artifact has not already been deployed
-  override def fetchPom(gav: GAV, maybeUrlPrefix: Option[String]): Future[Elem] = {
+  override def fetchPom(gav: GAV): Future[Elem] = {
     Future.failed(new FileNotFoundException())
   }
 
