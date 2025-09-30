@@ -25,7 +25,7 @@ trait MavenCentral {
   import MavenCentral._
 
   def fetchWebJars(groupId: GroupId): Future[Set[WebJar]]
-  def fetchPom(gav: GAV, maybeUrlPrefix: Option[String] = None): Future[Elem]
+  def fetchPom(gav: GAV): Future[Elem]
   def webJars(groupId: GroupId): Future[List[WebJar]]
 }
 
@@ -233,8 +233,8 @@ class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, config
     }
   }
 
-  def fetchPom(gav: GAV, maybeUrlPrefix: Option[String] = None): Future[Elem] = {
-    val urlPrefix = maybeUrlPrefix.getOrElse("https://repo1.maven.org/maven2")
+  def fetchPom(gav: GAV): Future[Elem] = {
+    val urlPrefix = "https://repo1.maven.org/maven2"
     val url = s"$urlPrefix/${gav.path}.pom"
     wsClient.url(url).get().flatMap { response =>
       response.status match {
