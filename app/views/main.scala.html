@@ -19,15 +19,15 @@
 
         <!-- Styles -->
         <link rel="stylesheet" href='@routes.Assets.versioned("stylesheets/main.css")'>
-        @webJarsUtil.locate("select2.min.css").css()
-        @webJarsUtil.locate("select2-bootstrap-5-theme.min.css").css()
-        @webJarsUtil.locate("atom-one-dark.min.css").css()
+        @webJarsUtil.locate("select2", "css/select2.min.css").css()
+        @webJarsUtil.locate("select2-bootstrap-5-theme", "dist/select2-bootstrap-5-theme.min.css").css()
+        @webJarsUtil.locate("highlightjs", "styles/atom-one-dark.min.css").css()
 
         <!-- Scripts -->
-        @webJarsUtil.locate("jquery.min.js").script()
-        @webJarsUtil.locate("bootstrap.bundle.min.js").script()
-        @webJarsUtil.locate("select2.full.min.js").script()
-        @webJarsUtil.locate("highlight.min.js").script()
+        @webJarsUtil.locate("jquery", "jquery.min.js").script()
+        @webJarsUtil.locate("bootstrap", "dist/js/bootstrap.bundle.min.js").script()
+        @webJarsUtil.locate("select2", "js/select2.full.min.js").script()
+        @webJarsUtil.locate("highlightjs", "highlight.min.js").script()
         <script>hljs.highlightAll();</script>
         <script src="@routes.Assets.versioned("javascripts/color-modes.js")"></script>
 

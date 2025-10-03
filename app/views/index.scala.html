@@ -5,7 +5,7 @@
 @main(title = "WebJars - Web Libraries in Jars") {
     <!-- Scripts -->
     <script defer src="@routes.Assets.versioned("javascripts/index.js")"></script>
-    @webJarsUtil.locate("jquery.typewatch.js").script()
+    @webJarsUtil.locate("jquery.typewatch", "jquery.typewatch.js").script()
 
     <!-- Content -->
     <div class="home-bg">
