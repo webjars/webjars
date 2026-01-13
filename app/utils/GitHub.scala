@@ -1,10 +1,9 @@
 package utils
 
 import io.lemonlabs.uri.{AbsoluteUrl, UrlPath}
-import org.eclipse.jgit.util.Base64
 import play.api.Configuration
-import play.api.http.{HeaderNames, HttpVerbs, MimeTypes, Status}
-import play.api.libs.json.{JsObject, JsValue}
+import play.api.http.{HeaderNames, Status}
+import play.api.libs.json.JsObject
 import play.api.libs.ws.{WSClient, WSRequest, WSResponse}
 import utils.Deployable.Version
 
@@ -16,9 +15,6 @@ import scala.util.{Failure, Success, Try}
 
 class GitHub @Inject() (configuration: Configuration, wsClient: WSClient, cache: Cache) (implicit ec: ExecutionContext) {
 
-  lazy val clientId = configuration.get[String]("github.oauth.client-id")
-  lazy val clientSecret = configuration.get[String]("github.oauth.client-secret")
-
   // primarily used in tests which break with too many concurrent requests to GitHub
   lazy val maybeAuthToken = configuration.getOptional[String]("github.auth.token")
 
@@ -29,42 +25,6 @@ class GitHub @Inject() (configuration: Configuration, wsClient: WSClient, cache:
         HeaderNames.AUTHORIZATION -> s"token $accessToken",
         HeaderNames.ACCEPT -> "application/vnd.github.v3+json"
       )
-  }
-
-  def accessToken(code: String): Future[String] = {
-    val wsFuture = wsClient.url("https://github.com/login/oauth/access_token").withQueryStringParameters(
-      "client_id" -> clientId,
-      "client_secret" -> clientSecret,
-      "code" -> code
-    ).withHttpHeaders(HeaderNames.ACCEPT -> MimeTypes.JSON).execute(HttpVerbs.POST)
-
-    wsFuture.flatMap { response =>
-      (response.json \ "access_token").asOpt[String].fold {
-        Future.failed[String](UnauthorizedError(response.body))
-      } {
-        Future.successful
-      }
-    }
-  }
-
-  def user(accessToken: String): Future[JsValue] = {
-    ws("user", accessToken).get().flatMap { response =>
-      response.status match {
-        case Status.OK => Future.successful(response.json)
-        case _ => Future.failed(ServerError(response.body, response.status))
-      }
-    }
-  }
-
-  def contents(accessToken: String, owner: String, repo: String, path: String): Future[String] = {
-    ws(s"repos/$owner/$repo/contents/$path", accessToken).get().flatMap { response =>
-      response.status match {
-        case Status.OK =>
-          val base64Contents = (response.json \ "content").as[String]
-          Future.successful(new String(Base64.decode(base64Contents)))
-        case _ => Future.failed(ServerError(response.body, response.status))
-      }
-    }
   }
 
   // todo: max redirects?
