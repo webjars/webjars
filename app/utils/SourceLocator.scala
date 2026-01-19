@@ -7,7 +7,7 @@ import play.api.libs.ws.WSClient
 import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
 
-class SourceLocator @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
+class SourceLocator @Inject() (ws: WSClient) (using ec: ExecutionContext) {
 
   def sourceUrl(url: AbsoluteUrl): Future[AbsoluteUrl] = {
     val normalized = url.withScheme("https")

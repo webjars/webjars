@@ -26,7 +26,7 @@ trait Memcache {
 }
 
 @Singleton
-class MemcacheLive @Inject() (configuration: Configuration, lifecycle: ApplicationLifecycle) (implicit ec: ExecutionContext) extends Memcache {
+class MemcacheLive @Inject() (configuration: Configuration, lifecycle: ApplicationLifecycle) (using ec: ExecutionContext) extends Memcache {
 
   import Memcache.*
 

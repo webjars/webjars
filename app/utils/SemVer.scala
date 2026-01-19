@@ -7,7 +7,7 @@ import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Success, Try}
 
-class SemVer @Inject() (val ws: WSClient) (implicit ec: ExecutionContext) {
+class SemVer @Inject() (val ws: WSClient) (using ec: ExecutionContext) {
 
   val baseUrl = "https://semver.webjars.org"
 

@@ -5,7 +5,7 @@ import io.lemonlabs.uri.AbsoluteUrl
 import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
 
-class Maven @Inject() (git: Git, semVer: SemVer) (implicit ec: ExecutionContext) {
+class Maven @Inject() (git: Git, semVer: SemVer) (using ec: ExecutionContext) {
 
   def convertNpmDependenciesToMaven(dependencies: Map[String, String]): Future[Map[String, String]] = {
     val maybeMavenDeps = dependencies.map { case (name, versionOrUrl) =>

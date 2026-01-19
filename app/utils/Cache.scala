@@ -7,7 +7,7 @@ import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.{ExecutionContext, Future}
 import scala.reflect.ClassTag
 
-class Cache @Inject() (cache: SyncCacheApi) (implicit ec: ExecutionContext) {
+class Cache @Inject() (cache: SyncCacheApi) (using ec: ExecutionContext) {
 
   // todo: configurable duration that the stale cache is kept around for onMiss failures
 

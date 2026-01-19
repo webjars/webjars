@@ -1,5 +1,5 @@
 import models.WebJarVersion
-import models.WebJarVersion.WebJarVersionOrdering
+import models.WebJarVersion.given
 import org.specs2.mutable._
 import utils.VersionStringOrdering
 

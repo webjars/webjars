@@ -9,7 +9,7 @@ import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
-class WebJarsFileService @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
+class WebJarsFileService @Inject() (ws: WSClient) (using ec: ExecutionContext) {
 
   def getFileList(groupId: String, artifactId: String, version: String): Future[List[String]] = {
     val url = s"https://webjars-file-service.herokuapp.com/listfiles/$groupId/$artifactId/$version"

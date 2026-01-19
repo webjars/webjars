@@ -16,7 +16,7 @@ import scala.io.{Codec, Source}
 import scala.jdk.CollectionConverters.*
 import scala.util.{Try, Using}
 
-class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
+class Git @Inject() (ws: WSClient) (using ec: ExecutionContext) {
 
   private def deleteRecursively(file: File): Unit = {
     if (file.isDirectory) {

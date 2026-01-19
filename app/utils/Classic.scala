@@ -18,7 +18,7 @@ import scala.concurrent.duration.DurationInt
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
-class Classic @Inject() (ws: WSClient, val licenseDetector: LicenseDetector, val messages: MessagesApi, val langs: Langs, gitHub: GitHub, cache: Cache, configuration: Configuration, npm: NPM)(implicit ec: ExecutionContext) extends Deployable {
+class Classic @Inject() (ws: WSClient, val licenseDetector: LicenseDetector, val messages: MessagesApi, val langs: Langs, gitHub: GitHub, cache: Cache, configuration: Configuration, npm: NPM)(using ec: ExecutionContext) extends Deployable {
   import Classic.*
 
   override val name: String = "Classic"

@@ -29,7 +29,7 @@ class Application @Inject() (git: Git, cache: Cache, mavenCentral: MavenCentral,
                             (allDeployables: AllDeployables)
                             (allView: views.html.all, indexView: views.html.index, documentationView: views.html.documentation)
                             (fetchConfig: FetchConfig)
-                            (implicit ec: ExecutionContext) extends BaseController with Logging {
+                            (using ec: ExecutionContext) extends BaseController with Logging {
 
   private[controllers] val MAX_POPULAR_WEBJARS = 20
 

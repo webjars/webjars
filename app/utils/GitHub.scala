@@ -13,7 +13,7 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.language.implicitConversions
 import scala.util.{Failure, Success, Try}
 
-class GitHub @Inject() (configuration: Configuration, wsClient: WSClient, cache: Cache) (implicit ec: ExecutionContext) {
+class GitHub @Inject() (configuration: Configuration, wsClient: WSClient, cache: Cache) (using ec: ExecutionContext) {
 
   // primarily used in tests which break with too many concurrent requests to GitHub
   lazy val maybeAuthToken = configuration.getOptional[String]("github.auth.token")

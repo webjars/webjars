@@ -9,7 +9,7 @@ import play.api.libs.ws.DefaultBodyWritables.*
 import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
 
-class LicenseDetector @Inject() (ws: WSClient) (implicit ec: ExecutionContext) extends Logging {
+class LicenseDetector @Inject() (ws: WSClient) (using ec: ExecutionContext) extends Logging {
 
   def licenseDetect(contents: String): Future[LicenseWithName] = {
     ws.url("https://oss-license-detector.herokuapp.com/").post(contents).flatMap { licenseResponse =>

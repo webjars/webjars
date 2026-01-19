@@ -31,7 +31,7 @@ trait MavenCentral {
 
 @Singleton
 class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, configuration: Configuration, webJarsFileService: WebJarsFileService, environment: Environment)
-                                 (implicit ec: ExecutionContext, actorSystem: ActorSystem) extends MavenCentral with Logging {
+                                 (using ec: ExecutionContext, actorSystem: ActorSystem) extends MavenCentral with Logging {
   import MavenCentral.*
 
   private lazy val maybeLimit = configuration.getOptional[Int]("mavencentral.limit").orElse(Option.when(environment.mode == Mode.Dev)(5))

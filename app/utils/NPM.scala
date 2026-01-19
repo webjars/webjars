@@ -18,7 +18,7 @@ import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
-class NPM @Inject() (val ws: WSClient, val licenseDetector: LicenseDetector, val messages: MessagesApi, val langs: Langs, git: Git, gitHub: GitHub, maven: Maven, semVer: SemVer)(implicit ec: ExecutionContext) extends Deployable {
+class NPM @Inject() (val ws: WSClient, val licenseDetector: LicenseDetector, val messages: MessagesApi, val langs: Langs, git: Git, gitHub: GitHub, maven: Maven, semVer: SemVer)(using ec: ExecutionContext) extends Deployable {
 
   val BASE_URL: AbsoluteUrl = AbsoluteUrl.parse("https://registry.npmjs.org")
 

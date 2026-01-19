@@ -16,7 +16,7 @@ import javax.inject.Inject
 import javax.net.ssl.SSLContext
 import scala.concurrent.{ExecutionContext, Future}
 
-class Heroku @Inject() (ws: WSClient, config: Configuration) (implicit ec: ExecutionContext, actorSystem: ActorSystem) {
+class Heroku @Inject() (ws: WSClient, config: Configuration) (using ec: ExecutionContext, actorSystem: ActorSystem) {
 
   lazy val maybeApikey = config.getOptional[String]("heroku.apikey").filter(_.nonEmpty)
   lazy val apikey = maybeApikey.get

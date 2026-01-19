@@ -89,7 +89,7 @@ class MavenCentralDeployerSpec extends PlaySpecification {
 
           val (_, checker) = mavenCentralDeployer.upload(gav, jar, pom).get
 
-          await(mavenCentralDeployer.waitForDeploymentState(DeploymentState.VALIDATED, checker)(app.injector.instanceOf[Futures], app.injector.instanceOf[ActorSystem]))
+          await(mavenCentralDeployer.waitForDeploymentState(DeploymentState.VALIDATED, checker)(using app.injector.instanceOf[Futures], app.injector.instanceOf[ActorSystem]))
 
   //        mavenCentral.publish(deploymentId).get
 

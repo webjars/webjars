@@ -21,7 +21,7 @@ import scala.io.StdIn
 import scala.util.{Failure, Try, Using}
 
 
-class DeployWebJar @Inject()(mavenCentral: MavenCentral, mavenCentralDeployer: MavenCentralDeployer, sourceLocator: SourceLocator, configuration: Configuration, heroku: Heroku)(implicit ec: ExecutionContext, futures: Futures, materializer: Materializer, actorSystem: ActorSystem) {
+class DeployWebJar @Inject()(mavenCentral: MavenCentral, mavenCentralDeployer: MavenCentralDeployer, sourceLocator: SourceLocator, configuration: Configuration, heroku: Heroku)(using ec: ExecutionContext, futures: Futures, materializer: Materializer, actorSystem: ActorSystem) {
 
   val fork = configuration.getOptional[Boolean]("deploy.fork").getOrElse(false)
 
