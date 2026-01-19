@@ -179,7 +179,7 @@ class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, config
       val gavs = versions.map(GAV(groupId, artifactId, _))
 
       gavsToWebJarVersion(gavs).flatMap { versions =>
-        val sorted = versions.toSeq.sortBy(_.number)(VersionStringOrdering.compare).reverse
+        val sorted = versions.toSeq.sortBy(_.number)(using VersionStringOrdering).reverse
         convertToFutureOption {
           sorted.headOption.map { latest =>
             getWebJarNameAndUrl(GAV(groupId, artifactId, latest.number)).map { case (name, url) =>

@@ -2,6 +2,7 @@ package utils
 
 import play.api.http.Status
 import play.api.libs.ws.WSClient
+import play.api.libs.ws.DefaultBodyReadables.*
 
 import java.io.FileNotFoundException
 import javax.inject.Inject
@@ -17,9 +18,9 @@ class WebJarsFileService @Inject() (ws: WSClient) (implicit ec: ExecutionContext
         case Status.OK =>
           response.json.asOpt[List[String]].fold(Future.failed[List[String]](new Exception("")))(Future.successful)
         case Status.NOT_FOUND =>
-          Future.failed(new FileNotFoundException(s"Could not get $url - ${response.body}"))
+          Future.failed(new FileNotFoundException(s"Could not get $url - ${response.body[String]}"))
         case _ =>
-          Future.failed(new Exception(s"Error fetching $url : ${response.body}"))
+          Future.failed(new Exception(s"Error fetching $url : ${response.body[String]}"))
       }
     }
   }
@@ -29,11 +30,11 @@ class WebJarsFileService @Inject() (ws: WSClient) (implicit ec: ExecutionContext
     ws.url(url).get().flatMap { response =>
       response.status match {
         case Status.OK =>
-          Future.fromTry(Try(response.body.toInt))
+          Future.fromTry(Try(response.body[String].toInt))
         case Status.NOT_FOUND =>
-          Future.failed(new FileNotFoundException(s"Could not get $url - ${response.body}"))
+          Future.failed(new FileNotFoundException(s"Could not get $url - ${response.body[String]}"))
         case _ =>
-          Future.failed(new Exception(s"Error fetching $url : ${response.body}"))
+          Future.failed(new Exception(s"Error fetching $url : ${response.body[String]}"))
       }
     }
   }

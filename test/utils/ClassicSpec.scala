@@ -18,7 +18,7 @@ class ClassicSpec extends PlaySpecification with GlobalApplication {
 
   "metadata" should {
     "work" in {
-      await(classic.metadata("swagger-ui")).asInstanceOf[classic.MetadataNormal].name must beEqualTo ("Swagger UI")
+      await(classic.metadata("swagger-ui")).asInstanceOf[Classic.MetadataNormal].name must beEqualTo ("Swagger UI")
     }
     "fail when WebJar metadata not found" in {
       await(classic.metadata("does-not-exist")) must throwA[Exception]

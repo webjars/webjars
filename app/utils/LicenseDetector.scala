@@ -4,6 +4,7 @@ import io.lemonlabs.uri.AbsoluteUrl
 import play.api.Logging
 import play.api.http.{HeaderNames, MimeTypes, Status}
 import play.api.libs.ws.WSClient
+import play.api.libs.ws.DefaultBodyWritables.*
 
 import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}

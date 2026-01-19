@@ -22,7 +22,7 @@ class SemVer @Inject() (val ws: WSClient) (implicit ec: ExecutionContext) {
 
     def fetch(versions: Set[String]): Future[Option[String]] = {
       val vParams = versions.map("v" -> _).toSeq
-      ws.url(baseUrl + "/maxSatisfying").withQueryStringParameters(vParams:_*).addQueryStringParameters("range" -> range).get().map { response =>
+      ws.url(baseUrl + "/maxSatisfying").withQueryStringParameters(vParams*).addQueryStringParameters("range" -> range).get().map { response =>
         Option.when(response.status == Status.OK)(response.body)
       }
     }
@@ -47,7 +47,7 @@ class SemVer @Inject() (val ws: WSClient) (implicit ec: ExecutionContext) {
 
 object SemVer {
 
-  private def sequenceTrys[T](trySequence: Seq[_ <: Try[_ <: T]]): Try[Seq[T]] = {
+  private def sequenceTrys[T](trySequence: Seq[? <: Try[? <: T]]): Try[Seq[T]] = {
     trySequence.foldLeft(Try(Seq.empty[T])) {
       (acc, tryElement) => acc.flatMap(accSeq => tryElement.map(success => accSeq :+ success))
     }

@@ -14,10 +14,16 @@ import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
 import scala.io.{Codec, Source}
 import scala.jdk.CollectionConverters._
-import scala.reflect.io.Directory
 import scala.util.{Try, Using}
 
 class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
+
+  private def deleteRecursively(file: File): Unit = {
+    if (file.isDirectory) {
+      file.listFiles().foreach(deleteRecursively)
+    }
+    file.delete()
+  }
 
   val cacheDir: Path = Files.createTempDirectory("git")
   cacheDir.toFile.deleteOnExit()
@@ -180,7 +186,7 @@ class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {
 
       checkoutFuture.recoverWith {
         case t: Throwable =>
-          new Directory(baseDir).deleteRecursively()
+          deleteRecursively(baseDir)
           if (retry) {
             cloneOrCheckout(gitRepo, version, retry = false)
           }

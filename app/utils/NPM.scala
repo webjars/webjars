@@ -394,7 +394,7 @@ object NPM {
       (__ \ "dependencies").read[Map[String, String]].orElse(Reads.pure(Map.empty[String, String])) ~
       (__ \ "optionalDependencies").read[Map[String, String]].orElse(Reads.pure(Map.empty[String, String])) ~
       Reads.pure(None)
-    )(PackageInfo.apply _)
+    )(PackageInfo.apply)
   }
 
 }

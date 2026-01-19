@@ -22,30 +22,36 @@ class MavenCentralSpec extends PlaySpecification {
 
   "fetchWebJars" should {
     "work for npm" in new WithApp() {
-      val mavenCentral = app.injector.instanceOf[MavenCentral]
-      val npm = app.injector.instanceOf[NPM]
-      val webJars = await(mavenCentral.fetchWebJars(npm.groupId))
-      webJars.forall(_.groupId == "org.webjars.npm") should beTrue
-      webJars.size should beEqualTo(limit)
-      webJars.foldLeft(0)(_ + _.versions.size) should beGreaterThan (0)
+      override def running() = {
+        val mavenCentral = app.injector.instanceOf[MavenCentral]
+        val npm = app.injector.instanceOf[NPM]
+        val webJars = await(mavenCentral.fetchWebJars(npm.groupId))
+        webJars.forall(_.groupId == "org.webjars.npm") should beTrue
+        webJars.size should beEqualTo(limit)
+        webJars.foldLeft(0)(_ + _.versions.size) should beGreaterThan (0)
+      }
     }
   }
 
   "artifactIds" should {
     "does not include artifact versions in artifacts" in new WithApplication() { // no limit
-      val mavenCentral = app.injector.instanceOf[MavenCentralLive]
-      val artifactIds = await(mavenCentral.artifactIds("org.webjars.npm"))
-      artifactIds.contains("1.3.26") must beFalse
-      artifactIds.size must beGreaterThan(5000)
-      artifactIds.contains("github-com-sindresorhus-copy-text-to-clipboard") must beTrue // long name
+      override def running() = {
+        val mavenCentral = app.injector.instanceOf[MavenCentralLive]
+        val artifactIds = await(mavenCentral.artifactIds("org.webjars.npm"))
+        artifactIds.contains("1.3.26") must beFalse
+        artifactIds.size must beGreaterThan(5000)
+        artifactIds.contains("github-com-sindresorhus-copy-text-to-clipboard") must beTrue // long name
+      }
     }
   }
 
   "getNumFiles" should {
     "return none for a nonexistant webjar" in new WithApp() {
-      val mavenCentral = app.injector.instanceOf[MavenCentralLive]
+      override def running() = {
+        val mavenCentral = app.injector.instanceOf[MavenCentralLive]
 
-      await(mavenCentral.getNumFiles(GAV("org.webjars", "es6-promise-parent", "4.2.8"))) must beNone
+        await(mavenCentral.getNumFiles(GAV("org.webjars", "es6-promise-parent", "4.2.8"))) must beNone
+      }
     }
   }
 

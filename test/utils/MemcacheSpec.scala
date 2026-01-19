@@ -16,46 +16,58 @@ class MemcacheSpec extends PlaySpecification {
 
   "set & get" should {
     "work" in new WithApplication() {
-      val memcache = app.injector.instanceOf[Memcache]
+      override def running() = {
+        val memcache = app.injector.instanceOf[Memcache]
 
-      val cacheKey = UUID.randomUUID().toString
-      await(memcache.set(cacheKey, "foo"))
-      await(memcache.get[String](cacheKey)) must be equalTo "foo"
+        val cacheKey = UUID.randomUUID().toString
+        await(memcache.set(cacheKey, "foo"))
+        await(memcache.get[String](cacheKey)) must be equalTo "foo"
+      }
     }
     "work with expiration less than a second" in new WithApplication() {
-      val memcache = app.injector.instanceOf[Memcache]
-      val cacheKey = UUID.randomUUID().toString
-      await(memcache.set(cacheKey, "foo", Memcache.Expiration.In(50.millis))) must throwAn[Exception]
+      override def running() = {
+        val memcache = app.injector.instanceOf[Memcache]
+        val cacheKey = UUID.randomUUID().toString
+        await(memcache.set(cacheKey, "foo", Memcache.Expiration.In(50.millis))) must throwAn[Exception]
+      }
     }
     "work with expiration more than a second" in new WithApplication() {
-      val memcache = app.injector.instanceOf[Memcache]
-      val cacheKey = UUID.randomUUID().toString
-      await(memcache.set(cacheKey, "foo", Memcache.Expiration.In(2.seconds)))
-      await(memcache.get[String](cacheKey)) must be equalTo "foo"
-      Thread.sleep(2500)
-      await(memcache.get[String](cacheKey)) must throwA[Memcache.Miss.type]
+      override def running() = {
+        val memcache = app.injector.instanceOf[Memcache]
+        val cacheKey = UUID.randomUUID().toString
+        await(memcache.set(cacheKey, "foo", Memcache.Expiration.In(2.seconds)))
+        await(memcache.get[String](cacheKey)) must be equalTo "foo"
+        Thread.sleep(2500)
+        await(memcache.get[String](cacheKey)) must throwA[Memcache.Miss.type]
+      }
     }
   }
 
   "getWithMiss" should {
     "work on a miss" in new WithApplication() {
-      val memcache = app.injector.instanceOf[Memcache]
-      val cacheKey = UUID.randomUUID().toString
-      await(memcache.getWithMiss(cacheKey)(Future.successful("foo"))) must be equalTo "foo"
+      override def running() = {
+        val memcache = app.injector.instanceOf[Memcache]
+        val cacheKey = UUID.randomUUID().toString
+        await(memcache.getWithMiss(cacheKey)(Future.successful("foo"))) must be equalTo "foo"
+      }
     }
     "work on a hit" in new WithApplication() {
-      val memcache = app.injector.instanceOf[Memcache]
-      val cacheKey = UUID.randomUUID().toString
-      await(memcache.set(cacheKey, "foo"))
-      await(memcache.getWithMiss(cacheKey)(Future.successful("bar"))) must be equalTo "foo"
+      override def running() = {
+        val memcache = app.injector.instanceOf[Memcache]
+        val cacheKey = UUID.randomUUID().toString
+        await(memcache.set(cacheKey, "foo"))
+        await(memcache.getWithMiss(cacheKey)(Future.successful("bar"))) must be equalTo "foo"
+      }
     }
   }
 
   "get miss" should {
     "work" in new WithApplication() {
-      val memcache = app.injector.instanceOf[Memcache]
-      val cacheKey = UUID.randomUUID().toString
-      await(memcache.get[String](cacheKey)) must throwA[Memcache.Miss.type]
+      override def running() = {
+        val memcache = app.injector.instanceOf[Memcache]
+        val cacheKey = UUID.randomUUID().toString
+        await(memcache.get[String](cacheKey)) must throwA[Memcache.Miss.type]
+      }
     }
   }
 

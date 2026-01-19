@@ -19,18 +19,12 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
 class Classic @Inject() (ws: WSClient, val licenseDetector: LicenseDetector, val messages: MessagesApi, val langs: Langs, gitHub: GitHub, cache: Cache, configuration: Configuration, npm: NPM)(implicit ec: ExecutionContext) extends Deployable {
+  import Classic.*
+
   override val name: String = "Classic"
   override val groupId: String = "org.webjars"
 
   private lazy val webJarsClassicBranch = configuration.getOptional[String]("webjars.classic.branch").getOrElse("main")
-
-  sealed trait Metadata {
-    val id: String
-  }
-
-  case class MetadataNormal(id: String, name: String, repo: String, download: Option[String], requireJsMain: Option[String], baseDir: Option[String]) extends Metadata
-
-  case class MetadataNpm(id: String, packageName: String, licenseName: Option[String], licenseUrl: Option[String]) extends Metadata
 
   def metadata(nameOrUrlish: NameOrUrlish): Future[Metadata] = {
     gitHub.raw(AbsoluteUrl.parse("https://github.com/webjars/webjars-classic"), webJarsClassicBranch, s"$nameOrUrlish.properties")
@@ -234,4 +228,14 @@ class Classic @Inject() (ws: WSClient, val licenseDetector: LicenseDetector, val
   override def depGraph(packageInfo: PackageInfo, deps: Map[String, String])(implicit ec: ExecutionContext, futures: Futures): Future[Map[String, String]] = {
     Future.successful(Map.empty)
   }
+}
+
+object Classic {
+  sealed trait Metadata {
+    val id: String
+  }
+
+  case class MetadataNormal(id: String, name: String, repo: String, download: Option[String], requireJsMain: Option[String], baseDir: Option[String]) extends Metadata
+
+  case class MetadataNpm(id: String, packageName: String, licenseName: Option[String], licenseUrl: Option[String]) extends Metadata
 }

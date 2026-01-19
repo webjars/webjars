@@ -25,11 +25,11 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.util.hashing.MurmurHash3
 import scala.util.{Failure, Random}
 
-class Application @Inject() (git: Git, cache: Cache, mavenCentral: MavenCentral, deployWebJar: DeployWebJar, webJarsFileService: WebJarsFileService, actorSystem: ActorSystem, environment: Environment, futures: Futures)
+class Application @Inject() (git: Git, cache: Cache, mavenCentral: MavenCentral, deployWebJar: DeployWebJar, webJarsFileService: WebJarsFileService, actorSystem: ActorSystem, environment: Environment, futures: Futures, val controllerComponents: ControllerComponents)
                             (allDeployables: AllDeployables)
                             (allView: views.html.all, indexView: views.html.index, documentationView: views.html.documentation)
                             (fetchConfig: FetchConfig)
-                            (implicit ec: ExecutionContext) extends InjectedController with Logging {
+                            (implicit ec: ExecutionContext) extends BaseController with Logging {
 
   private[controllers] val MAX_POPULAR_WEBJARS = 20
 
@@ -365,6 +365,10 @@ class DefaultFetchConfig extends FetchConfig {
 object Application {
 
   case class WebJarRequest(gitHubToken: String, id: String, name: String, version: String, repoUrl: String, mainJs: Option[String], licenseId: String, licenseUrl: String)
+  object WebJarRequest {
+    def unapply(wr: WebJarRequest): Option[(String, String, String, String, String, Option[String], String, String)] =
+      Some((wr.gitHubToken, wr.id, wr.name, wr.version, wr.repoUrl, wr.mainJs, wr.licenseId, wr.licenseUrl))
+  }
 
   lazy val webJarRequestForm = Form(
     mapping(

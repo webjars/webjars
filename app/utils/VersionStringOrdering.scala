@@ -6,12 +6,12 @@ import scala.util.Try
 object VersionStringOrdering extends Ordering[String] {
 
   def unmalform(versionString: String): String = {
-    val noPlus = { s: String => s.replace("+", "-") }
-    val fixAlpha = { s: String => s.replace("alpha", ".alpha.") }
-    val fixBeta = { s: String => s.replace("beta", ".beta.") }
-    val fixRc = { s: String => s.replace("rc", ".rc.") }
-    val justDots = { s: String => s.replace("-", ".").replace("..", ".") }
-    val betterDate = { s: String =>
+    val noPlus = (s: String) => s.replace("+", "-")
+    val fixAlpha = (s: String) => s.replace("alpha", ".alpha.")
+    val fixBeta = (s: String) => s.replace("beta", ".beta.")
+    val fixRc = (s: String) => s.replace("rc", ".rc.")
+    val justDots = (s: String) => s.replace("-", ".").replace("..", ".")
+    val betterDate = (s: String) =>
       if (s.matches("(\\d\\d)\\.(\\d\\d)\\.(\\d\\d\\d\\d)")) {
         val parts = s.split('.').map(_.toInt)
         val time = Calendar.getInstance()
@@ -20,7 +20,6 @@ object VersionStringOrdering extends Ordering[String] {
       } else {
         s
       }
-    }
 
     val transforms = Seq(noPlus, fixAlpha, fixBeta, fixRc, justDots, betterDate)
 

@@ -51,48 +51,52 @@ class MavenCentralDeployerSpec extends PlaySpecification {
 
   "deploy" should {
     "asc" in new WithAppAndKey {
-      val mavenCentralDeployer = app.injector.instanceOf[MavenCentralDeployer]
-      mavenCentralDeployer.asc("foo".getBytes) must beSome
+      override def running() = {
+        val mavenCentralDeployer = app.injector.instanceOf[MavenCentralDeployer]
+        mavenCentralDeployer.asc("foo".getBytes) must beSome
+      }
     }
     "upload" in new WithApplication {
-      val mavenCentralDeployer = app.injector.instanceOf[MavenCentralDeployer]
-      if (
-        mavenCentralDeployer.maybeOssDeployUsername(app.configuration).isEmpty ||
-          mavenCentralDeployer.maybeOssDeployPassword(app.configuration).isEmpty ||
-          mavenCentralDeployer.maybeOssGpgKey(app.configuration).isEmpty
-      ) {
-        skipped("skipped due to missing config")
-      }
-      else {
+      override def running() = {
         val mavenCentralDeployer = app.injector.instanceOf[MavenCentralDeployer]
-        val environment = app.injector.instanceOf[Environment]
+        if (
+          mavenCentralDeployer.maybeOssDeployUsername(app.configuration).isEmpty ||
+            mavenCentralDeployer.maybeOssDeployPassword(app.configuration).isEmpty ||
+            mavenCentralDeployer.maybeOssGpgKey(app.configuration).isEmpty
+        ) {
+          skipped("skipped due to missing config")
+        }
+        else {
+          val mavenCentralDeployer = app.injector.instanceOf[MavenCentralDeployer]
+          val environment = app.injector.instanceOf[Environment]
 
-        val jar = environment.resourceAsStream("foo.jar").map { inputStream =>
-          val fileBytes = IOUtils.toByteArray(inputStream)
-          inputStream.close()
-          fileBytes
-        }.get
+          val jar = environment.resourceAsStream("foo.jar").map { inputStream =>
+            val fileBytes = IOUtils.toByteArray(inputStream)
+            inputStream.close()
+            fileBytes
+          }.get
 
-        val gitUri = AbsoluteUrl.parse("https://githib.com/webjars/webjars.git")
-        val sourceUrl = AbsoluteUrl.parse("https://github.com/webjars/webjars")
-        val version = "0.0.3" // Instant.now.getEpochSecond.toString
-        val licenses = Set[License](LicenseWithNameAndUrl("MIT", AbsoluteUrl.parse("https://opensource.org/licenses/MIT")))
+          val gitUri = AbsoluteUrl.parse("https://githib.com/webjars/webjars.git")
+          val sourceUrl = AbsoluteUrl.parse("https://github.com/webjars/webjars")
+          val version = "0.0.3" // Instant.now.getEpochSecond.toString
+          val licenses = Set[License](LicenseWithNameAndUrl("MIT", AbsoluteUrl.parse("https://opensource.org/licenses/MIT")))
 
-        val packageInfo = PackageInfo("Test WebJar", version, None, gitUri, None, Seq.empty, Map.empty, Map.empty, None)
+          val packageInfo = PackageInfo("Test WebJar", version, None, gitUri, None, Seq.empty, Map.empty, Map.empty, None)
 
-        val gav = GAV("com.happypathprogramming", "_test", version)
+          val gav = GAV("com.happypathprogramming", "_test", version)
 
-        val pom = templates.xml.pom(gav.groupId, gav.artifactId, gav.version, packageInfo, sourceUrl, Set.empty, Set.empty, licenses).toString()
+          val pom = templates.xml.pom(gav.groupId, gav.artifactId, gav.version, packageInfo, sourceUrl, Set.empty, Set.empty, licenses).toString()
 
-        val (_, checker) = mavenCentralDeployer.upload(gav, jar, pom).get
+          val (_, checker) = mavenCentralDeployer.upload(gav, jar, pom).get
 
-        await(mavenCentralDeployer.waitForDeploymentState(DeploymentState.VALIDATED, checker)(app.injector.instanceOf[Futures], app.injector.instanceOf[ActorSystem]))
+          await(mavenCentralDeployer.waitForDeploymentState(DeploymentState.VALIDATED, checker)(app.injector.instanceOf[Futures], app.injector.instanceOf[ActorSystem]))
 
-//        mavenCentral.publish(deploymentId).get
+  //        mavenCentral.publish(deploymentId).get
 
-//        await(mavenCentral.waitForDeploymentState(DeploymentState.PUBLISHING, checker)(app.injector.instanceOf[Futures], app.injector.instanceOf[ActorSystem]))
+  //        await(mavenCentral.waitForDeploymentState(DeploymentState.PUBLISHING, checker)(app.injector.instanceOf[Futures], app.injector.instanceOf[ActorSystem]))
 
-        success
+          success
+        }
       }
     }
   }

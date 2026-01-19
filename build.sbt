@@ -2,7 +2,7 @@ enablePlugins(PlayScala)
 
 name := "webjars"
 
-scalaVersion := "2.13.18"
+scalaVersion := "3.7.4"
 
 libraryDependencies ++= Seq(
   ws,
@@ -31,33 +31,15 @@ libraryDependencies ++= Seq(
 )
 
 scalacOptions ++= Seq(
-  "-unchecked",
-  "-deprecation",
-  "-explaintypes",
+  "-explain",
   "-feature",
-  "-Xcheckinit",
-  "-Xfatal-warnings",
-  "-Xlint:adapted-args",
-  "-Xlint:constant",
-  "-Xlint:delayedinit-select",
-  "-Xlint:doc-detached",
-  "-Xlint:inaccessible",
-  "-Xlint:infer-any",
-  "-Xlint:nullary-unit",
-  "-Xlint:option-implicit",
-  "-Xlint:package-object-classes",
-  "-Xlint:poly-implicit-overload",
-  "-Xlint:private-shadow",
-  "-Xlint:stars-align",
-  "-Xlint:type-parameter-shadow",
-  "-Ywarn-dead-code",
-  "-Ywarn-extra-implicit",
-  "-Ywarn-numeric-widen",
-  "-Ywarn-unused:implicits",
-  "-Ywarn-unused:locals",
-  //"-Ywarn-unused:params", // disabled because Play routes needs a param to match a path
-  "-Ywarn-unused:patvars",
-  "-Ywarn-unused:privates",
+  "-Werror",
+  "-Wunused:implicits",
+  "-Wunused:locals",
+  "-Wunused:privates",
+  "-Wconf:msg=Implicit parameters should be provided with a `using` clause:s",
+  "-Wconf:msg=The method `apply` is inserted:s",
+  "-Wconf:msg=Flag .* set repeatedly:s",
 )
 
 pipelineStages := Seq(gzip, digest)

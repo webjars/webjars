@@ -33,7 +33,7 @@ class Cache @Inject() (cache: SyncCacheApi) (implicit ec: ExecutionContext) {
             Future.failed(e)
           } (Future.successful)
       }
-    } { s: String =>
+    } { (s: String) =>
       if (s == DO_NOT_USE) {
         // cache hit
         cache.get[K](actualKey).fold[Future[K]](onMiss.map(store))(Future.successful)
