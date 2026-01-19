@@ -208,60 +208,63 @@ class DeployWebJar @Inject()(mavenCentral: MavenCentral, mavenCentralDeployer: M
 
 }
 
-object DeployWebJar extends App {
+object DeployWebJar {
 
-  val (webJarType, nameOrUrlish, upstreamVersion, deployDependencies, preventFork, force, maybeReleaseVersion, maybeSourceUri, maybeLicense) = if (args.length < 5) {
-    val webJarType = StdIn.readLine("WebJar Type: ")
-    val nameOrUrlish = StdIn.readLine("Name or URL: ")
-    val upstreamVersion = StdIn.readLine("Upstream Version: ")
-    val deployDependenciesIn = StdIn.readLine("Deploy dependencies (false|true): ")
-    val preventForkIn = StdIn.readLine("Prevent Fork (false|true): ")
-    val forceIn = StdIn.readLine("Force deploy (false|true): ")
-    val releaseVersionIn = StdIn.readLine("Release Version (override): ")
-    val sourceUriIn = StdIn.readLine("Source URI (override): ")
-    val licenseIn = StdIn.readLine("License (override): ")
+  @main def deploy(args: String*): Unit = {
 
-    val deployDependencies = if (deployDependenciesIn.isEmpty) false else deployDependenciesIn.toBoolean
+    val (webJarType, nameOrUrlish, upstreamVersion, deployDependencies, preventFork, force, maybeReleaseVersion, maybeSourceUri, maybeLicense) = if (args.length < 5) {
+      val webJarType = StdIn.readLine("WebJar Type: ")
+      val nameOrUrlish = StdIn.readLine("Name or URL: ")
+      val upstreamVersion = StdIn.readLine("Upstream Version: ")
+      val deployDependenciesIn = StdIn.readLine("Deploy dependencies (false|true): ")
+      val preventForkIn = StdIn.readLine("Prevent Fork (false|true): ")
+      val forceIn = StdIn.readLine("Force deploy (false|true): ")
+      val releaseVersionIn = StdIn.readLine("Release Version (override): ")
+      val sourceUriIn = StdIn.readLine("Source URI (override): ")
+      val licenseIn = StdIn.readLine("License (override): ")
 
-    val preventFork = if (preventForkIn.isEmpty) false else preventForkIn.toBoolean
+      val deployDependencies = if (deployDependenciesIn.isEmpty) false else deployDependenciesIn.toBoolean
 
-    val force = if (forceIn.isEmpty) false else forceIn.toBoolean
+      val preventFork = if (preventForkIn.isEmpty) false else preventForkIn.toBoolean
 
-    val maybeReleaseVersion = if (releaseVersionIn.isEmpty) None else Some(releaseVersionIn)
+      val force = if (forceIn.isEmpty) false else forceIn.toBoolean
 
-    val maybeSourceUri = if (sourceUriIn.isEmpty) None else AbsoluteUrl.parseOption(sourceUriIn)
+      val maybeReleaseVersion = if (releaseVersionIn.isEmpty) None else Some(releaseVersionIn)
 
-    val maybeLicense = if (licenseIn.isEmpty) None else Some(licenseIn)
+      val maybeSourceUri = if (sourceUriIn.isEmpty) None else AbsoluteUrl.parseOption(sourceUriIn)
 
-    (webJarType, nameOrUrlish, upstreamVersion, deployDependencies, preventFork, force, maybeReleaseVersion, maybeSourceUri, maybeLicense)
-  }
-  else {
-    // todo: come up with a way to handle the optional params because if we fork then we lose them
-    (args(0), args(1), args(2), args(3).toBoolean, args(4).toBoolean, args(5).toBoolean, None, None, None)
-  }
+      val maybeLicense = if (licenseIn.isEmpty) None else Some(licenseIn)
 
-  if (nameOrUrlish.isEmpty || upstreamVersion.isEmpty) {
-    println("Name and version must be specified")
-    sys.exit(1)
-  }
-  else {
-    val app = new GuiceApplicationBuilder().build()
-
-    implicit val ec: ExecutionContext = app.injector.instanceOf[ExecutionContext]
-    implicit val materializer: Materializer = app.injector.instanceOf[Materializer]
-
-    val deployWebJar = app.injector.instanceOf[DeployWebJar]
-
-    val allDeployables = app.injector.instanceOf[AllDeployables]
-
-    val deployFuture = allDeployables.fromName(webJarType).fold[Future[Done]] {
-      Future.failed(new Exception(s"Specified WebJar type '$webJarType' can not be deployed"))
-    } { deployable =>
-      deployWebJar.deploy(deployable, nameOrUrlish, upstreamVersion, deployDependencies, preventFork, force, maybeReleaseVersion, maybeSourceUri, maybeLicense).runForeach(println)
+      (webJarType, nameOrUrlish, upstreamVersion, deployDependencies, preventFork, force, maybeReleaseVersion, maybeSourceUri, maybeLicense)
+    }
+    else {
+      // todo: come up with a way to handle the optional params because if we fork then we lose them
+      (args(0), args(1), args(2), args(3).toBoolean, args(4).toBoolean, args(5).toBoolean, None, None, None)
     }
 
-    deployFuture.failed.foreach(e => println(e.getMessage))
-    deployFuture.onComplete(_ => app.stop())
+    if (nameOrUrlish.isEmpty || upstreamVersion.isEmpty) {
+      println("Name and version must be specified")
+      sys.exit(1)
+    }
+    else {
+      val app = new GuiceApplicationBuilder().build()
+
+      implicit val ec: ExecutionContext = app.injector.instanceOf[ExecutionContext]
+      implicit val materializer: Materializer = app.injector.instanceOf[Materializer]
+
+      val deployWebJar = app.injector.instanceOf[DeployWebJar]
+
+      val allDeployables = app.injector.instanceOf[AllDeployables]
+
+      val deployFuture = allDeployables.fromName(webJarType).fold[Future[Done]] {
+        Future.failed(new Exception(s"Specified WebJar type '$webJarType' can not be deployed") )
+      } { deployable =>
+        deployWebJar.deploy(deployable, nameOrUrlish, upstreamVersion, deployDependencies, preventFork, force, maybeReleaseVersion, maybeSourceUri, maybeLicense).runForeach(println)
+      }
+
+      deployFuture.failed.foreach(e => println(e.getMessage) )
+      deployFuture.onComplete(_ => app.stop() )
+    }
   }
 
 }
