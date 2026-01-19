@@ -13,7 +13,7 @@ import java.nio.file.{Files, Path}
 import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
 import scala.io.{Codec, Source}
-import scala.jdk.CollectionConverters._
+import scala.jdk.CollectionConverters.*
 import scala.util.{Try, Using}
 
 class Git @Inject() (ws: WSClient) (implicit ec: ExecutionContext) {

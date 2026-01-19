@@ -12,23 +12,23 @@ import play.api.inject.ApplicationLifecycle
 import java.time.{LocalDateTime, ZoneOffset}
 import java.util.concurrent.{TimeUnit, TimeoutException}
 import javax.inject.{Inject, Singleton}
-import scala.concurrent.duration._
+import scala.concurrent.duration.*
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.util.Try
 
 @ImplementedBy(classOf[MemcacheLive])
 trait Memcache {
-  import Memcache._
+  import Memcache.*
 
-  def get[A](cacheKey: String)(implicit transcoder: Transcoder[A]): Future[A]
-  def getWithMiss[A](cacheKey: String, expiration: Expiration = Expiration.Inf)(miss: => Future[A])(implicit transcoder: Transcoder[A]): Future[A]
-  def set[A](cacheKey: String, value: A, expiration: Expiration = Expiration.Inf)(implicit transcoder: Transcoder[A]): Future[Unit]
+  def get[A](cacheKey: String)(using transcoder: Transcoder[A]): Future[A]
+  def getWithMiss[A](cacheKey: String, expiration: Expiration = Expiration.Inf)(miss: => Future[A])(using transcoder: Transcoder[A]): Future[A]
+  def set[A](cacheKey: String, value: A, expiration: Expiration = Expiration.Inf)(using transcoder: Transcoder[A]): Future[Unit]
 }
 
 @Singleton
 class MemcacheLive @Inject() (configuration: Configuration, lifecycle: ApplicationLifecycle) (implicit ec: ExecutionContext) extends Memcache {
 
-  import Memcache._
+  import Memcache.*
 
   private lazy val instance: MemcachedClient = {
     System.setProperty("net.spy.log.LoggerImpl", "net.spy.memcached.compat.log.SLF4JLogger")
@@ -92,11 +92,11 @@ class MemcacheLive @Inject() (configuration: Configuration, lifecycle: Applicati
     promise.future
   }
 
-  def get[A](cacheKey: String)(implicit transcoder: Transcoder[A]): Future[A] = {
+  def get[A](cacheKey: String)(using transcoder: Transcoder[A]): Future[A] = {
     getFutureToScalaFuture(instance.asyncGet(cacheKey, transcoder))
   }
 
-  def getWithMiss[A](cacheKey: String, expiration: Expiration = Expiration.Inf)(miss: => Future[A])(implicit transcoder: Transcoder[A]): Future[A] = {
+  def getWithMiss[A](cacheKey: String, expiration: Expiration = Expiration.Inf)(miss: => Future[A])(using transcoder: Transcoder[A]): Future[A] = {
     get(cacheKey).recoverWith {
       case Miss =>
         for {
@@ -109,7 +109,7 @@ class MemcacheLive @Inject() (configuration: Configuration, lifecycle: Applicati
     }
   }
 
-  def set[A](cacheKey: String, value: A, expiration: Expiration = Expiration.Inf)(implicit transcoder: Transcoder[A]): Future[Unit] = {
+  def set[A](cacheKey: String, value: A, expiration: Expiration = Expiration.Inf)(using transcoder: Transcoder[A]): Future[Unit] = {
     Expiration.toMemcache(expiration).flatMap { exp =>
       operationFutureToScalaFuture(instance.set(cacheKey, exp, value, transcoder)).filter(_ == true).map(_ => ()).recoverWith {
         case _: TimeoutException =>
@@ -124,30 +124,27 @@ class MemcacheLive @Inject() (configuration: Configuration, lifecycle: Applicati
 object Memcache {
   case object Miss extends Exception
 
-  sealed trait Expiration
-  object Expiration {
-    case object Inf extends Expiration
-    case class In(duration: Duration) extends Expiration
-    case class On(dateTime: LocalDateTime) extends Expiration
+  enum Expiration:
+    case Inf
+    case In(duration: Duration)
+    case On(dateTime: LocalDateTime)
 
+  object Expiration:
     @scala.annotation.tailrec
-    def toMemcache(expiration: Expiration): Future[Int] = {
-      expiration match {
+    def toMemcache(expiration: Expiration): Future[Int] =
+      expiration match
         case Expiration.Inf =>
           Future.successful(0)
         case Expiration.In(duration) =>
-          if (duration.gt(30.days))
+          if duration.gt(30.days) then
             toMemcache(On(LocalDateTime.now().plusSeconds(duration.toSeconds)))
-          else if (duration.lt(1.second))
+          else if duration.lt(1.second) then
             Future.failed(new Exception("Expiration can't be less than 1 second"))
           else
             Future.successful(duration.toSeconds.toInt)
         case Expiration.On(dateTime) =>
-          if (dateTime.isBefore(LocalDateTime.now().plusDays(30)))
+          if dateTime.isBefore(LocalDateTime.now().plusDays(30)) then
             toMemcache(In(Duration(java.time.Duration.between(LocalDateTime.now(), dateTime).getSeconds, TimeUnit.SECONDS)))
           else
             Future.successful(dateTime.toEpochSecond(ZoneOffset.UTC).toInt)
-      }
-    }
-  }
 }

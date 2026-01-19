@@ -6,7 +6,7 @@ import org.apache.commons.compress.archivers.{ArchiveEntry, ArchiveInputStream, 
 import org.apache.commons.io.IOUtils
 import org.eclipse.jgit.ignore.IgnoreNode
 
-import java.io._
+import java.io.*
 import java.nio.file.{Path, Paths}
 
 object WebJarCreator {

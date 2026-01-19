@@ -1,16 +1,15 @@
 package utils
 
 import io.lemonlabs.uri.AbsoluteUrl
-import play.api.libs.functional.syntax._
-import play.api.libs.json._
+import play.api.libs.functional.syntax.*
+import play.api.libs.json.*
 
 import scala.util.Success
 
-sealed trait LicenseMetadata
-
-case class SpdxLicense(id: String) extends LicenseMetadata
-case class ProvidedLicense(license: License) extends LicenseMetadata
-case object UnresolvedLicense extends LicenseMetadata
+enum LicenseMetadata:
+  case SpdxLicense(id: String)
+  case ProvidedLicense(license: License)
+  case UnresolvedLicense
 
 case class PackageInfo(
                         name: String,
@@ -42,23 +41,9 @@ case class PackageInfo(
 
 object PackageInfo {
 
-  implicit val writesUrl: Writes[AbsoluteUrl] = Writes[AbsoluteUrl](url => JsString(url.toString))
+  given writesUrl: Writes[AbsoluteUrl] = Writes[AbsoluteUrl](url => JsString(url.toString))
 
-  /*
-  implicit def jsonWrites: Writes[PackageInfo] = (
-    (__ \ "name").write[String] and
-    (__ \ "version").write[String] and
-    (__ \ "homepage").writeNullable[AbsoluteUrl] and
-    (__ \ "sourceConnectionUri").write[AbsoluteUrl] and
-    (__ \ "issuesUrl").writeNullable[AbsoluteUrl] and
-    (__ \ "metadataLicenses").write[Seq[String]] and
-    (__ \ "dependencies").write[Map[String, String]] and
-    (__ \ "optionalDependencies").write[Map[String, String]] and
-    (__ \ "tag").writeNullable[String]
-  )(unlift(PackageInfo.unapply))
-   */
-
-  implicit val readsUrl: Reads[AbsoluteUrl] = Reads[AbsoluteUrl] {
+  given readsUrl: Reads[AbsoluteUrl] = Reads[AbsoluteUrl] {
     case JsString(s) =>
       AbsoluteUrl.parseTry(s) match {
         case Success(url) => JsSuccess(url)

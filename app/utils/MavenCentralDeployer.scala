@@ -2,11 +2,11 @@ package utils
 
 import com.google.inject.ImplementedBy
 import com.lumidion.sonatype.central.client.core.PublishingType.USER_MANAGED
-import com.lumidion.sonatype.central.client.core._
+import com.lumidion.sonatype.central.client.core.*
 import com.lumidion.sonatype.central.client.requests.SyncSonatypeClient
-import com.roundeights.hasher.Implicits._
+import com.roundeights.hasher.Implicits.*
 import net.ruippeixotog.scalascraper.browser.{Browser, JsoupBrowser}
-import org.apache.pekko.actor._
+import org.apache.pekko.actor.*
 import org.apache.pekko.pattern.after
 import org.bouncycastle.bcpg.{ArmoredOutputStream, BCPGOutputStream, HashAlgorithmTags}
 import org.bouncycastle.openpgp.operator.jcajce.{JcaKeyFingerprintCalculator, JcaPGPContentSignerBuilder, JcePBESecretKeyDecryptorBuilder}
@@ -19,12 +19,12 @@ import java.io.ByteArrayOutputStream
 import java.util.Base64
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.Future
-import scala.concurrent.duration._
+import scala.concurrent.duration.*
 import scala.language.postfixOps
 
 @ImplementedBy(classOf[MavenCentralDeployerLive])
 trait MavenCentralDeployer {
-  import MavenCentral._
+  import MavenCentral.*
 
   def maybeOssDeployUsername(configuration: Configuration): Option[String] = configuration.getOptional[String]("oss.deploy.username").filter(_.nonEmpty)
   def maybeOssDeployPassword(configuration: Configuration): Option[String] = configuration.getOptional[String]("oss.deploy.password").filter(_.nonEmpty)
@@ -39,7 +39,7 @@ trait MavenCentralDeployer {
   private val maxwait: FiniteDuration = 1.minute
   private val poll: FiniteDuration = 5.seconds
 
-  def waitForDeploymentState(deploymentState: DeploymentState, f: () => Option[CheckStatusResponse])(implicit futures: Futures, actorSystem: ActorSystem): Future[Unit] = {
+  def waitForDeploymentState(deploymentState: DeploymentState, f: () => Option[CheckStatusResponse])(using futures: Futures, actorSystem: ActorSystem): Future[Unit] = {
     val future = f() match {
       case Some(checkStatusResponse) if checkStatusResponse.deploymentState == deploymentState => Future.successful(())
       case Some(checkStatusResponse) if checkStatusResponse.deploymentState == DeploymentState.FAILED => Future.failed(new IllegalStateException("Failed to deploy"))
@@ -53,7 +53,7 @@ trait MavenCentralDeployer {
 
 @Singleton
 class MavenCentralDeployerLive @Inject() (configuration: Configuration) extends MavenCentralDeployer with Logging {
-  import MavenCentral._
+  import MavenCentral.*
 
   private lazy val disableDeploy = configuration.getOptional[Boolean]("oss.disable-deploy").getOrElse(false)
 

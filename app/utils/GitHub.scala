@@ -8,7 +8,7 @@ import play.api.libs.ws.{WSClient, WSRequest, WSResponse}
 import utils.Deployable.Version
 
 import javax.inject.Inject
-import scala.concurrent.duration._
+import scala.concurrent.duration.*
 import scala.concurrent.{ExecutionContext, Future}
 import scala.language.implicitConversions
 import scala.util.{Failure, Success, Try}

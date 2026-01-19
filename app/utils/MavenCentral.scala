@@ -5,7 +5,7 @@ import com.google.inject.ImplementedBy
 import models.{WebJar, WebJarVersion}
 import net.ruippeixotog.scalascraper.browser.{Browser, JsoupBrowser}
 import net.spy.memcached.transcoders.{SerializingTranscoder, Transcoder}
-import org.apache.pekko.actor._
+import org.apache.pekko.actor.*
 import org.apache.pekko.pattern.ask
 import org.apache.pekko.util.Timeout
 import play.api.http.Status
@@ -14,7 +14,7 @@ import play.api.{Configuration, Environment, Logging, Mode}
 
 import java.io.FileNotFoundException
 import javax.inject.{Inject, Singleton}
-import scala.concurrent.duration._
+import scala.concurrent.duration.*
 import scala.concurrent.{ExecutionContext, Future}
 import scala.language.postfixOps
 import scala.util.Try
@@ -22,7 +22,7 @@ import scala.xml.Elem
 
 @ImplementedBy(classOf[MavenCentralLive])
 trait MavenCentral {
-  import MavenCentral._
+  import MavenCentral.*
 
   def fetchWebJars(groupId: GroupId): Future[Set[WebJar]]
   def fetchPom(gav: GAV): Future[Elem]
@@ -32,12 +32,12 @@ trait MavenCentral {
 @Singleton
 class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, configuration: Configuration, webJarsFileService: WebJarsFileService, environment: Environment)
                                  (implicit ec: ExecutionContext, actorSystem: ActorSystem) extends MavenCentral with Logging {
-  import MavenCentral._
+  import MavenCentral.*
 
   private lazy val maybeLimit = configuration.getOptional[Int]("mavencentral.limit").orElse(Option.when(environment.mode == Mode.Dev)(5))
 
-  private implicit val transcoderOptionalInt: Transcoder[Option[Int]] = new SerializingTranscoder().asInstanceOf[Transcoder[Option[Int]]]
-  private implicit val transcoderNameUrl: Transcoder[(String, String)] = new SerializingTranscoder().asInstanceOf[Transcoder[(String, String)]]
+  private given Transcoder[Option[Int]] = new SerializingTranscoder().asInstanceOf[Transcoder[Option[Int]]]
+  private given Transcoder[(String, String)] = new SerializingTranscoder().asInstanceOf[Transcoder[(String, String)]]
 
   private val browser: Browser = JsoupBrowser()
 
@@ -102,8 +102,8 @@ class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, config
   //  and you'll get denied. and it won't feel good after you've spent hours writing this awfulness only to realize it won't work in production
 
   private def fetchDirs(url: String): Future[Set[String]] = {
-    import net.ruippeixotog.scalascraper.dsl.DSL.Extract._
-    import net.ruippeixotog.scalascraper.dsl.DSL._
+    import net.ruippeixotog.scalascraper.dsl.DSL.Extract.*
+    import net.ruippeixotog.scalascraper.dsl.DSL.*
 
     Future.fromTry {
       Try {
@@ -167,7 +167,7 @@ class MavenCentralLive @Inject() (memcache: Memcache, wsClient: WSClient, config
     }.map(_.flatten)
   }
 
-  private def convertToFutureOption[A](opt: Option[Future[A]])(implicit ec: ExecutionContext): Future[Option[A]] = {
+  private def convertToFutureOption[A](opt: Option[Future[A]])(using ec: ExecutionContext): Future[Option[A]] = {
     opt match {
       case Some(future) => future.map(Some(_))
       case None => Future.successful(None)

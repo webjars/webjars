@@ -8,15 +8,12 @@ case class WebJar(groupId: String, artifactId: String, name: String, sourceUrl: 
 case class WebJarVersion(number: String, numFiles: Option[Int] = None)
 
 object WebJar {
-  implicit val webJarVersionFormat: Format[WebJarVersion] = Json.format[WebJarVersion]
-  implicit val webJarFormat: Format[WebJar] = Json.format[WebJar]
+  given Format[WebJarVersion] = Json.format[WebJarVersion]
+  given Format[WebJar] = Json.format[WebJar]
 }
 
 object WebJarVersion {
-
   // todo, this doesn't work on date-based versions that follow non-standard formats (e.g. ace)
-  implicit object WebJarVersionOrdering extends Ordering[WebJarVersion] {
+  given Ordering[WebJarVersion] with
     override def compare(a: WebJarVersion, b: WebJarVersion): Int = VersionStringOrdering.compare(a.number, b.number)
-  }
-
 }

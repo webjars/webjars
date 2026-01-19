@@ -98,7 +98,7 @@ class Classic @Inject() (ws: WSClient, val licenseDetector: LicenseDetector, val
           response.status match {
             case Status.OK =>
               Future.successful(
-                SpdxLicense((response.json \ "license" \ "spdx_id").as[String])
+                LicenseMetadata.SpdxLicense((response.json \ "license" \ "spdx_id").as[String])
               )
             case _ =>
               Future.failed(ServerError(response.body, response.status))
@@ -110,19 +110,19 @@ class Classic @Inject() (ws: WSClient, val licenseDetector: LicenseDetector, val
           case (Some(licenseName), Some(licenseUrl)) =>
             Future.fromTry {
               AbsoluteUrl.parseTry(licenseUrl).map { absoluteLicenseUrl =>
-                ProvidedLicense(LicenseWithNameAndUrl(licenseName, absoluteLicenseUrl))
+                LicenseMetadata.ProvidedLicense(LicenseWithNameAndUrl(licenseName, absoluteLicenseUrl))
               }
             }
           case (Some(licenseName), None) =>
-            Future.successful(ProvidedLicense(LicenseWithName(licenseName)))
+            Future.successful(LicenseMetadata.ProvidedLicense(LicenseWithName(licenseName)))
           case (None, Some(licenseUrl)) =>
             Future.fromTry {
               AbsoluteUrl.parseTry(licenseUrl).map { absoluteLicenseUrl =>
-                ProvidedLicense(LicenseWithUrl(absoluteLicenseUrl))
+                LicenseMetadata.ProvidedLicense(LicenseWithUrl(absoluteLicenseUrl))
               }
             }
           case _ =>
-            Future.successful(UnresolvedLicense)
+            Future.successful(LicenseMetadata.UnresolvedLicense)
         }
     }
   }
@@ -225,7 +225,7 @@ class Classic @Inject() (ws: WSClient, val licenseDetector: LicenseDetector, val
     }
   }
 
-  override def depGraph(packageInfo: PackageInfo, deps: Map[String, String])(implicit ec: ExecutionContext, futures: Futures): Future[Map[String, String]] = {
+  override def depGraph(packageInfo: PackageInfo, deps: Map[String, String])(using ec: ExecutionContext, futures: Futures): Future[Map[String, String]] = {
     Future.successful(Map.empty)
   }
 }

@@ -5,12 +5,12 @@ import io.lemonlabs.uri.{AbsoluteUrl, Url}
 import play.api.http.{HeaderNames, Status}
 import play.api.i18n.{Langs, MessagesApi}
 import play.api.libs.concurrent.Futures
-import play.api.libs.functional.syntax._
-import play.api.libs.json._
+import play.api.libs.functional.syntax.*
+import play.api.libs.json.*
 import play.api.libs.ws.WSClient
 import utils.Deployable.{NameOrUrlish, Version}
 import utils.MavenCentral.GroupId
-import utils.PackageInfo._
+import utils.PackageInfo.given
 
 import java.io.InputStream
 import java.util.zip.{GZIPInputStream, ZipException}
@@ -234,7 +234,7 @@ class NPM @Inject() (val ws: WSClient, val licenseDetector: LicenseDetector, val
     }
   }
 
-  def latestDep(nameOrUrlish: NameOrUrlish, version: Version)(implicit ec: ExecutionContext): Future[Version] = {
+  def latestDep(nameOrUrlish: NameOrUrlish, version: Version)(using ec: ExecutionContext): Future[Version] = {
     semVer.validRange(version).flatMap { maybeRange =>
       maybeRange.fold(Future.failed[Version](new Exception(s"For $nameOrUrlish could not convert $version to range"))) { range =>
         // not a range
@@ -255,10 +255,10 @@ class NPM @Inject() (val ws: WSClient, val licenseDetector: LicenseDetector, val
     }
   }
 
-  override def depGraph(packageInfo: PackageInfo, deps: Map[String, String] = Map.empty[String, String])(implicit ec: ExecutionContext, futures: Futures): Future[Map[String, String]] = {
-    import play.api.libs.concurrent.Futures._
+  override def depGraph(packageInfo: PackageInfo, deps: Map[String, String] = Map.empty[String, String])(using ec: ExecutionContext, futures: Futures): Future[Map[String, String]] = {
+    import play.api.libs.concurrent.Futures.*
 
-    import scala.concurrent.duration._
+    import scala.concurrent.duration.*
 
     def depResolver(unresolvedDeps: Map[String, String], resolvedDeps: Map[String, String]): Future[(Map[String, String], Map[String, String])] = {
       val packagesToResolve = unresolvedDeps.view.filterKeys(!resolvedDeps.contains(_)).toMap
@@ -380,7 +380,7 @@ object NPM {
       .orElse((__ \ "licenses").read[Seq[JsObject]].map(_.map(_.\("type").as[String])))
       .orElse((__ \ "licenses").read[String].map(Seq(_)))
       .orElse(Reads.pure(Seq.empty[String]))
-      .map(_.map(SpdxLicense(_)))
+      .map(_.map(LicenseMetadata.SpdxLicense(_)))
 
     val nameReader = (__ \ "name").read[String]
 

@@ -14,7 +14,7 @@ class Cache @Inject() (cache: SyncCacheApi) (implicit ec: ExecutionContext) {
   private val DO_NOT_USE = "DO NOT USE"
 
 
-  def get[K](key: String, expiration: FiniteDuration)(onMiss: => Future[K])(implicit classTag: ClassTag[K]): Future[K] = {
+  def get[K](key: String, expiration: FiniteDuration)(onMiss: => Future[K])(using classTag: ClassTag[K]): Future[K] = {
     val actualKey = key + ":value"
 
     def store(value: K): K = {

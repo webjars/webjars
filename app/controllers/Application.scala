@@ -6,21 +6,21 @@ import models.WebJar
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.stream.scaladsl.{Flow, Source}
 import org.apache.pekko.util.ByteString
-import play.api.data.Forms._
-import play.api.data._
+import play.api.data.Forms.*
+import play.api.data.*
 import play.api.http.{ContentTypes, HttpEntity, MimeTypes}
 import play.api.libs.EventSource
 import play.api.libs.concurrent.Futures
 import play.api.libs.json.Json
-import play.api.mvc._
+import play.api.mvc.*
 import play.api.{Environment, Logging, Mode}
 import utils.MavenCentral.{ExistingWebJarRequestException, GroupId}
-import utils._
+import utils.*
 
 import java.io.FileNotFoundException
 import java.util.concurrent.TimeoutException
 import javax.inject.Inject
-import scala.concurrent.duration._
+import scala.concurrent.duration.*
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.hashing.MurmurHash3
 import scala.util.{Failure, Random}

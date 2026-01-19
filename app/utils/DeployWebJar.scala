@@ -177,7 +177,7 @@ class DeployWebJar @Inject()(mavenCentral: MavenCentral, mavenCentralDeployer: M
   }
 
   def create(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, licenseOverride: Option[Set[License]], groupIdOverride: Option[String]): Future[(String, Array[Byte])] = {
-    import deployable._
+    import deployable.*
 
     for {
       packageInfo <- deployable.info(nameOrUrlish, upstreamVersion)
@@ -268,19 +268,17 @@ object DeployWebJar extends App {
 
 trait Deployable {
 
-  import Deployable._
+  import Deployable.*
 
   val licenseDetector: LicenseDetector
   val messages: MessagesApi
   val langs: Langs
 
-  implicit val lang: Lang = langs.availables.head
+  given Lang = langs.availables.head
 
-  implicit class RichVersion(val s: Version) {
+  extension (s: Version)
     def vless: Version = s.stripPrefix("v").replace("^v", "^").replace("~v", "v")
-
     def vwith: Version = if (s.startsWith("v")) s else "v" + s
-  }
 
   val name: String
 
@@ -308,7 +306,7 @@ trait Deployable {
 
   def versions(nameOrUrlish: NameOrUrlish): Future[Set[Version]]
 
-  def licenses(nameOrUrlish: NameOrUrlish, version: Version, packageInfo: PackageInfo)(implicit ec: ExecutionContext): Future[Set[License]] = {
+  def licenses(nameOrUrlish: NameOrUrlish, version: Version, packageInfo: PackageInfo)(using ec: ExecutionContext): Future[Set[License]] = {
 
     def tryToGetLicenseFromVariousFiles(files: Set[String]): Future[License] = {
       files.headOption.fold[Future[License]](Future.failed(NoValidLicenses())) { licenseFile =>
@@ -319,7 +317,7 @@ trait Deployable {
     }
 
     val normalizedLicenses = packageInfo.metadataLicenses.map {
-      case SpdxLicense(spdxLicense) =>
+      case LicenseMetadata.SpdxLicense(spdxLicense) =>
         val replacedDotSlash = if (spdxLicense.startsWith("./")) {
           spdxLicense.replace("./", "file://")
         }
@@ -330,9 +328,9 @@ trait Deployable {
         val replacedSeeLicenseIn = replacedDotSlash.replace("SEE LICENSE IN ", "file://")
 
         licenseReference(nameOrUrlish, version, replacedSeeLicenseIn)
-      case ProvidedLicense(licenseMetadata) =>
+      case LicenseMetadata.ProvidedLicense(licenseMetadata) =>
         Future.successful(Set(licenseMetadata))
-      case UnresolvedLicense =>
+      case LicenseMetadata.UnresolvedLicense =>
         Future.successful(Set.empty)
     }
 
@@ -352,7 +350,7 @@ trait Deployable {
       }
   }
 
-  def archiveFile[E <: ArchiveEntry](nameOrUrlish: NameOrUrlish, version: Version, filename: String)(implicit ec: ExecutionContext): Future[String] = {
+  def archiveFile[E <: ArchiveEntry](nameOrUrlish: NameOrUrlish, version: Version, filename: String)(using ec: ExecutionContext): Future[String] = {
     archive(nameOrUrlish, version).flatMap { resource =>
       Future.fromTry {
         Using(new BufferedInputStream(resource)) { inputStream =>
@@ -368,7 +366,7 @@ trait Deployable {
     }
   }
 
-  def licenseReference(nameOrUrlish: NameOrUrlish, version: Version, license: String)(implicit ec: ExecutionContext): Future[Set[License]] = {
+  def licenseReference(nameOrUrlish: NameOrUrlish, version: Version, license: String)(using ec: ExecutionContext): Future[Set[License]] = {
     if (license.startsWith("http://") || license.startsWith("https://")) {
       // we need to fetch the file and try to detect the license from the contents
       licenseDetector.licenseDetect(AbsoluteUrl.parse(license)).map(Set(_))
@@ -411,7 +409,7 @@ trait Deployable {
     }
   }
 
-  def depGraph(packageInfo: PackageInfo, deps: Map[String, String] = Map.empty[String, String])(implicit ec: ExecutionContext, futures: Futures): Future[Map[String, String]]
+  def depGraph(packageInfo: PackageInfo, deps: Map[String, String] = Map.empty[String, String])(using ec: ExecutionContext, futures: Futures): Future[Map[String, String]]
 
 }
 
