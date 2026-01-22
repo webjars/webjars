@@ -2,7 +2,7 @@ package controllers
 
 import com.google.inject.ImplementedBy
 import io.lemonlabs.uri.AbsoluteUrl
-import models.WebJar
+import models.{WebJar, WebJarVersion}
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.stream.scaladsl.{Flow, Source}
 import org.apache.pekko.util.ByteString
@@ -11,7 +11,7 @@ import play.api.data.*
 import play.api.http.{ContentTypes, HttpEntity, MimeTypes}
 import play.api.libs.EventSource
 import play.api.libs.concurrent.Futures
-import play.api.libs.json.Json
+import play.api.libs.json.{Format, Json}
 import play.api.mvc.*
 import play.api.{Environment, Logging, Mode}
 import utils.MavenCentral.{ExistingWebJarRequestException, GroupId}
@@ -30,6 +30,9 @@ class Application @Inject() (git: Git, cache: Cache, mavenCentral: MavenCentral,
                             (allView: views.html.all, indexView: views.html.index, documentationView: views.html.documentation)
                             (fetchConfig: FetchConfig)
                             (using ec: ExecutionContext) extends BaseController with Logging {
+
+  given Format[WebJarVersion] = Json.format[WebJarVersion]
+  given Format[WebJar] = Json.format[WebJar]
 
   private[controllers] val MAX_POPULAR_WEBJARS = 20
 
