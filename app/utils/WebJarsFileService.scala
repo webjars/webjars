@@ -1,18 +1,22 @@
 package utils
 
+import com.jamesward.zio_mavencentral.MavenCentral
+import play.api.Configuration
 import play.api.http.Status
-import play.api.libs.ws.WSClient
 import play.api.libs.ws.DefaultBodyReadables.*
+import play.api.libs.ws.WSClient
 
 import java.io.FileNotFoundException
 import javax.inject.Inject
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
-class WebJarsFileService @Inject() (ws: WSClient) (using ec: ExecutionContext) {
+class WebJarsFileService @Inject() (ws: WSClient, config: Configuration) (using ec: ExecutionContext) {
 
-  def getFileList(groupId: String, artifactId: String, version: String): Future[List[String]] = {
-    val url = s"https://webjars-file-service.herokuapp.com/listfiles/$groupId/$artifactId/$version"
+  private val baseUrl = config.get[String]("webjars.file-service.url")
+
+  def getFileList(gav: MavenCentral.GroupArtifactVersion): Future[List[String]] = {
+    val url = s"$baseUrl/listfiles/${gav.toPath}"
     ws.url(url).get().flatMap { response =>
       response.status match {
         case Status.OK =>
@@ -25,8 +29,8 @@ class WebJarsFileService @Inject() (ws: WSClient) (using ec: ExecutionContext) {
     }
   }
 
-  def getNumFiles(groupId: String, artifactId: String, version: String): Future[Int] = {
-    val url = s"https://webjars-file-service.herokuapp.com/numfiles/$groupId/$artifactId/$version"
+  def getNumFiles(gav: MavenCentral.GroupArtifactVersion): Future[Int] = {
+    val url = s"$baseUrl/numfiles/${gav.toPath}"
     ws.url(url).get().flatMap { response =>
       response.status match {
         case Status.OK =>

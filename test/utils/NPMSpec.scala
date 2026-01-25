@@ -5,12 +5,12 @@ import org.apache.commons.compress.archivers.ArchiveStreamFactory
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.pekko.util.Timeout
 import play.api.libs.concurrent.Futures
-import play.api.libs.json._
-import play.api.test._
+import play.api.libs.json.*
+import play.api.test.*
 
 import java.io.BufferedInputStream
 import scala.concurrent.ExecutionContext
-import scala.concurrent.duration._
+import scala.concurrent.duration.*
 import scala.util.Try
 
 class NPMSpec extends PlaySpecification with GlobalApplication {
@@ -321,7 +321,8 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
   "artifactId" should {
     "deal with orgs" in {
       val packageInfo = await(npm.info("@types/react", "16.9.55"))
-      await(npm.artifactId("@types/react", packageInfo.version)) must beEqualTo ("types__react")
+      packageInfo.name must beEqualTo("@types/react")
+      await(npm.artifactId("@types/react")) must beEqualTo ("types__react")
     }
   }
 

@@ -1,12 +1,12 @@
 package utils
 
 import play.api.cache.SyncCacheApi
-import play.api.test._
+import play.api.test.*
 
 import java.util.UUID
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
-import scala.concurrent.duration._
+import scala.concurrent.duration.*
 
 class CacheSpec extends PlaySpecification {
 

@@ -5,11 +5,11 @@ import org.apache.commons.compress.archivers.ArchiveStreamFactory
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream
 import org.apache.pekko.util.Timeout
-import play.api.test._
-import LicenseMetadata.*
+import play.api.test.*
+import utils.LicenseMetadata.*
 
 import java.io.BufferedInputStream
-import scala.concurrent.duration._
+import scala.concurrent.duration.*
 
 class ClassicSpec extends PlaySpecification with GlobalApplication {
 

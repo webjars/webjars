@@ -1,5 +1,6 @@
 package utils
 
+import com.jamesward.zio_mavencentral.MavenCentral
 import org.apache.commons.compress.archivers.jar.JarArchiveOutputStream
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry
 import org.apache.commons.compress.archivers.{ArchiveEntry, ArchiveInputStream, ArchiveStreamFactory}
@@ -8,6 +9,7 @@ import org.eclipse.jgit.ignore.IgnoreNode
 
 import java.io.*
 import java.nio.file.{Path, Paths}
+import scala.annotation.tailrec
 
 object WebJarCreator {
 
@@ -31,6 +33,7 @@ object WebJarCreator {
     jar.closeArchiveEntry()
   }
 
+  @tailrec
   def isExcluded(excludes: Set[String], name: String, isDirectory: Boolean): Boolean = {
     val ignoreNode = new IgnoreNode()
     val excludesInputStream = new ByteArrayInputStream(excludes.mkString("\n").getBytes)
@@ -75,7 +78,7 @@ object WebJarCreator {
     }
   }
 
-  def createWebJar[E <: ArchiveEntry](in: InputStream, maybeBaseDirGlob: Option[String], exclude: Set[String], pom: String, webJarName: String, licenses: Set[License], groupId: String, artifactId: String, version: String, pathPrefix: String): Array[Byte] = {
+  def createWebJar[E <: ArchiveEntry](in: InputStream, maybeBaseDirGlob: Option[String], exclude: Set[String], pom: String, webJarName: String, licenses: Set[License], groupId: MavenCentral.GroupId, artifactId: MavenCentral.ArtifactId, version: MavenCentral.Version, pathPrefix: String): Array[Byte] = {
 
     val byteArrayOutputStream = new ByteArrayOutputStream()
 

@@ -2,7 +2,7 @@ package utils
 
 import io.lemonlabs.uri.AbsoluteUrl
 import play.api.libs.json.Json
-import play.api.test._
+import play.api.test.*
 
 import scala.util.Try
 

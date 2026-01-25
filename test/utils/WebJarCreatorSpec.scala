@@ -1,8 +1,9 @@
 package utils
 
+import com.jamesward.zio_mavencentral.MavenCentral
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
 import org.apache.commons.compress.archivers.zip.{ZipArchiveEntry, ZipArchiveInputStream}
-import play.api.test._
+import play.api.test.*
 
 import java.io.ByteArrayInputStream
 import java.net.URI
@@ -18,7 +19,7 @@ class WebJarCreatorSpec extends PlaySpecification with GlobalApplication {
       val inputStream = url.openConnection().getInputStream
       val gzipInputStream = new GZIPInputStream(inputStream)
 
-      val webJar = WebJarCreator.createWebJar(gzipInputStream, Some("*/"), Set("node_modules"), "test", "Test", Set.empty, "test", "test", "2.10.0", "test")
+      val webJar = WebJarCreator.createWebJar(gzipInputStream, Some("*/"), Set("node_modules"), "test", "Test", Set.empty, MavenCentral.GroupId("test"), MavenCentral.ArtifactId("test"), MavenCentral.Version("2.10.0"), "test")
       webJar.length must beGreaterThan(0)
     }
     "deal with different tgz base dirs" in {
@@ -26,7 +27,7 @@ class WebJarCreatorSpec extends PlaySpecification with GlobalApplication {
       val inputStream = url.openConnection().getInputStream
       val gzipInputStream = new GZIPInputStream(inputStream)
 
-      val webJar = WebJarCreator.createWebJar(gzipInputStream, Some("*/"), Set("node_modules"), "", "Test", Set.empty, "org.webjars.npm", "react-redux", "4.4.32", "react-redux/4.4.32/")
+      val webJar = WebJarCreator.createWebJar(gzipInputStream, Some("*/"), Set("node_modules"), "", "Test", Set.empty, MavenCentral.GroupId("org.webjars.npm"), MavenCentral.ArtifactId("react-redux"), MavenCentral.Version("4.4.32"), "react-redux/4.4.32/")
 
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new ByteArrayInputStream(webJar))
 
@@ -38,7 +39,7 @@ class WebJarCreatorSpec extends PlaySpecification with GlobalApplication {
       val inputStream = url.openConnection().getInputStream
       val gzipInputStream = new GZIPInputStream(inputStream)
 
-      val webJar = WebJarCreator.createWebJar(gzipInputStream, None, Set("node_modules"), "", "Test", Set.empty, "org.webjars.npm", "react-redux", "4.4.32", "react-redux/4.4.32/")
+      val webJar = WebJarCreator.createWebJar(gzipInputStream, None, Set("node_modules"), "", "Test", Set.empty, MavenCentral.GroupId("org.webjars.npm"), MavenCentral.ArtifactId("react-redux"), MavenCentral.Version("4.4.32"), "react-redux/4.4.32/")
 
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new ByteArrayInputStream(webJar))
 
@@ -50,7 +51,7 @@ class WebJarCreatorSpec extends PlaySpecification with GlobalApplication {
       val inputStream = url.openConnection().getInputStream
       val gzipInputStream = new GZIPInputStream(inputStream)
 
-      val webJar = WebJarCreator.createWebJar(gzipInputStream, Some("*/"), Set("node_modules"), "", "Test", Set.empty, "org.webjars.npm", "react-router", "2.0.41", "react-router/2.0.41/")
+      val webJar = WebJarCreator.createWebJar(gzipInputStream, Some("*/"), Set("node_modules"), "", "Test", Set.empty, MavenCentral.GroupId("org.webjars.npm"), MavenCentral.ArtifactId("react-router"), MavenCentral.Version("2.0.41"), "react-router/2.0.41/")
 
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new ByteArrayInputStream(webJar))
 
@@ -61,7 +62,7 @@ class WebJarCreatorSpec extends PlaySpecification with GlobalApplication {
       val url = new URI(s"https://registry.npmjs.org/@types/escodegen/-/escodegen-0.0.2.tgz").toURL
       val inputStream = url.openConnection().getInputStream
 
-      val webJar = WebJarCreator.createWebJar(inputStream, Some("*/"), Set("node_modules"), "", "Test", Set.empty, "org.webjars.npm", "escodegen", "0.0.2", "escodegen/0.0.2/")
+      val webJar = WebJarCreator.createWebJar(inputStream, Some("*/"), Set("node_modules"), "", "Test", Set.empty, MavenCentral.GroupId("org.webjars.npm"), MavenCentral.ArtifactId("escodegen"), MavenCentral.Version("0.0.2"), "escodegen/0.0.2/")
 
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new ByteArrayInputStream(webJar))
 
@@ -101,7 +102,7 @@ class WebJarCreatorSpec extends PlaySpecification with GlobalApplication {
 
       val excludes = Set("**/test.js")
 
-      val webJar = WebJarCreator.createWebJar(inputStream, Some("*/"), excludes, "", "Test", Set.empty, "", "", "", "vaadin-grid/")
+      val webJar = WebJarCreator.createWebJar(inputStream, Some("*/"), excludes, "", "Test", Set.empty, MavenCentral.GroupId(""), MavenCentral.ArtifactId(""), MavenCentral.Version(""), "vaadin-grid/")
 
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new ByteArrayInputStream(webJar))
 
@@ -115,7 +116,7 @@ class WebJarCreatorSpec extends PlaySpecification with GlobalApplication {
 
       val excludes = Set("*.js")
 
-      val webJar = WebJarCreator.createWebJar(inputStream, Some("*/"), excludes, "", "Test", Set.empty, "", "", "", "vaadin-grid/")
+      val webJar = WebJarCreator.createWebJar(inputStream, Some("*/"), excludes, "", "Test", Set.empty, MavenCentral.GroupId(""), MavenCentral.ArtifactId(""), MavenCentral.Version(""), "vaadin-grid/")
 
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new ByteArrayInputStream(webJar))
 
@@ -129,7 +130,7 @@ class WebJarCreatorSpec extends PlaySpecification with GlobalApplication {
 
       val excludes = Set("**/.*")
 
-      val webJar = WebJarCreator.createWebJar(inputStream, Some("*/"), excludes, "", "Test", Set.empty, "", "", "", "vaadin-grid/")
+      val webJar = WebJarCreator.createWebJar(inputStream, Some("*/"), excludes, "", "Test", Set.empty, MavenCentral.GroupId(""), MavenCentral.ArtifactId(""), MavenCentral.Version(""), "vaadin-grid/")
 
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new ByteArrayInputStream(webJar))
 
@@ -144,7 +145,7 @@ class WebJarCreatorSpec extends PlaySpecification with GlobalApplication {
 
       val baseDir = Some("*/dist,*/min")
 
-      val webJar = WebJarCreator.createWebJar(inputStream, baseDir, Set.empty, "", "Test", Set.empty, "", "", "", "moment/")
+      val webJar = WebJarCreator.createWebJar(inputStream, baseDir, Set.empty, "", "Test", Set.empty, MavenCentral.GroupId(""), MavenCentral.ArtifactId(""), MavenCentral.Version(""), "moment/")
 
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new ByteArrayInputStream(webJar))
 
@@ -159,7 +160,7 @@ class WebJarCreatorSpec extends PlaySpecification with GlobalApplication {
       val url = new URI(s"https://bower-as-a-service.herokuapp.com/download/vaadin-ordered-layout/1.0.0-alpha3").toURL
       val inputStream = url.openConnection().getInputStream
 
-      val webJar = WebJarCreator.createWebJar[ZipArchiveEntry](inputStream, None, Set(".bower.json"), "", "Test", Set.empty, "org.webjars.bower", "vaadin-ordered-layout", "1.0.0-alpha3", "vaadin-ordered-layout/1.0.0-alpha3/")
+      val webJar = WebJarCreator.createWebJar[ZipArchiveEntry](inputStream, None, Set(".bower.json"), "", "Test", Set.empty, MavenCentral.GroupId("org.webjars.bower"), MavenCentral.ArtifactId("vaadin-ordered-layout"), MavenCentral.Version("1.0.0-alpha3"), "vaadin-ordered-layout/1.0.0-alpha3/")
 
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new ByteArrayInputStream(webJar))
 
@@ -174,7 +175,7 @@ class WebJarCreatorSpec extends PlaySpecification with GlobalApplication {
       val inputStream = url.openConnection().getInputStream
       val gzipInputStream = new GZIPInputStream(inputStream)
 
-      val webJar = WebJarCreator.createWebJar(gzipInputStream, Some("*/"), Set("node_modules"), "", "Test", Set.empty, "org.webjars.npm", "virtual-keyboard", "1.30.1", "virtual-keyboard/1.30.1/")
+      val webJar = WebJarCreator.createWebJar(gzipInputStream, Some("*/"), Set("node_modules"), "", "Test", Set.empty, MavenCentral.GroupId("org.webjars.npm"), MavenCentral.ArtifactId("virtual-keyboard"), MavenCentral.Version("1.30.1"), "virtual-keyboard/1.30.1/")
 
       val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new ByteArrayInputStream(webJar))
 
@@ -194,7 +195,7 @@ class WebJarCreatorSpec extends PlaySpecification with GlobalApplication {
     val url = new URI(s"https://github.com/swagger-api/swagger-ui/archive/v$version.zip").toURL
     val inputStream = url.openConnection().getInputStream
 
-    val webJar = WebJarCreator.createWebJar(inputStream, Some("*/dist/"), Set.empty, "", "Test", Set.empty, "org.webjars", "swagger-ui", version, s"swagger-ui/$version/")
+    val webJar = WebJarCreator.createWebJar(inputStream, Some("*/dist/"), Set.empty, "", "Test", Set.empty, MavenCentral.GroupId("org.webjars"), MavenCentral.ArtifactId("swagger-ui"), MavenCentral.Version(version), s"swagger-ui/$version/")
 
     val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new ByteArrayInputStream(webJar))
 
@@ -210,11 +211,11 @@ class WebJarCreatorSpec extends PlaySpecification with GlobalApplication {
     val info = await(classic.info(name, version))
     val archive = await(classic.archive(name, version))
     val maybeBaseGlob = await(classic.maybeBaseDirGlob(name))
-    val excludes = await(classic.excludes(name, version))
+    val excludes = await(classic.excludes(name))
     val releaseVersion = classic.releaseVersion(Some(version), info)
-    val pathPrefix = await(classic.pathPrefix(name, releaseVersion, info))
+    val pathPrefix = classic.pathPrefix(MavenCentral.ArtifactId(name), releaseVersion, info)
 
-    val webJar = WebJarCreator.createWebJar(archive, maybeBaseGlob, excludes, "", "Test", Set.empty, "org.webjars", "swagger-ui", releaseVersion, pathPrefix)
+    val webJar = WebJarCreator.createWebJar(archive, maybeBaseGlob, excludes, "", "Test", Set.empty, MavenCentral.GroupId("org.webjars"), MavenCentral.ArtifactId("swagger-ui"), releaseVersion, pathPrefix)
 
     val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new ByteArrayInputStream(webJar))
 
@@ -229,11 +230,11 @@ class WebJarCreatorSpec extends PlaySpecification with GlobalApplication {
     val info = await(classic.info(name, version))
     val archive = await(classic.archive(name, version))
     val maybeBaseGlob = await(classic.maybeBaseDirGlob(name))
-    val excludes = await(classic.excludes(name, version))
+    val excludes = await(classic.excludes(name))
     val releaseVersion = classic.releaseVersion(Some(version), info)
-    val pathPrefix = await(classic.pathPrefix(name, releaseVersion, info))
+    val pathPrefix = classic.pathPrefix(MavenCentral.ArtifactId(name), releaseVersion, info)
 
-    val webJar = WebJarCreator.createWebJar(archive, maybeBaseGlob, excludes, "", "Test", Set.empty, "org.webjars", "vega", releaseVersion, pathPrefix)
+    val webJar = WebJarCreator.createWebJar(archive, maybeBaseGlob, excludes, "", "Test", Set.empty, MavenCentral.GroupId("org.webjars"), MavenCentral.ArtifactId("vega"), releaseVersion, pathPrefix)
 
     val archiveStream = new ArchiveStreamFactory().createArchiveInputStream[ZipArchiveInputStream](new ByteArrayInputStream(webJar))
 
@@ -249,12 +250,12 @@ class WebJarCreatorSpec extends PlaySpecification with GlobalApplication {
     val info = await(classic.info(name, version))
     val archive = await(classic.archive(name, version))
     val maybeBaseGlob = await(classic.maybeBaseDirGlob(name))
-    val excludes = await(classic.excludes(name, version))
+    val excludes = await(classic.excludes(name))
     val releaseVersion = classic.releaseVersion(Some(version), info)
-    val pathPrefix = await(classic.pathPrefix(name, releaseVersion, info))
+    val pathPrefix = classic.pathPrefix(MavenCentral.ArtifactId(name), releaseVersion, info)
     val licenses = await(classic.licenses(name, version, info))
 
-    val webJar = WebJarCreator.createWebJar(archive, maybeBaseGlob, excludes, "", info.name, licenses, "org.webjars", "swagger-ui", releaseVersion, pathPrefix)
+    val webJar = WebJarCreator.createWebJar(archive, maybeBaseGlob, excludes, "", info.name, licenses, MavenCentral.GroupId("org.webjars"), MavenCentral.ArtifactId("swagger-ui"), releaseVersion, pathPrefix)
 
     // test using the actual JarInputStream/Manifest used by the JVM
     // to make sure it is really valid (first entry in jar, ends with CRLF, etc.)

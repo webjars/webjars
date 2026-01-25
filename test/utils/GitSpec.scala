@@ -5,12 +5,12 @@ import io.lemonlabs.uri.AbsoluteUrl
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.pekko.util.Timeout
-import org.eclipse.jgit.api.{Git => GitApi}
-import play.api.test._
+import org.eclipse.jgit.api.Git as GitApi
+import play.api.test.*
 
 import java.io.BufferedInputStream
-import scala.concurrent.duration._
-import scala.jdk.CollectionConverters._
+import scala.concurrent.duration.*
+import scala.jdk.CollectionConverters.*
 
 class GitSpec extends PlaySpecification with GlobalApplication {
 

@@ -1,6 +1,6 @@
 package utils
 
-import com.lumidion.sonatype.central.client.core.{CheckStatusResponse, DeploymentId, DeploymentName, DeploymentState}
+import com.jamesward.zio_mavencentral.MavenCentral
 import io.lemonlabs.uri.AbsoluteUrl
 import org.apache.commons.io.IOUtils
 import org.apache.pekko.actor.ActorSystem
@@ -11,12 +11,12 @@ import org.bouncycastle.openpgp.operator.jcajce.{JcaPGPContentSignerBuilder, Jca
 import org.bouncycastle.openpgp.{PGPSecretKey, PGPSignature}
 import play.api.Environment
 import play.api.libs.concurrent.Futures
-import play.api.test._
-import utils.MavenCentral.{GAV, GroupId}
+import play.api.test.*
 
 import java.security.{KeyPairGenerator, Security}
 import java.util.{Base64, Date}
-import scala.concurrent.duration._
+import scala.concurrent.Future
+import scala.concurrent.duration.*
 
 // todo: there is some brittle stuff here (maven central search, oss stats, memcache, maven central itself)
 //  and we really should better handle integration tests which are super tricky and faked service tests
@@ -56,7 +56,7 @@ class MavenCentralDeployerSpec extends PlaySpecification {
         mavenCentralDeployer.asc("foo".getBytes) must beSome
       }
     }
-    "upload" in new WithApplication {
+    "upload" in new WithApplication(_.configure("oss.disable-deploy" -> "true")) {
       override def running() = {
         val mavenCentralDeployer = app.injector.instanceOf[MavenCentralDeployer]
         if (
@@ -83,17 +83,13 @@ class MavenCentralDeployerSpec extends PlaySpecification {
 
           val packageInfo = PackageInfo("Test WebJar", version, None, gitUri, None, Seq.empty, Map.empty, Map.empty, None)
 
-          val gav = GAV("com.happypathprogramming", "_test", version)
+          val gav = MavenCentral.GroupArtifactVersion(MavenCentral.GroupId("com.happypathprogramming"), MavenCentral.ArtifactId("_test"), MavenCentral.Version(version))
+
+          println(gav)
 
           val pom = templates.xml.pom(gav.groupId, gav.artifactId, gav.version, packageInfo, sourceUrl, Set.empty, Set.empty, licenses).toString()
 
-          val (_, checker) = mavenCentralDeployer.upload(gav, jar, pom).get
-
-          await(mavenCentralDeployer.waitForDeploymentState(DeploymentState.VALIDATED, checker)(using app.injector.instanceOf[Futures], app.injector.instanceOf[ActorSystem]))
-
-  //        mavenCentral.publish(deploymentId).get
-
-  //        await(mavenCentral.waitForDeploymentState(DeploymentState.PUBLISHING, checker)(app.injector.instanceOf[Futures], app.injector.instanceOf[ActorSystem]))
+          await(mavenCentralDeployer.publish(gav, jar, pom))
 
           success
         }
@@ -104,24 +100,10 @@ class MavenCentralDeployerSpec extends PlaySpecification {
 }
 
 class MavenCentralDeployerMock extends MavenCentralDeployer {
-  override def asc(toSign: Array[Byte]): Option[String] = {
+  override def asc(toSign: Array[Byte]): Option[String] =
     None
-  }
 
-  // first is in the Validated state, then switches to publishing
-  // todo: do it per gav
-  override def upload(gav: GAV, jar: Array[Byte], pom: GroupId): Option[(DeploymentId, () => Option[CheckStatusResponse])] = {
-    var state: DeploymentState = DeploymentState.VALIDATED
+  override def publish(gav: MavenCentral.GroupArtifactVersion, jar: Array[Byte], pom: String): Future[Unit] =
+    Future.successful(())
 
-    def checkStatusResponse(): Option[CheckStatusResponse] = {
-      val result = Some(CheckStatusResponse(DeploymentId(gav.toString), DeploymentName(gav.toString), state, Vector.empty))
-      state = DeploymentState.PUBLISHING
-      result
-    }
-
-    Some((DeploymentId(gav.toString), checkStatusResponse))
-  }
-
-  override def publish(deploymentId: DeploymentId): Option[Unit] =
-    Some(())
 }

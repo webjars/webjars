@@ -1,9 +1,9 @@
 package utils
 
 import org.apache.pekko.util.Timeout
-import play.api.test._
+import play.api.test.*
 
-import scala.concurrent.duration._
+import scala.concurrent.duration.*
 
 class MavenSpec extends PlaySpecification with GlobalApplication {
 

@@ -7,7 +7,7 @@ import play.api.inject.bind
 import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.test.{FakeRequest, PlaySpecification, WithApplication}
 
-import scala.concurrent.duration._
+import scala.concurrent.duration.*
 
 class TestFetchConfig extends FetchConfig {
   override val timeout = 5.minutes

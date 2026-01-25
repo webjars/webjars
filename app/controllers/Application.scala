@@ -14,7 +14,7 @@ import play.api.libs.concurrent.Futures
 import play.api.libs.json.Json
 import play.api.mvc.*
 import play.api.{Environment, Logging, Mode}
-import utils.MavenCentral.{ExistingWebJarRequestException, GroupId}
+import com.jamesward.zio_mavencentral.MavenCentral
 import utils.*
 
 import java.io.FileNotFoundException
@@ -25,7 +25,7 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.util.hashing.MurmurHash3
 import scala.util.{Failure, Random}
 
-class Application @Inject() (git: Git, cache: Cache, mavenCentral: MavenCentral, deployWebJar: DeployWebJar, webJarsFileService: WebJarsFileService, actorSystem: ActorSystem, environment: Environment, futures: Futures, val controllerComponents: ControllerComponents)
+class Application @Inject() (git: Git, cache: Cache, mavenCentral: MavenCentralWebJars, deployWebJar: DeployWebJar, webJarsFileService: WebJarsFileService, actorSystem: ActorSystem, environment: Environment, futures: Futures, val controllerComponents: ControllerComponents)
                             (allDeployables: AllDeployables)
                             (allView: views.html.all, indexView: views.html.index, documentationView: views.html.documentation)
                             (fetchConfig: FetchConfig)
@@ -55,8 +55,8 @@ class Application @Inject() (git: Git, cache: Cache, mavenCentral: MavenCentral,
     }
   }
 
-  private def webJarsWithTimeout(maybeGroupId: Option[GroupId] = None): Future[List[WebJar]] = {
-    def getWebJars(groupId: GroupId): Future[List[WebJar]] = {
+  private def webJarsWithTimeout(maybeGroupId: Option[MavenCentral.GroupId] = None): Future[List[WebJar]] = {
+    def getWebJars(groupId: MavenCentral.GroupId): Future[List[WebJar]] = {
       val jitter = (Random.nextInt(10) + 55).minutes
       cache.get[List[WebJar]](s"webjars-$groupId", jitter) {
         mavenCentral.webJars(groupId)
@@ -70,7 +70,7 @@ class Application @Inject() (git: Git, cache: Cache, mavenCentral: MavenCentral,
     val future = TimeoutFuture(fetchConfig.timeout)(fetcher)
     future.onComplete {
       case Failure(e: TimeoutException) => logger.debug("Timeout fetching WebJars", e)
-      case Failure(e: MavenCentral.ExistingWebJarRequestException) => logger.debug("Existing WebJar Request", e)
+      case Failure(e: MavenCentralWebJars.ExistingWebJarRequestException) => logger.debug("Existing WebJar Request", e)
       case Failure(e) => logger.error("Error loading WebJars", e)
       case _ => ()
     }
@@ -89,7 +89,7 @@ class Application @Inject() (git: Git, cache: Cache, mavenCentral: MavenCentral,
     sortedMostPopularWebJars.map(maybeCached(request, webJars => Ok(indexView(Left(webJars))))).recoverWith {
       case _: TimeoutException =>
         Future.successful(Redirect(routes.Application.index()))
-      case _: ExistingWebJarRequestException =>
+      case _: MavenCentralWebJars.ExistingWebJarRequestException =>
         futures.delay(fetchConfig.timeout).map(_ => Redirect(routes.Application.index()))
       case e: Exception =>
         logger.error("index WebJar fetch failed", e)
@@ -116,7 +116,7 @@ class Application @Inject() (git: Git, cache: Cache, mavenCentral: MavenCentral,
     }
   }
 
-  def searchWebJars(query: String, groupIds: List[GroupId]) = Action.async { implicit request =>
+  def searchWebJars(query: String, groupIds: List[String]) = Action.async { implicit request =>
     val queryLowerCase = query.toLowerCase.stripPrefix("org.webjars").stripPrefix("webjars")
 
     def filter(webJar: WebJar): Boolean = {
@@ -127,7 +127,7 @@ class Application @Inject() (git: Git, cache: Cache, mavenCentral: MavenCentral,
 
     val matchesFuture = Future.reduceLeft {
       groupIds.map { groupId =>
-        webJarsWithTimeout(Some(groupId)).map(_.filter(filter))
+        webJarsWithTimeout(Some(MavenCentral.GroupId(groupId))).map(_.filter(filter))
       }
     } (_ ++ _)
 
@@ -146,8 +146,8 @@ class Application @Inject() (git: Git, cache: Cache, mavenCentral: MavenCentral,
     }
   }
 
-  def webJarList(groupId: GroupId) = Action.async { implicit request =>
-    webJarsWithTimeout(Some(groupId)).map {
+  def webJarList(groupId: String) = Action.async { implicit request =>
+    webJarsWithTimeout(Some(MavenCentral.GroupId(groupId))).map {
       maybeCached(request, webJars => Ok(Json.toJson(webJars)))
     } recover {
       case _: Exception =>
@@ -221,7 +221,8 @@ class Application @Inject() (git: Git, cache: Cache, mavenCentral: MavenCentral,
 
   def listFiles(groupId: String, artifactId: String, version: String) = CorsAction {
     Action.async { implicit request =>
-      webJarsFileService.getFileList(groupId, artifactId, version).map { fileList =>
+      val gav = MavenCentral.GroupArtifactVersion(MavenCentral.GroupId(groupId), MavenCentral.ArtifactId(artifactId), MavenCentral.Version(version))
+      webJarsFileService.getFileList(gav).map { fileList =>
         render {
           case Accepts.Html() => Ok(views.html.filelist(groupId, artifactId, version, fileList))
           case Accepts.Json() => Ok(Json.toJson(fileList))
@@ -297,8 +298,8 @@ class Application @Inject() (git: Git, cache: Cache, mavenCentral: MavenCentral,
     allDeployables.fromName(webJarType).fold {
       Future.successful(BadRequest(s"Specified WebJar type '$webJarType' can not be created"))
     } { deployable =>
-      deployWebJar.create(deployable, nameOrUrlish, version, licenseOverride, groupIdOverride).map { case (name, bytes) =>
-        val filename = name + ".jar"
+      deployWebJar.create(deployable, nameOrUrlish, version, licenseOverride, groupIdOverride.map(MavenCentral.GroupId(_))).map { case (name, bytes) =>
+        val filename = name.toString + ".jar"
         // taken from private method: play.api.mvc.Results.streamFile
         Result(
           ResponseHeader(

@@ -1,10 +1,11 @@
 package utils
 
 import io.lemonlabs.uri.AbsoluteUrl
+import org.eclipse.jgit.api.Git as GitApi
 import org.eclipse.jgit.api.ResetCommand.ResetType
-import org.eclipse.jgit.api.{Git => GitApi}
 import play.api.http.{HeaderNames, Status}
 import play.api.libs.ws.WSClient
+import utils.Adapter.*
 import utils.Deployable.Version
 
 import java.io.{File, InputStream}
@@ -32,32 +33,6 @@ class Git @Inject() (ws: WSClient) (using ec: ExecutionContext) {
     packageNameOrGitRepo.contains("/") && !packageNameOrGitRepo.startsWith("@")
   }
 
-  def resolveRedir(httpUrl: String): Future[String] = {
-    ws.url(httpUrl).withFollowRedirects(false).head().flatMap { response =>
-      response.status match {
-        case Status.MOVED_PERMANENTLY | Status.FOUND =>
-          // todo: max redirects
-          response.header(HeaderNames.LOCATION).fold(Future.failed[String](new Exception("Could not get redir location"))) { location =>
-            val redirUrl = if (location.startsWith("/")) {
-              // relative url
-              val url = AbsoluteUrl.parse(httpUrl)
-              url.scheme + "://" + url.host + location
-            }
-            else {
-              location
-            }
-
-            // keep resolving until there is an OK
-            resolveRedir(redirUrl)
-          }
-        case Status.OK =>
-          Future.successful(httpUrl)
-        case _ =>
-          Future.failed(new Exception(s"Could not get HEAD for url: $httpUrl"))
-      }
-    }
-  }
-
   def gitUrl(gitRepo: String): Future[String] = {
     val resolvedUrl = if (gitRepo.contains("://")) {
       // https://github.blog/2021-09-01-improving-git-protocol-security-github/
@@ -74,7 +49,7 @@ class Git @Inject() (ws: WSClient) (using ec: ExecutionContext) {
     val jgitReadyUrl = resolvedUrl.replace("git+", "")
 
     if (jgitReadyUrl.startsWith("http")) {
-      resolveRedir(jgitReadyUrl)
+      ws.resolveRedir(jgitReadyUrl)
     }
     else {
       Future.successful(jgitReadyUrl)

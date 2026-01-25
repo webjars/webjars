@@ -2,11 +2,11 @@ package utils
 
 import net.spy.memcached.transcoders.{SerializingTranscoder, Transcoder}
 import org.apache.pekko.util.Timeout
-import play.api.test._
+import play.api.test.*
 
 import java.util.UUID
 import scala.concurrent.Future
-import scala.concurrent.duration._
+import scala.concurrent.duration.*
 
 class MemcacheSpec extends PlaySpecification {
 

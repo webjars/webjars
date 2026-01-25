@@ -1,6 +1,6 @@
 import models.WebJarVersion
 import models.WebJarVersion.given
-import org.specs2.mutable._
+import org.specs2.mutable.*
 import utils.VersionStringOrdering
 
 import scala.util.Random

@@ -1,31 +1,26 @@
 package utils
 
 import com.google.inject.ImplementedBy
-import com.lumidion.sonatype.central.client.core.PublishingType.USER_MANAGED
-import com.lumidion.sonatype.central.client.core.*
-import com.lumidion.sonatype.central.client.requests.SyncSonatypeClient
+import com.jamesward.zio_mavencentral.MavenCentral
+import com.jamesward.zio_mavencentral.MavenCentral.Deploy
 import com.roundeights.hasher.Implicits.*
-import net.ruippeixotog.scalascraper.browser.{Browser, JsoupBrowser}
-import org.apache.pekko.actor.*
-import org.apache.pekko.pattern.after
 import org.bouncycastle.bcpg.{ArmoredOutputStream, BCPGOutputStream, HashAlgorithmTags}
 import org.bouncycastle.openpgp.operator.jcajce.{JcaKeyFingerprintCalculator, JcaPGPContentSignerBuilder, JcePBESecretKeyDecryptorBuilder}
 import org.bouncycastle.openpgp.{PGPSecretKeyRing, PGPSignature, PGPSignatureGenerator}
-import play.api.libs.concurrent.Futures
-import play.api.libs.concurrent.Futures.FutureOps
 import play.api.{Configuration, Logging}
+import utils.Adapter.*
+import zio.http.{Client, Path}
+import zio.{ZIO, ZLayer}
 
 import java.io.ByteArrayOutputStream
 import java.util.Base64
+import java.util.zip.{ZipEntry, ZipOutputStream}
 import javax.inject.{Inject, Singleton}
 import scala.concurrent.Future
-import scala.concurrent.duration.*
 import scala.language.postfixOps
 
 @ImplementedBy(classOf[MavenCentralDeployerLive])
 trait MavenCentralDeployer {
-  import MavenCentral.*
-
   def maybeOssDeployUsername(configuration: Configuration): Option[String] = configuration.getOptional[String]("oss.deploy.username").filter(_.nonEmpty)
   def maybeOssDeployPassword(configuration: Configuration): Option[String] = configuration.getOptional[String]("oss.deploy.password").filter(_.nonEmpty)
   def maybeOssGpgKey(configuration: Configuration): Option[String] = configuration.getOptional[String]("oss.gpg-key").filter(_.nonEmpty)
@@ -33,39 +28,23 @@ trait MavenCentralDeployer {
 
   def asc(toSign: Array[Byte]): Option[String]
 
-  def upload(gav: GAV, jar: Array[Byte], pom: String): Option[(DeploymentId, () => Option[CheckStatusResponse])]
-  def publish(deploymentId: DeploymentId): Option[Unit]
-
-  private val maxwait: FiniteDuration = 1.minute
-  private val poll: FiniteDuration = 5.seconds
-
-  def waitForDeploymentState(deploymentState: DeploymentState, f: () => Option[CheckStatusResponse])(using futures: Futures, actorSystem: ActorSystem): Future[Unit] = {
-    val future = f() match {
-      case Some(checkStatusResponse) if checkStatusResponse.deploymentState == deploymentState => Future.successful(())
-      case Some(checkStatusResponse) if checkStatusResponse.deploymentState == DeploymentState.FAILED => Future.failed(new IllegalStateException("Failed to deploy"))
-      case _ => after(poll)(waitForDeploymentState(deploymentState, f))
-    }
-
-    future.withTimeout(maxwait)
-  }
-
+  def publish(gav: MavenCentral.GroupArtifactVersion, jar: Array[Byte], pom: String): Future[Unit]
 }
 
 @Singleton
 class MavenCentralDeployerLive @Inject() (configuration: Configuration) extends MavenCentralDeployer with Logging {
-  import MavenCentral.*
 
   private lazy val disableDeploy = configuration.getOptional[Boolean]("oss.disable-deploy").getOrElse(false)
 
-  val browser: Browser = JsoupBrowser()
+  val deployLayer: ZLayer[Client, Nothing, MavenCentral.Deploy.Sonatype] =
+    ZLayer.fromZIO:
+      for
+        username <- ZIO.fromOption(maybeOssDeployUsername(configuration)).orDieWith(_ => RuntimeException("deploy username not set"))
+        password <- ZIO.fromOption(maybeOssDeployPassword(configuration)).orDieWith(_ => RuntimeException("deploy password not set"))
+        client   <- ZIO.serviceWith[Client](MavenCentral.Deploy.Sonatype.clientMiddleware(username, password))
+      yield
+        MavenCentral.Deploy.Sonatype(client)
 
-  private def withOssDeployCredentials[T](f: (String, String) => Option[T]): Option[T] = {
-    for {
-      deployUsername <- maybeOssDeployUsername(configuration)
-      deployPassword <- maybeOssDeployPassword(configuration)
-      result <- f(deployUsername, deployPassword)
-    } yield result
-  }
 
   def asc(toSign: Array[Byte]): Option[String] = {
     maybeOssGpgKey(configuration).map { gpgKey =>
@@ -97,9 +76,6 @@ class MavenCentralDeployerLive @Inject() (configuration: Configuration) extends 
     }
   }
 
-  import java.io.ByteArrayOutputStream
-  import java.util.zip.{ZipEntry, ZipOutputStream}
-
   private def createZip(files: Map[String, Array[Byte]]): Array[Byte] = {
     val baos = new ByteArrayOutputStream()
     val zos = new ZipOutputStream(baos)
@@ -114,22 +90,17 @@ class MavenCentralDeployerLive @Inject() (configuration: Configuration) extends 
     baos.toByteArray
   }
 
-  private def withSonatypeClient[T](f: SyncSonatypeClient => Option[T]): Option[T] = {
-    withOssDeployCredentials { (username, password) =>
-      val credentials = SonatypeCredentials(username, password)
-      val client = new SyncSonatypeClient(credentials)
-      f(client)
-    }
-  }
+  extension (gav: MavenCentral.GroupArtifactVersion)
+    def path: Path =
+      MavenCentral.artifactPath(gav.groupId, Some(MavenCentral.ArtifactAndVersion(gav.artifactId, Some(gav.version)))) / s"${gav.artifactId}-${gav.version}"
 
-  override def upload(gav: GAV, jar: Array[Byte], pom: String): Option[(DeploymentId, () => Option[CheckStatusResponse])] = {
-    withSonatypeClient { client =>
-      for {
+  override def publish(gav: MavenCentral.GroupArtifactVersion, jar: Array[Byte], pom: String): Future[Unit] =
+    println(s"Deploying $gav")
+    val maybeDeploy =
+      for
         pomAsc <- asc(pom.getBytes)
         jarAsc <- asc(jar)
-      } yield {
-        val deploymentName = DeploymentName(gav.toString)
-
+      yield
         val files = Map(
           s"${gav.path}.jar" -> jar,
           s"${gav.path}.jar.sha1" -> jar.sha1.hex.getBytes,
@@ -144,27 +115,13 @@ class MavenCentralDeployerLive @Inject() (configuration: Configuration) extends 
 
         val zip = createZip(files)
 
-        val deploymentId = client
-          .uploadBundleFromBytes(
-            zip,
-            deploymentName,
-            Some(USER_MANAGED)
-          )
+        val name = s"${gav.groupId}${gav.artifactId}-${gav.version}.zip"
 
-        deploymentId -> { () => client.checkStatus(deploymentId) }
-      }
-    }
-  }
+        if disableDeploy then
+          Deploy.upload(name, zip).unit.runToFuture(Client.default.orDie >>> deployLayer)
+        else
+          Deploy.uploadVerifyAndPublish(name, zip).runToFuture(Client.default.orDie >>> deployLayer)
 
-  override def publish(deploymentId: DeploymentId): Option[Unit] = {
-    if (disableDeploy) {
-      None
-    }
-    else {
-      withSonatypeClient { client =>
-        client.publishValidatedDeployment(deploymentId)
-      }
-    }
-  }
+    maybeDeploy.getOrElse(Future.failed(RuntimeException("Unable to deploy to Maven Central")))
 }
 

@@ -1,5 +1,6 @@
 package utils
 
+import com.jamesward.zio_mavencentral.MavenCentral
 import io.lemonlabs.uri.AbsoluteUrl
 import io.lemonlabs.uri.typesafe.dsl.{pathPartToUrlDsl, urlToUrlDsl}
 import play.api.Configuration
@@ -8,7 +9,6 @@ import play.api.i18n.{Langs, MessagesApi}
 import play.api.libs.concurrent.Futures
 import play.api.libs.ws.WSClient
 import utils.Deployable.{NameOrUrlish, Version}
-import utils.MavenCentral.ArtifactId
 
 import java.io.{InputStream, StringReader}
 import java.util.Properties
@@ -22,7 +22,7 @@ class Classic @Inject() (ws: WSClient, val licenseDetector: LicenseDetector, val
   import Classic.*
 
   override val name: String = "Classic"
-  override val groupId: String = "org.webjars"
+  override val groupId: MavenCentral.GroupId = MavenCentral.GroupId("org.webjars")
 
   private lazy val webJarsClassicBranch = configuration.getOptional[String]("webjars.classic.branch").getOrElse("main")
 
@@ -55,9 +55,9 @@ class Classic @Inject() (ws: WSClient, val licenseDetector: LicenseDetector, val
             for {
               name <- maybeName
               repo <- maybeRepo
-            } yield MetadataNormal(nameOrUrlish, name, repo, maybeDownload, maybeRequireJsMain, maybeBaseDir)
+            } yield MetadataNormal(MavenCentral.ArtifactId(nameOrUrlish), name, repo, maybeDownload, maybeRequireJsMain, maybeBaseDir)
           } { npmName =>
-            Some(MetadataNpm(nameOrUrlish, npmName, maybeLicenseName, maybeLicenseUrl))
+            Some(MetadataNpm(MavenCentral.ArtifactId(nameOrUrlish), npmName, maybeLicenseName, maybeLicenseUrl))
           }
 
           maybeMetadata.fold(Future.failed[Metadata](new Exception("properties file was invalid")))(Future.successful)
@@ -65,13 +65,13 @@ class Classic @Inject() (ws: WSClient, val licenseDetector: LicenseDetector, val
     }
   }
 
-  override def artifactId(nameOrUrlish: NameOrUrlish, version: Version): Future[ArtifactId] = {
+  override def artifactId(nameOrUrlish: NameOrUrlish): Future[MavenCentral.ArtifactId] = {
     cache.get[Metadata](s"webjars-classic-$nameOrUrlish", 1.hour) {
       metadata(nameOrUrlish)
     }.map(_.id)
   }
 
-  override def excludes(nameOrUrlish: NameOrUrlish, version: Version): Future[Set[String]] = Future.successful(Set.empty)
+  override def excludes(nameOrUrlish: NameOrUrlish): Future[Set[String]] = Future.successful(Set.empty)
 
   override val metadataFile: Option[String] = None
   override def maybeBaseDirGlob(nameOrUrlish: NameOrUrlish): Future[Option[String]] = {
@@ -79,12 +79,9 @@ class Classic @Inject() (ws: WSClient, val licenseDetector: LicenseDetector, val
       metadata(nameOrUrlish)
     }.flatMap {
       case metadataNormal: MetadataNormal => Future.successful(metadataNormal.baseDir)
-      case metadataNpm: MetadataNpm => npm.maybeBaseDirGlob(metadataNpm.id)
+      case metadataNpm: MetadataNpm => npm.maybeBaseDirGlob(metadataNpm.id.toString)
     }
   }
-
-  override def pathPrefix(nameOrUrlish: NameOrUrlish, releaseVersion: Version, packageInfo: PackageInfo): Future[String] =
-    Future.successful(s"$nameOrUrlish/$releaseVersion/")
 
   def license(metadata: Metadata): Future[LicenseMetadata] = {
     metadata match {
@@ -156,7 +153,7 @@ class Classic @Inject() (ws: WSClient, val licenseDetector: LicenseDetector, val
     }
   }
 
-  override def mavenDependencies(dependencies: Map[String, String]): Future[Set[(String, String, String)]] =
+  override def mavenDependencies(dependencies: Map[String, String]): Future[Set[(MavenCentral.GroupArtifact, String)]] =
     Future.successful(Set.empty)
 
   private def downloadExists(url: String): Future[AbsoluteUrl] = {
@@ -232,10 +229,10 @@ class Classic @Inject() (ws: WSClient, val licenseDetector: LicenseDetector, val
 
 object Classic {
   sealed trait Metadata {
-    val id: String
+    val id: MavenCentral.ArtifactId
   }
 
-  case class MetadataNormal(id: String, name: String, repo: String, download: Option[String], requireJsMain: Option[String], baseDir: Option[String]) extends Metadata
+  case class MetadataNormal(id: MavenCentral.ArtifactId, name: String, repo: String, download: Option[String], requireJsMain: Option[String], baseDir: Option[String]) extends Metadata
 
-  case class MetadataNpm(id: String, packageName: String, licenseName: Option[String], licenseUrl: Option[String]) extends Metadata
+  case class MetadataNpm(id: MavenCentral.ArtifactId, packageName: String, licenseName: Option[String], licenseUrl: Option[String]) extends Metadata
 }

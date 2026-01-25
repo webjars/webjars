@@ -8,8 +8,8 @@ import org.apache.pekko.util.ByteString
 import play.api.Configuration
 import play.api.http.{HeaderNames, Status}
 import play.api.libs.json.Json
-import play.api.libs.ws.{WSClient, WSRequest}
 import play.api.libs.ws.JsonBodyWritables.writeableOf_JsValue
+import play.api.libs.ws.{WSClient, WSRequest}
 
 import java.net.InetSocketAddress
 import javax.inject.Inject

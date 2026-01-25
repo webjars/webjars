@@ -4,7 +4,7 @@ import org.apache.pekko.stream.scaladsl.{Keep, Sink}
 import org.apache.pekko.util.Timeout
 import play.api.test.{PlaySpecification, WithApplication}
 
-import scala.concurrent.duration._
+import scala.concurrent.duration.*
 
 class DeployWebJarSpec extends PlaySpecification {
 
@@ -46,7 +46,7 @@ class DeployWebJarSpec extends PlaySpecification {
 
         val output = await(deployWebJar.localDeploy(npm, "material-design-icons", "2.2.3", true, false).toMat(Sink.seq)(Keep.right).run())
         output(4) must contain("Resolved Licenses: CC-BY-4.0")
-        output(14) must contain("Deployed!")
+        output(12) must contain("Deployed!")
       }
     }
     "work with Classic" in new WithMocks() {

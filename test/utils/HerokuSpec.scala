@@ -3,7 +3,7 @@ package utils
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.stream.Materializer
 import play.api.Configuration
-import play.api.test._
+import play.api.test.*
 
 
 class HerokuSpec extends PlaySpecification with GlobalApplication {

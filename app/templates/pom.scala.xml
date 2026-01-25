@@ -1,4 +1,4 @@
-@(groupId: String, artifactId: String, releaseVersion: String, packageInfo: utils.PackageInfo, sourceUrl: io.lemonlabs.uri.AbsoluteUrl, mavenDependencies: Set[(String, String, String)], optionalMavenDependencies: Set[(String, String, String)], licenses: Set[utils.License])<?xml version="1.0" encoding="UTF-8"?>
+@(groupId: com.jamesward.zio_mavencentral.MavenCentral.GroupId, artifactId: com.jamesward.zio_mavencentral.MavenCentral.ArtifactId, releaseVersion: com.jamesward.zio_mavencentral.MavenCentral.Version, packageInfo: utils.PackageInfo, sourceUrl: io.lemonlabs.uri.AbsoluteUrl, mavenDependencies: Set[(com.jamesward.zio_mavencentral.MavenCentral.GroupArtifact, String)], optionalMavenDependencies: Set[(com.jamesward.zio_mavencentral.MavenCentral.GroupArtifact, String)], licenses: Set[utils.License])<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
@@ -49,17 +49,17 @@
     }
 
     <dependencies>
-        @mavenDependencies.map { case (depGroupId, depArtifactId, version) =>
+        @mavenDependencies.map { case (depGroupArtifact, version) =>
         <dependency>
-            <groupId>@depGroupId</groupId>
-            <artifactId>@depArtifactId</artifactId>
+            <groupId>@depGroupArtifact.groupId</groupId>
+            <artifactId>@depGroupArtifact.artifactId</artifactId>
             <version>@version</version>
         </dependency>
         }
-        @optionalMavenDependencies.map { case (depGroupId, depArtifactId, version) =>
+        @optionalMavenDependencies.map { case (depGroupArtifact, version) =>
         <dependency>
-            <groupId>@depGroupId</groupId>
-            <artifactId>@depArtifactId</artifactId>
+            <groupId>@depGroupArtifact.groupId</groupId>
+            <artifactId>@depGroupArtifact.artifactId</artifactId>
             <version>@version</version>
             <optional>true</optional>
         </dependency>

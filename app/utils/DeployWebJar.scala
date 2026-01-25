@@ -1,10 +1,8 @@
 package utils
 
-import com.lumidion.sonatype.central.client.core.DeploymentState.{PUBLISHING, VALIDATED}
-import com.lumidion.sonatype.central.client.core.{CheckStatusResponse, DeploymentId}
+import com.jamesward.zio_mavencentral.MavenCentral
 import io.lemonlabs.uri.AbsoluteUrl
 import org.apache.commons.compress.archivers.{ArchiveEntry, ArchiveInputStream, ArchiveStreamFactory}
-import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.stream.scaladsl.{Source, SourceQueueWithComplete}
 import org.apache.pekko.stream.{Materializer, OverflowStrategy}
 import org.apache.pekko.{Done, NotUsed}
@@ -12,7 +10,7 @@ import play.api.Configuration
 import play.api.i18n.{Lang, Langs, MessagesApi}
 import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.libs.concurrent.Futures
-import utils.MavenCentral.{ArtifactId, GAV, GroupId}
+import utils.Deployable.NameOrUrlish
 
 import java.io.{BufferedInputStream, FileNotFoundException, InputStream}
 import javax.inject.Inject
@@ -21,23 +19,24 @@ import scala.io.StdIn
 import scala.util.{Failure, Try, Using}
 
 
-class DeployWebJar @Inject()(mavenCentral: MavenCentral, mavenCentralDeployer: MavenCentralDeployer, sourceLocator: SourceLocator, configuration: Configuration, heroku: Heroku)(using ec: ExecutionContext, futures: Futures, materializer: Materializer, actorSystem: ActorSystem) {
+class DeployWebJar @Inject()(mavenCentralWebJars: MavenCentralWebJars, mavenCentralDeployer: MavenCentralDeployer, sourceLocator: SourceLocator, configuration: Configuration, heroku: Heroku)(using ec: ExecutionContext, futures: Futures, materializer: Materializer) {
 
   val fork = configuration.getOptional[Boolean]("deploy.fork").getOrElse(false)
 
-  def forkDeploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, deployDependencies: Boolean, preventFork: Boolean, force: Boolean): Source[String, Future[NotUsed]] = {
+  def forkDeploy(deployable: Deployable, nameOrUrlish: NameOrUrlish, upstreamVersion: String, deployDependencies: Boolean, preventFork: Boolean, force: Boolean): Source[String, Future[NotUsed]] = {
     val app = configuration.get[String]("deploy.herokuapp")
     val cmd = s"deploy ${deployable.name} $nameOrUrlish $upstreamVersion $deployDependencies $preventFork $force"
     heroku.dynoCreate(app, cmd, "Standard-2X")
   }
 
-  def localDeploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, deployDependencies: Boolean, force: Boolean, maybeReleaseVersion: Option[String] = None, maybeSourceUri: Option[AbsoluteUrl] = None, maybeLicense: Option[String] = None): Source[String, Future[NotUsed]] = {
+  def localDeploy(deployable: Deployable, nameOrUrlish: NameOrUrlish, upstreamVersion: String, deployDependencies: Boolean, force: Boolean, maybeReleaseVersion: Option[String] = None, maybeSourceUri: Option[AbsoluteUrl] = None, maybeLicense: Option[String] = None): Source[String, Future[NotUsed]] = {
 
-    def webJarNotYetDeployed(groupId: String, artifactId: String, version: String): Future[Unit] = {
+    def webJarNotYetDeployed(groupId: MavenCentral.GroupId, artifactId: MavenCentral.ArtifactId, version: MavenCentral.Version): Future[Unit] = {
       if (!force) {
-        mavenCentral.fetchPom(GAV(groupId, artifactId, version)).flatMap { _ =>
+        mavenCentralWebJars.fetchPom(MavenCentral.GroupArtifactVersion(groupId, artifactId, version)).flatMap { _ =>
           Future.failed(new IllegalStateException(s"WebJar $groupId $artifactId $version has already been deployed. Note that if you do not see it on webjars.org it can take >24 hours for the caches to update."))
         } recoverWith {
+          // the WebJar doesn't exist, so continue with deployment
           case _: FileNotFoundException =>
             Future.unit
         }
@@ -93,7 +92,7 @@ class DeployWebJar @Inject()(mavenCentral: MavenCentral, mavenCentralDeployer: M
       val future = for {
         packageInfo <- deployable.info(nameOrUrlish, upstreamVersion, maybeSourceUri)
         groupId = deployable.groupId
-        artifactId <- deployable.artifactId(nameOrUrlish, upstreamVersion)
+        artifactId <- deployable.artifactId(nameOrUrlish)
 
         releaseVersion = deployable.releaseVersion(maybeReleaseVersion, packageInfo)
 
@@ -125,9 +124,9 @@ class DeployWebJar @Inject()(mavenCentral: MavenCentral, mavenCentralDeployer: M
         zip <- deployable.archive(nameOrUrlish, upstreamVersion)
         _ <- queue.offer(s"Fetched ${deployable.name} zip")
 
-        excludes <- deployable.excludes(nameOrUrlish, upstreamVersion)
+        excludes <- deployable.excludes(nameOrUrlish)
 
-        pathPrefix <- deployable.pathPrefix(nameOrUrlish, releaseVersion, packageInfo)
+        pathPrefix = deployable.pathPrefix(artifactId, releaseVersion, packageInfo)
 
         maybeBaseDirGlob <- deployable.maybeBaseDirGlob(nameOrUrlish)
 
@@ -135,21 +134,11 @@ class DeployWebJar @Inject()(mavenCentral: MavenCentral, mavenCentralDeployer: M
 
         _ <- queue.offer(s"Created ${deployable.name} WebJar")
 
-        gav = GAV(groupId, artifactId, releaseVersion)
+        gav = MavenCentral.GroupArtifactVersion(groupId, artifactId, releaseVersion)
 
-        _ <- queue.offer(s"Creating Maven Central Release for $gav")
+        _ <- queue.offer(s"Deploying Maven Central Release for $gav")
 
-        (deploymentId, checker) <- mavenCentralDeployer.upload(gav, jar, pom).fold(Future.failed[(DeploymentId, () => Option[CheckStatusResponse])](new IllegalStateException(s"Could not upload $gav")))(Future.successful)
-
-        _ <- queue.offer(s"Uploaded Maven Central Release for $gav")
-
-        _ <- mavenCentralDeployer.waitForDeploymentState(VALIDATED, checker)
-
-        _ <- queue.offer(s"Validated Maven Central Release for $gav")
-
-        _ <- mavenCentralDeployer.publish(deploymentId).fold(Future.failed[Unit](new IllegalStateException(s"Could not publish $gav")))(Future.successful)
-
-        _ <- mavenCentralDeployer.waitForDeploymentState(PUBLISHING, checker)
+        _ <- mavenCentralDeployer.publish(gav, jar, pom)
 
         _ <- queue.offer(s"""Deployed!
                           |It will take a few hours for the Maven Central index to update but you should be able to start using the ${deployable.name} WebJar shortly.
@@ -176,15 +165,15 @@ class DeployWebJar @Inject()(mavenCentral: MavenCentral, mavenCentralDeployer: M
     }
   }
 
-  def create(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, licenseOverride: Option[Set[License]], groupIdOverride: Option[String]): Future[(String, Array[Byte])] = {
+  def create(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, licenseOverride: Option[Set[License]], groupIdOverride: Option[MavenCentral.GroupId]): Future[(MavenCentral.ArtifactId, Array[Byte])] = {
     import deployable.*
 
     for {
       packageInfo <- deployable.info(nameOrUrlish, upstreamVersion)
       groupId = groupIdOverride.getOrElse(deployable.groupId)
-      artifactId <- deployable.artifactId(nameOrUrlish, upstreamVersion)
+      artifactId <- deployable.artifactId(nameOrUrlish)
 
-      releaseVersion = upstreamVersion.vless
+      releaseVersion = MavenCentral.Version(upstreamVersion.vless)
 
       licenses <- licenseOverride.fold(licenses(nameOrUrlish, upstreamVersion, packageInfo))(Future.successful)
 
@@ -198,9 +187,9 @@ class DeployWebJar @Inject()(mavenCentral: MavenCentral, mavenCentralDeployer: M
 
       zip <- deployable.archive(nameOrUrlish, upstreamVersion)
 
-      excludes <- deployable.excludes(nameOrUrlish, upstreamVersion)
+      excludes <- deployable.excludes(nameOrUrlish)
 
-      pathPrefix <- deployable.pathPrefix(nameOrUrlish, releaseVersion, packageInfo)
+      pathPrefix = deployable.pathPrefix(artifactId, releaseVersion, packageInfo)
 
       maybeBaseDirGlob <- deployable.maybeBaseDirGlob(nameOrUrlish)
     } yield artifactId -> WebJarCreator.createWebJar(zip, maybeBaseDirGlob, excludes, pom, packageInfo.name, licenses, groupId, artifactId, releaseVersion, pathPrefix)
@@ -285,23 +274,24 @@ trait Deployable {
 
   val name: String
 
-  val groupId: GroupId
+  val groupId: MavenCentral.GroupId
 
-  def artifactId(nameOrUrlish: NameOrUrlish, version: Version): Future[ArtifactId]
+  def artifactId(nameOrUrlish: NameOrUrlish): Future[MavenCentral.ArtifactId]
 
-  def releaseVersion(maybeVersion: Option[Version], packageInfo: PackageInfo): String = maybeVersion.getOrElse(packageInfo.version).vless
+  def releaseVersion(maybeVersion: Option[Version], packageInfo: PackageInfo): MavenCentral.Version = MavenCentral.Version(maybeVersion.getOrElse(packageInfo.version).vless)
 
-  def excludes(nameOrUrlish: NameOrUrlish, version: Version): Future[Set[String]]
+  def excludes(nameOrUrlish: NameOrUrlish): Future[Set[String]]
 
   val metadataFile: Option[String]
 
   def maybeBaseDirGlob(nameOrUrlish: NameOrUrlish): Future[Option[Version]]
 
-  def pathPrefix(nameOrUrlish: NameOrUrlish, releaseVersion: Version, packageInfo: PackageInfo): Future[String]
+  def pathPrefix(artifactId: MavenCentral.ArtifactId, releaseVersion: MavenCentral.Version, packageInfo: PackageInfo): String = s"$artifactId/$releaseVersion/"
 
   def info(nameOrUrlish: NameOrUrlish, version: Version, maybeSourceUri: Option[AbsoluteUrl] = None): Future[PackageInfo]
 
-  def mavenDependencies(dependencies: Map[String, String]): Future[Set[(String, String, String)]]
+  // we don't use MavenCental.Version because this represents a version range, not a specific version
+  def mavenDependencies(dependencies: Map[String, String]): Future[Set[(MavenCentral.GroupArtifact, String)]]
 
   def archive(nameOrUrlish: NameOrUrlish, version: Version): Future[InputStream]
 
@@ -423,7 +413,7 @@ object Deployable {
 
 class AllDeployables @Inject() (classic: Classic, npm: NPM) {
 
-  def fromGroupId(groupId: String): Option[Deployable] =
+  def fromGroupId(groupId: MavenCentral.GroupId): Option[Deployable] =
     if (groupId == classic.groupId)
       Some(classic)
     else if (groupId == npm.groupId)
@@ -431,7 +421,7 @@ class AllDeployables @Inject() (classic: Classic, npm: NPM) {
     else
       None
 
-  def groupIds(): Set[String] = Set(classic.groupId, npm.groupId)
+  def groupIds(): Set[MavenCentral.GroupId] = Set(classic.groupId, npm.groupId)
 
   def fromName(name: String): Option[Deployable] =
     if (name.equalsIgnoreCase(classic.name))

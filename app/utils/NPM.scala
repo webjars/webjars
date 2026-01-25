@@ -1,5 +1,7 @@
 package utils
 
+import com.jamesward.zio_mavencentral.MavenCentral
+import com.jamesward.zio_mavencentral.MavenCentral.ArtifactId
 import io.lemonlabs.uri.typesafe.dsl.urlToUrlDsl
 import io.lemonlabs.uri.{AbsoluteUrl, Url}
 import play.api.http.{HeaderNames, Status}
@@ -9,7 +11,6 @@ import play.api.libs.functional.syntax.*
 import play.api.libs.json.*
 import play.api.libs.ws.WSClient
 import utils.Deployable.{NameOrUrlish, Version}
-import utils.MavenCentral.GroupId
 import utils.PackageInfo.given
 
 import java.io.InputStream
@@ -20,15 +21,15 @@ import scala.util.Try
 
 class NPM @Inject() (val ws: WSClient, val licenseDetector: LicenseDetector, val messages: MessagesApi, val langs: Langs, git: Git, gitHub: GitHub, maven: Maven, semVer: SemVer)(using ec: ExecutionContext) extends Deployable {
 
-  val BASE_URL: AbsoluteUrl = AbsoluteUrl.parse("https://registry.npmjs.org")
+  private val BASE_URL: AbsoluteUrl = AbsoluteUrl.parse("https://registry.npmjs.org")
 
   override val name: String = "NPM"
 
-  override val groupId: GroupId = "org.webjars.npm"
+  override val groupId: MavenCentral.GroupId = MavenCentral.GroupId("org.webjars.npm")
 
-  override def artifactId(nameOrUrlish: NameOrUrlish, version: Version): Future[String] = git.artifactId(nameOrUrlish)
+  override def artifactId(nameOrUrlish: NameOrUrlish): Future[MavenCentral.ArtifactId] = git.artifactId(nameOrUrlish).map(MavenCentral.ArtifactId(_))
 
-  override def excludes(nameOrUrlish: NameOrUrlish, version: Version): Future[Set[String]] = {
+  override def excludes(nameOrUrlish: NameOrUrlish): Future[Set[String]] = {
     // todo: apply npm ignore in case of git repo
     Future.successful(Set("node_modules"))
   }
@@ -36,12 +37,6 @@ class NPM @Inject() (val ws: WSClient, val licenseDetector: LicenseDetector, val
   override def maybeBaseDirGlob(nameOrUrlish: NameOrUrlish): Future[Option[Version]] = Future.successful(Some("*/"))
 
   override val metadataFile: Option[String] = Some("package.json")
-
-  override def pathPrefix(nameOrUrlish: NameOrUrlish, releaseVersion: Version, packageInfo: PackageInfo): Future[String] = {
-    artifactId(nameOrUrlish, releaseVersion).map { artifactId =>
-      s"$artifactId/$releaseVersion/"
-    }
-  }
 
   def registryMetadataUrl(packageName: String, maybeVersion: Option[Version] = None): Url = {
     maybeVersion.fold {
@@ -219,11 +214,11 @@ class NPM @Inject() (val ws: WSClient, val licenseDetector: LicenseDetector, val
     }
   }
 
-  override def mavenDependencies(dependencies: Map[String, String]): Future[Set[(String, String, String)]] = {
+  override def mavenDependencies(dependencies: Map[String, String]): Future[Set[(MavenCentral.GroupArtifact, String)]] = {
     maven.convertNpmDependenciesToMaven(dependencies).map { mavenDependencies =>
       mavenDependencies.map {
         case (artifactId, version) =>
-          ("org.webjars.npm", artifactId, version)
+          MavenCentral.GroupArtifact(groupId, MavenCentral.ArtifactId(artifactId)) -> version
       }.toSet
     }
   }
