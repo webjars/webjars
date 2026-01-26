@@ -111,21 +111,18 @@ class MavenCentralWebJarsLive @Inject() (memcache: Memcache, configuration: Conf
     }.runToFuture(mavenCentralLayer)
 
   private def gavsToWebJarVersion(gavs: Set[MavenCentral.GroupArtifactVersion]): Future[Set[WebJarVersion]] = {
-    Future.sequence {
-      gavs.map { gav =>
-        getNumFiles(gav).map { maybeNumFiles =>
-          maybeNumFiles.map { numFiles =>
-            WebJarVersion(gav.version.toString, Some(numFiles))
-          }
-        } recover {
-          // include errors since we don't know yet if it is a valid webjar -
-          case _: Exception =>
-            Some(WebJarVersion(gav.version.toString, None))
+    fetchAllSequentially(gavs) { gav =>
+      getNumFiles(gav).map { maybeNumFiles =>
+        maybeNumFiles.map { numFiles =>
+          WebJarVersion(gav.version.toString, Some(numFiles))
         }
+      } recover {
+        // include errors since we don't know yet if it is a valid webjar -
+        case _: Exception =>
+          Some(WebJarVersion(gav.version.toString, None))
       }
-    }.map(_.flatten)
+    }
   }
-
 
   private def convertToFutureOption[A](opt: Option[Future[A]])(using ec: ExecutionContext): Future[Option[A]] = {
     opt match {
@@ -177,17 +174,27 @@ class MavenCentralWebJarsLive @Inject() (memcache: Memcache, configuration: Conf
     }.runToFuture(mavenCentralLayer)
   }
 
+  def fetchAllSequentially[A, B](
+                                  items: Iterable[A]
+                                )(f: A => Future[Option[B]])(using ec: ExecutionContext): Future[Set[B]] =
+    items.foldLeft(Future.successful(Vector.empty[B])) { (accF, a) =>
+      accF.flatMap { acc =>
+        f(a).map {
+          case Some(b) => acc :+ b
+          case None => acc
+        }
+      }
+    }.map(_.toSet)
+
   def fetchWebJars(groupId: MavenCentral.GroupId): Future[Set[WebJar]] = {
     logger.info(s"Getting $groupId WebJars")
 
     fetchArtifactIds(groupId).flatMap { artifactIds =>
       val artifactIdsToFetch = maybeLimit.fold(artifactIds.items)(artifactIds.items.toList.sortBy(_.toString.toLowerCase).take(_).toSet)
 
-      Future.sequence {
-        artifactIdsToFetch.map { artifactId =>
-          fetchDetails(groupId, artifactId)
-        }
-      }.map(_.flatten)
+      fetchAllSequentially(artifactIdsToFetch) { artifactId =>
+        fetchDetails(groupId, artifactId)
+      }
     }.map { webJars =>
       logger.info(s"Retrieved ${webJars.size} $groupId WebJars")
       webJars.toSet
