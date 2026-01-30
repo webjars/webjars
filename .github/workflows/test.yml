@@ -16,11 +16,9 @@ jobs:
         java-version: 21
         cache: 'sbt'
 
-    - uses: niden/actions-memcached@v7
-
     - run: ./sbt test
       env:
         HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
-        OSS_USERNAME: ${{ secrets.OSS_USERNAME }}
-        OSS_PASSWORD: ${{ secrets.OSS_PASSWORD }}
+#        OSS_USERNAME: ${{ secrets.OSS_USERNAME }}
+#        OSS_PASSWORD: ${{ secrets.OSS_PASSWORD }}
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -157,7 +157,7 @@ class MavenCentralWebJarsLive @Inject() (configuration: Configuration, webJarsFi
       yield
         toRefresh.keySet
 
-  private def refreshAll(groupIds: Set[MavenCentral.GroupId]): ZIO[Client & Redis, Nothing, Unit] =
+  def refreshAll(groupIds: Set[MavenCentral.GroupId]): ZIO[Client & Redis, Nothing, Unit] =
     ZIO.foreachDiscard(groupIds):
       groupId => refreshGroup(groupId).ignoreLogged
 

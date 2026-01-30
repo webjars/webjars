@@ -1,90 +1,85 @@
 package controllers
 
 import models.WebJar
+import org.apache.pekko.stream.Materializer
 import org.apache.pekko.util.Timeout
 import play.api.http.{ContentTypes, HeaderNames, Status}
-import play.api.inject.bind
-import play.api.inject.guice.GuiceApplicationBuilder
-import play.api.test.{FakeRequest, PlaySpecification, WithApplication}
+import play.api.test.{FakeRequest, PlaySpecification}
+import utils.Adapter.runToFuture
+import utils.{AllDeployables, GlobalApplication, MavenCentralWebJarsLive, Valkey}
+import zio.http.Client
 
 import scala.concurrent.duration.*
 
-class ApplicationSpec extends PlaySpecification {
+class ApplicationSpec extends PlaySpecification with GlobalApplication {
 
   override implicit def defaultAwaitTimeout: Timeout = 300.seconds
 
-  val limit = 5
-
-  val withOverrides = (gab: GuiceApplicationBuilder) => gab.configure("mavencentral.limit" -> limit)
-
-  class WithApp extends WithApplication(withOverrides)
-
   "sortedMostPopularWebJars" should {
-    "only include the max number" in new WithApp {
-      override def running() = {
-        val applicationController = app.injector.instanceOf[Application]
+    "only include the max number" in {
+      val allDeployables = application.injector.instanceOf[AllDeployables]
+      val valkey = application.injector.instanceOf[Valkey]
+      val mavenCentralWebJars = application.injector.instanceOf[MavenCentralWebJarsLive]
+      await(mavenCentralWebJars.refreshAll(allDeployables.groupIds()).runToFuture(Client.default.orDie ++ valkey.layer))
 
-        val sorted = await(applicationController.allPopular)
+      val applicationController = application.injector.instanceOf[Application]
 
-        sorted must not be empty
+      val sorted = await(applicationController.allPopular)
 
-        val grouped = sorted.groupBy(_.groupId)
+      sorted must not be empty
 
-        grouped.getOrElse("org.webjars", Seq.empty[WebJar]).length must beLessThanOrEqualTo(applicationController.MAX_POPULAR_WEBJARS)
-        grouped.getOrElse("org.webjars.npm", Seq.empty[WebJar]).length must beLessThanOrEqualTo(applicationController.MAX_POPULAR_WEBJARS)
-      }
+      val grouped = sorted.groupBy(_.groupId)
+
+      grouped.getOrElse("org.webjars", Seq.empty[WebJar]).length must beLessThanOrEqualTo(applicationController.MAX_POPULAR_WEBJARS)
+      grouped.getOrElse("org.webjars.npm", Seq.empty[WebJar]).length must beLessThanOrEqualTo(applicationController.MAX_POPULAR_WEBJARS)
     }
   }
 
   "searchWebJars" should {
-    "work with a classic webjar" in new WithApp {
-      override def running() = {
-        val applicationController = app.injector.instanceOf[Application]
+    "work with a classic webjar" in {
+      val applicationController = application.injector.instanceOf[Application]
 
-        val request = FakeRequest().withHeaders(HeaderNames.ACCEPT -> ContentTypes.JSON)
+      val request = FakeRequest().withHeaders(HeaderNames.ACCEPT -> ContentTypes.JSON)
 
-        val webJars = contentAsJson(applicationController.webJarList("org.webjars")(request)).as[Seq[WebJar]]
+      val webJars = contentAsJson(applicationController.webJarList("org.webjars")(request)).as[Seq[WebJar]]
 
-        val possibleMatches = webJars.filter(_.artifactId.toLowerCase.contains("openui5"))
+      val possibleMatches = webJars.filter(_.artifactId.toLowerCase.contains("openui5"))
 
-        val resultFuture = applicationController.searchWebJars("openui5", List("org.webjars"))(request)
+      val resultFuture = applicationController.searchWebJars("openui5", List("org.webjars"))(request)
 
-        status(resultFuture) must beEqualTo(Status.OK)
+      status(resultFuture) must beEqualTo(Status.OK)
 
-        contentAsJson(resultFuture).as[Seq[WebJar]] must containTheSameElementsAs(possibleMatches)
+      contentAsJson(resultFuture).as[Seq[WebJar]] must containTheSameElementsAs(possibleMatches)
 
-        // todo: verify that the ordering was correct (i.e. the stats worked)
-      }
+      // todo: verify that the ordering was correct (i.e. the stats worked)
     }
   }
 
   "create" should {
-    "work" in new WithApp {
-      override def running() = {
-        val applicationController = app.injector.instanceOf[Application]
+    "work" in {
+      val applicationController = application.injector.instanceOf[Application]
 
-        val request = FakeRequest()
+      implicit lazy val materializer: Materializer = application.materializer
 
-        val result = applicationController.create("npm", "jquery", "3.3.0")(request)
+      val request = FakeRequest()
 
-        status(result) must beEqualTo (Status.OK)
-        contentAsBytes(result).length must beEqualTo (462901)
-      }
+      val result = applicationController.create("npm", "jquery", "3.3.0")(request)
+
+      status(result) must beEqualTo (Status.OK)
+      contentAsBytes(result).length must beEqualTo (462901)
     }
   }
 
   "versions" should {
-    "be sorted correctly" in new WithApp {
-      override def running() = {
-        val applicationController = app.injector.instanceOf[Application]
+    "be sorted correctly" in {
+      val applicationController = application.injector.instanceOf[Application]
 
-        val request = FakeRequest()
+      val request = FakeRequest()
 
-        val result = applicationController.packageVersions("npm", "https://github.com/jindw/xmldom.git", Some("master"))(request)
+      val result = applicationController.packageVersions("npm", "https://github.com/jindw/xmldom.git", Some("master"))(request)
 
-        val shas = contentAsJson(result).as[Seq[String]]
-        shas.dropWhile(_ != "366159a76a").drop(1).head must beEqualTo ("0be2ae910a")
-      }
+      val shas = contentAsJson(result).as[Seq[String]]
+      shas.dropWhile(_ != "366159a76a").drop(1).head must beEqualTo ("0be2ae910a")
     }
   }
 
