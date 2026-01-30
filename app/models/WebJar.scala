@@ -15,5 +15,5 @@ object WebJar {
 object WebJarVersion {
   // todo, this doesn't work on date-based versions that follow non-standard formats (e.g. ace)
   given Ordering[WebJarVersion] with
-    override def compare(a: WebJarVersion, b: WebJarVersion): Int = VersionStringOrdering.compare(a.number, b.number)
+    override def compare(a: WebJarVersion, b: WebJarVersion): Int = VersionStringOrdering.compare(b.number, a.number) // reverse order
 }

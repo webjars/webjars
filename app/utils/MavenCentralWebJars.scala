@@ -1,231 +1,179 @@
 package utils
 
-import actors.{FetchWebJars, WebJarFetcher}
 import com.google.inject.ImplementedBy
 import com.jamesward.zio_mavencentral.MavenCentral
 import models.{WebJar, WebJarVersion}
-import net.spy.memcached.transcoders.{SerializingTranscoder, Transcoder}
-import org.apache.pekko.actor.*
-import org.apache.pekko.pattern.ask
-import org.apache.pekko.util.Timeout
 import play.api.{Configuration, Environment, Logging, Mode}
 import utils.Adapter.*
+import zio.*
 import zio.http.Client
-import zio.{Scope, ZLayer}
+import zio.redis.Redis
 
 import java.io.FileNotFoundException
+import java.time.ZonedDateTime
 import javax.inject.{Inject, Singleton}
-import scala.concurrent.duration.*
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.Future
 import scala.language.postfixOps
-import scala.util.Try
 import scala.xml.Elem
 
 @ImplementedBy(classOf[MavenCentralWebJarsLive])
-trait MavenCentralWebJars {
+trait MavenCentralWebJars:
   def fetchPom(gav: MavenCentral.GroupArtifactVersion): Future[Elem]
-  def fetchWebJars(groupId: MavenCentral.GroupId): Future[Set[WebJar]]
-  def webJars(groupId: MavenCentral.GroupId): Future[List[WebJar]]
-}
+  def featuredWebJars(groupId: MavenCentral.GroupId, limit: Int): Future[Seq[WebJar]]
+  def searchWebJars(groupId: MavenCentral.GroupId, query: String): Future[Seq[WebJar]]
 
 @Singleton
-class MavenCentralWebJarsLive @Inject() (memcache: Memcache, configuration: Configuration, webJarsFileService: WebJarsFileService, environment: Environment)
-                                 (using ec: ExecutionContext, actorSystem: ActorSystem) extends MavenCentralWebJars with Logging {
+class MavenCentralWebJarsLive @Inject() (configuration: Configuration, webJarsFileService: WebJarsFileService, environment: Environment, valkey: Valkey, allDeployables: AllDeployables) extends MavenCentralWebJars with Logging {
 
-  private lazy val maybeLimit = configuration.getOptional[Int]("mavencentral.limit").orElse(Option.when(environment.mode == Mode.Dev)(5))
-
-  private given Transcoder[Option[Int]] = new SerializingTranscoder().asInstanceOf[Transcoder[Option[Int]]]
-  private given Transcoder[(String, String)] = new SerializingTranscoder().asInstanceOf[Transcoder[(String, String)]]
+  private[utils] lazy val maybeLimit = configuration.getOptional[Int]("mavencentral.limit").orElse(Option.when(environment.mode == Mode.Dev)(5))
 
   extension (gav: MavenCentral.GroupArtifactVersion)
     def cacheKey = s"${gav.groupId}-${gav.artifactId}-${gav.version}"
 
   private val mavenCentralLayer: ZLayer[Any, Nothing, Scope & Client] = Client.default.orDie ++ Scope.default
 
-  def fetchPom(gav: MavenCentral.GroupArtifactVersion): Future[Elem] =
+  override def fetchPom(gav: MavenCentral.GroupArtifactVersion): Future[Elem] =
     MavenCentral.pom(gav.groupId, gav.artifactId, gav.version).mapError {
       case e: MavenCentral.NotFoundError => FileNotFoundException("pom not found")
       case t: Throwable => t
     }.runToFuture(mavenCentralLayer)
 
-  def fetchWebJarNameAndUrl(gav: MavenCentral.GroupArtifactVersion): Future[(String, String)] = {
-    fetchPom(gav).flatMap { xml =>
-      val artifactId = (xml \ "artifactId").text
-      val rawName = (xml \ "name").text
-      val name = if (rawName.contains("${") || rawName.isEmpty) {
-        // can't handle pom properties so fallback to id
-        artifactId
-      } else {
-        rawName
-      }
-      val rawUrl = (xml \ "scm" \ "url").text
-      val urlFuture = if (rawUrl.contains("${")) {
-        // can't handle pom properties so fallback to a guess
-        Future.successful(s"https://github.com/webjars/$artifactId")
-      } else {
-        if (rawUrl != "") {
-          Future.successful(rawUrl)
+
+  private def fetchWebJarNameAndUrl(gav: MavenCentral.GroupArtifactVersion): ZIO[Client & Scope, Nothing, (String, String)] =
+    MavenCentral.pom(gav.groupId, gav.artifactId, gav.version)
+      .flatMap: xml =>
+        val artifactId = (xml \ "artifactId").text
+        val rawName = (xml \ "name").text
+        val name = if (rawName.contains("${") || rawName.isEmpty) {
+          // can't handle pom properties so fallback to id
+          artifactId
+        } else {
+          rawName
         }
-        else {
-          // try the parent pom
-          val parentArtifactId = (xml \ "parent" \ "artifactId").text
-          fetchPom(gav.copy(artifactId = MavenCentral.ArtifactId(parentArtifactId))).map { parentXml =>
-            (parentXml \ "scm" \ "url").text
+
+        val rawUrl = (xml \ "scm" \ "url").text
+
+        val url = if (rawUrl.contains("${")) {
+          // can't handle pom properties so fallback to a guess
+          ZIO.fail(new RuntimeException("Unable to determine source url"))
+        } else {
+          if (rawUrl != "") {
+            ZIO.succeed(rawUrl)
           }
-        }
-      }
+          else {
+            // try the parent pom
+            val parentGroupId = (xml \ "parent" \ "groupId").text
+            val parentArtifactId = (xml \ "parent" \ "artifactId").text
+            val parentVersion = (xml \ "parent" \ "version").text
 
-      urlFuture.map { url =>
-        (name, url)
-      }
-
-    } recover {
-      case _ =>
-        // fall back to the usual
-        (gav.artifactId.toString, s"https://github.com/webjars/${gav.artifactId}")
-    }
-  }
-
-  private def getWebJarNameAndUrl(gav: MavenCentral.GroupArtifactVersion): Future[(String, String)] = {
-    memcache.getWithMiss[(String, String)](s"name-url-${gav.cacheKey}") {
-      fetchWebJarNameAndUrl(gav)
-    }
-  }
-
-  // cache filenotfounds so we don't keep looking them up
-  def getNumFiles(gav: MavenCentral.GroupArtifactVersion): Future[Option[Int]] = {
-    val cacheKey = s"numfiles-${gav.groupId}-${gav.artifactId}-${gav.version}"
-    memcache.getWithMiss[Option[Int]](cacheKey) {
-      webJarsFileService.getNumFiles(gav).map { numFiles =>
-        Some(numFiles)
-      } recover {
-        case _: FileNotFoundException => None
-      }
-    }
-  }
-
-  def fetchVersions(groupId: MavenCentral.GroupId, artifactId: MavenCentral.ArtifactId): Future[MavenCentral.SeqWithLastModified[MavenCentral.Version]] =
-    MavenCentral.searchVersions(groupId, artifactId).mapError {
-      case e: MavenCentral.GroupIdOrArtifactIdNotFoundError => Throwable("groupId or artifactId not found")
-      case t: Throwable => t
-    }.runToFuture(mavenCentralLayer)
-
-  private def gavsToWebJarVersion(gavs: Set[MavenCentral.GroupArtifactVersion]): Future[Set[WebJarVersion]] = {
-    fetchAllSequentially(gavs) { gav =>
-      getNumFiles(gav).map { maybeNumFiles =>
-        maybeNumFiles.map { numFiles =>
-          WebJarVersion(gav.version.toString, Some(numFiles))
-        }
-      } recover {
-        // include errors since we don't know yet if it is a valid webjar -
-        case _: Exception =>
-          Some(WebJarVersion(gav.version.toString, None))
-      }
-    }
-  }
-
-  private def convertToFutureOption[A](opt: Option[Future[A]])(using ec: ExecutionContext): Future[Option[A]] = {
-    opt match {
-     case Some(future) => future.map(Some(_))
-     case None => Future.successful(None)
-    }
-  }
-
-
-  private def fetchDetails(groupId: MavenCentral.GroupId, artifactId: MavenCentral.ArtifactId): Future[Option[WebJar]] = {
-    fetchVersions(groupId, artifactId).flatMap { versions =>
-      val gavs = versions.items.map(MavenCentral.GroupArtifactVersion(groupId, artifactId, _)).toSet
-
-      gavsToWebJarVersion(gavs).flatMap { versions =>
-        val sorted = versions.toSeq.sortBy(_.number)(using VersionStringOrdering).reverse
-        convertToFutureOption {
-          sorted.headOption.map { latest =>
-            getWebJarNameAndUrl(MavenCentral.GroupArtifactVersion(groupId, artifactId, MavenCentral.Version(latest.number))).map { case (name, url) =>
-              WebJar(groupId.toString, artifactId.toString, name, url, sorted)
+            MavenCentral.pom(MavenCentral.GroupId(parentGroupId), MavenCentral.ArtifactId(parentArtifactId), MavenCentral.Version(parentVersion)).map { parentXml =>
+              (parentXml \ "scm" \ "url").text
             }
           }
         }
-      }
-    } recover {
-      // if we couldn't find versions, this isn't a valid WebJar
-      case _: FileNotFoundException =>
-        None
-    }
-  }
 
-  def fetchArtifactIds(groupId: MavenCentral.GroupId): Future[MavenCentral.SeqWithLastModified[MavenCentral.ArtifactId]] = {
-    val artifactIds = if groupId.toString == "org.webjars.npm" then
-      // there is a org.webjars:npm artifact that makes it so we need to exlude versions from the list of artifacts
-      MavenCentral.searchArtifacts(groupId).zipPar(MavenCentral.mavenMetadata(MavenCentral.GroupId("org.webjars"), MavenCentral.ArtifactId("npm"))).map { case (npmArtifacts, npmMetadata) =>
-        val versions = npmMetadata \ "versioning" \ "versions" \ "version"
-        val workaroundVersions = versions.map(_.text) :+ "2.11.2" // for some reason the org.webjars:npm:2.11.2 artifact exists in Maven Central but not in the metadata
-        npmArtifacts.copy(items = npmArtifacts.items.filterNot(workaroundVersions.contains(_)))
-      }
-    else {
-      // non-webjars exist in the org.webjars groupId
-      MavenCentral.searchArtifacts(groupId).map { artifacts =>
-        artifacts.copy(items = artifacts.items.filterNot(_.toString.startsWith("webjars-")))
-      }
-    }
+        url.map(name -> _)
 
-    artifactIds.mapError {
-      case _: MavenCentral.GroupIdNotFoundError | _: MavenCentral.GroupIdOrArtifactIdNotFoundError => Throwable("groupId not found")
+      .catchAll:
+        _ =>
+          // fall back to the usual
+          ZIO.succeed:
+            gav.artifactId.toString -> s"https://github.com/webjars/${gav.artifactId}"
+
+
+  private def fetchVersions(groupId: MavenCentral.GroupId, artifactId: MavenCentral.ArtifactId): ZIO[Client & Scope, Throwable, MavenCentral.WithCacheInfo[Seq[MavenCentral.Version]]] =
+    MavenCentral.searchVersions(groupId, artifactId).mapError {
+      case e: MavenCentral.GroupIdOrArtifactIdNotFoundError => Throwable("groupId or artifactId not found")
       case t: Throwable => t
-    }.runToFuture(mavenCentralLayer)
-  }
-
-  def fetchAllSequentially[A, B](
-                                  items: Iterable[A]
-                                )(f: A => Future[Option[B]])(using ec: ExecutionContext): Future[Set[B]] =
-    items.foldLeft(Future.successful(Vector.empty[B])) { (accF, a) =>
-      accF.flatMap { acc =>
-        f(a).map {
-          case Some(b) => acc :+ b
-          case None => acc
-        }
-      }
-    }.map(_.toSet)
-
-  def fetchWebJars(groupId: MavenCentral.GroupId): Future[Set[WebJar]] = {
-    logger.info(s"Getting $groupId WebJars")
-
-    fetchArtifactIds(groupId).flatMap { artifactIds =>
-      val artifactIdsToFetch = maybeLimit.fold(artifactIds.items)(artifactIds.items.toList.sortBy(_.toString.toLowerCase).take(_).toSet)
-
-      fetchAllSequentially(artifactIdsToFetch) { artifactId =>
-        fetchDetails(groupId, artifactId)
-      }
-    }.map { webJars =>
-      logger.info(s"Retrieved ${webJars.size} $groupId WebJars")
-      webJars.toSet
     }
-  }
-
-  def webJars(groupId: MavenCentral.GroupId): Future[List[WebJar]] = {
-    actorSystem.actorSelection("user/" + groupId).resolveOne(1.second).flatMap { _ =>
-      // in-flight request exists
-      Future.failed(MavenCentralWebJars.ExistingWebJarRequestException(groupId))
-    } recoverWith {
-      // no request so make one
-      case _: ActorNotFound =>
-        implicit val timeout: Timeout = Timeout(10.minutes)
-
-        val webJarFetcherTry = Future.fromTry(Try(actorSystem.actorOf(Props(classOf[WebJarFetcher], this, ec), groupId.toString))).recoverWith {
-          case _: InvalidActorNameException => Future.failed(MavenCentralWebJars.ExistingWebJarRequestException(groupId))
-        }
-
-        webJarFetcherTry.flatMap { webJarFetcher =>
-          val fetchWebJarsFuture = (webJarFetcher ? FetchWebJars(groupId)).mapTo[Set[WebJar]]
-
-          fetchWebJarsFuture.onComplete(_ => actorSystem.stop(webJarFetcher))
-
-          fetchWebJarsFuture.map(_.toList.sortBy(_.name.toLowerCase))
-        }
-    }
-  }
-}
 
 
-object MavenCentralWebJars {
-  class ExistingWebJarRequestException(groupId: MavenCentral.GroupId) extends RuntimeException(s"There is an existing WebJar request for $groupId")
+  private def fetchArtifactIds(groupId: MavenCentral.GroupId): ZIO[Client & Scope, Throwable, MavenCentral.WithCacheInfo[Seq[MavenCentral.ArtifactId]]] =
+    MavenCentral.searchArtifacts(groupId).mapBoth({
+      case _: MavenCentral.GroupIdNotFoundError => Throwable("groupId not found")
+      case t: Throwable => t
+    }, {
+      artifacts =>
+        // workarounds
+        artifacts.copy(value = artifacts.value.filterNot { artifactId =>
+          artifactId.toString.startsWith("webjars-") ||
+            artifactId.toString == "bower" ||
+            artifactId.toString == "bowergithub" ||
+            artifactId.toString == "2.11.2" // weird workaround for: https://repo1.maven.org/maven2/org/webjars/npm/2.11.2/
+        })
+    })
+
+
+  private def refreshArtifact(groupId: MavenCentral.GroupId, artifactId: MavenCentral.ArtifactId, versions: Seq[WebJarVersion], updateNumFiles: Boolean): ZIO[Client & Redis & Scope, Throwable, Unit] =
+    logger.info(s"Refreshing artifact: $groupId:$artifactId")
+    for
+      versionsResult <- fetchVersions(groupId, artifactId)
+      latestVersion = versionsResult.value.head
+      gav = MavenCentral.GroupArtifactVersion(groupId, artifactId, latestVersion)
+      (name, url) <- fetchWebJarNameAndUrl(gav)
+      _ <- WebJarsCache.setArtifactDetails(
+        gav.noVersion,
+        WebJarsCache.WebJarMeta(name, url, versionsResult.value.map(v => WebJarVersion(v.toString, None)).toList, versionsResult.maybeLastModified.getOrElse(ZonedDateTime.now()))
+      )
+
+      resolvedVersions = versions.flatMap: webJarVersion =>
+        webJarVersion.numFiles.map(_ => webJarVersion.number)
+
+      versionsToRefresh = versionsResult.value.diff(resolvedVersions)
+
+      // don't block updating the artifact on filling in the version info
+      // todo: we need to move this to another background process because we can get stuck with a WebJar that doesn't have all the numFiles info but is in the cache (ie process died mid-refresh)
+      _ <-
+        ZIO.when(updateNumFiles):
+          ZIO.foreachDiscard(versionsToRefresh): version =>
+            ZIO.fromFuture(ec => webJarsFileService.getNumFiles(gav.copy(version = version))).flatMap: numFiles =>
+              WebJarsCache.updateVersion(gav.noVersion, version.toString, numFiles)
+          .forkDaemon
+
+    yield
+      ()
+
+  private[utils] def refreshGroup(groupId: MavenCentral.GroupId, updateNumFiles: Boolean = true): ZIO[Client & Redis, Throwable, Set[MavenCentral.ArtifactId]] =
+    logger.info(s"Refreshing groupId: $groupId")
+
+    ZIO.scoped:
+      for
+        artifactsResult <- fetchArtifactIds(groupId)
+        limitedArtifacts = maybeLimit.fold(artifactsResult.value)(artifactsResult.value.take)
+
+        cachedArtifacts <- WebJarsCache.getArtifacts(groupId)
+
+        missingArtifacts = limitedArtifacts.diff(cachedArtifacts.keys.toSeq).map(_ -> Seq.empty[WebJarVersion])
+
+        updatedCachedArtifacts <-
+          ZIO.filter(cachedArtifacts.toSeq): (artifactId, meta) =>
+            MavenCentral.isModifiedSince(meta.lastModified, groupId, Some(artifactId)).orElseSucceed(false)
+
+        toRefresh: Map[MavenCentral.ArtifactId, Seq[WebJarVersion]] = missingArtifacts.toMap ++ updatedCachedArtifacts.toMap.view.mapValues(_.versions)
+
+        _ <- ZIO.foreachDiscard(toRefresh): (artifactId, versions) =>
+          refreshArtifact(groupId, artifactId, versions, updateNumFiles)
+
+      yield
+        toRefresh.keySet
+
+  private def refreshAll(groupIds: Set[MavenCentral.GroupId]): ZIO[Client & Redis, Nothing, Unit] =
+    ZIO.foreachDiscard(groupIds):
+      groupId => refreshGroup(groupId).ignoreLogged
+
+  if environment.mode != Mode.Test then
+    refreshAll(allDeployables.groupIds()).repeat(Schedule.spaced(1.hour)).runToFuture(Client.default.orDie ++ valkey.layer)
+
+  extension (m: Map[MavenCentral.ArtifactId, WebJarsCache.WebJarMeta])
+    def toWebJars(groupId: MavenCentral.GroupId): Seq[WebJar] =
+      m.map: (artifactId, meta) =>
+        WebJar(groupId.toString, artifactId.toString, meta.name, meta.sourceUrl, meta.versions.toSeq)
+      .toSeq
+
+  override def featuredWebJars(groupId: MavenCentral.GroupId, limit: Int): Future[Seq[WebJar]] =
+    WebJarsCache.getArtifacts(groupId, Some(limit)).map(_.toWebJars(groupId)).runToFuture(valkey.layer)
+
+  override def searchWebJars(groupId: MavenCentral.GroupId, query: String): Future[Seq[WebJar]] =
+    WebJarsCache.getArtifacts(groupId, None, Some(query)).map(_.toWebJars(groupId)).runToFuture(valkey.layer)
+
 }

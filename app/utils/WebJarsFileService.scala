@@ -16,7 +16,7 @@ class WebJarsFileService @Inject() (ws: WSClient, config: Configuration) (using 
   private val baseUrl = config.get[String]("webjars.file-service.url")
 
   def getFileList(gav: MavenCentral.GroupArtifactVersion): Future[List[String]] = {
-    val url = s"$baseUrl/listfiles/${gav.toPath}"
+    val url = s"$baseUrl/listfiles/${gav.toPath.dropLeadingSlash}"
     ws.url(url).get().flatMap { response =>
       response.status match {
         case Status.OK =>
@@ -30,7 +30,7 @@ class WebJarsFileService @Inject() (ws: WSClient, config: Configuration) (using 
   }
 
   def getNumFiles(gav: MavenCentral.GroupArtifactVersion): Future[Int] = {
-    val url = s"$baseUrl/numfiles/${gav.toPath}"
+    val url = s"$baseUrl/numfiles/${gav.toPath.dropLeadingSlash}"
     ws.url(url).get().flatMap { response =>
       response.status match {
         case Status.OK =>

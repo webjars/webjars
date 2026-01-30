@@ -9,17 +9,13 @@ import play.api.test.{FakeRequest, PlaySpecification, WithApplication}
 
 import scala.concurrent.duration.*
 
-class TestFetchConfig extends FetchConfig {
-  override val timeout = 5.minutes
-}
-
 class ApplicationSpec extends PlaySpecification {
 
   override implicit def defaultAwaitTimeout: Timeout = 300.seconds
 
   val limit = 5
 
-  val withOverrides = (gab: GuiceApplicationBuilder) => gab.overrides(bind[FetchConfig].to[TestFetchConfig]).configure("mavencentral.limit" -> limit)
+  val withOverrides = (gab: GuiceApplicationBuilder) => gab.configure("mavencentral.limit" -> limit)
 
   class WithApp extends WithApplication(withOverrides)
 
@@ -28,7 +24,7 @@ class ApplicationSpec extends PlaySpecification {
       override def running() = {
         val applicationController = app.injector.instanceOf[Application]
 
-        val sorted = await(applicationController.sortedMostPopularWebJars)
+        val sorted = await(applicationController.allPopular)
 
         sorted must not be empty
 

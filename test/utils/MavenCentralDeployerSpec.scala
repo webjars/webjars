@@ -3,14 +3,12 @@ package utils
 import com.jamesward.zio_mavencentral.MavenCentral
 import io.lemonlabs.uri.AbsoluteUrl
 import org.apache.commons.io.IOUtils
-import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.util.Timeout
 import org.bouncycastle.bcpg.{HashAlgorithmTags, PublicKeyAlgorithmTags, PublicKeyPacket, SymmetricKeyAlgorithmTags}
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.bouncycastle.openpgp.operator.jcajce.{JcaPGPContentSignerBuilder, JcaPGPDigestCalculatorProviderBuilder, JcaPGPKeyPair, JcePBESecretKeyEncryptorBuilder}
 import org.bouncycastle.openpgp.{PGPSecretKey, PGPSignature}
 import play.api.Environment
-import play.api.libs.concurrent.Futures
 import play.api.test.*
 
 import java.security.{KeyPairGenerator, Security}
@@ -84,8 +82,6 @@ class MavenCentralDeployerSpec extends PlaySpecification {
           val packageInfo = PackageInfo("Test WebJar", version, None, gitUri, None, Seq.empty, Map.empty, Map.empty, None)
 
           val gav = MavenCentral.GroupArtifactVersion(MavenCentral.GroupId("com.happypathprogramming"), MavenCentral.ArtifactId("_test"), MavenCentral.Version(version))
-
-          println(gav)
 
           val pom = templates.xml.pom(gav.groupId, gav.artifactId, gav.version, packageInfo, sourceUrl, Set.empty, Set.empty, licenses).toString()
 

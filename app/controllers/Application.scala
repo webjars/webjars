@@ -25,11 +25,10 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.util.hashing.MurmurHash3
 import scala.util.{Failure, Random}
 
-class Application @Inject() (git: Git, cache: Cache, mavenCentral: MavenCentralWebJars, deployWebJar: DeployWebJar, webJarsFileService: WebJarsFileService, actorSystem: ActorSystem, environment: Environment, futures: Futures, val controllerComponents: ControllerComponents)
+class Application @Inject() (git: Git, cache: Cache, mavenCentral: MavenCentralWebJars, deployWebJar: DeployWebJar, webJarsFileService: WebJarsFileService, environment: Environment, futures: Futures, val controllerComponents: ControllerComponents)
                             (allDeployables: AllDeployables)
                             (allView: views.html.all, indexView: views.html.index, documentationView: views.html.documentation)
-                            (fetchConfig: FetchConfig)
-                            (using ec: ExecutionContext) extends BaseController with Logging {
+                            (using ExecutionContext) extends BaseController with Logging {
 
   private[controllers] val MAX_POPULAR_WEBJARS = 20
 
@@ -55,42 +54,17 @@ class Application @Inject() (git: Git, cache: Cache, mavenCentral: MavenCentralW
     }
   }
 
-  private def webJarsWithTimeout(maybeGroupId: Option[MavenCentral.GroupId] = None): Future[List[WebJar]] = {
-    def getWebJars(groupId: MavenCentral.GroupId): Future[List[WebJar]] = {
-      val jitter = (Random.nextInt(10) + 55).minutes
-      cache.get[List[WebJar]](s"webjars-$groupId", jitter) {
-        mavenCentral.webJars(groupId)
-      }
-    }
+  // todo: add in-memory cache of popular webjars
+  def allPopular: Future[Seq[WebJar]] =
+    val reqs = allDeployables.groupIds().map:
+      groupId =>
+        mavenCentral.featuredWebJars(groupId, MAX_POPULAR_WEBJARS)
 
-    val fetcher = maybeGroupId.fold {
-      Future.reduceLeft(allDeployables.groupIds().map(getWebJars))(_ ++ _)
-    } { getWebJars }
+    Future.foldLeft(reqs)(Seq.empty)(_ ++ _)
 
-    val future = TimeoutFuture(fetchConfig.timeout)(fetcher)
-    future.onComplete {
-      case Failure(e: TimeoutException) => logger.debug("Timeout fetching WebJars", e)
-      case Failure(e: MavenCentralWebJars.ExistingWebJarRequestException) => logger.debug("Existing WebJar Request", e)
-      case Failure(e) => logger.error("Error loading WebJars", e)
-      case _ => ()
-    }
-    future
-  }
-
-  private[controllers] def sortedMostPopularWebJars: Future[Seq[WebJar]] = {
-    cache.get[Seq[WebJar]]("popular-webjars", 1.hour) {
-      webJarsWithTimeout().map { allWebJars =>
-        allWebJars.take(MAX_POPULAR_WEBJARS)
-      }
-    }
-  }
 
   def index = Action.async { request =>
-    sortedMostPopularWebJars.map(maybeCached(request, webJars => Ok(indexView(Left(webJars))))).recoverWith {
-      case _: TimeoutException =>
-        Future.successful(Redirect(routes.Application.index()))
-      case _: MavenCentralWebJars.ExistingWebJarRequestException =>
-        futures.delay(fetchConfig.timeout).map(_ => Redirect(routes.Application.index()))
+    allPopular.map(maybeCached(request, webJars => Ok(indexView(Left(webJars))))).recoverWith {
       case e: Exception =>
         logger.error("index WebJar fetch failed", e)
         Future.successful(InternalServerError(indexView(Right(WEBJAR_FETCH_ERROR))))
@@ -98,7 +72,7 @@ class Application @Inject() (git: Git, cache: Cache, mavenCentral: MavenCentralW
   }
 
   def popularWebJars = Action.async { implicit request =>
-    sortedMostPopularWebJars.map { popularWebJars =>
+    allPopular.map { popularWebJars =>
       render {
         case Accepts.Html() =>
           maybeCached(request, (webJars: Seq[WebJar]) => Ok(views.html.partials.webJarList(Left(webJars))))(popularWebJars)
@@ -117,19 +91,11 @@ class Application @Inject() (git: Git, cache: Cache, mavenCentral: MavenCentralW
   }
 
   def searchWebJars(query: String, groupIds: List[String]) = Action.async { implicit request =>
-    val queryLowerCase = query.toLowerCase.stripPrefix("org.webjars").stripPrefix("webjars")
+    val searchFutures = groupIds.map: groupId =>
+      mavenCentral.searchWebJars(MavenCentral.GroupId(groupId), query)
 
-    def filter(webJar: WebJar): Boolean = {
-        webJar.name.toLowerCase.contains(queryLowerCase) ||
-        webJar.groupId.toLowerCase.stripPrefix("org.webjars").stripPrefix("webjars").contains(queryLowerCase) ||
-        webJar.artifactId.toLowerCase.contains(queryLowerCase)
-    }
-
-    val matchesFuture = Future.reduceLeft {
-      groupIds.map { groupId =>
-        webJarsWithTimeout(Some(MavenCentral.GroupId(groupId))).map(_.filter(filter))
-      }
-    } (_ ++ _)
+    val matchesFuture: Future[Seq[WebJar]] =
+      Future.foldLeft(searchFutures)(Seq.empty)(_ ++ _)
 
     matchesFuture.map { matchingWebJars =>
       render {
@@ -147,8 +113,8 @@ class Application @Inject() (git: Git, cache: Cache, mavenCentral: MavenCentralW
   }
 
   def webJarList(groupId: String) = Action.async { implicit request =>
-    webJarsWithTimeout(Some(MavenCentral.GroupId(groupId))).map {
-      maybeCached(request, webJars => Ok(Json.toJson(webJars)))
+    mavenCentral.searchWebJars(MavenCentral.GroupId(groupId), "").map { matchingWebJars =>
+      maybeCached[WebJar](request, webJars => Ok(Json.toJson(webJars)))(matchingWebJars)
     } recover {
       case _: Exception =>
         InternalServerError(Json.toJson(Seq.empty[WebJar]))
@@ -199,9 +165,17 @@ class Application @Inject() (git: Git, cache: Cache, mavenCentral: MavenCentralW
     }
   }
 
+  // todo: add in-memory cache of popular webjars
+  def all: Future[Seq[WebJar]] =
+    val reqs = allDeployables.groupIds().map:
+      groupId =>
+        mavenCentral.searchWebJars(groupId, "")
+
+    Future.foldLeft(reqs)(Seq.empty)(_ ++ _)
+
   def allWebJars = CorsAction {
     Action.async { implicit request =>
-      webJarsWithTimeout().map {
+      all.map {
         maybeCached(request, { webJars =>
           render {
             case Accepts.Html() => Ok(allView(Left(webJars)))
@@ -236,6 +210,7 @@ class Application @Inject() (git: Git, cache: Cache, mavenCentral: MavenCentralW
     }
   }
 
+  // todo: should this be the CDN?
   def file(groupId: String, artifactId: String, version: String, file: String) = Action {
     MovedPermanently(s"https://webjars-file-service.herokuapp.com/files/$groupId/$artifactId/$version/$file")
   }
@@ -334,54 +309,5 @@ class Application @Inject() (git: Git, cache: Cache, mavenCentral: MavenCentralW
       ACCESS_CONTROL_ALLOW_METHODS -> "GET"
     )
   }
-
-  object TimeoutFuture {
-    import java.util.concurrent.TimeoutException
-    import scala.concurrent.Promise
-
-    def apply[A](timeout: FiniteDuration)(future: Future[A]): Future[A] = {
-      val promise = Promise[A]()
-
-      actorSystem.scheduler.scheduleOnce(timeout) {
-        promise.tryFailure(new TimeoutException(s"Future did not complete in $timeout"))
-      }
-
-      promise.completeWith(future)
-
-      promise.future
-    }
-  }
-
-}
-
-@ImplementedBy(classOf[DefaultFetchConfig])
-trait FetchConfig {
-  val timeout: FiniteDuration
-}
-
-class DefaultFetchConfig extends FetchConfig {
-  override val timeout: FiniteDuration = 25.seconds
-}
-
-object Application {
-
-  case class WebJarRequest(gitHubToken: String, id: String, name: String, version: String, repoUrl: String, mainJs: Option[String], licenseId: String, licenseUrl: String)
-  object WebJarRequest {
-    def unapply(wr: WebJarRequest): Option[(String, String, String, String, String, Option[String], String, String)] =
-      Some((wr.gitHubToken, wr.id, wr.name, wr.version, wr.repoUrl, wr.mainJs, wr.licenseId, wr.licenseUrl))
-  }
-
-  lazy val webJarRequestForm = Form(
-    mapping(
-      "gitHubToken" -> nonEmptyText,
-      "webJarId" -> nonEmptyText,
-      "webJarName" -> nonEmptyText,
-      "webJarVersion" -> nonEmptyText,
-      "repoUrl" -> nonEmptyText,
-      "mainJs" -> optional(text),
-      "licenseId" -> nonEmptyText,
-      "licenseUrl" -> nonEmptyText
-    )(WebJarRequest.apply)(WebJarRequest.unapply)
-  )
 
 }

@@ -8,8 +8,11 @@ import play.api.test.WithApplication
 trait GlobalApplication extends AfterAll {
 
   lazy val application = new GuiceApplicationBuilder()
-    .overrides(bind[Memcache].to[MemcacheMock], bind[MavenCentralWebJars].to[MavenCentralWebJarsMock], bind[MavenCentralDeployer].to[MavenCentralDeployerMock])
-    .configure("webjars.classic.branch" -> "dev")
+    .overrides(
+      bind[Valkey].to[ValkeyTest],
+      bind[MavenCentralDeployer].to[MavenCentralDeployerMock],
+    )
+    .configure("webjars.classic.branch" -> "dev", "mavencentral.limit" -> "5")
     .build()
 
   override def afterAll(): Unit = {
@@ -19,5 +22,9 @@ trait GlobalApplication extends AfterAll {
 }
 
 class WithMocks extends WithApplication(
-  _.overrides(bind[Memcache].to[MemcacheMock], bind[MavenCentralWebJars].to[MavenCentralWebJarsMock], bind[MavenCentralDeployer].to[MavenCentralDeployerMock])
+  _.overrides(
+    bind[Valkey].to[ValkeyTest],
+    bind[MavenCentralDeployer].to[MavenCentralDeployerMock],
+    bind[MavenCentralWebJars].to[MavenCentralWebJarsMock],
+  )
 )
