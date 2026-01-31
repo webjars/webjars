@@ -497,6 +497,13 @@ class NPMSpec extends PlaySpecification with GlobalApplication {
     }
   }
 
+  "ktx-parse" should {
+    "have the right url" in {
+      val packageInfo = await(npm.info("ktx-parse", "1.1.0"))
+      packageInfo.sourceConnectionUri must beEqualTo(AbsoluteUrl.parse("https://github.com/donmccurdy/ktx-parse.git"))
+    }
+  }
+
   /*
   Broken. See: https://github.com/webjars/webjars/issues/1920
   "have the right license for hmrc-frontend 1.27.0" in {

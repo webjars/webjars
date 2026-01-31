@@ -314,6 +314,9 @@ object NPM {
       // bitbucket:example/repo
       repository.replace("bitbucket:", "https://bitbucket.org/") + ".git"
     }
+    else if (repository.startsWith("github:")) {
+      repository.replace("github:", "https://github.com/") + ".git"
+    }
     else if (repository.startsWith("gitlab:")) {
       // gitlab:another/repo
       repository.replace("gitlab:", "https://gitlab.com/") + ".git"
