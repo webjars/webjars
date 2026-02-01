@@ -38,12 +38,33 @@ class ValkeyLive @Inject() (lifecycle: ApplicationLifecycle) extends Valkey:
 
   private val redisConfigLayer: ZLayer[Any, Throwable, RedisConfig] =
     ZLayer.fromZIO:
-      redisUri.map:
-        uri =>
-          val password = uri.getUserInfo.drop(1)
-          RedisConfig(uri.getHost, uri.getPort, ssl = true, verifyCertificate = false, auth = Some(RedisConfig.Auth(password)))
+      redisUri.map: uri =>
+        RedisConfig(uri.getHost, uri.getPort, ssl = true, verifyCertificate = false)
       .orElseSucceed:
         RedisConfig("localhost", 6379)
+
+  private val redisAuthLayer: ZLayer[CodecSupplier & RedisConfig, Throwable, Redis] =
+    Redis.singleNode.flatMap: env =>
+      ZLayer.fromZIO:
+        for
+          uri <- redisUri
+          redis = env.get[Redis]
+          password = uri.getUserInfo.drop(1) // REDIS_URL has an empty username
+
+          authIfNeeded =
+            redis.ping().catchAll:
+              case e: RedisError if e.getMessage.contains("NOAUTH") =>
+                ZIO.logInfo("Redis NOAUTH detected, authenticating...") *> redis.auth(password)
+              case e =>
+                ZIO.fail(e)
+
+          _ <- redis.auth(password)
+
+          _ <- authIfNeeded.repeat(Schedule.spaced(5.seconds)).forkDaemon
+        yield
+          redis
+      .orElse:
+        ZLayer.succeed(env.get[Redis])
 
   private val runtime = Runtime.default
 
@@ -56,7 +77,7 @@ class ValkeyLive @Inject() (lifecycle: ApplicationLifecycle) extends Valkey:
     Unsafe.unsafe { implicit u =>
       runtime.unsafe
         .run(
-          ((redisConfigLayer ++ codecLayer) >>> Redis.singleNode)
+          ((redisConfigLayer ++ codecLayer) >>> redisAuthLayer)
             .build
             .provideEnvironment(ZEnvironment(scopeCloseable))
         )
