@@ -35,34 +35,8 @@ class Classic @Inject() (ws: WSClient, val licenseDetector: LicenseDetector, val
           )
       }
       .flatMap { propertiesString =>
-        Future.fromTry(
-          Try {
-            val properties = new Properties()
-            properties.load(new StringReader(propertiesString))
-            properties
-          }
-        ).flatMap { properties =>
-          val maybeName = Option(properties.getProperty("name"))
-          val maybeRepo = Option(properties.getProperty("repo"))
-          val maybeDownload = Option(properties.getProperty("download"))
-          val maybeRequireJsMain = Option(properties.getProperty("requirejs.main"))
-          val maybeBaseDir = Option(properties.getProperty("base.dir"))
-          val maybeNpm = Option(properties.getProperty("npm"))
-          val maybeLicenseName = Option(properties.getProperty("license.name"))
-          val maybeLicenseUrl = Option(properties.getProperty("license.url"))
-
-          val maybeMetadata = maybeNpm.fold[Option[Metadata]] {
-            for {
-              name <- maybeName
-              repo <- maybeRepo
-            } yield MetadataNormal(MavenCentral.ArtifactId(nameOrUrlish), name, repo, maybeDownload, maybeRequireJsMain, maybeBaseDir)
-          } { npmName =>
-            Some(MetadataNpm(MavenCentral.ArtifactId(nameOrUrlish), npmName, maybeLicenseName, maybeLicenseUrl))
-          }
-
-          maybeMetadata.fold(Future.failed[Metadata](new Exception("properties file was invalid")))(Future.successful)
-        }
-    }
+        Future.fromTry(Classic.parseMetadata(nameOrUrlish, propertiesString))
+      }
   }
 
   override def artifactId(nameOrUrlish: NameOrUrlish): Future[MavenCentral.ArtifactId] = {
@@ -77,10 +51,7 @@ class Classic @Inject() (ws: WSClient, val licenseDetector: LicenseDetector, val
   override def maybeBaseDirGlob(nameOrUrlish: NameOrUrlish): Future[Option[String]] = {
     cache.get[Metadata](s"webjars-classic-$nameOrUrlish", 1.hour) {
       metadata(nameOrUrlish)
-    }.flatMap {
-      case metadataNormal: MetadataNormal => Future.successful(metadataNormal.baseDir)
-      case metadataNpm: MetadataNpm => npm.maybeBaseDirGlob(metadataNpm.id.toString)
-    }
+    }.flatMap(maybeBaseDirGlobFromMetadata)
   }
 
   def license(metadata: Metadata): Future[LicenseMetadata] = {
@@ -127,30 +98,7 @@ class Classic @Inject() (ws: WSClient, val licenseDetector: LicenseDetector, val
   override def info(nameOrUrlish: NameOrUrlish, version: Version, maybeSourceUri: Option[AbsoluteUrl]): Future[PackageInfo] = {
     cache.get[Metadata](s"webjars-classic-$nameOrUrlish", 1.hour) {
       metadata(nameOrUrlish)
-    }.flatMap {
-      case metadataNormal: MetadataNormal =>
-        val gitHubUrl = GitHub.gitHubUrl(s"https://github.com/${metadataNormal.repo}")
-        gitHubUrl.flatMap(GitHub.gitHubGitUrl).fold(Future.failed[PackageInfo], { gitHubGitUri =>
-          license(metadataNormal).map { license =>
-            PackageInfo(
-              metadataNormal.name,
-              version.vless,
-              gitHubUrl.toOption,
-              gitHubGitUri,
-              gitHubUrl.flatMap(GitHub.gitHubIssuesUrl).toOption,
-              Seq(license),
-              Map.empty, // todo: support dependencies via properties
-              Map.empty,
-              Some(version),
-            )
-          }
-        })
-      case metadataNpm: MetadataNpm =>
-        for {
-          packageInfo <- npm.info(nameOrUrlish, version, maybeSourceUri)
-          license <- license(metadataNpm)
-        } yield packageInfo.copy(metadataLicenses = Seq(license))
-    }
+    }.flatMap(infoFromMetadata(_, version, maybeSourceUri))
   }
 
   override def mavenDependencies(dependencies: Map[String, String]): Future[Set[(MavenCentral.GroupArtifact, String)]] =
@@ -178,24 +126,7 @@ class Classic @Inject() (ws: WSClient, val licenseDetector: LicenseDetector, val
   override def archive(nameOrUrlish: NameOrUrlish, version: Version): Future[InputStream] = {
     cache.get[Metadata](s"webjars-classic-$nameOrUrlish", 1.hour) {
       metadata(nameOrUrlish)
-    }.flatMap {
-      case metadataNormal: MetadataNormal =>
-        metadataNormal.download.fold {
-          downloadExists(("https://github.com" / metadataNormal.repo / "archive" / s"$version.zip").toString())
-        } { download =>
-          validDownload(download, version)
-        } map { absoluteUrl =>
-          val is = absoluteUrl.toJavaURI.toURL.openStream()
-          if (absoluteUrl.toString().endsWith("tgz")) {
-            new GZIPInputStream(is)
-          }
-          else {
-            is
-          }
-        }
-      case _: MetadataNpm =>
-        npm.archive(nameOrUrlish, version)
-    }
+    }.flatMap(archiveFromMetadata(_, version))
   }
 
   override def file(nameOrUrlish: NameOrUrlish, version: Version, filename: String): Future[String] = {
@@ -225,6 +156,67 @@ class Classic @Inject() (ws: WSClient, val licenseDetector: LicenseDetector, val
   override def depGraph(packageInfo: PackageInfo, deps: Map[String, String])(using ec: ExecutionContext, futures: Futures): Future[Map[String, String]] = {
     Future.successful(Map.empty)
   }
+
+  // Methods that work with pre-provided metadata (for createClassic endpoint)
+
+  def infoFromMetadata(metadata: Metadata, version: Version, maybeSourceUri: Option[AbsoluteUrl]): Future[PackageInfo] = {
+    metadata match {
+      case metadataNormal: MetadataNormal =>
+        val gitHubUrl = GitHub.gitHubUrl(s"https://github.com/${metadataNormal.repo}")
+        gitHubUrl.flatMap(GitHub.gitHubGitUrl).fold(Future.failed[PackageInfo], { gitHubGitUri =>
+          license(metadataNormal).map { licenseMetadata =>
+            PackageInfo(
+              metadataNormal.name,
+              version.vless,
+              gitHubUrl.toOption,
+              gitHubGitUri,
+              gitHubUrl.flatMap(GitHub.gitHubIssuesUrl).toOption,
+              Seq(licenseMetadata),
+              Map.empty,
+              Map.empty,
+              Some(version),
+            )
+          }
+        })
+      case metadataNpm: MetadataNpm =>
+        for {
+          packageInfo <- npm.info(metadataNpm.packageName, version, maybeSourceUri)
+          licenseMetadata <- license(metadataNpm)
+        } yield packageInfo.copy(metadataLicenses = Seq(licenseMetadata))
+    }
+  }
+
+  def archiveFromMetadata(metadata: Metadata, version: Version): Future[InputStream] = {
+    metadata match {
+      case metadataNormal: MetadataNormal =>
+        metadataNormal.download.fold {
+          downloadExists(("https://github.com" / metadataNormal.repo / "archive" / s"$version.zip").toString())
+        } { download =>
+          validDownload(download, version)
+        } map { absoluteUrl =>
+          val is = absoluteUrl.toJavaURI.toURL.openStream()
+          if (absoluteUrl.toString().endsWith("tgz")) {
+            new GZIPInputStream(is)
+          }
+          else {
+            is
+          }
+        }
+      case metadataNpm: MetadataNpm =>
+        npm.archive(metadataNpm.packageName, version)
+    }
+  }
+
+  def maybeBaseDirGlobFromMetadata(metadata: Metadata): Future[Option[String]] = {
+    metadata match {
+      case metadataNormal: MetadataNormal => Future.successful(metadataNormal.baseDir)
+      case metadataNpm: MetadataNpm => npm.maybeBaseDirGlob(metadataNpm.packageName)
+    }
+  }
+
+  def licensesFromMetadata(metadata: Metadata, version: Version, packageInfo: PackageInfo)(using ec: ExecutionContext): Future[Set[License]] = {
+    licenses(metadata.id.toString, version, packageInfo)
+  }
 }
 
 object Classic {
@@ -235,4 +227,32 @@ object Classic {
   case class MetadataNormal(id: MavenCentral.ArtifactId, name: String, repo: String, download: Option[String], requireJsMain: Option[String], baseDir: Option[String]) extends Metadata
 
   case class MetadataNpm(id: MavenCentral.ArtifactId, packageName: String, licenseName: Option[String], licenseUrl: Option[String]) extends Metadata
+
+  def parseMetadata(nameOrUrlish: String, propertiesString: String): Try[Metadata] = {
+    Try {
+      val properties = new Properties()
+      properties.load(new StringReader(propertiesString))
+
+      val maybeName = Option(properties.getProperty("name"))
+      val maybeRepo = Option(properties.getProperty("repo"))
+      val maybeDownload = Option(properties.getProperty("download"))
+      val maybeRequireJsMain = Option(properties.getProperty("requirejs.main"))
+      val maybeBaseDir = Option(properties.getProperty("base.dir"))
+      val maybeNpm = Option(properties.getProperty("npm"))
+      val maybeLicenseName = Option(properties.getProperty("license.name"))
+      val maybeLicenseUrl = Option(properties.getProperty("license.url"))
+
+      maybeNpm.fold[Option[Metadata]] {
+        for {
+          name <- maybeName
+          repo <- maybeRepo
+        } yield MetadataNormal(MavenCentral.ArtifactId(nameOrUrlish), name, repo, maybeDownload, maybeRequireJsMain, maybeBaseDir)
+      } { npmName =>
+        Some(MetadataNpm(MavenCentral.ArtifactId(nameOrUrlish), npmName, maybeLicenseName, maybeLicenseUrl))
+      }
+    }.flatMap {
+      case Some(metadata) => scala.util.Success(metadata)
+      case None => scala.util.Failure(new Exception("Invalid properties file: missing required fields (name and repo for normal, or npm for npm-based)"))
+    }
+  }
 }

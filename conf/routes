@@ -18,6 +18,7 @@ GET            /versions                                                  contro
 POST           /deploy                                                    controllers.Application.deploy(webJarType, nameOrUrlish, version)
 GET            /deploy                                                    controllers.Application.deploy(webJarType, nameOrUrlish, version)
 POST           /create                                                    controllers.Application.create(webJarType, nameOrUrlish, version)
+POST           /create/classic                                            controllers.Application.createClassic(nameOrUrlish, version)
 
 GET            /files/org.webjars/:artifactId/:version/*file              controllers.Application.file(groupId = "org.webjars", artifactId, version, file)
 GET            /files/org.webjars.bower/:artifactId/:version/*file        controllers.Application.file(groupId = "org.webjars.bower", artifactId, version, file)

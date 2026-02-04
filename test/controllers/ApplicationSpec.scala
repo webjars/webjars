@@ -83,4 +83,111 @@ class ApplicationSpec extends PlaySpecification with GlobalApplication {
     }
   }
 
+  "createClassic" should {
+    "work with normal properties (name and repo)" in {
+      val applicationController = application.injector.instanceOf[Application]
+
+      implicit lazy val materializer: Materializer = application.materializer
+
+      val properties =
+        """name=Bootstrap
+          |repo=twbs/bootstrap
+          |""".stripMargin
+
+      val request = FakeRequest().withTextBody(properties)
+
+      val result = applicationController.createClassic("bootstrap", "v5.3.0")(request)
+
+      status(result) must beEqualTo(Status.OK)
+      contentAsBytes(result).length must beGreaterThan(0)
+    }
+
+    "work with npm-based properties" in {
+      val applicationController = application.injector.instanceOf[Application]
+
+      implicit lazy val materializer: Materializer = application.materializer
+
+      val properties =
+        """npm=jquery
+          |license.name=MIT
+          |license.url=https://jquery.org/license/
+          |""".stripMargin
+
+      val request = FakeRequest().withTextBody(properties)
+
+      val result = applicationController.createClassic("jquery", "3.7.0")(request)
+
+      status(result) must beEqualTo(Status.OK)
+      contentAsBytes(result).length must beGreaterThan(0)
+    }
+
+    "fail with invalid properties (missing required fields)" in {
+      val applicationController = application.injector.instanceOf[Application]
+
+      implicit lazy val materializer: Materializer = application.materializer
+
+      val properties =
+        """name=Bootstrap
+          |""".stripMargin  // missing 'repo' field
+
+      val request = FakeRequest().withTextBody(properties)
+
+      val result = applicationController.createClassic("bootstrap", "v5.3.0")(request)
+
+      status(result) must beEqualTo(Status.BAD_REQUEST)
+      contentAsString(result) must contain("Invalid properties")
+    }
+
+    "fail when body is missing" in {
+      val applicationController = application.injector.instanceOf[Application]
+
+      implicit lazy val materializer: Materializer = application.materializer
+
+      val request = FakeRequest()
+
+      val result = applicationController.createClassic("bootstrap", "v5.3.0")(request)
+
+      status(result) must beEqualTo(Status.BAD_REQUEST)
+      contentAsString(result) must beEqualTo("Expected text/plain body with properties file content")
+    }
+
+    "work with properties containing base.dir" in {
+      val applicationController = application.injector.instanceOf[Application]
+
+      implicit lazy val materializer: Materializer = application.materializer
+
+      val properties =
+        """name=Bootstrap
+          |repo=twbs/bootstrap
+          |base.dir=dist/**
+          |""".stripMargin
+
+      val request = FakeRequest().withTextBody(properties)
+
+      val result = applicationController.createClassic("bootstrap", "v5.3.0")(request)
+
+      status(result) must beEqualTo(Status.OK)
+      contentAsBytes(result).length must beGreaterThan(0)
+    }
+
+    "work with properties containing custom download URL" in {
+      val applicationController = application.injector.instanceOf[Application]
+
+      implicit lazy val materializer: Materializer = application.materializer
+
+      val properties =
+        """name=Bootstrap
+          |repo=twbs/bootstrap
+          |download=https://github.com/twbs/bootstrap/releases/download/v${version}/bootstrap-${version}-dist.zip
+          |""".stripMargin
+
+      val request = FakeRequest().withTextBody(properties)
+
+      val result = applicationController.createClassic("bootstrap", "5.3.0")(request)
+
+      status(result) must beEqualTo(Status.OK)
+      contentAsBytes(result).length must beGreaterThan(0)
+    }
+  }
+
 }

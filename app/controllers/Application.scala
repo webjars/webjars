@@ -25,7 +25,7 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.util.hashing.MurmurHash3
 import scala.util.{Failure, Random}
 
-class Application @Inject() (git: Git, cache: Cache, mavenCentral: MavenCentralWebJars, deployWebJar: DeployWebJar, webJarsFileService: WebJarsFileService, environment: Environment, futures: Futures, val controllerComponents: ControllerComponents)
+class Application @Inject() (git: Git, cache: Cache, mavenCentral: MavenCentralWebJars, deployWebJar: DeployWebJar, webJarsFileService: WebJarsFileService, environment: Environment, futures: Futures, val controllerComponents: ControllerComponents, sourceLocator: SourceLocator, classic: Classic)
                             (allDeployables: AllDeployables)
                             (allView: views.html.all, indexView: views.html.index, documentationView: views.html.documentation)
                             (using ExecutionContext) extends BaseController with Logging {
@@ -290,6 +290,41 @@ class Application @Inject() (git: Git, cache: Cache, mavenCentral: MavenCentralW
       } recover {
         case e => BadRequest(e.getMessage)
       }
+    }
+  }
+  
+  def createClassic(nameOrUrlish: String, version: String) = Action.async { request =>
+    request.body.asText match {
+      case Some(propertiesString) =>
+        Classic.parseMetadata(nameOrUrlish, propertiesString) match {
+          case scala.util.Success(metadata) =>
+            val releaseVersion = MavenCentral.Version(version.stripPrefix("v"))
+            (for {
+              packageInfo <- classic.infoFromMetadata(metadata, version, None)
+              licenses <- classic.licensesFromMetadata(metadata, version, packageInfo)
+              sourceUrl <- sourceLocator.sourceUrl(packageInfo.sourceConnectionUri)
+              pom = templates.xml.pom(classic.groupId, metadata.id, releaseVersion, packageInfo, sourceUrl, Set.empty, Set.empty, licenses).toString()
+              archive <- classic.archiveFromMetadata(metadata, version)
+              maybeBaseDirGlob <- classic.maybeBaseDirGlobFromMetadata(metadata)
+            } yield {
+              val bytes = WebJarCreator.createWebJar(archive, maybeBaseDirGlob, Set.empty, pom, packageInfo.name, licenses, classic.groupId, metadata.id, releaseVersion, s"${metadata.id}/$releaseVersion/")
+              val filename = metadata.id.toString + ".jar"
+              Result(
+                ResponseHeader(OK, Map(CONTENT_DISPOSITION -> s"""attachment; filename="$filename"""")),
+                HttpEntity.Streamed(
+                  Source.single(ByteString(bytes)),
+                  Some(bytes.length.toLong),
+                  fileMimeTypes.forFileName(filename).orElse(Some(play.api.http.ContentTypes.BINARY))
+                )
+              )
+            }).recover {
+              case e => BadRequest(e.getMessage)
+            }
+          case scala.util.Failure(e) =>
+            Future.successful(BadRequest(s"Invalid properties: ${e.getMessage}"))
+        }
+      case None =>
+        Future.successful(BadRequest("Expected text/plain body with properties file content"))
     }
   }
 
