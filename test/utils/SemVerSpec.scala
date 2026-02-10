@@ -30,13 +30,13 @@ class SemVerSpec extends PlaySpecification with GlobalApplication {
       SemVer.toMaven(">=1.2.3") must beASuccessfulTry("[1.2.3,)")
       SemVer.toMaven(">1.2.3") must beASuccessfulTry("(1.2.3,)")
       SemVer.toMaven("1.2.3||2.1.0") must beASuccessfulTry("[1.2.3],[2.1.0]")
-      SemVer.toMaven(">=1.2.3 <2.0.0-0||2.1.0") must beASuccessfulTry("[1.2.3,2.0.0),[2.1.0]")
-      SemVer.toMaven(">=1.2.3 <2.0.0-0||>=2.1.0 <3.0.0-0") must beASuccessfulTry("[1.2.3,2.0.0),[2.1.0,3.0.0)")
+      SemVer.toMaven(">=1.2.3 <2.0.0-0||2.1.0") must beASuccessfulTry("[1.2.3,2.0.0-alpha),[2.1.0]")
+      SemVer.toMaven(">=1.2.3 <2.0.0-0||>=2.1.0 <3.0.0-0") must beASuccessfulTry("[1.2.3,2.0.0-alpha),[2.1.0,3.0.0-alpha)")
     }
-    "strip -0 suffix to exclude pre-releases" in {
-      SemVer.toMaven(">=1.7.18 <2.0.0-0") must beASuccessfulTry("[1.7.18,2.0.0)")
-      SemVer.toMaven("<2.0.0-0") must beASuccessfulTry("(,2.0.0)")
-      SemVer.toMaven("<=2.0.0-0") must beASuccessfulTry("(,2.0.0]")
+    "replace -0 suffix with -alpha to exclude pre-releases" in {
+      SemVer.toMaven(">=1.7.18 <2.0.0-0") must beASuccessfulTry("[1.7.18,2.0.0-alpha)")
+      SemVer.toMaven("<2.0.0-0") must beASuccessfulTry("(,2.0.0-alpha)")
+      SemVer.toMaven("<=2.0.0-0") must beASuccessfulTry("(,2.0.0-alpha]")
     }
   }
 

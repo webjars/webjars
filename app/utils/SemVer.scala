@@ -61,11 +61,12 @@ object SemVer {
       s
     }
 
-    // Strip the -0 suffix from version strings to prevent pre-release versions from being included in ranges
-    // Maven treats 2.0.0-alpha.3 < 2.0.0-0, but we want to exclude all 2.0.0 pre-releases
-    def stripMinusZero(version: String): String = {
+    // Replace -0 suffix with -alpha to exclude pre-release versions from Maven ranges
+    // Maven ordering: 2.0.0-alpha.3 < 2.0.0-0 == 2.0.0, so [x,2.0.0-0) includes pre-releases
+    // But Maven also has: 2.0.0-alpha.3 < 2.0.0-alpha, so [x,2.0.0-alpha) excludes all pre-releases
+    def replaceMinusZeroWithAlpha(version: String): String = {
       if (version.endsWith("-0")) {
-        version.dropRight(2)
+        version.dropRight(1) + "alpha"
       } else {
         version
       }
@@ -75,16 +76,16 @@ object SemVer {
       if (s.startsWith(">=")) {
         Some(Left(s.replace(">=", "[")))
       }
+      else if (s.startsWith("<=")) {
+        val version = replaceMinusZeroWithAlpha(s.replace("<=", ""))
+        Some(Right(version + "]"))
+      }
       else if (s.startsWith(">")) {
         Some(Left(s.replace(">", "(")))
       }
       else if (s.startsWith("<")) {
-        val version = stripMinusZero(s.replace("<", ""))
+        val version = replaceMinusZeroWithAlpha(s.replace("<", ""))
         Some(Right(version + ")"))
-      }
-      else if (s.startsWith("<=")) {
-        val version = stripMinusZero(s.replace("<=", ""))
-        Some(Right(version + "]"))
       }
       else {
         None
