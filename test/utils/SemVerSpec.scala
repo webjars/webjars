@@ -30,13 +30,23 @@ class SemVerSpec extends PlaySpecification with GlobalApplication {
       SemVer.toMaven(">=1.2.3") must beASuccessfulTry("[1.2.3,)")
       SemVer.toMaven(">1.2.3") must beASuccessfulTry("(1.2.3,)")
       SemVer.toMaven("1.2.3||2.1.0") must beASuccessfulTry("[1.2.3],[2.1.0]")
-      SemVer.toMaven(">=1.2.3 <2.0.0-0||2.1.0") must beASuccessfulTry("[1.2.3,2.0.0-alpha),[2.1.0]")
-      SemVer.toMaven(">=1.2.3 <2.0.0-0||>=2.1.0 <3.0.0-0") must beASuccessfulTry("[1.2.3,2.0.0-alpha),[2.1.0,3.0.0-alpha)")
+      SemVer.toMaven(">=1.2.3 <2.0.0-0||2.1.0") must beASuccessfulTry("[1.2.3,1.999999.999999],[2.1.0]")
+      SemVer.toMaven(">=1.2.3 <2.0.0-0||>=2.1.0 <3.0.0-0") must beASuccessfulTry("[1.2.3,1.999999.999999],[2.1.0,2.999999.999999]")
     }
-    "replace -0 suffix with -alpha to exclude pre-releases" in {
-      SemVer.toMaven(">=1.7.18 <2.0.0-0") must beASuccessfulTry("[1.7.18,2.0.0-alpha)")
-      SemVer.toMaven("<2.0.0-0") must beASuccessfulTry("(,2.0.0-alpha)")
-      SemVer.toMaven("<=2.0.0-0") must beASuccessfulTry("(,2.0.0-alpha]")
+    "convert NPM -0 suffix to high version number to exclude pre-releases" in {
+      SemVer.toMaven(">=1.7.18 <2.0.0-0") must beASuccessfulTry("[1.7.18,1.999999.999999]")
+      SemVer.toMaven(">=3.3.11 <4.0.0-0") must beASuccessfulTry("[3.3.11,3.999999.999999]")
+      SemVer.toMaven(">=1.2.3 <1.3.0-0") must beASuccessfulTry("[1.2.3,1.2.999999]")
+      SemVer.toMaven(">=0.2.3 <0.3.0-0") must beASuccessfulTry("[0.2.3,0.2.999999]")
+      SemVer.toMaven(">=0.0.3 <0.0.4-0") must beASuccessfulTry("[0.0.3,0.0.3]")
+      SemVer.toMaven("<2.0.0-0") must beASuccessfulTry("(,1.999999.999999]")
+      SemVer.toMaven("<=2.0.0-0") must beASuccessfulTry("(,1.999999.999999]")
+    }
+    "handle edge case of <0.0.0-0 that would result in negative version" in {
+      // When conversion fails (would result in negative version), the input is returned unchanged.
+      // This is handled by the fallback in toMaven() which wraps unconverted single-element ranges.
+      SemVer.toMaven("<0.0.0-0") must beASuccessfulTry("<0.0.0-0")
+      SemVer.toMaven("<=0.0.0-0") must beASuccessfulTry("<=0.0.0-0")
     }
   }
 
