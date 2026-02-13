@@ -92,7 +92,7 @@ class Application @Inject() (git: Git, cache: Cache, mavenCentral: MavenCentralW
 
   def searchWebJars(query: String, groupIds: List[String]) = Action.async { implicit request =>
     val searchFutures = groupIds.map: groupId =>
-      mavenCentral.searchWebJars(MavenCentral.GroupId(groupId), query)
+      mavenCentral.searchWebJars(MavenCentral.GroupId(groupId), Some(query))
 
     val matchesFuture: Future[Seq[WebJar]] =
       Future.foldLeft(searchFutures)(Seq.empty)(_ ++ _)
@@ -113,7 +113,7 @@ class Application @Inject() (git: Git, cache: Cache, mavenCentral: MavenCentralW
   }
 
   def webJarList(groupId: String) = Action.async { implicit request =>
-    mavenCentral.searchWebJars(MavenCentral.GroupId(groupId), "").map { matchingWebJars =>
+    mavenCentral.searchWebJars(MavenCentral.GroupId(groupId), None).map { matchingWebJars =>
       maybeCached[WebJar](request, webJars => Ok(Json.toJson(webJars)))(matchingWebJars)
     } recover {
       case _: Exception =>
@@ -169,7 +169,7 @@ class Application @Inject() (git: Git, cache: Cache, mavenCentral: MavenCentralW
   def all: Future[Seq[WebJar]] =
     val reqs = allDeployables.groupIds().map:
       groupId =>
-        mavenCentral.searchWebJars(groupId, "")
+        mavenCentral.searchWebJars(groupId, None)
 
     Future.foldLeft(reqs)(Seq.empty)(_ ++ _)
 

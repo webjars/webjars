@@ -20,7 +20,7 @@ import scala.xml.Elem
 trait MavenCentralWebJars:
   def fetchPom(gav: MavenCentral.GroupArtifactVersion): Future[Elem]
   def featuredWebJars(groupId: MavenCentral.GroupId, limit: Int): Future[Seq[WebJar]]
-  def searchWebJars(groupId: MavenCentral.GroupId, query: String): Future[Seq[WebJar]]
+  def searchWebJars(groupId: MavenCentral.GroupId, query: Option[String]): Future[Seq[WebJar]]
 
 @Singleton
 class MavenCentralWebJarsLive @Inject() (configuration: Configuration, webJarsFileService: WebJarsFileService, environment: Environment, valkey: Valkey, allDeployables: AllDeployables) extends MavenCentralWebJars with Logging {
@@ -134,28 +134,32 @@ class MavenCentralWebJarsLive @Inject() (configuration: Configuration, webJarsFi
       ()
 
   private[utils] def refreshGroup(groupId: MavenCentral.GroupId, updateNumFiles: Boolean = true): ZIO[Client & Redis, Throwable, Set[MavenCentral.ArtifactId]] =
-    logger.info(s"Refreshing groupId: $groupId")
+    logger.info(s"Refreshing groupId: $groupId with limit ${maybeLimit.getOrElse("none")} and updateNumFiles: $updateNumFiles")
 
     ZIO.scoped:
       for
         artifactsResult <- fetchArtifactIds(groupId)
-        limitedArtifacts = maybeLimit.fold(artifactsResult.value)(artifactsResult.value.take)
+
+        artifactsWithLimit = maybeLimit.fold(artifactsResult.value)(artifactsResult.value.take)
 
         cachedArtifacts <- WebJarsCache.getArtifacts(groupId)
 
-        missingArtifacts = limitedArtifacts.diff(cachedArtifacts.keys.toSeq).map(_ -> Seq.empty[WebJarVersion])
+        missingArtifacts = artifactsWithLimit.diff(cachedArtifacts.keys.toSeq).toSet
 
-        updatedCachedArtifacts <-
-          ZIO.filter(cachedArtifacts.toSeq): (artifactId, meta) =>
-            MavenCentral.isModifiedSince(meta.lastModified, groupId, Some(artifactId)).orElseSucceed(false)
+        // first refresh any missing artifacts
+        refreshMissing <- ZIO.foreach(missingArtifacts): artifactId =>
+          refreshArtifact(groupId, artifactId, Seq.empty, updateNumFiles).as(artifactId)
 
-        toRefresh: Map[MavenCentral.ArtifactId, Seq[WebJarVersion]] = missingArtifacts.toMap ++ updatedCachedArtifacts.toMap.view.mapValues(_.versions)
+        cachedArtifactsWithLimit = maybeLimit.fold(cachedArtifacts)(cachedArtifacts.take)
 
-        _ <- ZIO.foreachDiscard(toRefresh): (artifactId, versions) =>
-          refreshArtifact(groupId, artifactId, versions, updateNumFiles)
-
+        // now go through each artifact and if it has been updated, refresh it
+        refreshUpdated <- ZIO.filter(cachedArtifactsWithLimit.toSet): (artifactId, meta) =>
+          MavenCentral.isModifiedSince(meta.lastModified, groupId, Some(artifactId)).orElseSucceed(false)
+        .flatMap: artifacts =>
+          ZIO.foreach(artifacts): (artifactId, meta) =>
+            refreshArtifact(groupId, artifactId, meta.versions.toSeq, updateNumFiles).as(artifactId)
       yield
-        toRefresh.keySet
+        refreshMissing ++ refreshUpdated
 
   def refreshAll(groupIds: Set[MavenCentral.GroupId]): ZIO[Client & Redis, Nothing, Unit] =
     ZIO.foreachDiscard(groupIds):
@@ -173,7 +177,7 @@ class MavenCentralWebJarsLive @Inject() (configuration: Configuration, webJarsFi
   override def featuredWebJars(groupId: MavenCentral.GroupId, limit: Int): Future[Seq[WebJar]] =
     WebJarsCache.getArtifacts(groupId, Some(limit)).map(_.toWebJars(groupId)).runToFuture(valkey.layer)
 
-  override def searchWebJars(groupId: MavenCentral.GroupId, query: String): Future[Seq[WebJar]] =
-    WebJarsCache.getArtifacts(groupId, None, Some(query)).map(_.toWebJars(groupId)).runToFuture(valkey.layer)
+  override def searchWebJars(groupId: MavenCentral.GroupId, query: Option[String]): Future[Seq[WebJar]] =
+    WebJarsCache.getArtifacts(groupId, maybeLimit, query).map(_.toWebJars(groupId)).runToFuture(valkey.layer)
 
 }

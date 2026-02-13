@@ -34,7 +34,7 @@ class MavenCentralWebJarsSpec extends PlaySpecification with GlobalApplication {
       val featuredWebJars = await(mavenCentralWebJars.featuredWebJars(MavenCentral.GroupId("org.webjars"), 2))
       featuredWebJars.size should beEqualTo(2)
 
-      val searchWebJars = await(mavenCentralWebJars.searchWebJars(MavenCentral.GroupId("org.webjars"), "a"))
+      val searchWebJars = await(mavenCentralWebJars.searchWebJars(MavenCentral.GroupId("org.webjars"), Some("a")))
       searchWebJars.size should beEqualTo(5)
     }
   }
@@ -48,5 +48,5 @@ class MavenCentralWebJarsMock extends MavenCentralWebJars:
   override def featuredWebJars(groupId: GroupId, limit: Port): Future[Seq[WebJar]] =
     Future.successful(Seq.empty)
 
-  override def searchWebJars(groupId: GroupId, query: String): Future[Seq[WebJar]] =
+  override def searchWebJars(groupId: GroupId, query: Option[String]): Future[Seq[WebJar]] =
     Future.successful(Seq.empty)
