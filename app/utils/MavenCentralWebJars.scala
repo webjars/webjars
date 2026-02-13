@@ -106,7 +106,7 @@ class MavenCentralWebJarsLive @Inject() (configuration: Configuration, webJarsFi
 
   private def refreshArtifact(groupId: MavenCentral.GroupId, artifactId: MavenCentral.ArtifactId, versions: Seq[WebJarVersion], updateNumFiles: Boolean): ZIO[Client & Redis & Scope, Throwable, Unit] =
     logger.info(s"Refreshing artifact: $groupId:$artifactId")
-    for
+    val refresh = for
       versionsResult <- fetchVersions(groupId, artifactId)
       latestVersion = versionsResult.value.head
       gav = MavenCentral.GroupArtifactVersion(groupId, artifactId, latestVersion)
@@ -133,6 +133,8 @@ class MavenCentralWebJarsLive @Inject() (configuration: Configuration, webJarsFi
     yield
       ()
 
+    refresh.tapError(error => ZIO.succeed(logger.error(s"Error refreshing artifact $groupId:$artifactId", error)))
+
   private[utils] def refreshGroup(groupId: MavenCentral.GroupId, updateNumFiles: Boolean = true): ZIO[Client & Redis, Throwable, Set[MavenCentral.ArtifactId]] =
     logger.info(s"Refreshing groupId: $groupId with limit ${maybeLimit.getOrElse("none")} and updateNumFiles: $updateNumFiles")
 
@@ -147,8 +149,10 @@ class MavenCentralWebJarsLive @Inject() (configuration: Configuration, webJarsFi
         missingArtifacts = artifactsWithLimit.diff(cachedArtifacts.keys.toSeq).toSet
 
         // first refresh any missing artifacts
-        refreshMissing <- ZIO.foreach(missingArtifacts): artifactId =>
+        refreshes = missingArtifacts.map: artifactId =>
           refreshArtifact(groupId, artifactId, Seq.empty, updateNumFiles).as(artifactId)
+
+        refreshMissing <- ZIO.collectAllSuccesses(refreshes)
 
         cachedArtifactsWithLimit = maybeLimit.fold(cachedArtifacts)(cachedArtifacts.take)
 
@@ -159,7 +163,7 @@ class MavenCentralWebJarsLive @Inject() (configuration: Configuration, webJarsFi
           ZIO.foreach(artifacts): (artifactId, meta) =>
             refreshArtifact(groupId, artifactId, meta.versions.toSeq, updateNumFiles).as(artifactId)
       yield
-        refreshMissing ++ refreshUpdated
+        (refreshMissing ++ refreshUpdated).toSet
 
   def refreshAll(groupIds: Set[MavenCentral.GroupId]): ZIO[Client & Redis, Nothing, Unit] =
     ZIO.foreachDiscard(groupIds):
