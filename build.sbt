@@ -22,7 +22,7 @@ libraryDependencies ++= Seq(
   // brought in transatively via select2-bootstrap-5-theme
   //"org.webjars" % "bootstrap" % "5.3.3",
   "org.webjars" % "highlightjs" % "11.11.1",
-  "org.webjars" % "jquery" % "3.7.1",
+  "org.webjars" % "jquery" % "4.0.0",
   "org.webjars" % "select2" % "4.0.13",
   "org.webjars.npm" % "select2-bootstrap-5-theme" % "1.3.0",
   "org.webjars.npm" % "jquery.typewatch" % "2.1.0",
