@@ -17,7 +17,7 @@ libraryDependencies ++= Seq(
   "com.outr" %% "hasher" % "1.2.3",
   "com.indoorvivants" %% "scala-uri" % "4.2.0",
   "com.jamesward" %% "zio-mavencentral" % "0.5.8",
-  "dev.zio" %% "zio-redis"             % "1.2.0",
+  "dev.zio" %% "zio-redis"             % "1.2.1",
   "org.webjars" %% "webjars-play" % "3.0.10",
   // brought in transatively via select2-bootstrap-5-theme
   //"org.webjars" % "bootstrap" % "5.3.3",
