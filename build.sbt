@@ -16,7 +16,7 @@ libraryDependencies ++= Seq(
   "org.bouncycastle" % "bcutil-jdk18on" % "1.84",
   "com.outr" %% "hasher" % "1.2.3",
   "com.indoorvivants" %% "scala-uri" % "4.2.0",
-  "com.jamesward" %% "zio-mavencentral" % "0.5.9",
+  "com.jamesward" %% "zio-mavencentral" % "0.5.10",
   "dev.zio" %% "zio-redis"             % "1.2.1",
   "org.webjars" %% "webjars-play" % "3.0.10",
   // brought in transatively via select2-bootstrap-5-theme
