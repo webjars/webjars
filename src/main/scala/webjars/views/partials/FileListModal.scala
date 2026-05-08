@@ -1,0 +1,16 @@
+package webjars.views.partials
+
+object FileListModal:
+  def apply(): String =
+    """<div id="fileListModal" class="modal fade" tabindex="-1" aria-labelledby="fileListModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h1 id="fileListModalLabel" class="modal-title fs-5"></h1>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body file-list overflow-y-scroll">
+            </div>
+        </div>
+    </div>
+</div>"""

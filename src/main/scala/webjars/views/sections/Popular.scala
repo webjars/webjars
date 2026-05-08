@@ -1,0 +1,77 @@
+package webjars.views.sections
+
+import webjars.models.WebJar
+import webjars.views.partials.WebJarList
+
+object Popular:
+  def apply(webjarsOrError: Either[Iterable[WebJar], String]): String =
+    s"""<section class="section-wrapper">
+    <div class="container">
+        <div class="card">
+            <div class="card-body">
+                <!-- WebJars search -->
+                <div class="d-flex flex-column align-items-center justify-content-center gap-3 mb-3">
+                    <div class="search-input">
+                        <input id="search" class="form-control" type="text" placeholder="Search">
+                        <svg id="clearSearch" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-x-lg" viewBox="0 0 16 16">
+                            <path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8z"/>
+                        </svg>
+                    </div>
+
+                    <div class="d-flex align-items-center flex-wrap">
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="npm" name="search_catalog[]" value="org.webjars.npm" checked>
+                            <label class="form-check-label" for="npm">NPM</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="classic" name="search_catalog[]" value="org.webjars" checked>
+                            <label class="form-check-label" for="classic">Classic</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mb-2">
+                    <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#newWebJarModal">Add a WebJar</button>
+
+                    <div class=" overflow-x-auto">
+                        <div id="buildtoolselect" class="btn-group btn-group-sm flex-nowrap" role="group" aria-label="Build Tool">
+                            <input class="btn-check" type="radio" name="buildtool" id="sbt" value="sbt" autocomplete="off" checked>
+                            <label class="btn btn-primary" for="sbt">SBT / Play 2</label>
+
+                            <input class="btn-check" type="radio" name="buildtool" id="maven" value="maven" autocomplete="off">
+                            <label class="btn btn-primary" for="maven">Maven</label>
+
+                            <input class="btn-check" type="radio" name="buildtool" id="ivy" value="ivy" autocomplete="off">
+                            <label class="btn btn-primary" for="ivy">Ivy</label>
+
+                            <input class="btn-check" type="radio" name="buildtool" id="grape" value="grape" autocomplete="off">
+                            <label class="btn btn-primary" for="grape">Grape</label>
+
+                            <input class="btn-check" type="radio" name="buildtool" id="gradle" value="gradle" autocomplete="off">
+                            <label class="btn btn-primary" for="gradle">Gradle</label>
+
+                            <input class="btn-check" type="radio" name="buildtool" id="buildr" value="buildr" autocomplete="off">
+                            <label class="btn btn-primary" for="buildr">Buildr</label>
+
+                            <input class="btn-check" type="radio" name="buildtool" id="leiningen" value="leiningen" autocomplete="off">
+                            <label class="btn btn-primary" for="leiningen">Leiningen</label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- WebJars list -->
+                <div id="webJarList" class="table-responsive">
+                    ${WebJarList(webjarsOrError)}
+                </div>
+
+                <div class="d-flex align-items-center justify-content-center pt-3">
+                    <a href="/all">
+                        All WebJars
+                        <svg class="bi bi-arrow-right"><use href="#arrow-right"></use></svg>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</section>"""
