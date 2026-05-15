@@ -1,6 +1,8 @@
 package webjars.views.partials
 
-import webjars.models.{WebJar, WebJarVersion}
+import webjars.models.WebJar
+import zio.http.template2.*
+
 import java.net.URLEncoder
 
 object WebJarList:
@@ -8,67 +10,75 @@ object WebJarList:
   private def displayNumFiles(maybeNumFiles: Option[Int]): String =
     maybeNumFiles.fold("List")(_.toString)
 
-  def apply(webjarsOrError: Either[Iterable[WebJar], String]): String =
-    val rows = webjarsOrError match
-      case Right(error) =>
-        s"""<tr>
-                    <td colspan="4">
-                        $error
-                    </td>
-                </tr>"""
+  private def errorRow(error: String): Dom =
+    tr(td(Dom.attr("colspan", "4"), error))
+
+  private def emptyRow: Dom =
+    tr(td(Dom.attr("colspan", "4"), "No WebJars were found."))
+
+  private def webjarRow(webjar: WebJar): Dom =
+    val versionOptions: Seq[Dom] = webjar.versions.map: v =>
+      option(Dom.attr("data-numfiles", displayNumFiles(v.numFiles)), v.number)
+    val firstVersion = webjar.versions.head
+    val encodedVersion = URLEncoder.encode(firstVersion.number, "UTF-8")
+    tr(
+      Dom.attr("data-group", webjar.groupId.toString),
+      Dom.attr("data-artifact", webjar.artifactId.toString),
+      td(a(href := webjar.sourceUrl, strong(webjar.name))),
+      td(
+        div(className := "d-flex align-items-center gap-2",
+          form(role := "form",
+            select(
+              className     := "form-select form-select-sm versions",
+              Dom.attr("onchange", "changeVersion(event)"),
+              name          := s"${webjar.groupId}:${webjar.artifactId}",
+              versionOptions,
+            ),
+          ),
+          button(
+            Dom.attr("title", "Create a new version"),
+            `type`        := "button",
+            className     := "btn btn-primary d-flex align-items-center justify-content-center",
+            Dom.attr("data-bs-toggle", "modal"),
+            Dom.attr("data-bs-target", "#newWebJarModal"),
+            Dom.attr("data-group-id", webjar.groupId.toString),
+            Dom.attr("data-artifact-id", webjar.artifactId.toString),
+            Dom.attr("data-name", webjar.name),
+            Dom.raw("""<svg class="bi bi-plus-lg"><use href="#plus-lg"></use></svg>"""),
+          ),
+        ),
+      ),
+      td(
+        div(className := "build-instructions",
+          pre(s""""${webjar.groupId}" % "${webjar.artifactId}" % "${firstVersion.number}""""),
+        ),
+      ),
+      td(
+        div(className := s"files text-end ${webjar.artifactId}",
+          a(
+            href      := s"/listfiles/${webjar.groupId}/${webjar.artifactId}/$encodedVersion",
+            className := "file-list-link",
+            s"${displayNumFiles(firstVersion.numFiles)} Files",
+          ),
+        ),
+      ),
+    )
+
+  def apply(webjarsOrError: Either[Iterable[WebJar], String]): Dom =
+    val rows: Seq[Dom] = webjarsOrError match
+      case Right(error)  => Seq(errorRow(error))
       case Left(webjars) =>
-        if webjars.isEmpty then
-          """<tr>
-                    <td colspan="4">
-                        No WebJars were found.
-                    </td>
-                </tr>"""
-        else
-          webjars.map { webjar =>
-            s"""<tr data-group="${webjar.groupId}" data-artifact="${webjar.artifactId}">
-                        <td>
-                            <a href="${webjar.sourceUrl}"><strong>${webjar.name}</strong></a>
-                        </td>
-                        <td>
-                            <div class="d-flex align-items-center gap-2">
-                                <form role="form">
-                                    <select class="form-select form-select-sm versions" onchange="changeVersion(event)" name="${webjar.groupId}:${webjar.artifactId}">
-                                    ${webjar.versions.map { version =>
-                                      s"""<option data-numfiles="${displayNumFiles(version.numFiles)}">${version.number}</option>"""
-                                    }.mkString("\n                                    ")}
-                                    </select>
-                                </form>
-                                <button title="Create a new version" type="button" class="btn btn-primary d-flex align-items-center justify-content-center" data-bs-toggle="modal" data-bs-target="#newWebJarModal" data-group-id="${webjar.groupId}" data-artifact-id="${webjar.artifactId}" data-name="${webjar.name}">
-                                    <svg class="bi bi-plus-lg"><use href="#plus-lg"></use></svg>
-                                </button>
-                            </div>
-                        </td>
-                        <td>
-                            <div class="build-instructions">
-                                <pre>"${webjar.groupId}" % "${webjar.artifactId}" % "${webjar.versions.head.number}"</pre>
-                            </div>
-                        </td>
-                        <td>
-                            <div class="files text-end ${webjar.artifactId}">
-                                <a href="/listfiles/${webjar.groupId}/${webjar.artifactId}/${URLEncoder.encode(webjar.versions.head.number, "UTF-8")}" class="file-list-link">
-                                ${displayNumFiles(webjar.versions.head.numFiles)} Files
-                                </a>
-                            </div>
-                        </td>
-                    </tr>"""
-          }.mkString("\n")
+        if webjars.isEmpty then Seq(emptyRow)
+        else webjars.toSeq.map(webjarRow)
 
-    s"""<table class="table table-striped table-hover align-middle">
-    <thead>
-        <tr>
-            <th class="table-name">Name</th>
-            <th class="table-versions">Versions</th>
-            <th>Dependency</th>
-            <th class="table-files text-end">Files</th>
-        </tr>
-    </thead>
-
-    <tbody>
-        $rows
-    </tbody>
-</table>"""
+    table(className := "table table-striped table-hover align-middle",
+      thead(
+        tr(
+          th(className := "table-name", "Name"),
+          th(className := "table-versions", "Versions"),
+          th("Dependency"),
+          th(className := "table-files text-end", "Files"),
+        ),
+      ),
+      tbody(rows),
+    )

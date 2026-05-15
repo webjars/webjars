@@ -1,89 +1,98 @@
 package webjars.views
 
+import webjars.utils.WebJars
 import webjars.views.documentations.*
+import zio.http.template2.*
 
 object DocumentationPage:
-  def apply(): String =
-    val extraHead = """<script defer src="/assets/javascripts/docs.js"></script>"""
 
-    MainLayout("WebJars - Documentation", "/documentation", extraHead) {
-      s"""
-<div class="container page-wrapper">
-    <h1>Documentation</h1>
+  private def docTab(id: String, label: String, active: Boolean): Dom =
+    li(className := "nav-item", role := "presentation",
+      a(
+        className                       := (if active then "nav-link active" else "nav-link"),
+        href                            := s"#$id",
+        Dom.attr("data-bs-toggle", "tab"),
+        Dom.attr("data-bs-target", s"#$id"),
+        role                            := "tab",
+        Dom.attr("aria-controls", id),
+        Dom.attr("aria-selected", if active then "true" else "false"),
+        label,
+      ),
+    )
 
-    <div class="row">
+  private def docPane(id: String, content: Dom, active: Boolean): Dom =
+    div(
+      className := (if active then "tab-pane active" else "tab-pane"),
+      Dom.attr("id", id),
+      content,
+    )
 
-        <aside class="col-lg-3 col-xl-2">
-            <div id="sidebar-nav" class="offcanvas-lg offcanvas-end" tabindex="-1" aria-labelledby="docsSidebarOffcanvasLabel">
-                <div class="offcanvas-header border-bottom">
-                    <h5 id="docsSidebarOffcanvasLabel" class="offcanvas-title">Browse docs</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close" data-bs-target="#sidebar-nav"></button>
-                </div>
+  // (id, label, content) for every documentation tab. The first entry is
+  // rendered active by default.
+  private val docs: Seq[(String, String, Dom)] = Seq(
+    ("usage",       "Usage",            Usage()),
+    ("play2",       "Play Framework 2", PlayFramework()),
+    ("xitrum",      "Xitrum",           Xitrum()),
+    ("servlet3",    "Servlet 3",        Servlet3()),
+    ("servlet2",    "Servlet 2",        Servlet2()),
+    ("jsf",         "JSF",              Jsf()),
+    ("grails",      "Grails",           Grails()),
+    ("dropwizard",  "Dropwizard",       Dropwizard()),
+    ("springboot",  "Spring Boot",      SpringBoot()),
+    ("springmvc",   "Spring MVC",       SpringMvc()),
+    ("tapestry",    "Apache Tapestry",  Tapestry()),
+    ("wicket",      "Apache Wicket",    Wicket()),
+    ("pippo",       "Pippo",            Pippo()),
+    ("ring",        "Ring (Clojure)",   Ring()),
+    ("dandelion",   "Dandelion",        Dandelion()),
+    ("vertx",       "Vert.x Web",       Vertx()),
+    ("quarkus",     "Quarkus",          Quarkus()),
+    ("ktor",        "Ktor",             Ktor()),
+  )
 
-                <div class="offcanvas-body position-relative">
-                    <nav aria-label="Docs navigation">
-                        <ul id="framework-tabs" class="nav nav-pills flex-column" role="tablist">
-                            ${docTab("usage", "Usage", true)}
-                            ${docTab("play2", "Play Framework 2")}
-                            ${docTab("xitrum", "Xitrum")}
-                            ${docTab("servlet3", "Servlet 3")}
-                            ${docTab("servlet2", "Servlet 2")}
-                            ${docTab("jsf", "JSF")}
-                            ${docTab("grails", "Grails")}
-                            ${docTab("dropwizard", "Dropwizard")}
-                            ${docTab("springboot", "Spring Boot")}
-                            ${docTab("springmvc", "Spring MVC")}
-                            ${docTab("tapestry", "Apache Tapestry")}
-                            ${docTab("wicket", "Apache Wicket")}
-                            ${docTab("pippo", "Pippo")}
-                            ${docTab("ring", "Ring (Clojure)")}
-                            ${docTab("dandelion", "Dandelion")}
-                            ${docTab("vertx", "Vert.x Web")}
-                            ${docTab("quarkus", "Quarkus")}
-                            ${docTab("ktor", "Ktor")}
-                        </ul>
-                    </nav>
-                </div>
-            </div>
-        </aside>
+  def apply(webJars: WebJars): Dom =
+    val extraHead = script(Dom.boolAttr("defer"), src := "/assets/javascripts/docs.js")
 
-        <div class="col col-lg-9 col-xl-10 tab-content">
-            ${docPane("usage", Usage(), true)}
-            ${docPane("play2", PlayFramework())}
-            ${docPane("xitrum", Xitrum())}
-            ${docPane("servlet3", Servlet3())}
-            ${docPane("servlet2", Servlet2())}
-            ${docPane("jsf", Jsf())}
-            ${docPane("grails", Grails())}
-            ${docPane("dropwizard", Dropwizard())}
-            ${docPane("springboot", SpringBoot())}
-            ${docPane("springmvc", SpringMvc())}
-            ${docPane("tapestry", Tapestry())}
-            ${docPane("wicket", Wicket())}
-            ${docPane("pippo", Pippo())}
-            ${docPane("ring", Ring())}
-            ${docPane("dandelion", Dandelion())}
-            ${docPane("vertx", Vertx())}
-            ${docPane("quarkus", Quarkus())}
-            ${docPane("ktor", Ktor())}
-        </div>
-
-    </div>
-
-</div>"""
+    val tabs: Seq[Dom] = docs.zipWithIndex.map { case ((id, label, _), i) =>
+      docTab(id, label, active = i == 0)
+    }
+    val panes: Seq[Dom] = docs.zipWithIndex.map { case ((id, _, content), i) =>
+      docPane(id, content, active = i == 0)
     }
 
-  private def docTab(id: String, label: String, active: Boolean = false): String =
-    val activeClass = if active then " active" else ""
-    val selected = if active then "true" else "false"
-    s"""<li class="nav-item" role="presentation">
-                                <a class="nav-link$activeClass" href="#$id" data-bs-toggle="tab" data-bs-target="#$id" role="tab" aria-controls="$id" aria-selected="$selected">
-                                    $label
-                                </a>
-                            </li>"""
-
-  private def docPane(id: String, content: String, active: Boolean = false): String =
-    val activeClass = if active then " active" else ""
-    s"""<div class="tab-pane$activeClass" id="$id">
-                $content
-            </div>"""
+    MainLayout(webJars, "WebJars - Documentation", "/documentation", extraHead) {
+      div(className := "container page-wrapper",
+        h1("Documentation"),
+        div(className := "row",
+          aside(className := "col-lg-3 col-xl-2",
+            div(
+              Dom.attr("id", "sidebar-nav"),
+              className := "offcanvas-lg offcanvas-end",
+              tabindex  := "-1",
+              Dom.attr("aria-labelledby", "docsSidebarOffcanvasLabel"),
+              div(className := "offcanvas-header border-bottom",
+                Dom.element("h5")(Dom.attr("id", "docsSidebarOffcanvasLabel"), className := "offcanvas-title", "Browse docs"),
+                button(
+                  `type`    := "button",
+                  className := "btn-close",
+                  Dom.attr("data-bs-dismiss", "offcanvas"),
+                  Dom.attr("aria-label", "Close"),
+                  Dom.attr("data-bs-target", "#sidebar-nav"),
+                ),
+              ),
+              div(className := "offcanvas-body position-relative",
+                nav(Dom.attr("aria-label", "Docs navigation"),
+                  ul(
+                    Dom.attr("id", "framework-tabs"),
+                    className := "nav nav-pills flex-column",
+                    role      := "tablist",
+                    tabs,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          div(className := "col col-lg-9 col-xl-10 tab-content", panes),
+        ),
+      )
+    }

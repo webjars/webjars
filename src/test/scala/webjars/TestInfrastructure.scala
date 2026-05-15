@@ -14,18 +14,25 @@ object TestInfrastructure:
 
   val testConfig: AppConfig = AppConfig(
     githubAuthToken = sys.env.get("GITHUB_TOKEN"),
-    ossDisableDeploy = true,
-    ossGpgKey = None,
-    ossGpgPass = None,
-    ossDeployUsername = None,
-    ossDeployPassword = None,
+    ossGpgKey = "",
+    ossGpgPass = "",
+    ossDeployUsername = "",
+    ossDeployPassword = "",
     herokuApikey = sys.env.get("HEROKU_API_KEY"),
     deployHerokuApp = sys.env.getOrElse("DEPLOY_HEROKU_APP", "webjars-test"),
     deployFork = false,
     fileServiceUrl = "https://webjars-file-service.herokuapp.com",
-    mavenCentralLimit = Some(50),
-    devMode = true,
+    mavenCentralLimit = None,
+    mavenCentralRefreshInterval = None,
+    useWebJarsCdn = false,
   )
+
+  class MockMavenCentralDeployer extends MavenCentralDeployer:
+    def publish(gav: MavenCentral.GroupArtifactVersion, jar: Array[Byte], pom: String): ZIO[Any, Throwable, Unit] =
+      ZIO.logInfo(s"[mock] would deploy $gav (jar ${jar.length} bytes, pom ${pom.length} chars)")
+
+  val mockMavenCentralDeployerLayer: ULayer[MavenCentralDeployer] =
+    ZLayer.succeed(MockMavenCentralDeployer())
 
   def services(client: Client): Services =
     val cache = CacheLive()

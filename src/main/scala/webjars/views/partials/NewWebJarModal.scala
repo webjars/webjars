@@ -1,7 +1,9 @@
 package webjars.views.partials
 
+import zio.http.template2.*
+
 object NewWebJarModal:
-  def apply(): String =
+  def apply(): Dom = Dom.raw(
     """<div id="newWebJarModal" class="modal fade" tabindex="-1" aria-labelledby="newWebJarModalLabel" aria-hidden="true" data-bs-backdrop="static">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
@@ -56,3 +58,4 @@ object NewWebJarModal:
         </div>
     </div>
 </div>"""
+  )

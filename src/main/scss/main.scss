@@ -1,0 +1,421 @@
+// 1. Include functions first (so you can manipulate colors, SVGs, calc, etc)
+@import "bootstrap/scss/functions";
+
+// 2. Include any default variable overrides here
+:root, html[data-bs-theme="light"] {
+  --bd-card-bg: var(--bs-body-bg);
+  --bd-input-bg: #f5f5fd;
+}
+
+html[data-bs-theme="dark"] {
+  --bd-card-bg: #161617;
+  --bd-input-bg: #111113;
+}
+
+$font-family-base: "Inter", sans-serif;
+
+$primary: #6610f2;
+
+$body-bg: #e6e6fc;
+$body-bg-dark: #111113;
+$card-bg: var(--bd-card-bg);
+$input-bg: var(--bd-input-bg);
+
+// 3. Include remainder of required Bootstrap stylesheets (including any separate color mode stylesheets)
+@import "bootstrap/scss/variables";
+@import "bootstrap/scss/variables-dark";
+
+// 4. Include any default map overrides here
+
+// 5. Include remainder of required parts
+@import "bootstrap/scss/maps";
+@import "bootstrap/scss/mixins";
+@import "bootstrap/scss/root";
+
+// 6. Optionally include any other parts as needed
+@import "bootstrap/scss/utilities";
+@import "bootstrap/scss/reboot";
+@import "bootstrap/scss/type";
+@import "bootstrap/scss/images";
+@import "bootstrap/scss/containers";
+@import "bootstrap/scss/grid";
+@import "bootstrap/scss/tables";
+@import "bootstrap/scss/forms";
+@import "bootstrap/scss/buttons";
+@import "bootstrap/scss/transitions";
+@import "bootstrap/scss/dropdown";
+@import "bootstrap/scss/button-group";
+@import "bootstrap/scss/nav";
+@import "bootstrap/scss/navbar";
+@import "bootstrap/scss/card";
+// @import "bootstrap/scss/accordion";
+// @import "bootstrap/scss/breadcrumb";
+// @import "bootstrap/scss/pagination";
+@import "bootstrap/scss/badge";
+@import "bootstrap/scss/alert";
+// @import "bootstrap/scss/progress";
+@import "bootstrap/scss/list-group";
+@import "bootstrap/scss/close";
+// @import "bootstrap/scss/toasts";
+@import "bootstrap/scss/modal";
+@import "bootstrap/scss/tooltip";
+@import "bootstrap/scss/popover";
+// @import "bootstrap/scss/carousel";
+@import "bootstrap/scss/spinners";
+@import "bootstrap/scss/offcanvas";
+@import "bootstrap/scss/placeholders";
+@import "bootstrap/scss/helpers";
+
+// 7. Optionally include utilities API last to generate classes based on the Sass map in `_utilities.scss`
+@import "bootstrap/scss/utilities/api";
+
+// 8. Add additional custom code here
+body {
+  position: relative;
+}
+
+a {
+  text-decoration: none;
+}
+
+ol,
+ul {
+  padding-left: 1rem;
+}
+
+pre {
+  border-radius: $card-border-radius;
+}
+
+.bi {
+  width: 1em;
+  height: 1em;
+  fill: currentColor;
+}
+
+.navbar {
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.card {
+  height: 100%;
+
+  &-title {
+    font-size: 1.125rem;
+    font-weight: 500;
+  }
+
+  &-body {
+    font-size: 0.75rem;
+    font-weight: 400;
+  }
+}
+
+.section-wrapper {
+  margin-top: 3rem;
+  margin-bottom: 3rem;
+
+  &-title {
+    text-align: center;
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 2rem;
+  }
+}
+
+.page-wrapper {
+  padding-top: 3rem;
+  padding-bottom: 3rem;
+
+  h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 3rem;
+  }
+}
+
+.footer-content {
+  height: 5rem;
+}
+
+.hero-section {
+  &-title {
+    width: 100%;
+    max-width: 960px;
+    text-align: center;
+    font-size: 2rem;
+    font-weight: 700;
+  }
+}
+
+.home-bg {
+  position: relative;
+  overflow-x: hidden;
+  margin-top: -5rem;
+  padding-top: 5rem;
+
+  &:after, &:before {
+    content: "";
+    will-change: transform;
+    position: absolute;
+    transform: rotate(45deg);
+    z-index: -1;
+  }
+
+  &:after {
+    width: 6rem;
+    height: 35rem;
+    background: linear-gradient(90deg, $purple 30%, $indigo 100%);
+    filter: blur(250px);
+    left: -15rem;
+    top: -10rem;
+  }
+
+  &:before {
+    width: 8rem;
+    height: 40rem;
+    background: linear-gradient(90deg, $purple 30%, $indigo 100%);
+    filter: blur(300px);
+    right: -25rem;
+    top: -2rem;
+  }
+}
+
+html[data-bs-theme="dark"] {
+  .home-bg {
+    &:after {
+      width: 12rem;
+      height: 40rem;
+      background: linear-gradient(90deg, $purple 30%, $indigo 100%);
+      filter: blur(150px);
+    }
+
+    &:before {
+      width: 15rem;
+      height: 50rem;
+      background: linear-gradient(90deg, $indigo 40%, $purple 100%);
+      filter: blur(160px);
+    }
+  }
+}
+
+.search-input {
+  position: relative;
+  width: 100%;
+  max-width: 720px;
+}
+
+.features-list {
+  li {
+    line-height: 2;
+
+    &:before {
+      display: inline-block;
+      content: "";
+      vertical-align: -0.25rem;
+      background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" fill="%2320C997" class="bi bi-check-circle" viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/><path d="m10.97 4.97-.02.022-3.473 4.425-2.093-2.094a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-1.071-1.05"/></svg>');
+      background-repeat: no-repeat;
+      width: 1.25rem;
+      height: 1.25rem;
+      margin-right: 0.75rem;
+    }
+  }
+}
+
+.banner {
+  padding: 0.625rem;
+  font-size: 14px;
+  font-weight: 700;
+  border-radius: 0;
+  text-align: center;
+  margin-bottom: 0;
+}
+
+.callout {
+  --bs-link-color-rgb: var(--bd-callout-link);
+  --bs-code-color: var(--bd-callout-code-color);
+  padding: 1.25rem;
+  margin-top: 1.25rem;
+  margin-bottom: 1.25rem;
+  color: var(--bd-callout-color, inherit);
+  background-color: var(--bd-callout-bg, var(--bs-gray-100));
+  border-left: 0.25rem solid var(--bd-callout-border, var(--bs-gray-300));
+}
+
+.callout-info {
+  --bd-callout-color: var(--bs-info-text-emphasis);
+  --bd-callout-bg: var(--bs-info-bg-subtle);
+  --bd-callout-border: var(--bs-info-border-subtle);
+}
+
+.callout-warning {
+  --bd-callout-color: var(--bs-warning-text-emphasis);
+  --bd-callout-bg: var(--bs-warning-bg-subtle);
+  --bd-callout-border: var(--bs-warning-border-subtle);
+}
+
+.callout-danger {
+  --bd-callout-color: var(--bs-danger-text-emphasis);
+  --bd-callout-bg: var(--bs-danger-bg-subtle);
+  --bd-callout-border: var(--bs-danger-border-subtle);
+}
+
+.build-instructions pre {
+  border-style: none;
+  background: none;
+  padding: 0;
+  font-size: 10px;
+  margin-bottom: 0;
+  margin-top: 3px;
+}
+
+.table-name {
+  width: 240px;
+  min-width: 240px;
+}
+
+.table-versions {
+  width: 240px;
+  min-width: 240px;
+}
+
+.table-files {
+  width: 80px;
+  min-width: 80px;
+}
+
+.versions {
+  width: 200px;
+}
+
+.form-check-label {
+  white-space: nowrap;
+}
+
+#clearSearch {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 12px;
+  color: #999999;
+  display: none;
+  height: 14px;
+  margin: auto;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+#deployLog {
+  height: 200px;
+  white-space: pre-line;
+  word-break: normal;
+  background-color: $card-bg;
+}
+
+#newWebJarNameSpinner {
+  position: absolute;
+  top: 0.5rem;
+  right: 1.125rem;
+}
+
+//#webJarList {
+//  max-height: 50vh;
+//}
+
+#buildtoolselect {
+  min-width: max-content;
+}
+
+/* Select 2 bootstrap-5 theme override */
+html[data-bs-theme="dark"] .select2-container--bootstrap-5 .select2-selection {
+  background-color: transparent !important;
+  border: 1px solid #495057;
+}
+
+html[data-bs-theme="dark"]
+  .select2-container--bootstrap-5
+  .select2-selection--single {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23dee2e6' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+}
+
+html[data-bs-theme="dark"]
+  .select2-container--bootstrap-5
+  .select2-selection--single
+  .select2-selection__rendered {
+  color: #dee2e6 !important;
+}
+
+html[data-bs-theme="dark"]
+  .select2-container--bootstrap-5
+  .select2-selection--multiple
+  .select2-selection__rendered
+  .select2-selection__choice {
+  color: #dee2e6 !important;
+}
+
+html[data-bs-theme="dark"]
+  .select2-container--bootstrap-5
+  .select2-selection--multiple
+  .select2-selection__rendered
+  .select2-selection__choice {
+  border: 1px solid var(--bs-gray-600);
+}
+
+html[data-bs-theme="dark"]
+  .select2-container--bootstrap-5
+  .select2-selection--single
+  .select2-selection__rendered
+  .select2-selection__placeholder {
+  color: #dee2e6 !important;
+}
+
+html[data-bs-theme="dark"]
+  .select2-container--bootstrap-5
+  .select2-dropdown
+  .select2-search
+  .select2-search__field {
+  background-color: transparent !important;
+  color: #dee2e6 !important;
+}
+
+html[data-bs-theme="dark"] .select2-container--bootstrap-5 .select2-dropdown {
+  color: #dee2e6 !important;
+  border: 1px solid #495057 !important;
+  background-color: var(--bs-body-bg);
+}
+
+html[data-bs-theme="dark"]
+  .select2-container--bootstrap-5
+  .select2-dropdown
+  .select2-results__options
+  .select2-results__option[role="group"]
+  .select2-results__group {
+  color: var(--bs-secondary-color) !important;
+}
+
+@media (min-width: 992px) {
+  .page-wrapper {
+    h1 {
+      font-size: 2.5rem;
+    }
+  }
+
+  .hero-section {
+    &-title {
+      font-size: 2rem;
+    }
+  }
+
+  .home-bg {
+    &:after {
+      left: 8rem;
+      top: -10rem;
+    }
+
+    &:before {
+      right: -5rem;
+      top: 5rem;
+    }
+  }
+}

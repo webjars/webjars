@@ -1,7 +1,9 @@
 package webjars.views.sections
 
+import zio.http.template2.*
+
 object Hero:
-  def apply(): String =
+  def apply(): Dom = Dom.raw(
     """<section class="section-wrapper hero-section">
     <div class="container d-flex flex-column align-items-center justify-content-center gap-4">
         <h1 class="hero-section-title"><span class="text-primary">WebJars</span> are client-side web libraries (e.g. jQuery &amp; Bootstrap) packaged into JAR (Java Archive) files.</h1>
@@ -14,3 +16,4 @@ object Hero:
         </ul>
     </div>
 </section>"""
+  )

@@ -5,17 +5,17 @@ import zio.*
 
 case class AppConfig(
   githubAuthToken: Option[String],
-  ossDisableDeploy: Boolean,
-  ossGpgKey: Option[String],
-  ossGpgPass: Option[String],
-  ossDeployUsername: Option[String],
-  ossDeployPassword: Option[String],
+  ossGpgKey: String,
+  ossGpgPass: String,
+  ossDeployUsername: String,
+  ossDeployPassword: String,
   herokuApikey: Option[String],
   deployHerokuApp: String,
   deployFork: Boolean,
   fileServiceUrl: String,
   mavenCentralLimit: Option[Int],
-  devMode: Boolean,
+  mavenCentralRefreshInterval: Option[Duration],
+  useWebJarsCdn: Boolean,
 )
 
 object AppConfig:
@@ -32,22 +32,22 @@ object AppConfig:
       def optBoolean(key: String): Option[Boolean] =
         if config.hasPath(key) then Some(config.getBoolean(key)) else None
 
-      def optInt(key: String): Option[Int] =
-        if config.hasPath(key) then Some(config.getInt(key)) else None
+      def requiredString(key: String): String =
+        optString(key).getOrElse(throw IllegalStateException(s"Required config '$key' is not set"))
 
       AppConfig(
         githubAuthToken = optString("github.auth.token"),
-        ossDisableDeploy = optBoolean("oss.disable-deploy").getOrElse(false),
-        ossGpgKey = optString("oss.gpg-key"),
-        ossGpgPass = optString("oss.gpg-pass"),
-        ossDeployUsername = optString("oss.deploy.username"),
-        ossDeployPassword = optString("oss.deploy.password"),
+        ossGpgKey = requiredString("oss.gpg-key"),
+        ossGpgPass = requiredString("oss.gpg-pass"),
+        ossDeployUsername = requiredString("oss.deploy.username"),
+        ossDeployPassword = requiredString("oss.deploy.password"),
         herokuApikey = optString("heroku.apikey"),
         deployHerokuApp = optString("deploy.herokuapp").getOrElse("webjars-test"),
         deployFork = optBoolean("deploy.fork").getOrElse(false),
         fileServiceUrl = optString("webjars.file-service.url").getOrElse("https://webjars-file-service.herokuapp.com"),
-        mavenCentralLimit = optInt("mavencentral.limit"),
-        devMode = sys.env.get("APP_MODE").contains("dev") || !sys.env.contains("PORT"),
+        mavenCentralLimit = None,
+        mavenCentralRefreshInterval = Some(1.hour),
+        useWebJarsCdn = optBoolean("webjars.cdn").getOrElse(true),
       )
     }
   }

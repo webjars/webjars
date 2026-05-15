@@ -1,0 +1,2 @@
+-J--enable-native-access=ALL-UNNAMED
+-J--sun-misc-unsafe-memory-access=allow

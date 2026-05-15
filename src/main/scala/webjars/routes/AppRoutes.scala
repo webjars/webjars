@@ -27,6 +27,7 @@ case class AppRoutes(
   sourceLocator: SourceLocator,
   classic: Classic,
   allDeployables: AllDeployables,
+  webJars: WebJars,
 ):
 
   private val MAX_POPULAR_WEBJARS = 20
@@ -38,19 +39,16 @@ case class AppRoutes(
     """
 
   private def maybeCached(request: Request, seq: Seq[WebJar])(f: Seq[WebJar] => Response): Response =
-    if config.devMode then
-      f(seq)
+    val hash = MurmurHash3.seqHash(seq)
+    val etag = "\"" + hash + "\""
+    val ifNoneMatch = request.header(Header.IfNoneMatch)
+    val etagMatches = ifNoneMatch.exists { inm =>
+      inm.renderedValue.contains(etag)
+    }
+    if etagMatches then
+      Response(Status.NotModified)
     else
-      val hash = MurmurHash3.seqHash(seq)
-      val etag = "\"" + hash + "\""
-      val ifNoneMatch = request.header(Header.IfNoneMatch)
-      val etagMatches = ifNoneMatch.exists { inm =>
-        inm.renderedValue.contains(etag)
-      }
-      if etagMatches then
-        Response(Status.NotModified)
-      else
-        f(seq).addHeader(Header.Custom("ETag", etag))
+      f(seq).addHeader(Header.Custom("ETag", etag))
 
   def allPopular: ZIO[Any, Throwable, Seq[WebJar]] =
     val reqs = allDeployables.groupIds().map: groupId =>
@@ -62,12 +60,14 @@ case class AppRoutes(
       mavenCentral.searchWebJars(groupId, None)
     ZIO.collectAll(reqs).map(_.flatten.toSeq)
 
-  private def htmlResponse(html: String): Response =
-    Response(
-      Status.Ok,
-      Headers(Header.ContentType(MediaType.text.html).untyped),
-      Body.fromString(html)
-    )
+  // Render a `template2` `Dom` as an HTML 200 response. Equivalent to
+  // `Response.html(dom)` but keeps the call sites symmetrical with
+  // `jsonResponse(...)` below.
+  private def htmlResponse(dom: zio.http.template2.Dom): Response =
+    Response.html(dom)
+
+  private def htmlResponse(dom: zio.http.template2.Dom, status: Status): Response =
+    Response.html(dom, status)
 
   private def jsonResponse(json: String): Response =
     Response(
@@ -96,11 +96,11 @@ case class AppRoutes(
 
     // Home page
     Method.GET / "" -> handler { (request: Request) =>
-      allPopular.map { webJars =>
-        maybeCached(request, webJars)(wj => htmlResponse(IndexPage(Left(wj))))
+      allPopular.map { popularWebJars =>
+        maybeCached(request, popularWebJars)(wj => htmlResponse(IndexPage(webJars, Left(wj))))
       }.catchAll { e =>
         ZIO.logError(s"index WebJar fetch failed: ${e.getMessage}") *>
-        ZIO.succeed(Response(Status.InternalServerError, Headers(Header.ContentType(MediaType.text.html).untyped), Body.fromString(IndexPage(Right(WEBJAR_FETCH_ERROR)))))
+        ZIO.succeed(htmlResponse(IndexPage(webJars, Right(WEBJAR_FETCH_ERROR)), Status.InternalServerError))
       }
     },
 
@@ -117,7 +117,7 @@ case class AppRoutes(
           if acceptsJson(request) then
             Response(Status.InternalServerError, Headers(Header.ContentType(MediaType.application.json).untyped), Body.fromString(WEBJAR_FETCH_ERROR))
           else
-            Response(Status.InternalServerError, Headers(Header.ContentType(MediaType.text.html).untyped), Body.fromString(WebJarList(Right(WEBJAR_FETCH_ERROR))))
+            htmlResponse(WebJarList(Right(WEBJAR_FETCH_ERROR)), Status.InternalServerError)
         }
       }
     },
@@ -143,7 +143,7 @@ case class AppRoutes(
             import webjars.models.WebJar.given
             jsonResponse(Seq.empty[WebJar].toJson)
           else
-            Response(Status.InternalServerError, Headers(Header.ContentType(MediaType.text.html).untyped), Body.fromString(WebJarList(Right(WEBJAR_FETCH_ERROR))))
+            htmlResponse(WebJarList(Right(WEBJAR_FETCH_ERROR)), Status.InternalServerError)
         }
       }
     },
@@ -165,13 +165,13 @@ case class AppRoutes(
 
     // All WebJars page (HTML or JSON)
     Method.GET / "all" -> handler { (request: Request) =>
-      allWebJarsData.map { webJars =>
-        val response = maybeCached(request, webJars) { wj =>
+      allWebJarsData.map { allWebJars =>
+        val response = maybeCached(request, allWebJars) { wj =>
           if acceptsJson(request) then
             import webjars.models.WebJar.given
             jsonResponse(wj.toJson)
           else
-            htmlResponse(AllPage(Left(wj)))
+            htmlResponse(AllPage(webJars, Left(wj)))
         }
         corsHeaders(response)
       }.catchAll { e =>
@@ -180,14 +180,14 @@ case class AppRoutes(
           val response = if acceptsJson(request) then
             Response(Status.InternalServerError, Headers(Header.ContentType(MediaType.application.json).untyped), Body.fromString("[]"))
           else
-            Response(Status.InternalServerError, Headers(Header.ContentType(MediaType.text.html).untyped), Body.fromString(AllPage(Right(WEBJAR_FETCH_ERROR))))
+            htmlResponse(AllPage(webJars, Right(WEBJAR_FETCH_ERROR)), Status.InternalServerError)
           corsHeaders(response)
         }
       }
     },
 
     // Documentation
-    Method.GET / "documentation" -> handler(htmlResponse(DocumentationPage())),
+    Method.GET / "documentation" -> handler(htmlResponse(DocumentationPage(webJars))),
 
     // Package exists
     Method.GET / "exists" -> handler { (request: Request) =>
@@ -423,4 +423,4 @@ case class AppRoutes(
     }
 
 object AppRoutes:
-  val live: ZLayer[Git & Cache & MavenCentralWebJars & DeployWebJar & WebJarsFileService & AppConfig & SourceLocator & Classic & AllDeployables, Nothing, AppRoutes] = ZLayer.derive[AppRoutes]
+  val live: ZLayer[Git & Cache & MavenCentralWebJars & DeployWebJar & WebJarsFileService & AppConfig & SourceLocator & Classic & AllDeployables & WebJars, Nothing, AppRoutes] = ZLayer.derive[AppRoutes]

@@ -1,0 +1,104 @@
+package webjars
+
+import com.dimafeng.testcontainers.GenericContainer
+import org.testcontainers.containers.wait.strategy.Wait
+import webjars.config.AppConfig
+import webjars.routes.{AppRoutes, StaticAssets}
+import webjars.utils.*
+import zio.*
+import zio.http.*
+import zio.redis.{CodecSupplier, Redis, RedisConfig}
+import zio.schema.Schema
+import zio.schema.codec.{BinaryCodec, ProtobufCodec}
+
+/**
+ * Test entry-point for `reStartTest` (sbt-revolver) and `runTest`.
+ *
+ * Boots the full webjars server with:
+ *
+ *   • A `valkey/valkey:8.1` Docker container started via Testcontainers,
+ *     replacing the production `REDIS_URL` config.
+ *   • [[TestInfrastructure.testConfig]] with `mavenCentralLimit = Some(5)`
+ *     to keep the artifact-refresh loop fast for local development.
+ *   • A [[TestInfrastructure.MockMavenCentralDeployer]] in place of the
+ *     real OSS-deploying layer, so no credentials are required and no
+ *     artifacts are published to Maven Central.
+ *
+ * Run once: `./sbt runTest`
+ * Watch + reload: `./sbt reStartTest`
+ *
+ * The integration test script (`./test-integration.sh`) can be pointed at
+ * the resulting server (`http://localhost:9000` by default).
+ */
+object WebJarsTestApp extends ZIOAppDefault:
+
+  override val bootstrap: ZLayer[ZIOAppArgs, Any, Any] =
+    Runtime.removeDefaultLoggers >>> zio.logging.consoleLogger()
+
+  /** Eagerly start a fresh valkey container so the `Valkey` service can
+   *  return a layer pointing at the right host:port synchronously. */
+  private def testValkey(): Valkey =
+    val container = GenericContainer(
+      dockerImage = "valkey/valkey:8.1",
+      exposedPorts = Seq(6379),
+      waitStrategy = Wait.forListeningPort(),
+    )
+    container.start()
+
+    new Valkey:
+      object ProtobufCodecSupplier extends CodecSupplier:
+        def get[A: Schema]: BinaryCodec[A] = ProtobufCodec.protobufCodec
+
+      val codecLayer: ZLayer[Any, Nothing, CodecSupplier] =
+        ZLayer.succeed(ProtobufCodecSupplier)
+
+      val layer: ZLayer[Any, Nothing, Redis] =
+        ZLayer.succeed(RedisConfig(container.host, container.mappedPort(6379))) ++
+          codecLayer >>> Redis.singleNode.orDie
+
+      def close(): Unit = container.stop()
+
+  private val testValkeyLayer: ZLayer[Any, Nothing, Valkey] =
+    ZLayer.succeed(testValkey())
+
+  private val devConfig: AppConfig =
+    TestInfrastructure.testConfig.copy(mavenCentralLimit = Some(5))
+
+  private val testConfigLayer: ZLayer[Any, Nothing, AppConfig] =
+    ZLayer.succeed(devConfig)
+
+  def run =
+    ZIO.scoped:
+      for
+        appRoutes           <- ZIO.service[AppRoutes]
+        mavenCentralWebJars <- ZIO.service[MavenCentralWebJars]
+        _                   <- mavenCentralWebJars.startRefreshLoop()
+        allRoutes            = appRoutes.routes ++ StaticAssets.routes
+        port                 = sys.env.get("PORT").flatMap(_.toIntOption).getOrElse(9000)
+        _                   <- ZIO.logInfo(s"Starting test server on port $port")
+        _                   <- Server.serve(allRoutes).provide(
+                                 Server.defaultWith(_.binding(java.net.InetSocketAddress("0.0.0.0", port))),
+                               )
+      yield ()
+    .provide(
+      testConfigLayer,
+      Client.default,
+      Cache.live,
+      testValkeyLayer,
+      Git.live,
+      GitHub.live,
+      SemVer.live,
+      Maven.live,
+      LicenseDetector.live,
+      SourceLocator.live,
+      WebJarsFileService.live,
+      NPM.live,
+      Classic.live,
+      AllDeployables.live,
+      TestInfrastructure.mockMavenCentralDeployerLayer,
+      MavenCentralWebJars.live,
+      Heroku.live,
+      DeployWebJar.live,
+      WebJars.live,
+      AppRoutes.live,
+    )

@@ -3,7 +3,7 @@ package webjars
 import com.jamesward.zio_mavencentral.MavenCentral
 import webjars.models.WebJar
 import webjars.utils.*
-import webjars.TestInfrastructure.testConfig
+import webjars.TestInfrastructure.{MockMavenCentralDeployer, testConfig}
 import zio.*
 import zio.http.Client
 import zio.test.*
@@ -16,7 +16,7 @@ object DeployWebJarSpec extends ZIOSpecDefault:
   private def withDeploy[A](f: (DeployWebJar, NPM, Classic) => ZIO[Scope, Throwable, A]): ZIO[Client, Throwable, A] =
     ZIO.serviceWithZIO[Client] { client =>
       ZIO.scoped {
-        val config = testConfig.copy(ossDisableDeploy = true)
+        val config = testConfig
         val cache = CacheLive()
         val valkey = ValkeyLive()
         val git = GitLive(client)
@@ -72,10 +72,6 @@ object DeployWebJarSpec extends ZIOSpecDefault:
       }
     },
   ).provide(Client.default) @@ TestAspect.withLiveClock @@ TestAspect.timeout(300.seconds)
-
-class MockMavenCentralDeployer extends MavenCentralDeployer:
-  def publish(gav: MavenCentral.GroupArtifactVersion, jar: Array[Byte], pom: String): ZIO[Any, Throwable, Unit] =
-    ZIO.unit
 
 class MockMavenCentralWebJars(config: webjars.config.AppConfig, webJarsFileService: WebJarsFileService, valkey: Valkey, allDeployables: AllDeployables)
   extends MavenCentralWebJarsLive(config, webJarsFileService, valkey, allDeployables):

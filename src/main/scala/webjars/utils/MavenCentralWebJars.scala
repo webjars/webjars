@@ -22,7 +22,7 @@ trait MavenCentralWebJars:
 
 case class MavenCentralWebJarsLive(config: AppConfig, webJarsFileService: WebJarsFileService, valkey: Valkey, allDeployables: AllDeployables) extends MavenCentralWebJars:
 
-  private[utils] lazy val maybeLimit: Option[Int] = config.mavenCentralLimit.orElse(Option.when(config.devMode)(5))
+  private[utils] lazy val maybeLimit: Option[Int] = config.mavenCentralLimit
 
   private val mavenCentralLayer: ZLayer[Any, Nothing, Scope & Client] = Client.default.orDie ++ Scope.default
 
@@ -135,14 +135,9 @@ case class MavenCentralWebJarsLive(config: AppConfig, webJarsFileService: WebJar
       groupId => refreshGroup(groupId).ignoreLogged
 
   def startRefreshLoop(): ZIO[Any, Nothing, Fiber.Runtime[Nothing, Unit]] =
-    if !config.devMode then
-      refreshAll(allDeployables.groupIds()).repeat(Schedule.spaced(1.hour)).unit
-        .provide(Client.default.orDie ++ valkey.layer)
-        .forkDaemon
-    else
-      refreshAll(allDeployables.groupIds())
-        .provide(Client.default.orDie ++ valkey.layer)
-        .forkDaemon
+    val once = refreshAll(allDeployables.groupIds())
+    val effect = config.mavenCentralRefreshInterval.fold(once)(interval => once.repeat(Schedule.spaced(interval)).unit)
+    effect.provide(Client.default.orDie ++ valkey.layer).forkDaemon
 
   extension (m: Map[MavenCentral.ArtifactId, WebJarsCache.WebJarMeta])
     private def toWebJars(groupId: MavenCentral.GroupId): Seq[WebJar] =

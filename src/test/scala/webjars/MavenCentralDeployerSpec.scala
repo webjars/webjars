@@ -30,11 +30,11 @@ object MavenCentralDeployerSpec extends ZIOSpecDefault:
   def spec = suite("MavenCentralDeployer")(
     test("asc") {
       val config = TestInfrastructure.testConfig.copy(
-        ossGpgKey = Some(generateKey()),
-        ossGpgPass = Some("test"),
+        ossGpgKey = generateKey(),
+        ossGpgPass = "test",
       )
       val deployer = MavenCentralDeployerLive(config)
       val result = deployer.asc("foo".getBytes)
-      assertTrue(result.isDefined)
+      assertTrue(result.nonEmpty)
     },
   ) @@ TestAspect.timeout(zio.Duration.fromSeconds(300))

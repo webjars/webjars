@@ -1,7 +1,9 @@
 package webjars.views.partials
 
+import zio.http.template2.*
+
 object FileListModal:
-  def apply(): String =
+  def apply(): Dom = Dom.raw(
     """<div id="fileListModal" class="modal fade" tabindex="-1" aria-labelledby="fileListModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
@@ -14,3 +16,4 @@ object FileListModal:
         </div>
     </div>
 </div>"""
+  )

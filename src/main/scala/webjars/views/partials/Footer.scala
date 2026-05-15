@@ -1,13 +1,15 @@
 package webjars.views.partials
 
-import java.time.format.DateTimeFormatter
+import zio.http.template2.*
+
 import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 object Footer:
-  def apply(): String =
+  def apply(): Dom =
     val year = DateTimeFormatter.ofPattern("YYYY").format(LocalDate.now)
-    s"""<footer>
-    <div class="container d-flex align-items-center justify-content-center footer-content">
-        <span>&copy; $year WebJars</span>
-    </div>
-</footer>"""
+    footer(
+      div(className := "container d-flex align-items-center justify-content-center footer-content",
+        span(Dom.raw(s"&copy; $year WebJars"))
+      )
+    )

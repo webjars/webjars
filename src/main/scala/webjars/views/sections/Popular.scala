@@ -2,10 +2,11 @@ package webjars.views.sections
 
 import webjars.models.WebJar
 import webjars.views.partials.WebJarList
+import zio.http.template2.*
 
 object Popular:
-  def apply(webjarsOrError: Either[Iterable[WebJar], String]): String =
-    s"""<section class="section-wrapper">
+  def apply(webjarsOrError: Either[Iterable[WebJar], String]): Dom = Dom.fragment(
+    Dom.raw("""<section class="section-wrapper">
     <div class="container">
         <div class="card">
             <div class="card-body">
@@ -60,9 +61,9 @@ object Popular:
                 </div>
 
                 <!-- WebJars list -->
-                <div id="webJarList" class="table-responsive">
-                    ${WebJarList(webjarsOrError)}
-                </div>
+                <div id="webJarList" class="table-responsive">"""),
+    WebJarList(webjarsOrError),
+    Dom.raw("""</div>
 
                 <div class="d-flex align-items-center justify-content-center pt-3">
                     <a href="/all">
@@ -74,4 +75,5 @@ object Popular:
         </div>
 
     </div>
-</section>"""
+</section>"""),
+  )

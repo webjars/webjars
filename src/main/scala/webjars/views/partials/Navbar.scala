@@ -1,9 +1,13 @@
 package webjars.views.partials
 
+import zio.http.template2.*
+
 object Navbar:
-  def apply(currentPath: String): String =
-    val docsBanner = if currentPath == "/documentation" then
-      """<div class="alert alert-warning banner" role="alert">
+  def apply(currentPath: String): Dom =
+    val docsBanner: Dom =
+      if currentPath == "/documentation" then
+        Dom.raw(
+          """<div class="alert alert-warning banner" role="alert">
         Help improve these docs!
         <a class="alert-link text-decoration-underline" href="https://github.com/webjars/webjars/blob/master/app/views/documentation.scala.html" target="_blank" rel="noopener noreferrer">
             Documentation Source
@@ -12,21 +16,25 @@ object Navbar:
             Create an Issue
         </a>
     </div>"""
-    else ""
+        )
+      else Dom.empty
 
-    val allActive = if currentPath == "/all" then " active " else ""
+    val allActive  = if currentPath == "/all" then " active " else ""
     val docsActive = if currentPath == "/documentation" then " active " else ""
 
-    val docsSidebarButton = if currentPath == "/documentation" then
-      """<li class="d-lg-none nav-item">
+    val docsSidebarButton: Dom =
+      if currentPath == "/documentation" then
+        Dom.raw(
+          """<li class="d-lg-none nav-item">
                     <button class="btn px-1 nav-link" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebar-nav" aria-controls="sidebar-nav" aria-label="Toggle sidebar navigation">
                         <svg class="bi bi-three-dots-vertical"><use href="#three-dots-vertical"></use></svg>
                     </button>
                 </li>"""
-    else ""
+        )
+      else Dom.empty
 
-    s"""$docsBanner
-<nav class="navbar navbar-expand shadow-sm sticky-top">
+    val mainBlock: Dom = Dom.raw(
+      s"""<nav class="navbar navbar-expand shadow-sm sticky-top">
     <div class="container">
         <div class="d-flex align-items-center gap-2">
             <button class="d-lg-none btn px-1" type="button" data-bs-toggle="offcanvas" data-bs-target="#main-nav" aria-controls="main-nav-links" aria-label="Toggle navigation">
@@ -96,9 +104,11 @@ object Navbar:
                         </button>
                     </li>
                 </ul>
-            </li>
-            $docsSidebarButton
-        </ul>
+            </li>"""
+    )
+
+    val mainBlockClose: Dom = Dom.raw(
+      """        </ul>
     </div>
 </nav>
 
@@ -122,3 +132,6 @@ object Navbar:
         </ul>
     </div>
 </div>"""
+    )
+
+    Dom.fragment(docsBanner, mainBlock, docsSidebarButton, mainBlockClose)

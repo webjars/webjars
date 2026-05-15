@@ -9,3 +9,4 @@
 .DS_Store
 /.bsp/
 /.metals
+/.mcp.json

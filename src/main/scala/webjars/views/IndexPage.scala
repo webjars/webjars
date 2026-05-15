@@ -1,26 +1,26 @@
 package webjars.views
 
+import webjars.generated.WebJars.Artifact.`jquery.typewatch`
 import webjars.models.WebJar
+import webjars.utils.WebJars
 import webjars.views.partials.{FileListModal, NewWebJarModal}
 import webjars.views.sections.{Hero, Popular}
+import zio.http.template2.*
 
 object IndexPage:
-  def apply(webjarsOrError: Either[Iterable[WebJar], String]): String =
-    val extraHead = """<script defer src="/assets/javascripts/index.js"></script>
-        <script src="/webjars/jquery.typewatch/2.1.0/jquery.typewatch.js"></script>"""
+  def apply(webJars: WebJars, webjarsOrError: Either[Iterable[WebJar], String]): Dom =
+    val extraHead = Dom.fragment(
+      script(Dom.boolAttr("defer"), src := "/assets/javascripts/index.js"),
+      script(src := webJars.url(`jquery.typewatch`, "jquery.typewatch.js")),
+    )
 
-    MainLayout("WebJars - Web Libraries in Jars", "/", extraHead) {
-      s"""<!-- Content -->
-    <div class="home-bg">
-        <!-- Hero -->
-        ${Hero()}
-
-        <!-- Popular WebJars -->
-        ${Popular(webjarsOrError)}
-    </div>
-
-    <!-- Modals -->
-    ${FileListModal()}
-
-    ${NewWebJarModal()}"""
+    MainLayout(webJars, "WebJars - Web Libraries in Jars", "/", extraHead) {
+      Dom.fragment(
+        div(className := "home-bg",
+          Hero(),
+          Popular(webjarsOrError),
+        ),
+        FileListModal(),
+        NewWebJarModal(),
+      )
     }
