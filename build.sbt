@@ -47,7 +47,7 @@ libraryDependencies ++= Seq(
   "org.scala-lang.modules" %% "scala-xml"     % "2.4.0",
 
   // Maven Central
-  "com.jamesward" %% "zio-mavencentral"       % "0.8.1-SNAPSHOT",
+  "com.jamesward" %% "zio-mavencentral"       % "0.8.1",
 
   // URIs
   "com.indoorvivants" %% "scala-uri"          % "4.2.0",
@@ -66,8 +66,8 @@ libraryDependencies ++= Seq(
   //  • `Sass`   scope — SCSS sources made available to sbt-sass at compile-time.
   //  • `Test`   scope — JAR present at runtime in reStartTest (local /webjars/).
   // Prod jar contains none of these; URLs are baked at build time.
-  "org.webjars.npm" % "bootstrap"                 % "5.3.8"  % Set(WebJar, Test, Sass),
-  "org.webjars"     % "highlightjs"               % "11.11.1"% Set(WebJar, Test),
+  "org.webjars.npm" % "bootstrap"                 % "5.3.8"   % Set(WebJar, Test, Sass),
+  "org.webjars"     % "highlightjs"               % "11.11.1" % Set(WebJar, Test),
   // jquery pinned to 3.7.1 — jquery 4.0.0 drops legacy APIs that
   // select2 4.0.13 (still our pinned version) relies on.
   "org.webjars"     % "jquery"                    % "3.7.1"  % Set(WebJar, Test),

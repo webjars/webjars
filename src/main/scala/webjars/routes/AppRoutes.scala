@@ -22,6 +22,7 @@ case class AppRoutes(
   cache: Cache,
   mavenCentral: MavenCentralWebJars,
   deployWebJar: DeployWebJar,
+  deployJobs: DeployJobs,
   webJarsFileService: WebJarsFileService,
   config: AppConfig,
   sourceLocator: SourceLocator,
@@ -376,11 +377,7 @@ case class AppRoutes(
     allDeployables.fromName(webJarType).fold {
       ZIO.succeed(Response(Status.BadRequest, body = Body.fromString(s"Specified WebJar type '$webJarType' can not be deployed")))
     } { deployable =>
-      val stream: ZStream[Any, Nothing, String] = deployWebJar.deploy(deployable, nameOrUrlish, version, true, false, false)
-        .provideLayer(Scope.default)
-        .catchAll { e =>
-          ZStream.succeed(e.getMessage)
-        }
+      val stream: ZStream[Any, Nothing, String] = deployJobs.deploy(deployable, nameOrUrlish, version)
 
       if acceptsEventStream(request) then
         ZIO.succeed {
@@ -423,4 +420,4 @@ case class AppRoutes(
     }
 
 object AppRoutes:
-  val live: ZLayer[Git & Cache & MavenCentralWebJars & DeployWebJar & WebJarsFileService & AppConfig & SourceLocator & Classic & AllDeployables & WebJars, Nothing, AppRoutes] = ZLayer.derive[AppRoutes]
+  val live: ZLayer[Git & Cache & MavenCentralWebJars & DeployWebJar & DeployJobs & WebJarsFileService & AppConfig & SourceLocator & Classic & AllDeployables & WebJars, Nothing, AppRoutes] = ZLayer.derive[AppRoutes]

@@ -6,6 +6,8 @@
 /logs
 /project/project
 /project/target
+/project/*/project/
+/project/*/target/
 .DS_Store
 /.bsp/
 /.metals

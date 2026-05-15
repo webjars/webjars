@@ -30,8 +30,8 @@ object MavenCentralDeployerSpec extends ZIOSpecDefault:
   def spec = suite("MavenCentralDeployer")(
     test("asc") {
       val config = TestInfrastructure.testConfig.copy(
-        ossGpgKey = generateKey(),
-        ossGpgPass = "test",
+        ossGpgKey = Some(generateKey()),
+        ossGpgPass = Some("test"),
       )
       val deployer = MavenCentralDeployerLive(config)
       val result = deployer.asc("foo".getBytes)

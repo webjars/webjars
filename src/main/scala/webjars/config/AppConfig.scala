@@ -5,13 +5,10 @@ import zio.*
 
 case class AppConfig(
   githubAuthToken: Option[String],
-  ossGpgKey: String,
-  ossGpgPass: String,
-  ossDeployUsername: String,
-  ossDeployPassword: String,
-  herokuApikey: Option[String],
-  deployHerokuApp: String,
-  deployFork: Boolean,
+  ossGpgKey: Option[String],
+  ossGpgPass: Option[String],
+  ossDeployUsername: Option[String],
+  ossDeployPassword: Option[String],
   fileServiceUrl: String,
   mavenCentralLimit: Option[Int],
   mavenCentralRefreshInterval: Option[Duration],
@@ -32,18 +29,12 @@ object AppConfig:
       def optBoolean(key: String): Option[Boolean] =
         if config.hasPath(key) then Some(config.getBoolean(key)) else None
 
-      def requiredString(key: String): String =
-        optString(key).getOrElse(throw IllegalStateException(s"Required config '$key' is not set"))
-
       AppConfig(
         githubAuthToken = optString("github.auth.token"),
-        ossGpgKey = requiredString("oss.gpg-key"),
-        ossGpgPass = requiredString("oss.gpg-pass"),
-        ossDeployUsername = requiredString("oss.deploy.username"),
-        ossDeployPassword = requiredString("oss.deploy.password"),
-        herokuApikey = optString("heroku.apikey"),
-        deployHerokuApp = optString("deploy.herokuapp").getOrElse("webjars-test"),
-        deployFork = optBoolean("deploy.fork").getOrElse(false),
+        ossGpgKey = optString("oss.gpg-key"),
+        ossGpgPass = optString("oss.gpg-pass"),
+        ossDeployUsername = optString("oss.deploy.username"),
+        ossDeployPassword = optString("oss.deploy.password"),
         fileServiceUrl = optString("webjars.file-service.url").getOrElse("https://webjars-file-service.herokuapp.com"),
         mavenCentralLimit = None,
         mavenCentralRefreshInterval = Some(1.hour),

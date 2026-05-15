@@ -42,8 +42,8 @@ object Main extends ZIOAppDefault:
       AllDeployables.live,
       MavenCentralDeployer.live,
       MavenCentralWebJars.live,
-      Heroku.live,
       DeployWebJar.live,
+      DeployJobs.live,
       WebJars.live,
       AppRoutes.live,
     )

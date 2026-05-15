@@ -1,7 +1,6 @@
 package webjars
 
 import com.jamesward.zio_mavencentral.MavenCentral
-import webjars.models.WebJar
 import webjars.utils.*
 import webjars.TestInfrastructure.{MockMavenCentralDeployer, testConfig}
 import zio.*
@@ -28,11 +27,9 @@ object DeployWebJarSpec extends ZIOSpecDefault:
         val webJarsFileService = WebJarsFileServiceLive(client, config)
         val npm = NPMLive(client, licenseDetector, git, gitHub, maven, semVer)
         val classic = ClassicLive(client, licenseDetector, gitHub, cache, config, npm)
-        val allDeployables = AllDeployablesLive(classic, npm)
         val mavenCentralDeployer = MockMavenCentralDeployer()
-        val mavenCentralWebJars = MockMavenCentralWebJars(config, webJarsFileService, valkey, allDeployables)
-        val heroku = HerokuLive(client, config)
-        val deployWebJar = DeployWebJarLive(mavenCentralWebJars, mavenCentralDeployer, sourceLocator, config, heroku)
+        val mavenCentralWebJars = MockMavenCentralWebJars(config, webJarsFileService, valkey, AllDeployablesLive(classic, npm))
+        val deployWebJar = DeployWebJarLive(mavenCentralWebJars, mavenCentralDeployer, sourceLocator)
         f(deployWebJar, npm, classic)
       }
     }
@@ -40,7 +37,7 @@ object DeployWebJarSpec extends ZIOSpecDefault:
   def spec = suite("DeployWebJar")(
     test("work with npm") {
       withDeploy { (deployWebJar, npm, _) =>
-        deployWebJar.deploy(npm, "jquery", "3.2.1", false, true, false).runCollect.map { output =>
+        deployWebJar.deploy(npm, "jquery", "3.2.1").runCollect.map { output =>
           val last = output.lastOption.getOrElse("")
           assertTrue(
             last.contains("GroupID = org.webjars.npm"),
@@ -52,7 +49,7 @@ object DeployWebJarSpec extends ZIOSpecDefault:
     },
     test("work with Classic") {
       withDeploy { (deployWebJar, _, classic) =>
-        deployWebJar.deploy(classic, "swagger-ui", "v5.15.1", false, true, false).runCollect.map { output =>
+        deployWebJar.deploy(classic, "swagger-ui", "v5.15.1").runCollect.map { output =>
           val all = output.mkString
           assertTrue(
             all.contains("Resolved Licenses: Apache-2.0"),
@@ -61,13 +58,6 @@ object DeployWebJarSpec extends ZIOSpecDefault:
             all.contains("Version = 5.15.1"),
             all.contains("Deployed!"),
           )
-        }
-      }
-    },
-    test("deploy deps") {
-      withDeploy { (deployWebJar, npm, _) =>
-        deployWebJar.deploy(npm, "react", "16.8.6", true, true, false).runCollect.map { output =>
-          assertTrue(output.exists(_.contains("Deploying these dependencies:")))
         }
       }
     },

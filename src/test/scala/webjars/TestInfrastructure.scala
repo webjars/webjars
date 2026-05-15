@@ -14,13 +14,10 @@ object TestInfrastructure:
 
   val testConfig: AppConfig = AppConfig(
     githubAuthToken = sys.env.get("GITHUB_TOKEN"),
-    ossGpgKey = "",
-    ossGpgPass = "",
-    ossDeployUsername = "",
-    ossDeployPassword = "",
-    herokuApikey = sys.env.get("HEROKU_API_KEY"),
-    deployHerokuApp = sys.env.getOrElse("DEPLOY_HEROKU_APP", "webjars-test"),
-    deployFork = false,
+    ossGpgKey = None,
+    ossGpgPass = None,
+    ossDeployUsername = None,
+    ossDeployPassword = None,
     fileServiceUrl = "https://webjars-file-service.herokuapp.com",
     mavenCentralLimit = None,
     mavenCentralRefreshInterval = None,
@@ -49,8 +46,7 @@ object TestInfrastructure:
     val allDeployables = AllDeployablesLive(classic, npm)
     val mavenCentralDeployer = MavenCentralDeployerLive(testConfig)
     val mavenCentralWebJars = MavenCentralWebJarsLive(testConfig, webJarsFileService, valkey, allDeployables)
-    val heroku = HerokuLive(client, testConfig)
-    val deployWebJar = DeployWebJarLive(mavenCentralWebJars, mavenCentralDeployer, sourceLocator, testConfig, heroku)
+    val deployWebJar = DeployWebJarLive(mavenCentralWebJars, mavenCentralDeployer, sourceLocator)
     Services(
       config = testConfig,
       cache = cache,
@@ -67,7 +63,6 @@ object TestInfrastructure:
       allDeployables = allDeployables,
       mavenCentralDeployer = mavenCentralDeployer,
       mavenCentralWebJars = mavenCentralWebJars,
-      heroku = heroku,
       deployWebJar = deployWebJar,
     )
 
@@ -87,7 +82,6 @@ object TestInfrastructure:
     allDeployables: AllDeployables,
     mavenCentralDeployer: MavenCentralDeployer,
     mavenCentralWebJars: MavenCentralWebJars,
-    heroku: Heroku,
     deployWebJar: DeployWebJar,
   )
 
