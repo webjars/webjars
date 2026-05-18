@@ -7,3 +7,5 @@ val sbtSass    = RootProject(file("sbt-sass"))
 dependsOn(sbtWebjars, sbtSass)
 
 addSbtPlugin("io.spray" % "sbt-revolver" % "0.10.0")
+
+addSbtPlugin("com.github.sbt" % "sbt-native-packager" % "1.11.3")

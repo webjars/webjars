@@ -2,6 +2,8 @@ name := "webjars"
 
 scalaVersion := "3.8.3"
 
+enablePlugins(JavaAppPackaging)
+
 val zioVersion = "2.1.26"
 val zioHttpVersion = "3.11.1"
 val zioJsonVersion = "0.9.2"
