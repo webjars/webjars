@@ -31,6 +31,13 @@ object TestInfrastructure:
   val mockMavenCentralDeployerLayer: ULayer[MavenCentralDeployer] =
     ZLayer.succeed(MockMavenCentralDeployer())
 
+  // No-op SearchIndex for tests that don't exercise search. Snapshot is
+  // always empty; rebuild is a no-op so `refreshAll` doesn't try to assemble
+  // the index against test data it doesn't care about.
+  val noopSearchIndex: SearchIndex = new SearchIndex:
+    def snapshot: UIO[List[webjars.models.WebJar]] = ZIO.succeed(List.empty)
+    def rebuild: UIO[Unit] = ZIO.unit
+
   def services(client: Client): Services =
     val cache = CacheLive()
     val valkey = ValkeyLive()
@@ -45,7 +52,7 @@ object TestInfrastructure:
     val classic = ClassicLive(client, licenseDetector, gitHub, cache, testConfig, npm)
     val allDeployables = AllDeployablesLive(classic, npm)
     val mavenCentralDeployer = MavenCentralDeployerLive(testConfig)
-    val mavenCentralWebJars = MavenCentralWebJarsLive(testConfig, webJarsFileService, valkey, allDeployables)
+    val mavenCentralWebJars = MavenCentralWebJarsLive(testConfig, webJarsFileService, valkey, allDeployables, noopSearchIndex)
     val deployWebJar = DeployWebJarLive(mavenCentralWebJars, mavenCentralDeployer, sourceLocator)
     Services(
       config = testConfig,

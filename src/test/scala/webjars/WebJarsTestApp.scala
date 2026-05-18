@@ -36,7 +36,11 @@ object WebJarsTestApp extends ZIOAppDefault:
     Runtime.removeDefaultLoggers >>> zio.logging.consoleLogger()
 
   /** Eagerly start a fresh valkey container so the `Valkey` service can
-   *  return a layer pointing at the right host:port synchronously. */
+   *  return a layer pointing at the right host:port synchronously. The Redis
+   *  env is materialized once at startup and cached; the returned layer is a
+   *  `succeedEnvironment` wrapper so per-call `.provide(valkey.layer)` reuses
+   *  the same connection (matches the prod `ValkeyLive` shape). Without this
+   *  cache, every call site opens a fresh Redis connection. */
   private def testValkey(): Valkey =
     val container = GenericContainer(
       dockerImage = "valkey/valkey:8.1",
@@ -52,11 +56,27 @@ object WebJarsTestApp extends ZIOAppDefault:
       val codecLayer: ZLayer[Any, Nothing, CodecSupplier] =
         ZLayer.succeed(ProtobufCodecSupplier)
 
-      val layer: ZLayer[Any, Nothing, Redis] =
-        ZLayer.succeed(RedisConfig(container.host, container.mappedPort(6379))) ++
-          codecLayer >>> Redis.singleNode.orDie
+      private val runtime = Runtime.default
 
-      def close(): Unit = container.stop()
+      private val scopeCloseable: Scope.Closeable =
+        Unsafe.unsafe { implicit u => runtime.unsafe.run(Scope.make).getOrThrow() }
+
+      private lazy val redisEnv: ZEnvironment[Redis] =
+        Unsafe.unsafe { implicit u =>
+          runtime.unsafe.run(
+            (ZLayer.succeed(RedisConfig(container.host, container.mappedPort(6379))) ++ codecLayer >>> Redis.singleNode.orDie)
+              .build
+              .provideEnvironment(ZEnvironment(scopeCloseable))
+          ).getOrThrow()
+        }
+
+      val layer: ZLayer[Any, Nothing, Redis] = ZLayer.succeedEnvironment(redisEnv)
+
+      def close(): Unit =
+        Unsafe.unsafe { implicit u =>
+          runtime.unsafe.run(scopeCloseable.close(Exit.unit)).getOrThrow()
+        }
+        container.stop()
 
   private val testValkeyLayer: ZLayer[Any, Nothing, Valkey] =
     ZLayer.succeed(testValkey())
@@ -72,6 +92,8 @@ object WebJarsTestApp extends ZIOAppDefault:
       for
         appRoutes           <- ZIO.service[AppRoutes]
         mavenCentralWebJars <- ZIO.service[MavenCentralWebJars]
+        searchIndex         <- ZIO.service[SearchIndex]
+        _                   <- searchIndex.rebuild.forkDaemon
         _                   <- mavenCentralWebJars.startRefreshLoop()
         allRoutes            = appRoutes.routes ++ StaticAssets.routes ++ TestStaticAssets.routes
         port                 = sys.env.get("PORT").flatMap(_.toIntOption).getOrElse(9000)
@@ -100,5 +122,7 @@ object WebJarsTestApp extends ZIOAppDefault:
       DeployWebJar.live,
       DeployJobs.live,
       WebJars.live,
+      PopularMetrics.live,
+      SearchIndex.live,
       AppRoutes.live,
     )

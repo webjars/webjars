@@ -57,15 +57,25 @@ object SassPlugin extends AutoPlugin {
           val compiler = SassCompilerFactory.bundled()
           try {
             compiler.registerImporter(new WebJarsScssImporter(loader))
+            // Emit source maps so DevTools can show SCSS line numbers, and
+            // inline the SCSS sources so the .map is self-contained (no extra
+            // request per partial).
+            compiler.setGenerateSourceMaps(true)
+            compiler.setSourceMapIncludeSources(true)
             val entries = (srcDir ** "*.scss").get.filterNot(_.getName.startsWith("_"))
-            entries.map { src =>
+            entries.flatMap { src =>
               val rel = IO.relativize(srcDir, src).getOrElse(src.getName)
               val out = outDir / rel.stripSuffix(".scss").concat(".css")
+              val map = file(out.getAbsolutePath + ".map")
               IO.createDirectory(out.getParentFile)
               val result = compiler.compileFile(src)
-              IO.write(out, result.getCss)
-              log.info(s"[sass] $src -> $out")
-              out
+              // Append the sourceMappingURL trailer so browsers know where to
+              // find the .map (sass-embedded does not emit it by default).
+              IO.write(out, result.getCss + s"\n/*# sourceMappingURL=${map.getName} */\n")
+              val sourceMap = Option(result.getSourceMap).filter(_.nonEmpty)
+              sourceMap.foreach(IO.write(map, _))
+              log.info(s"[sass] $src -> $out${sourceMap.fold("")(_ => s" (+ ${map.getName})")}")
+              out +: sourceMap.map(_ => map).toSeq
             }
           } finally {
             compiler.close()

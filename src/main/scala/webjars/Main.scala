@@ -17,6 +17,8 @@ object Main extends ZIOAppDefault:
       for
         appRoutes <- ZIO.service[AppRoutes]
         mavenCentralWebJars <- ZIO.service[MavenCentralWebJars]
+        searchIndex <- ZIO.service[SearchIndex]
+        _ <- searchIndex.rebuild.forkDaemon
         _ <- mavenCentralWebJars.startRefreshLoop()
         allRoutes = appRoutes.routes ++ StaticAssets.routes
         port = sys.env.get("PORT").flatMap(_.toIntOption).getOrElse(9000)
@@ -45,5 +47,7 @@ object Main extends ZIOAppDefault:
       DeployWebJar.live,
       DeployJobs.live,
       WebJars.live,
+      PopularMetrics.live,
+      SearchIndex.live,
       AppRoutes.live,
     )

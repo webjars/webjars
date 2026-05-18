@@ -38,7 +38,7 @@ libraryDependencies ++= Seq(
   "dev.zio" %% "zio-redis"                    % "1.2.1",
 
   // In-process cache
-  "dev.zio" %% "zio-cache"                    % "0.2.5",
+  "dev.zio" %% "zio-cache"                    % "0.2.8",
 
   // Archive handling (ZIO Streams Compress)
   "dev.zio" %% "zio-streams-compress-tar"     % zioStreamsCompressVersion,

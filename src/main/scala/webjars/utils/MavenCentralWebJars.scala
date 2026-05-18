@@ -20,7 +20,7 @@ trait MavenCentralWebJars:
   def featuredWebJars(groupId: MavenCentral.GroupId, limit: Int): ZIO[Any, Throwable, Seq[WebJar]]
   def searchWebJars(groupId: MavenCentral.GroupId, query: Option[String]): ZIO[Any, Throwable, Seq[WebJar]]
 
-case class MavenCentralWebJarsLive(config: AppConfig, webJarsFileService: WebJarsFileService, valkey: Valkey, allDeployables: AllDeployables) extends MavenCentralWebJars:
+case class MavenCentralWebJarsLive(config: AppConfig, webJarsFileService: WebJarsFileService, valkey: Valkey, allDeployables: AllDeployables, searchIndex: SearchIndex) extends MavenCentralWebJars:
 
   private[utils] lazy val maybeLimit: Option[Int] = config.mavenCentralLimit
 
@@ -131,13 +131,16 @@ case class MavenCentralWebJarsLive(config: AppConfig, webJarsFileService: WebJar
         (refreshMissing ++ refreshUpdated).toSet
 
   def refreshAll(groupIds: Set[MavenCentral.GroupId]): ZIO[Client & Redis, Nothing, Unit] =
-    ZIO.foreachDiscard(groupIds):
-      groupId => refreshGroup(groupId).ignoreLogged
+    ZIO.foreachDiscard(groupIds)(groupId => refreshGroup(groupId).ignoreLogged) *>
+      searchIndex.rebuild.forkDaemon.unit
 
   def startRefreshLoop(): ZIO[Any, Nothing, Fiber.Runtime[Nothing, Unit]] =
     val once = refreshAll(allDeployables.groupIds())
     val effect = config.mavenCentralRefreshInterval.fold(once)(interval => once.repeat(Schedule.spaced(interval)).unit)
-    effect.provide(Client.default.orDie ++ valkey.layer).forkDaemon
+    effect
+      .provide(Client.default.orDie ++ valkey.layer)
+      .tapErrorCause(c => ZIO.logErrorCause("Maven Central refresh loop crashed", c))
+      .forkDaemon
 
   extension (m: Map[MavenCentral.ArtifactId, WebJarsCache.WebJarMeta])
     private def toWebJars(groupId: MavenCentral.GroupId): Seq[WebJar] =
@@ -152,4 +155,4 @@ case class MavenCentralWebJarsLive(config: AppConfig, webJarsFileService: WebJar
     WebJarsCache.getArtifacts(groupId, maybeLimit, query).map(_.toWebJars(groupId)).provide(valkey.layer)
 
 object MavenCentralWebJars:
-  val live: ZLayer[AppConfig & WebJarsFileService & Valkey & AllDeployables, Nothing, MavenCentralWebJars] = ZLayer.derive[MavenCentralWebJarsLive]
+  val live: ZLayer[AppConfig & WebJarsFileService & Valkey & AllDeployables & SearchIndex, Nothing, MavenCentralWebJars] = ZLayer.derive[MavenCentralWebJarsLive]

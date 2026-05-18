@@ -61,7 +61,11 @@ case class ValkeyLive() extends Valkey:
                   case e =>
                     ZIO.fail(e)
               redis.auth(password).timeoutFail(TimeoutException(timeoutMsg))(connectionCheckTimeout).run
-              authIfNeeded.repeat(Schedule.spaced(5.seconds)).forkDaemon.run
+              authIfNeeded
+                .repeat(Schedule.spaced(5.seconds))
+                .tapErrorCause(c => ZIO.logErrorCause("Redis auth retry loop crashed", c))
+                .forkDaemon
+                .run
             case None =>
               redis.ping().timeoutFail(TimeoutException(timeoutMsg))(connectionCheckTimeout).run
 

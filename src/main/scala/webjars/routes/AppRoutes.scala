@@ -28,7 +28,11 @@ case class AppRoutes(
   classic: Classic,
   allDeployables: AllDeployables,
   webJars: WebJars,
+  popularMetrics: PopularMetrics,
+  searchIndex: SearchIndex,
 ):
+
+  private val INDEXING_MSG = "Indexing artifacts — try again in a moment."
 
   private val MAX_POPULAR_WEBJARS = 20
 
@@ -55,10 +59,7 @@ case class AppRoutes(
       mavenCentral.featuredWebJars(groupId, MAX_POPULAR_WEBJARS)
     ZIO.collectAll(reqs).map(_.flatten.toSeq)
 
-  def allWebJarsData: ZIO[Any, Throwable, Seq[WebJar]] =
-    val reqs = allDeployables.groupIds().map: groupId =>
-      mavenCentral.searchWebJars(groupId, None)
-    ZIO.collectAll(reqs).map(_.flatten.toSeq)
+  def allWebJarsData: UIO[List[WebJar]] = searchIndex.snapshot
 
   // Render a `template2` `Dom` as an HTML 200 response. Equivalent to
   // `Response.html(dom)` but keeps the call sites symmetrical with
@@ -112,7 +113,8 @@ case class AppRoutes(
           jsonResponse(popularWebJars.toJson)
         else
           maybeCached(request, popularWebJars)(wj => htmlResponse(WebJarList(Left(wj))))
-      }.catchAll { _ =>
+      }.catchAll { e =>
+        ZIO.logError(s"popular WebJars failed: ${e.getMessage}") *>
         ZIO.succeed {
           if acceptsJson(request) then
             Response(Status.InternalServerError, Headers(Header.ContentType(MediaType.application.json).untyped), Body.fromString(WEBJAR_FETCH_ERROR))
@@ -122,40 +124,50 @@ case class AppRoutes(
       }
     },
 
-    // Search WebJars
+    // Search WebJars — reads from the in-memory SearchIndex; rejects empty queries.
     Method.GET / "search" -> handler { (request: Request) =>
-      val query = request.url.queryParams.getAll("query").headOption.getOrElse("")
-      val groupIds = request.url.queryParams.getAll("groupId")
+      val query    = request.url.queryParams.getAll("query").headOption.getOrElse("").trim
+      val groupIds = request.url.queryParams.getAll("groupId").toSet
 
-      val searchFutures = groupIds.map: groupId =>
-        mavenCentral.searchWebJars(MavenCentral.GroupId(groupId), Some(query))
-
-      ZIO.collectAll(searchFutures).map(_.flatten.toSeq).map { matchingWebJars =>
-        if acceptsJson(request) then
-          import webjars.models.WebJar.given
-          jsonResponse(matchingWebJars.toJson)
-        else
-          htmlResponse(WebJarList(Left(matchingWebJars)))
-      }.catchAll { e =>
-        ZIO.logError(s"searchWebJars failed: ${e.getMessage}") *>
-        ZIO.succeed {
-          if acceptsJson(request) then
-            import webjars.models.WebJar.given
-            jsonResponse(Seq.empty[WebJar].toJson)
+      if query.isEmpty then
+        ZIO.succeed(Response(Status.BadRequest, body = Body.fromString("query parameter is required")))
+      else
+        searchIndex.snapshot.flatMap { all =>
+          if all.isEmpty then
+            ZIO.succeed {
+              if acceptsJson(request) then
+                import webjars.models.WebJar.given
+                jsonResponse(Seq.empty[WebJar].toJson)
+              else
+                htmlResponse(WebJarList(Right(INDEXING_MSG)))
+            }
           else
-            htmlResponse(WebJarList(Right(WEBJAR_FETCH_ERROR)), Status.InternalServerError)
+            val q = query.toLowerCase
+            val filtered = all.filter { wj =>
+              (groupIds.isEmpty || groupIds.contains(wj.groupId)) &&
+                (wj.artifactId.toLowerCase.contains(q) || wj.name.toLowerCase.contains(q))
+            }
+            popularMetrics.recordSearchAppearance(
+              filtered.map(wj => (MavenCentral.GroupId(wj.groupId), MavenCentral.ArtifactId(wj.artifactId)))
+            ) *> ZIO.succeed {
+              if acceptsJson(request) then
+                import webjars.models.WebJar.given
+                jsonResponse(filtered.toJson)
+              else
+                htmlResponse(WebJarList(Left(filtered)))
+            }
         }
-      }
     },
 
-    // List by groupId (JSON)
+    // List by groupId (JSON) — reads from the in-memory SearchIndex.
     Method.GET / "list" / string("groupId") -> handler { (groupId: String, request: Request) =>
-      mavenCentral.searchWebJars(MavenCentral.GroupId(groupId), None).map { matchingWebJars =>
+      searchIndex.snapshot.map { all =>
         import webjars.models.WebJar.given
-        maybeCached(request, matchingWebJars)(wj => jsonResponse(wj.toJson))
-      }.catchAll { _ =>
-        import webjars.models.WebJar.given
-        ZIO.succeed(Response(Status.InternalServerError, Headers(Header.ContentType(MediaType.application.json).untyped), Body.fromString(Seq.empty[WebJar].toJson)))
+        if all.isEmpty then
+          Response(Status.ServiceUnavailable, Headers(Header.ContentType(MediaType.application.json).untyped), Body.fromString(s"""{"message":"$INDEXING_MSG"}"""))
+        else
+          val filtered = all.filter(_.groupId == groupId)
+          maybeCached(request, filtered)(wj => jsonResponse(wj.toJson))
       }
     },
 
@@ -163,26 +175,25 @@ case class AppRoutes(
     Method.GET / "classic" -> handler(Response.redirect(URL.root)),
     Method.GET / "npm" -> handler(Response.redirect(URL.root)),
 
-    // All WebJars page (HTML or JSON)
+    // All WebJars page (HTML or JSON) — reads from the in-memory SearchIndex.
     Method.GET / "all" -> handler { (request: Request) =>
       allWebJarsData.map { allWebJars =>
-        val response = maybeCached(request, allWebJars) { wj =>
-          if acceptsJson(request) then
-            import webjars.models.WebJar.given
-            jsonResponse(wj.toJson)
+        val response =
+          if allWebJars.isEmpty then
+            if acceptsJson(request) then
+              import webjars.models.WebJar.given
+              Response(Status.ServiceUnavailable, Headers(Header.ContentType(MediaType.application.json).untyped), Body.fromString(Seq.empty[WebJar].toJson))
+            else
+              htmlResponse(AllPage(webJars, Right(INDEXING_MSG)), Status.ServiceUnavailable)
           else
-            htmlResponse(AllPage(webJars, Left(wj)))
-        }
+            maybeCached(request, allWebJars) { wj =>
+              if acceptsJson(request) then
+                import webjars.models.WebJar.given
+                jsonResponse(wj.toJson)
+              else
+                htmlResponse(AllPage(webJars, Left(wj)))
+            }
         corsHeaders(response)
-      }.catchAll { e =>
-        ZIO.logError(s"allWebJars fetch error: ${e.getMessage}") *>
-        ZIO.succeed {
-          val response = if acceptsJson(request) then
-            Response(Status.InternalServerError, Headers(Header.ContentType(MediaType.application.json).untyped), Body.fromString("[]"))
-          else
-            htmlResponse(AllPage(webJars, Right(WEBJAR_FETCH_ERROR)), Status.InternalServerError)
-          corsHeaders(response)
-        }
       }
     },
 
@@ -402,6 +413,7 @@ case class AppRoutes(
 
   private def handleListFiles(groupId: String, artifactId: String, version: String, request: Request): ZIO[Any, Nothing, Response] =
     val gav = MavenCentral.GroupArtifactVersion(MavenCentral.GroupId(groupId), MavenCentral.ArtifactId(artifactId), MavenCentral.Version(version))
+    popularMetrics.recordListFilesClick(MavenCentral.GroupId(groupId), MavenCentral.ArtifactId(artifactId)) *>
     ZIO.scoped {
       cache.get[List[String]](s"listfiles-$groupId-$artifactId-$version", 1.day) {
         webJarsFileService.getFileList(gav)
@@ -419,4 +431,4 @@ case class AppRoutes(
     }
 
 object AppRoutes:
-  val live: ZLayer[Git & Cache & MavenCentralWebJars & DeployWebJar & DeployJobs & WebJarsFileService & AppConfig & SourceLocator & Classic & AllDeployables & WebJars, Nothing, AppRoutes] = ZLayer.derive[AppRoutes]
+  val live: ZLayer[Git & Cache & MavenCentralWebJars & DeployWebJar & DeployJobs & WebJarsFileService & AppConfig & SourceLocator & Classic & AllDeployables & WebJars & PopularMetrics & SearchIndex, Nothing, AppRoutes] = ZLayer.derive[AppRoutes]

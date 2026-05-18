@@ -29,7 +29,7 @@ object DeployJobsIntegrationSpec extends ZIOSpecDefault:
         val npm = NPMLive(client, licenseDetector, git, gitHub, maven, semVer)
         val classic = ClassicLive(client, licenseDetector, gitHub, cache, config, npm)
         val mavenCentralDeployer = MockMavenCentralDeployer()
-        val mavenCentralWebJars = MavenCentralWebJarsLive(config, webJarsFileService, valkey, AllDeployablesLive(classic, npm))
+        val mavenCentralWebJars = MavenCentralWebJarsLive(config, webJarsFileService, valkey, AllDeployablesLive(classic, npm), TestInfrastructure.noopSearchIndex)
         val deployWebJar = DeployWebJarLive(mavenCentralWebJars, mavenCentralDeployer, sourceLocator)
         val jobsLayer = ZLayer.succeed[DeployWebJar](deployWebJar) >>> DeployJobs.live
         jobsLayer.build.flatMap { env =>

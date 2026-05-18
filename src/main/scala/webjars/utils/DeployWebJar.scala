@@ -63,7 +63,7 @@ case class DeployWebJarLive(mavenCentralWebJars: MavenCentralWebJars, mavenCentr
             ) ++ ZStream.fromZIO:
               mavenCentralDeployer.publish(gav, jar, pom).as:
                 s"""Deployed!
-                   |It will take a few hours for the Maven Central index to update but you should be able to start using the ${deployable.name} WebJar shortly.
+                   |It can take an hour or more for the artifact to be available in Maven Central.
                    |GroupID = $groupId
                    |ArtifactID = $artifactId
                    |Version = $releaseVersion

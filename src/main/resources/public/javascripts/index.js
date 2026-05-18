@@ -10,18 +10,30 @@ function setupWebJarList() {
     });
 }
 
+// Track the in-flight list request so a fast backspace (which fires several
+// "rea", "reac", "react" requests, then a /popular) can't have a stale search
+// response land after /popular and overwrite the popular list.
+var currentListRequest = null;
+
+function loadList(url, titleText) {
+  if (currentListRequest) currentListRequest.abort();
+  currentListRequest = $.get(url, function (data) {
+    $("#listTitle").text(titleText);
+    $("#webJarList").html(data);
+    setupWebJarList();
+  });
+}
+
 function searchWebJars(query, groupIds) {
   var groupIdsQueryString = groupIds.reduce(function (acc, val) {
     acc += `&groupId=${val}`;
     return acc;
   }, "");
-  $.get(`/search?query=${query}${groupIdsQueryString}`, function (data) {
-    $("#listTitle").html("Search Results");
+  loadList(`/search?query=${encodeURIComponent(query)}${groupIdsQueryString}`, "Search Results");
+}
 
-    $("#webJarList").html(data);
-
-    setupWebJarList();
-  });
+function loadPopular() {
+  loadList("/popular", "Popular WebJars");
 }
 
 function onFileList(event) {
@@ -153,7 +165,7 @@ function checkPackageName(packageName) {
 }
 
 function handleSearch() {
-  var searchText = $("#search").val();
+  var searchText = $("#search").val().trim();
   var groupIds = $("input[name='search_catalog[]']:checked")
     .map(function () {
       return $(this).val();
@@ -162,17 +174,38 @@ function handleSearch() {
 
   if (searchText === "") {
     $("#clearSearch").hide();
+    loadPopular();
   } else {
     $("#clearSearch").show();
     searchWebJars(searchText, groupIds);
   }
 }
 
+function clearSearch() {
+  $("#search").val("");
+  $("#clearSearch").hide();
+  loadPopular();
+}
+
 $(function () {
   setupWebJarList();
 
-  $("#search").keyup(function (event) {
-    if (event.keyCode === 13 || this.value.length > 2) {
+  // `input` (not `keyup`) so paste / cut / IME / programmatic edits all
+  // count, and length === 0 (full delete) triggers the reset-to-popular path.
+  $("#search").on("input", function () {
+    var len = this.value.length;
+    if (len === 0 || len > 2) {
+      handleSearch();
+    } else {
+      // 1-2 chars: surface the clear affordance, defer the fetch
+      $("#clearSearch").show();
+    }
+  });
+
+  // Enter forces a search regardless of length.
+  $("#search").on("keydown", function (event) {
+    if (event.key === "Enter") {
+      event.preventDefault();
       handleSearch();
     }
   });
@@ -181,17 +214,14 @@ $(function () {
     handleSearch();
   });
 
-  $("#clearSearch").click(function () {
-    $("#search").val("");
-    $(this).hide();
+  $("#clearSearch").click(clearSearch);
 
-    $.get("/popular", function (data) {
-      $("#listTitle").html("Popular WebJars");
-
-      $("#webJarList").html(data);
-
-      setupWebJarList();
-    });
+  // Keyboard accessibility on the SVG clear button.
+  $("#clearSearch").on("keydown", function (event) {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      clearSearch();
+    }
   });
 
   $("#newWebJarName").typeWatch({
