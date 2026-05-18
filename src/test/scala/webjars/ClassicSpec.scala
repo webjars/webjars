@@ -1,13 +1,12 @@
 package webjars
 
-import io.lemonlabs.uri.AbsoluteUrl
 import webjars.utils.*
 import webjars.utils.Classic.*
 import webjars.utils.LicenseMetadata.*
 import webjars.TestInfrastructure.testConfig
 import zio.*
 import zio.compress.*
-import zio.http.Client
+import zio.http.{Client, URL}
 import zio.stream.*
 import zio.test.*
 
@@ -138,8 +137,8 @@ object ClassicSpec extends ZIOSpecDefault:
               info.name == "flexmonster",
               info.version == "2.9.107",
               info.dependencies.isEmpty,
-              info.maybeGitHubUrl.contains(AbsoluteUrl.parse("https://github.com/flexmonster/js-pivot-table")),
-              info.metadataLicenses.contains(ProvidedLicense(LicenseWithNameAndUrl("Flexmonster Terms and Conditions", AbsoluteUrl.parse("https://www.flexmonster.com/terms/Flexmonster-Terms-and-Conditions.pdf")))),
+              info.maybeGitHubUrl.contains(URL.unsafeParse("https://github.com/flexmonster/js-pivot-table")),
+              info.metadataLicenses.contains(ProvidedLicense(LicenseWithNameAndUrl("Flexmonster Terms and Conditions", URL.unsafeParse("https://www.flexmonster.com/terms/Flexmonster-Terms-and-Conditions.pdf")))),
             )
           }
         }

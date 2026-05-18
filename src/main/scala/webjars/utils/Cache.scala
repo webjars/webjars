@@ -1,40 +1,47 @@
 package webjars.utils
 
 import zio.*
+import zio.cache.{Cache as ZCache, Lookup}
 
+// A heterogeneous get-or-compute cache backed by zio-cache. Each key gets
+// its own degenerate (capacity = 1) zio-cache, used as a memo cell with a
+// TTL. The most recent `onMiss` for each key is held in a Ref so that calls
+// after a TTL miss re-run the up-to-date lookup function.
 trait Cache:
   def get[K](key: String, expiration: Duration)(onMiss: => ZIO[Scope, Throwable, K]): ZIO[Scope, Throwable, K]
 
-case class CacheLive() extends Cache:
-
-  private val cache = new java.util.concurrent.ConcurrentHashMap[String, (Any, Long, Long)]()
-
-  private val DO_NOT_USE = "DO_NOT_USE"
+class CacheLive private (
+  memos: Ref.Synchronized[Map[String, CacheLive.Entry]],
+) extends Cache:
+  import CacheLive.Entry
 
   def get[K](key: String, expiration: Duration)(onMiss: => ZIO[Scope, Throwable, K]): ZIO[Scope, Throwable, K] =
-    val now = java.lang.System.currentTimeMillis()
-    val expirationMs = expiration.toMillis
+    memos.modifyZIO { current =>
+      current.get(key) match
+        case Some(entry) =>
+          // Update the entry's latest onMiss so the next zio-cache miss runs the fresh lookup.
+          entry.onMissRef.set(() => ZIO.scoped(onMiss)).as((entry, current))
+        case None =>
+          for
+            onMissRef <- Ref.make[() => ZIO[Any, Throwable, Any]](() => ZIO.scoped(onMiss))
+            cache     <- ZCache.make(
+                            capacity = 1,
+                            timeToLive = expiration,
+                            lookup = Lookup[Unit, Any, Throwable, Any](_ => onMissRef.get.flatMap(_())),
+                         )
+            entry      = Entry(onMissRef, cache)
+          yield (entry, current.updated(key, entry))
+    }.flatMap(_.cache.get(())).map(_.asInstanceOf[K])
 
-    Option(cache.get(key)) match
-      case Some((_, primaryExpiry, _)) if now < primaryExpiry =>
-        Option(cache.get(key + ":value")) match
-          case Some((value, _, _)) => ZIO.succeed(value.asInstanceOf[K])
-          case None =>
-            onMiss.tap(store(key, _, expirationMs))
-      case _ =>
-        onMiss.tap(store(key, _, expirationMs)).catchAll { e =>
-          Option(cache.get(key + ":value")) match
-            case Some((value, _, staleExpiry)) if now < staleExpiry =>
-              ZIO.succeed(value.asInstanceOf[K])
-            case _ => ZIO.fail(e)
-        }
+object CacheLive:
+  private final case class Entry(
+    onMissRef: Ref[() => ZIO[Any, Throwable, Any]],
+    cache: ZCache[Unit, Throwable, Any],
+  )
 
-  private def store[K](key: String, value: K, expirationMs: Long): ZIO[Any, Nothing, Unit] =
-    ZIO.succeed {
-      val now = java.lang.System.currentTimeMillis()
-      cache.put(key, (DO_NOT_USE, now + expirationMs, 0L))
-      cache.put(key + ":value", (value, now + expirationMs, now + expirationMs * 2))
-    }
+  def apply(): CacheLive = Unsafe.unsafe { implicit u =>
+    new CacheLive(Ref.Synchronized.unsafe.make(Map.empty))
+  }
 
 object Cache:
   val live: ZLayer[Any, Nothing, Cache] = ZLayer.succeed(CacheLive())

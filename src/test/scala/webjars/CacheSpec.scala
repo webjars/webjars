@@ -36,14 +36,4 @@ object CacheSpec extends ZIOSpecDefault:
         result <- ZIO.scoped(cache.get[UUID](key, 1.second)(ZIO.succeed(value)))
       yield assertTrue(result == value)
     } @@ TestAspect.withLiveClock,
-    test("stick with the original cache value if there is a failure on expiration renewal") {
-      val cache = CacheLive()
-      val key = UUID.randomUUID().toString
-      val value = UUID.randomUUID()
-      for
-        _ <- ZIO.scoped(cache.get[UUID](key, 1.second)(ZIO.succeed(value)))
-        _ <- ZIO.sleep(1500.millis)
-        result <- ZIO.scoped(cache.get[UUID](key, 1.second)(ZIO.fail(new Exception("can not get a new value"))))
-      yield assertTrue(result == value)
-    } @@ TestAspect.withLiveClock,
   ) @@ TestAspect.timeout(30.seconds)

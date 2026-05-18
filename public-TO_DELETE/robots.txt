@@ -1,4 +1,0 @@
-User-agent: *
-Disallow: /files/
-Disallow: /listfiles/
-Disallow: /webjars/

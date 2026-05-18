@@ -12,3 +12,4 @@
 /.bsp/
 /.metals
 /.mcp.json
+/.claude/scheduled_tasks.lock

@@ -26,6 +26,9 @@ object AppConfig:
           if v.nonEmpty then Some(v) else None
         else None
 
+      def optInt(key: String): Option[Int] =
+        if config.hasPath(key) then Some(config.getInt(key)) else None
+
       def optBoolean(key: String): Option[Boolean] =
         if config.hasPath(key) then Some(config.getBoolean(key)) else None
 
@@ -36,7 +39,7 @@ object AppConfig:
         ossDeployUsername = optString("oss.deploy.username"),
         ossDeployPassword = optString("oss.deploy.password"),
         fileServiceUrl = optString("webjars.file-service.url").getOrElse("https://webjars-file-service.herokuapp.com"),
-        mavenCentralLimit = None,
+        mavenCentralLimit = optInt("maven.central.limit"),
         mavenCentralRefreshInterval = Some(1.hour),
         useWebJarsCdn = optBoolean("webjars.cdn").getOrElse(true),
       )

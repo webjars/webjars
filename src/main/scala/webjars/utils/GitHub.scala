@@ -1,6 +1,5 @@
 package webjars.utils
 
-import io.lemonlabs.uri.{AbsoluteUrl, UrlPath}
 import webjars.config.AppConfig
 import webjars.utils.Deployable.Version
 import zio.*
@@ -12,8 +11,8 @@ import scala.util.{Failure, Success, Try}
 
 trait GitHub:
   def maybeAuthToken: Option[String]
-  def currentUrls(url: AbsoluteUrl): ZIO[Scope, Throwable, (AbsoluteUrl, AbsoluteUrl, AbsoluteUrl)]
-  def raw(gitHubUrl: AbsoluteUrl, tagCommitOrBranch: String, fileName: String): ZIO[Scope, Throwable, String]
+  def currentUrls(url: URL): ZIO[Scope, Throwable, (URL, URL, URL)]
+  def raw(gitHubUrl: URL, tagCommitOrBranch: String, fileName: String): ZIO[Scope, Throwable, String]
   def allPages[T](path: String, accumulator: Set[T] = Set.empty[T])(mapFunction: Response => ZIO[Scope, Throwable, Set[T]]): ZIO[Scope, Throwable, Set[T]]
   def tags(repo: String): ZIO[Scope, Throwable, Set[Version]]
 
@@ -22,12 +21,12 @@ case class GitHubLive(client: Client, config: AppConfig, cache: Cache) extends G
   lazy val maybeAuthToken: Option[String] = config.githubAuthToken
 
   private def wsRequest(path: String, accessToken: String): Request =
-    Request.get(URL.decode(s"https://api.github.com/$path").toOption.get)
+    Request.get(URL.unsafeParse(s"https://api.github.com/$path"))
       .addHeader(Header.Authorization.Bearer(accessToken))
       .addHeader(Header.Accept(MediaType.application.json))
 
-  def currentUrls(url: AbsoluteUrl): ZIO[Scope, Throwable, (AbsoluteUrl, AbsoluteUrl, AbsoluteUrl)] =
-    cache.get[(AbsoluteUrl, AbsoluteUrl, AbsoluteUrl)](url.toString, 1.day) {
+  def currentUrls(url: URL): ZIO[Scope, Throwable, (URL, URL, URL)] =
+    cache.get[(URL, URL, URL)](url.encode, 1.day) {
       def urls(location: String) =
         val newUrlsTry = for
           gitHubUrl <- GitHub.gitHubUrl(location)
@@ -36,37 +35,37 @@ case class GitHubLive(client: Client, config: AppConfig, cache: Cache) extends G
         yield (gitHubUrl, sourceConnectionUri, issuesUrl)
         ZIO.fromTry(newUrlsTry)
 
-      val baseRequest = Request.get(URL.decode(url.toString).toOption.get)
+      val baseRequest = Request.get(url)
         .addHeader(Header.Custom("Follow-Redirects", "false"))
       val reqWithAuth = maybeAuthToken.fold(baseRequest)(token =>
         baseRequest.addHeader(Header.Authorization.Bearer(token))
       )
 
       defer:
-        val response = client.request(reqWithAuth).run
+        val response = client.batched(reqWithAuth).run
         response.status match
           case Status.MovedPermanently =>
             response.header(Header.Location) match
               case Some(location) =>
-                AbsoluteUrl.parseTry(location.url.encode) match
+                URL.parseTry(location.url.encode) match
                   case Success(locationUrl) => currentUrls(locationUrl).run
                   case Failure(error) => ZIO.fail(error).run
               case None =>
-                ZIO.fail(ServerError(s"GitHub said that $url was moved but did not provide a new location", response.status.code)).run
+                ZIO.fail(ServerError(s"GitHub said that ${url.encode} was moved but did not provide a new location", response.status.code)).run
           case Status.Ok =>
-            urls(url.toString).run
+            urls(url.encode).run
           case _ =>
-            ZIO.fail(ServerError(s"Could not get the current URL for $url because status was ${response.status.code}", response.status.code)).run
+            ZIO.fail(ServerError(s"Could not get the current URL for ${url.encode} because status was ${response.status.code}", response.status.code)).run
     }
 
-  def raw(gitHubUrl: AbsoluteUrl, tagCommitOrBranch: String, fileName: String): ZIO[Scope, Throwable, String] =
+  def raw(gitHubUrl: URL, tagCommitOrBranch: String, fileName: String): ZIO[Scope, Throwable, String] =
     defer:
-      val rawUrl = s"https://raw.githubusercontent.com${gitHubUrl.path}/$tagCommitOrBranch/$fileName"
-      val baseRequest = Request.get(URL.decode(rawUrl).toOption.get)
+      val rawUrl = s"https://raw.githubusercontent.com${gitHubUrl.path.encode}/$tagCommitOrBranch/$fileName"
+      val baseRequest = Request.get(URL.unsafeParse(rawUrl))
       val request = maybeAuthToken.fold(baseRequest)(token =>
         baseRequest.addHeader(Header.Authorization.Bearer(token))
       )
-      val response = client.request(request).run
+      val response = client.batched(request).run
       response.status match
         case Status.Ok => response.body.asString.run
         case _ =>
@@ -75,13 +74,13 @@ case class GitHubLive(client: Client, config: AppConfig, cache: Cache) extends G
 
   def allPages[T](path: String, accumulator: Set[T] = Set.empty[T])(mapFunction: Response => ZIO[Scope, Throwable, Set[T]]): ZIO[Scope, Throwable, Set[T]] =
     val request = maybeAuthToken.fold(
-      Request.get(URL.decode(s"https://api.github.com/$path").toOption.get)
+      Request.get(URL.unsafeParse(s"https://api.github.com/$path"))
     )(accessToken =>
       wsRequest(path, accessToken)
     )
 
     defer:
-      val response = client.request(request).run
+      val response = client.batched(request).run
       response.status match
         case Status.Ok =>
           val these = mapFunction(response).run
@@ -113,38 +112,39 @@ object GitHub:
 
   val live: ZLayer[Client & AppConfig & Cache, Nothing, GitHub] = ZLayer.derive[GitHubLive]
 
-  def gitHubUrl(url: AbsoluteUrl): Try[AbsoluteUrl] =
-    if url.apexDomain.contains("github.com") then
-      val path = UrlPath.parse(url.path.toString().stripSuffix(".git").stripSuffix("/"))
-      path.parts match
+  def gitHubUrl(url: URL): Try[URL] =
+    if url.host.exists(_.endsWith("github.com")) then
+      val rawPath = url.path.encode.stripSuffix(".git").stripSuffix("/")
+      val parts = Path.decode(rawPath).segments
+      parts.toVector match
         case Vector(org, repo, _*) =>
           Success(
             url
-              .withScheme("https")
-              .withPathParts(Seq(org, repo))
-              .withFragment(None)
-              .withUserInfo(None)
+              .scheme(Scheme.HTTPS)
+              .path(Path.root / org / repo)
+              .copy(fragment = None)
           )
         case _ =>
           Failure(new Error("Could not parse the GitHub URL"))
     else
       Failure(new Error("Domain was not github.com"))
 
-  def gitHubUrl(s: String): Try[AbsoluteUrl] = AbsoluteUrl.parseTry(s).flatMap(gitHubUrl)
+  def gitHubUrl(s: String): Try[URL] = URL.parseTry(s).flatMap(gitHubUrl)
 
-  def gitHubGitUrl(url: AbsoluteUrl): Try[AbsoluteUrl] =
+  def gitHubGitUrl(url: URL): Try[URL] =
     gitHubUrl(url).map { gitHubUrl =>
-      val newParts = Seq(gitHubUrl.path.parts.head, gitHubUrl.path.parts.last + ".git")
-      gitHubUrl.withPathParts(newParts)
+      val segs = gitHubUrl.path.segments
+      val newPath = Path.root / segs.head / (segs.last + ".git")
+      gitHubUrl.path(newPath)
     }
 
-  def gitHubIssuesUrl(url: AbsoluteUrl): Try[AbsoluteUrl] =
-    gitHubUrl(url).map(_.addPathPart("issues"))
+  def gitHubIssuesUrl(url: URL): Try[URL] =
+    gitHubUrl(url).map(_ / "issues")
 
-  def maybeGitHubOrg(url: AbsoluteUrl): Option[String] =
-    url.path.parts.headOption
+  def maybeGitHubOrg(url: URL): Option[String] =
+    url.path.segments.headOption
 
-  def maybeGitHubRepo(url: AbsoluteUrl): Option[String] =
-    url.path.parts match
+  def maybeGitHubRepo(url: URL): Option[String] =
+    url.path.segments.toVector match
       case _ +: repo +: _ => Some(repo)
       case _ => None

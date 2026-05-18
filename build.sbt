@@ -32,11 +32,11 @@ libraryDependencies ++= Seq(
   "dev.zio" %% "zio-logging"                  % zioLoggingVersion,
   "org.slf4j" % "slf4j-simple"                % "2.0.18",
 
-  //  "dev.zio" %% "zio-logging-slf4j2"           % zioLoggingVersion,
-//  "ch.qos.logback" % "logback-classic"         % "1.5.32",
-
   // Redis
   "dev.zio" %% "zio-redis"                    % "1.2.1",
+
+  // In-process cache
+  "dev.zio" %% "zio-cache"                    % "0.2.5",
 
   // Archive handling (ZIO Streams Compress)
   "dev.zio" %% "zio-streams-compress-tar"     % zioStreamsCompressVersion,
@@ -48,9 +48,6 @@ libraryDependencies ++= Seq(
 
   // Maven Central
   "com.jamesward" %% "zio-mavencentral"       % "0.8.1",
-
-  // URIs
-  "com.indoorvivants" %% "scala-uri"          % "4.2.0",
 
   // Git
   "org.eclipse.jgit" % "org.eclipse.jgit"     % "7.6.0.202603022253-r",
@@ -102,10 +99,6 @@ scalacOptions ++= Seq(
   "-Wconf:msg=Implicit parameters should be provided with a `using` clause:s",
   "-Wconf:msg=The method `apply` is inserted:s",
   "-Wconf:msg=Flag .* set repeatedly:s",
-  // todo: migrate `Client.request` callers to `batched` / `streaming`
-  // (zio-http 3.x deprecation). Tracked across NPM, GitHub, Classic,
-  // Heroku, LicenseDetector, Git.
-  "-Wconf:msg=method request in class ZClient is deprecated:s",
 )
 
 Compile / packageDoc / publishArtifact := false

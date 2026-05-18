@@ -1,10 +1,10 @@
 package webjars.utils
 
 import com.jamesward.zio_mavencentral.MavenCentral
-import io.lemonlabs.uri.AbsoluteUrl
 import webjars.utils.Deployable.{NameOrUrlish, Version}
 import zio.*
 import zio.direct.*
+import zio.http.URL
 import zio.stream.*
 
 import java.io.{FileNotFoundException, InputStream}
@@ -33,7 +33,7 @@ trait Deployable:
 
   def pathPrefix(artifactId: MavenCentral.ArtifactId, releaseVersion: MavenCentral.Version, packageInfo: PackageInfo): String = s"$artifactId/$releaseVersion/"
 
-  def info(nameOrUrlish: NameOrUrlish, version: Version, maybeSourceUri: Option[AbsoluteUrl] = None): ZIO[Scope, Throwable, PackageInfo]
+  def info(nameOrUrlish: NameOrUrlish, version: Version, maybeSourceUri: Option[URL] = None): ZIO[Scope, Throwable, PackageInfo]
 
   def mavenDependencies(dependencies: Map[String, String]): ZIO[Scope, Throwable, Set[(MavenCentral.GroupArtifact, String)]]
 
@@ -99,12 +99,12 @@ trait Deployable:
 
   def licenseReference(nameOrUrlish: NameOrUrlish, version: Version, license: String): ZIO[Scope, Throwable, Set[License]] =
     if license.startsWith("http://") || license.startsWith("https://") then
-      licenseDetector.licenseDetect(AbsoluteUrl.parse(license)).map(Set(_))
+      licenseDetector.licenseDetect(URL.unsafeParse(license)).map(Set(_))
     else if license.startsWith("file://") then
       file(nameOrUrlish, version, license.stripPrefix("file://")).flatMap { fileContent =>
         licenseDetector.licenseDetect(fileContent)
       }.catchAll { _ =>
-        ZIO.succeed(LicenseWithUrl(AbsoluteUrl.parse(license)))
+        ZIO.succeed(LicenseWithUrl(URL.unsafeParse(license)))
       }.map(Set(_))
     else if license.startsWith("(") && license.endsWith(")") && !license.contains("AND") then
       ZIO.succeed {

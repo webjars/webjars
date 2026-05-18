@@ -1,19 +1,19 @@
 package webjars.utils
 
-import io.lemonlabs.uri.AbsoluteUrl
 import zio.*
 import zio.direct.*
+import zio.http.URL
 
 trait Maven:
   def convertNpmDependenciesToMaven(dependencies: Map[String, String]): ZIO[Scope, Throwable, Map[String, String]]
 
 case class MavenLive(git: Git, semVer: SemVer) extends Maven:
 
-  def convertNpmDependenciesToMaven(dependencies: Map[String, String]): ZIO[Scope, Throwable, Map[String, String]] =
+  def convertNpmDependenciesToMaven(dependencies: Map[String, String]): ZIO[Scope, Throwable, Map[String, String]]  =
 
     def resolveNameAndVersion(name: String, versionOrUrl: String): ZIO[Scope, Throwable, (String, String)] =
-      val urlTry = AbsoluteUrl.parseTry(versionOrUrl).filter { url =>
-        !url.path.toString().endsWith(".git") && url.scheme != "git"
+      val urlTry = URL.parseTry(versionOrUrl).filter { url =>
+        !url.path.encode.endsWith(".git") && !url.scheme.exists(_.encode == "git")
       }
 
       urlTry.map { url =>
@@ -23,14 +23,14 @@ case class MavenLive(git: Git, semVer: SemVer) extends Maven:
         else git.artifactId(name).map(_ -> versionOrUrl)
       }
 
-    def resolveTarballDependency(url: AbsoluteUrl): ZIO[Scope, Throwable, (String, String)] =
-      if url.path.toString().contains("/tarball/") then
-        val host = url.host.toString().replaceAll("[^\\w\\d]", "-")
-        val parts = url.path.toString().split("\\/tarball\\/")
+    def resolveTarballDependency(url: URL): ZIO[Scope, Throwable, (String, String)] =
+      if url.path.encode.contains("/tarball/") then
+        val host = url.host.getOrElse("").replaceAll("[^\\w\\d]", "-")
+        val parts = url.path.encode.split("\\/tarball\\/")
         val path = parts(0).replaceAll("[^\\w\\d]", "-")
         ZIO.succeed((host + path) -> parts(1))
       else
-        ZIO.fail(new Exception(s"Could not get a version from the dependency string: $url"))
+        ZIO.fail(new Exception(s"Could not get a version from the dependency string: ${url.encode}"))
 
     def resolveGitDependency(name: String, versionOrUrl: String): ZIO[Scope, Throwable, (String, String)] =
       defer:

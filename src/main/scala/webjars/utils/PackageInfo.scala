@@ -1,19 +1,19 @@
 package webjars.utils
 
-import io.lemonlabs.uri.AbsoluteUrl
+import zio.http.URL
 
 case class PackageInfo(
   name: String,
   version: String,
-  maybeHomepageUrl: Option[AbsoluteUrl],
-  sourceConnectionUri: AbsoluteUrl,
-  maybeIssuesUrl: Option[AbsoluteUrl],
+  maybeHomepageUrl: Option[URL],
+  sourceConnectionUri: URL,
+  maybeIssuesUrl: Option[URL],
   metadataLicenses: Seq[LicenseMetadata],
   dependencies: Map[String, String],
   optionalDependencies: Map[String, String],
   maybeTag: Option[String],
 ):
-  lazy val maybeGitHubUrl: Option[AbsoluteUrl] = GitHub.gitHubUrl(sourceConnectionUri).toOption
+  lazy val maybeGitHubUrl: Option[URL] = GitHub.gitHubUrl(sourceConnectionUri).toOption
     .orElse(maybeHomepageUrl.flatMap(GitHub.gitHubUrl(_).toOption))
 
 case class MissingMetadataException(json: String, errors: Seq[String]) extends Exception:

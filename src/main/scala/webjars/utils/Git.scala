@@ -1,6 +1,5 @@
 package webjars.utils
 
-import io.lemonlabs.uri.AbsoluteUrl
 import org.eclipse.jgit.api.Git as GitApi
 import org.eclipse.jgit.api.ResetCommand.ResetType
 import webjars.utils.Deployable.Version
@@ -23,7 +22,7 @@ trait Git:
   def versions(gitRepo: String): ZIO[Scope, Throwable, Set[String]]
   def versionsOnBranch(gitRepo: String, branch: String): ZIO[Scope, Throwable, Seq[String]]
   def cloneOrCheckout(gitRepo: String, version: Version, retry: Boolean = true): ZIO[Scope, Throwable, File]
-  def file(uri: AbsoluteUrl, version: Version, fileName: String): ZIO[Scope, Throwable, String]
+  def file(uri: URL, version: Version, fileName: String): ZIO[Scope, Throwable, String]
   def file(gitRepo: String, tagCommitOrBranch: Version, fileName: String): ZIO[Scope, Throwable, String]
   def tar(gitRepo: String, version: Version, excludes: Set[String]): ZIO[Scope, Throwable, InputStream]
 
@@ -42,16 +41,16 @@ case class GitLive(client: Client) extends Git:
 
   def resolveRedirect(httpUrl: String): ZIO[Scope, Throwable, String] =
     defer:
-      val url = URL.decode(httpUrl).toOption.get
-      val response = client.request(Request.get(url)).run
+      val url = URL.unsafeParse(httpUrl)
+      val response = client.batched(Request.get(url)).run
       response.status match
         case Status.MovedPermanently | Status.Found =>
           response.header(Header.Location) match
             case Some(location) =>
               val redirUrl = location.url.encode
               val resolved = if redirUrl.startsWith("/") then
-                val parsed = AbsoluteUrl.parse(httpUrl)
-                parsed.scheme + "://" + parsed.host + redirUrl
+                val parsed = URL.unsafeParse(httpUrl)
+                parsed.scheme.fold("")(_.encode) + "://" + parsed.host.getOrElse("") + redirUrl
               else
                 redirUrl
               resolveRedirect(resolved).run
@@ -81,9 +80,9 @@ case class GitLive(client: Client) extends Git:
     defer:
       if isGit(nameOrUrlish) then
         val resolved = gitUrl(nameOrUrlish).run
-        val url = ZIO.fromTry(AbsoluteUrl.parseTry(resolved.stripSuffix(".git"))).run
-        val host = url.host.toString().replaceAll("\\W", "-")
-        val path = url.path.toString().replaceAll("\\W", "-")
+        val url = ZIO.fromTry(URL.parseTry(resolved.stripSuffix(".git"))).run
+        val host = url.host.getOrElse("").replaceAll("\\W", "-")
+        val path = url.path.encode.replaceAll("\\W", "-")
         host + path
       else
         nameOrUrlish.replace("@", "").replace("/", "__")
@@ -146,8 +145,8 @@ case class GitLive(client: Client) extends Git:
       }
     }
 
-  def file(uri: AbsoluteUrl, version: Version, fileName: String): ZIO[Scope, Throwable, String] =
-    file(uri.toString, version, fileName)
+  def file(uri: URL, version: Version, fileName: String): ZIO[Scope, Throwable, String] =
+    file(uri.encode, version, fileName)
 
   def file(gitRepo: String, tagCommitOrBranch: Version, fileName: String): ZIO[Scope, Throwable, String] =
     defer:

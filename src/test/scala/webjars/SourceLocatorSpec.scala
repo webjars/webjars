@@ -1,9 +1,8 @@
 package webjars
 
-import io.lemonlabs.uri.AbsoluteUrl
-import webjars.utils.{GitLive, SourceLocatorLive}
+import webjars.utils.*
 import zio.*
-import zio.http.Client
+import zio.http.{Client, URL}
 import zio.test.*
 
 object SourceLocatorSpec extends ZIOSpecDefault:
@@ -14,7 +13,7 @@ object SourceLocatorSpec extends ZIOSpecDefault:
         client <- ZIO.service[Client]
         git = GitLive(client)
         sourceLocator = SourceLocatorLive(client, git)
-        sourceUrl <- ZIO.scoped(sourceLocator.sourceUrl(AbsoluteUrl.parse("https://github.com/angular/bower-angular-touch.git")))
-      yield assertTrue(sourceUrl == AbsoluteUrl.parse("https://github.com/angular/bower-angular-touch"))
+        sourceUrl <- ZIO.scoped(sourceLocator.sourceUrl(URL.unsafeParse("https://github.com/angular/bower-angular-touch.git")))
+      yield assertTrue(sourceUrl == URL.unsafeParse("https://github.com/angular/bower-angular-touch"))
     } @@ TestAspect.withLiveClock,
   ).provide(Client.default) @@ TestAspect.timeout(30.seconds)

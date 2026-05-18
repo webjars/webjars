@@ -1,10 +1,10 @@
 package webjars
 
 import com.jamesward.zio_mavencentral.MavenCentral
-import io.lemonlabs.uri.AbsoluteUrl
 import webjars.utils.*
 import zio.*
 import zio.direct.*
+import zio.http.URL
 import zio.stream.ZStream
 import zio.test.*
 
@@ -20,7 +20,7 @@ object DeployJobsSpec extends ZIOSpecDefault:
     def artifactId(nameOrUrlish: String): ZIO[Scope, Throwable, MavenCentral.ArtifactId] = ZIO.dieMessage("not used")
     def excludes(nameOrUrlish: String): ZIO[Scope, Throwable, Set[String]] = ZIO.dieMessage("not used")
     def maybeBaseDirGlob(nameOrUrlish: String): ZIO[Scope, Throwable, Option[String]] = ZIO.dieMessage("not used")
-    def info(nameOrUrlish: String, version: String, maybeSourceUri: Option[AbsoluteUrl] = None): ZIO[Scope, Throwable, PackageInfo] = ZIO.dieMessage("not used")
+    def info(nameOrUrlish: String, version: String, maybeSourceUri: Option[URL] = None): ZIO[Scope, Throwable, PackageInfo] = ZIO.dieMessage("not used")
     def mavenDependencies(dependencies: Map[String, String]): ZIO[Scope, Throwable, Set[(MavenCentral.GroupArtifact, String)]] = ZIO.dieMessage("not used")
     def archive(nameOrUrlish: String, version: String): ZIO[Scope, Throwable, java.io.InputStream] = ZIO.dieMessage("not used")
     def file(nameOrUrlish: String, version: String, filename: String): ZIO[Scope, Throwable, String] = ZIO.dieMessage("not used")
@@ -29,7 +29,7 @@ object DeployJobsSpec extends ZIOSpecDefault:
 
   /** A DeployWebJar that emits a fixed message sequence, slowly. */
   private class FakeDeployWebJar(messages: List[String], gate: Promise[Nothing, Unit], runs: Ref[Int]) extends DeployWebJar:
-    def deploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, maybeReleaseVersion: Option[String] = None, maybeSourceUri: Option[AbsoluteUrl] = None, maybeLicense: Option[String] = None): ZStream[Scope, Throwable, String] =
+    def deploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, maybeReleaseVersion: Option[String] = None, maybeSourceUri: Option[URL] = None, maybeLicense: Option[String] = None): ZStream[Scope, Throwable, String] =
       ZStream.fromZIO(runs.update(_ + 1)).drain ++
         ZStream.fromIterable(messages).tap(_ => ZIO.unit) ++
         ZStream.fromZIO(gate.await).drain ++

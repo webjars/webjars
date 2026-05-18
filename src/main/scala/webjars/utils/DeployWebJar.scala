@@ -1,20 +1,20 @@
 package webjars.utils
 
 import com.jamesward.zio_mavencentral.MavenCentral
-import io.lemonlabs.uri.AbsoluteUrl
 import zio.*
 import zio.direct.*
+import zio.http.URL
 import zio.stream.ZStream
 
 import java.io.FileNotFoundException
 
 trait DeployWebJar:
-  def deploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, maybeReleaseVersion: Option[String] = None, maybeSourceUri: Option[AbsoluteUrl] = None, maybeLicense: Option[String] = None): ZStream[Scope, Throwable, String]
+  def deploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, maybeReleaseVersion: Option[String] = None, maybeSourceUri: Option[URL] = None, maybeLicense: Option[String] = None): ZStream[Scope, Throwable, String]
   def create(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, licenseOverride: Option[Set[License]], groupIdOverride: Option[MavenCentral.GroupId]): ZIO[Scope, Throwable, (MavenCentral.ArtifactId, Array[Byte])]
 
 case class DeployWebJarLive(mavenCentralWebJars: MavenCentralWebJars, mavenCentralDeployer: MavenCentralDeployer, sourceLocator: SourceLocator) extends DeployWebJar:
 
-  def deploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, maybeReleaseVersion: Option[String] = None, maybeSourceUri: Option[AbsoluteUrl] = None, maybeLicense: Option[String] = None): ZStream[Scope, Throwable, String] =
+  def deploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, maybeReleaseVersion: Option[String] = None, maybeSourceUri: Option[URL] = None, maybeLicense: Option[String] = None): ZStream[Scope, Throwable, String] =
 
     def webJarNotYetDeployed(groupId: MavenCentral.GroupId, artifactId: MavenCentral.ArtifactId, version: MavenCentral.Version): ZIO[Scope, Throwable, Unit] =
       mavenCentralWebJars.fetchPom(MavenCentral.GroupArtifactVersion(groupId, artifactId, version)).flatMap { _ =>

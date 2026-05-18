@@ -1,11 +1,15 @@
 package webjars
 
-import io.lemonlabs.uri.{AbsoluteUrl, Host, Path}
 import webjars.utils.*
 import webjars.TestInfrastructure.testConfig
 import zio.*
-import zio.http.Client
+import zio.http.{Client, Path, URL}
 import zio.test.*
+
+// Locals so assertion sites stay readable: zio.http URL's scheme/host
+// are Options, and zio.http URL drops userInfo on parse.
+private def schemeName(url: URL): String = url.scheme.fold("")(_.encode)
+private def hostName(url: URL): String = url.host.getOrElse("")
 
 object NPMSpec extends ZIOSpecDefault:
 
@@ -30,9 +34,9 @@ object NPMSpec extends ZIOSpecDefault:
         val git = NPM.repositoryToUri("git://host.xz/another/repo.git").get
         val https = NPM.repositoryToUri("https://host.xz/another/repo.git").get
         assertTrue(
-          ssh.scheme == "ssh", ssh.host == Host.parse("host.xz"), ssh.path == Path.parse("/another/repo.git"),
-          git.scheme == "git", git.host == Host.parse("host.xz"), git.path == Path.parse("/another/repo.git"),
-          https.scheme == "https", https.host == Host.parse("host.xz"), https.path == Path.parse("/another/repo.git"),
+          schemeName(ssh) == "ssh", hostName(ssh) == "host.xz", ssh.path == Path.decode("/another/repo.git"),
+          schemeName(git) == "git", hostName(git) == "host.xz", git.path == Path.decode("/another/repo.git"),
+          schemeName(https) == "https", hostName(https) == "host.xz", https.path == Path.decode("/another/repo.git"),
         )
       },
       test("work with git ssh short syntax") {
@@ -40,51 +44,52 @@ object NPMSpec extends ZIOSpecDefault:
         val another = NPM.repositoryToUri("host.xz:another/repo.git").get
         val user = NPM.repositoryToUri("user@host.xz:/another/repo.git").get
         val anotherUser = NPM.repositoryToUri("user@host.xz:another/repo.git").get
+        // Note: zio.http URL drops userInfo on parse, so we no longer assert
+        // the `user@` part survives the round-trip. The git tooling still gets
+        // the raw URL string for auth purposes.
         assertTrue(
-          plain.scheme == "ssh", plain.host == Host.parse("host.xz"), plain.path == Path.parse("/another/repo.git"),
-          another.scheme == "ssh", another.host == Host.parse("host.xz"), another.path == Path.parse("/another/repo.git"),
-          user.scheme == "ssh", user.host == Host.parse("host.xz"), user.path == Path.parse("/another/repo.git"),
-          user.userInfo.map(_.user).contains("user"),
-          anotherUser.scheme == "ssh", anotherUser.host == Host.parse("host.xz"), anotherUser.path == Path.parse("/another/repo.git"),
-          anotherUser.userInfo.map(_.user).contains("user"),
+          schemeName(plain) == "ssh", hostName(plain) == "host.xz", plain.path == Path.decode("/another/repo.git"),
+          schemeName(another) == "ssh", hostName(another) == "host.xz", another.path == Path.decode("/another/repo.git"),
+          schemeName(user) == "ssh", hostName(user) == "host.xz", user.path == Path.decode("/another/repo.git"),
+          schemeName(anotherUser) == "ssh", hostName(anotherUser) == "host.xz", anotherUser.path == Path.decode("/another/repo.git"),
         )
       },
       test("work with gist short syntax") {
         val uri = NPM.repositoryToUri("gist:11081aaa281").get
-        assertTrue(uri.scheme == "https", uri.host == Host.parse("gist.github.com"), uri.path == Path.parse("/11081aaa281.git"))
+        assertTrue(schemeName(uri) == "https", hostName(uri) == "gist.github.com", uri.path == Path.decode("/11081aaa281.git"))
       },
       test("work with bitbucket short syntax") {
         val uri = NPM.repositoryToUri("bitbucket:another/repo").get
-        assertTrue(uri.scheme == "https", uri.host == Host.parse("bitbucket.org"), uri.path == Path.parse("/another/repo.git"))
+        assertTrue(schemeName(uri) == "https", hostName(uri) == "bitbucket.org", uri.path == Path.decode("/another/repo.git"))
       },
       test("work with gitlab short syntax") {
         val uri = NPM.repositoryToUri("gitlab:another/repo").get
-        assertTrue(uri.scheme == "https", uri.host == Host.parse("gitlab.com"), uri.path == Path.parse("/another/repo.git"))
+        assertTrue(schemeName(uri) == "https", hostName(uri) == "gitlab.com", uri.path == Path.decode("/another/repo.git"))
       },
       test("work with github short syntax") {
         val uri = NPM.repositoryToUri("another/repo").get
-        assertTrue(uri.scheme == "https", uri.host == Host.parse("github.com"), uri.path == Path.parse("/another/repo.git"))
+        assertTrue(schemeName(uri) == "https", hostName(uri) == "github.com", uri.path == Path.decode("/another/repo.git"))
       },
     ),
     suite("info")(
       test("inflight 1.0.4 has the correct github url") {
         withNpm { npm =>
           npm.info("inflight", "1.0.4").map { info =>
-            assertTrue(info.maybeGitHubUrl.contains(AbsoluteUrl.parse("https://github.com/isaacs/inflight-DEPRECATED-DO-NOT-USE")))
+            assertTrue(info.maybeGitHubUrl.contains(URL.unsafeParse("https://github.com/isaacs/inflight-DEPRECATED-DO-NOT-USE")))
           }
         }
       },
       test("inherits 2.0.1 has a homepage") {
         withNpm { npm =>
           npm.info("inherits", "2.0.1").map { info =>
-            assertTrue(info.maybeHomepageUrl.contains(AbsoluteUrl.parse("https://github.com/isaacs/inherits")))
+            assertTrue(info.maybeHomepageUrl.contains(URL.unsafeParse("https://github.com/isaacs/inherits")))
           }
         }
       },
       test("simple-fmt has an issue tracking url") {
         withNpm { npm =>
           npm.info("simple-fmt", "0.1.0").map { info =>
-            assertTrue(info.maybeIssuesUrl.contains(AbsoluteUrl.parse("https://github.com/olov/simple-fmt/issues")))
+            assertTrue(info.maybeIssuesUrl.contains(URL.unsafeParse("https://github.com/olov/simple-fmt/issues")))
           }
         }
       },
@@ -112,7 +117,7 @@ object NPMSpec extends ZIOSpecDefault:
       test("quadkeytools has bitbucket issues url") {
         withNpm { npm =>
           npm.info("quadkeytools", "0.0.2").map { info =>
-            assertTrue(info.maybeIssuesUrl.contains(AbsoluteUrl.parse("https://bitbucket.org/steele/quadkeytools/issues")))
+            assertTrue(info.maybeIssuesUrl.contains(URL.unsafeParse("https://bitbucket.org/steele/quadkeytools/issues")))
           }
         }
       },
@@ -120,9 +125,9 @@ object NPMSpec extends ZIOSpecDefault:
         withNpm { npm =>
           npm.info("async-validator", "1.0.0").map { info =>
             assertTrue(
-              info.sourceConnectionUri.scheme == "https",
-              info.sourceConnectionUri.host == Host.parse("github.com"),
-              info.sourceConnectionUri.path == Path.parse("/yiminghe/async-validator.git"),
+              schemeName(info.sourceConnectionUri) == "https",
+              hostName(info.sourceConnectionUri) == "github.com",
+              info.sourceConnectionUri.path == Path.decode("/yiminghe/async-validator.git"),
             )
           }
         }
@@ -145,41 +150,41 @@ object NPMSpec extends ZIOSpecDefault:
       test("electron-to-chromium 1.3.28") {
         withNpm { npm =>
           npm.info("electron-to-chromium", "1.3.28").map { info =>
-            assertTrue(info.sourceConnectionUri == AbsoluteUrl.parse("https://github.com/kilian/electron-to-chromium.git"))
+            assertTrue(info.sourceConnectionUri == URL.unsafeParse("https://github.com/kilian/electron-to-chromium.git"))
           }
         }
       },
       test("@babel/runtime 7.12.1") {
         withNpm { npm =>
           npm.info("@babel/runtime", "7.12.1").map { info =>
-            assertTrue(info.sourceConnectionUri == AbsoluteUrl.parse("https://github.com/babel/babel.git"))
+            assertTrue(info.sourceConnectionUri == URL.unsafeParse("https://github.com/babel/babel.git"))
           }
         }
       },
       test("libphonenumber-js 1.9.17") {
         withNpm { npm =>
           npm.info("libphonenumber-js", "1.9.17").map { info =>
-            assertTrue(info.sourceConnectionUri == AbsoluteUrl.parse("https://gitlab.com/catamphetamine/libphonenumber-js.git"))
+            assertTrue(info.sourceConnectionUri == URL.unsafeParse("https://gitlab.com/catamphetamine/libphonenumber-js.git"))
           }
         }
       },
       test("ktx-parse 1.1.0 has the right url") {
         withNpm { npm =>
           npm.info("ktx-parse", "1.1.0").map { info =>
-            assertTrue(info.sourceConnectionUri == AbsoluteUrl.parse("https://github.com/donmccurdy/ktx-parse.git"))
+            assertTrue(info.sourceConnectionUri == URL.unsafeParse("https://github.com/donmccurdy/ktx-parse.git"))
           }
         }
       },
       test("@gip-recia/esco-content-menu-lit 0.2.0") {
         withNpm { npm =>
           npm.info("@gip-recia/esco-content-menu-lit", "0.2.0").map { info =>
-            assertTrue(info.maybeGitHubUrl.contains(AbsoluteUrl.parse("https://github.com/GIP-RECIA/uPortal-web-components")))
+            assertTrue(info.maybeGitHubUrl.contains(URL.unsafeParse("https://github.com/GIP-RECIA/uPortal-web-components")))
           }
         }
       },
       test("amdefine 0.0.4 works with a source override") {
         withNpm { npm =>
-          val uri = AbsoluteUrl.parse("https://webjars.org")
+          val uri = URL.unsafeParse("https://webjars.org")
           npm.info("amdefine", "0.0.4", Some(uri)).map { info =>
             assertTrue(info.sourceConnectionUri == uri)
           }
@@ -301,7 +306,7 @@ object NPMSpec extends ZIOSpecDefault:
           for
             packageInfo <- npm.info("mapbox-gl", "2.15.0")
             licenses <- npm.licenses("mapbox-gl", "2.15.0", packageInfo)
-          yield assertTrue(licenses == Set(LicenseWithUrl(AbsoluteUrl.parse("file://LICENSE.txt"))))
+          yield assertTrue(licenses == Set(LicenseWithUrl(URL.unsafeParse("file://LICENSE.txt"))))
         }
       },
     ) @@ TestAspect.withLiveClock,
@@ -322,7 +327,7 @@ object NPMSpec extends ZIOSpecDefault:
       test("convert github license URL to license") {
         withNpm { npm =>
           npm.licenseReference("foo", "0.0.0", "https://github.com/facebook/flux/blob/master/LICENSE").map { result =>
-            assertTrue(result == Set(LicenseWithNameAndUrl("BSD 3-Clause", AbsoluteUrl.parse("https://github.com/facebook/flux/blob/master/LICENSE"))))
+            assertTrue(result == Set(LicenseWithNameAndUrl("BSD 3-Clause", URL.unsafeParse("https://github.com/facebook/flux/blob/master/LICENSE"))))
           }
         }
       },

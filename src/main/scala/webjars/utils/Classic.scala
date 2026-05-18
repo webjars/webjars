@@ -1,8 +1,6 @@
 package webjars.utils
 
 import com.jamesward.zio_mavencentral.MavenCentral
-import io.lemonlabs.uri.AbsoluteUrl
-import io.lemonlabs.uri.typesafe.dsl.{pathPartToUrlDsl, urlToUrlDsl}
 import webjars.config.AppConfig
 import webjars.utils.Deployable.{NameOrUrlish, Version}
 import zio.*
@@ -21,7 +19,7 @@ trait Classic extends Deployable:
   override val metadataFile: Option[String] = None
   def metadata(nameOrUrlish: NameOrUrlish): ZIO[Scope, Throwable, Metadata]
   def license(metadata: Metadata): ZIO[Scope, Throwable, LicenseMetadata]
-  def infoFromMetadata(metadata: Metadata, version: Version, maybeSourceUri: Option[AbsoluteUrl]): ZIO[Scope, Throwable, PackageInfo]
+  def infoFromMetadata(metadata: Metadata, version: Version, maybeSourceUri: Option[URL]): ZIO[Scope, Throwable, PackageInfo]
   def archiveFromMetadata(metadata: Metadata, version: Version): ZIO[Scope, Throwable, InputStream]
   def maybeBaseDirGlobFromMetadata(metadata: Metadata): ZIO[Scope, Throwable, Option[String]]
   def licensesFromMetadata(metadata: Metadata, version: Version, packageInfo: PackageInfo): ZIO[Scope, Throwable, Set[License]]
@@ -33,7 +31,7 @@ case class ClassicLive(httpClient: Client, licenseDetector: LicenseDetector, git
 
   def metadata(nameOrUrlish: NameOrUrlish): ZIO[Scope, Throwable, Metadata] =
     defer:
-      val propertiesString = gitHub.raw(AbsoluteUrl.parse("https://github.com/webjars/webjars-classic"), webJarsClassicBranch, s"$nameOrUrlish.properties")
+      val propertiesString = gitHub.raw(URL.unsafeParse("https://github.com/webjars/webjars-classic"), webJarsClassicBranch, s"$nameOrUrlish.properties")
         .catchAll(_ => ZIO.fail(new Exception(s"The Classic WebJar $nameOrUrlish does not support this")))
         .run
       ZIO.fromTry(Classic.parseMetadata(nameOrUrlish, propertiesString)).run
@@ -60,7 +58,7 @@ case class ClassicLive(httpClient: Client, licenseDetector: LicenseDetector, git
           val request = gitHub.maybeAuthToken.fold(baseRequest)(token =>
             baseRequest.addHeader(Header.Authorization.Bearer(token))
           )
-          val response = httpClient.request(request).run
+          val response = httpClient.batched(request).run
           response.status match
             case Status.Ok =>
               import zio.json.*
@@ -82,7 +80,7 @@ case class ClassicLive(httpClient: Client, licenseDetector: LicenseDetector, git
         (metadataNpm.licenseName, metadataNpm.licenseUrl) match
           case (Some(licenseName), Some(licenseUrl)) =>
             ZIO.fromTry {
-              AbsoluteUrl.parseTry(licenseUrl).map { absoluteLicenseUrl =>
+              URL.parseTry(licenseUrl).map { absoluteLicenseUrl =>
                 LicenseMetadata.ProvidedLicense(LicenseWithNameAndUrl(licenseName, absoluteLicenseUrl))
               }
             }
@@ -90,14 +88,14 @@ case class ClassicLive(httpClient: Client, licenseDetector: LicenseDetector, git
             ZIO.succeed(LicenseMetadata.ProvidedLicense(LicenseWithName(licenseName)))
           case (None, Some(licenseUrl)) =>
             ZIO.fromTry {
-              AbsoluteUrl.parseTry(licenseUrl).map { absoluteLicenseUrl =>
+              URL.parseTry(licenseUrl).map { absoluteLicenseUrl =>
                 LicenseMetadata.ProvidedLicense(LicenseWithUrl(absoluteLicenseUrl))
               }
             }
           case _ =>
             ZIO.succeed(LicenseMetadata.UnresolvedLicense)
 
-  override def info(nameOrUrlish: NameOrUrlish, version: Version, maybeSourceUri: Option[AbsoluteUrl]): ZIO[Scope, Throwable, PackageInfo] =
+  override def info(nameOrUrlish: NameOrUrlish, version: Version, maybeSourceUri: Option[URL]): ZIO[Scope, Throwable, PackageInfo] =
     cache.get[Metadata](s"webjars-classic-$nameOrUrlish", 1.hour) {
       metadata(nameOrUrlish)
     }.flatMap(infoFromMetadata(_, version, maybeSourceUri))
@@ -105,15 +103,15 @@ case class ClassicLive(httpClient: Client, licenseDetector: LicenseDetector, git
   override def mavenDependencies(dependencies: Map[String, String]): ZIO[Scope, Throwable, Set[(MavenCentral.GroupArtifact, String)]] =
     ZIO.succeed(Set.empty)
 
-  private def downloadExists(url: String): ZIO[Scope, Throwable, AbsoluteUrl] =
+  private def downloadExists(url: String): ZIO[Scope, Throwable, URL] =
     defer:
-      val absoluteUrl = ZIO.fromTry(AbsoluteUrl.parseTry(url)).run
-      val response = httpClient.request(Request.head(URL.decode(url).toOption.get)).run
+      val absoluteUrl = ZIO.fromTry(URL.parseTry(url)).run
+      val response = httpClient.batched(Request.head(absoluteUrl)).run
       response.status match
         case s if s.isSuccess || s.isRedirection => absoluteUrl
-        case _ => ZIO.fail(new Exception(s"$absoluteUrl does not exist")).run
+        case _ => ZIO.fail(new Exception(s"${absoluteUrl.encode} does not exist")).run
 
-  private def validDownload(download: String, version: Version): ZIO[Scope, Throwable, AbsoluteUrl] =
+  private def validDownload(download: String, version: Version): ZIO[Scope, Throwable, URL] =
     downloadExists(download.replace("${version}", version)).catchAll { _ =>
       downloadExists(download.replace("${version}", version.vless))
     }
@@ -149,7 +147,7 @@ case class ClassicLive(httpClient: Client, licenseDetector: LicenseDetector, git
   override def depGraph(packageInfo: PackageInfo, deps: Map[String, String]): ZIO[Scope, Throwable, Map[String, String]] =
     ZIO.succeed(Map.empty)
 
-  def infoFromMetadata(metadata: Metadata, version: Version, maybeSourceUri: Option[AbsoluteUrl]): ZIO[Scope, Throwable, PackageInfo] =
+  def infoFromMetadata(metadata: Metadata, version: Version, maybeSourceUri: Option[URL]): ZIO[Scope, Throwable, PackageInfo] =
     metadata match
       case metadataNormal: MetadataNormal =>
         val gitHubUrl = GitHub.gitHubUrl(s"https://github.com/${metadataNormal.repo}")
@@ -180,12 +178,12 @@ case class ClassicLive(httpClient: Client, licenseDetector: LicenseDetector, git
     metadata match
       case metadataNormal: MetadataNormal =>
         metadataNormal.download.fold {
-          downloadExists(("https://github.com" / metadataNormal.repo / "archive" / s"$version.zip").toString())
+          downloadExists(s"https://github.com/${metadataNormal.repo}/archive/$version.zip")
         } { download =>
           validDownload(download, version)
         }.map { absoluteUrl =>
           val is = absoluteUrl.toJavaURI.toURL.openStream()
-          if absoluteUrl.toString().endsWith("tgz") then
+          if absoluteUrl.encode.endsWith("tgz") then
             new GZIPInputStream(is)
           else
             is

@@ -1,8 +1,6 @@
 package webjars.utils
 
 import com.jamesward.zio_mavencentral.MavenCentral
-import io.lemonlabs.uri.{AbsoluteUrl, Url}
-import io.lemonlabs.uri.typesafe.dsl.urlToUrlDsl
 import webjars.utils.Deployable.{NameOrUrlish, Version}
 import zio.*
 import zio.direct.*
@@ -24,7 +22,7 @@ trait NPM extends Deployable:
 
 case class NPMLive(client: Client, licenseDetector: LicenseDetector, git: Git, gitHub: GitHub, maven: Maven, semVer: SemVer) extends NPM:
 
-  private val BASE_URL: AbsoluteUrl = AbsoluteUrl.parse("https://registry.npmjs.org")
+  private val BASE_URL: URL = URL.unsafeParse("https://registry.npmjs.org")
 
   override def artifactId(nameOrUrlish: NameOrUrlish): ZIO[Scope, Throwable, MavenCentral.ArtifactId] =
     git.artifactId(nameOrUrlish).map(MavenCentral.ArtifactId(_))
@@ -35,7 +33,7 @@ case class NPMLive(client: Client, licenseDetector: LicenseDetector, git: Git, g
   override def maybeBaseDirGlob(nameOrUrlish: NameOrUrlish): ZIO[Scope, Throwable, Option[Version]] =
     ZIO.succeed(Some("*/"))
 
-  private def registryMetadataUrl(packageName: String, maybeVersion: Option[Version] = None): Url =
+  private def registryMetadataUrl(packageName: String, maybeVersion: Option[Version] = None): URL =
     maybeVersion.fold {
       BASE_URL / packageName
     } { version =>
@@ -45,7 +43,7 @@ case class NPMLive(client: Client, licenseDetector: LicenseDetector, git: Git, g
   private def isScoped(maybeScopeAndPackageName: String): Boolean =
     maybeScopeAndPackageName.contains('/') && maybeScopeAndPackageName.startsWith("@")
 
-  private def registryTgzUrl(maybeScopeAndPackageName: String, version: Version): Url =
+  private def registryTgzUrl(maybeScopeAndPackageName: String, version: Version): URL =
     if isScoped(maybeScopeAndPackageName) then
       val parts = maybeScopeAndPackageName.split('/')
       val scope = parts.head
@@ -59,10 +57,10 @@ case class NPMLive(client: Client, licenseDetector: LicenseDetector, git: Git, g
       git.versions(packageNameOrGitRepo)
     else
       defer:
-        val url = registryMetadataUrl(packageNameOrGitRepo).toString()
-        val request = Request.get(URL.decode(url).toOption.get)
+        val url = registryMetadataUrl(packageNameOrGitRepo)
+        val request = Request.get(url)
           .addHeader(Header.Accept(MediaType("application", "vnd.npm.install-v1+json")))
-        val response = client.request(request).run
+        val response = client.batched(request).run
         response.status match
           case Status.Ok =>
             val body = response.body.asString.run
@@ -76,7 +74,7 @@ case class NPMLive(client: Client, licenseDetector: LicenseDetector, git: Git, g
   def versionJson(packageNameOrGitRepo: NameOrUrlish, version: Version): ZIO[Scope, Throwable, Json] =
     defer:
       val url = registryMetadataUrl(packageNameOrGitRepo, Some(version))
-      val response = client.request(Request.get(URL.decode(url.toString()).toOption.get)).run
+      val response = client.batched(Request.get(url)).run
       response.status match
         case Status.Ok =>
           val body = response.body.asString.run
@@ -100,7 +98,7 @@ case class NPMLive(client: Client, licenseDetector: LicenseDetector, git: Git, g
     val name = jsonString(json, "name").getOrElse("")
     val version = jsonString(json, "version").getOrElse("")
 
-    val maybeHomepageUrl = jsonString(json, "homepage").flatMap(AbsoluteUrl.parseOption)
+    val maybeHomepageUrl = jsonString(json, "homepage").flatMap(URL.parseOption)
 
     val repositoryUrl = jsonObject(json, "repository").flatMap { repo =>
       repo.asString.orElse(jsonString(repo, "url"))
@@ -108,13 +106,13 @@ case class NPMLive(client: Client, licenseDetector: LicenseDetector, git: Git, g
 
     val sourceConnectionUriString = NPM.uriIsh(repositoryUrl)
 
-    val sourceConnectionUri = AbsoluteUrl.parseTry(sourceConnectionUriString) match
+    val sourceConnectionUri = URL.parseTry(sourceConnectionUriString) match
       case scala.util.Success(url) => url
-      case scala.util.Failure(_) => AbsoluteUrl.parse(s"https://github.com/$name")
+      case scala.util.Failure(_) => URL.unsafeParse(s"https://github.com/$name")
 
     val maybeIssuesUrl =
-      jsonString(json, "bugs").flatMap(AbsoluteUrl.parseOption)
-        .orElse(jsonObject(json, "bugs").flatMap(b => jsonString(b, "url")).flatMap(AbsoluteUrl.parseOption))
+      jsonString(json, "bugs").flatMap(URL.parseOption)
+        .orElse(jsonObject(json, "bugs").flatMap(b => jsonString(b, "url")).flatMap(URL.parseOption))
         .orElse(maybeHomepageUrl.flatMap(u => GitHub.gitHubIssuesUrl(u).toOption.orElse(Bitbucket.bitbucketIssuesUrl(u).toOption)))
 
     val licenseSeq: Seq[String] = {
@@ -148,7 +146,7 @@ case class NPMLive(client: Client, licenseDetector: LicenseDetector, git: Git, g
       maybeTag = None,
     ))
 
-  override def info(packageNameOrGitRepo: NameOrUrlish, version: Version, maybeSourceUri: Option[AbsoluteUrl] = None): ZIO[Scope, Throwable, PackageInfo] =
+  override def info(packageNameOrGitRepo: NameOrUrlish, version: Version, maybeSourceUri: Option[URL] = None): ZIO[Scope, Throwable, PackageInfo] =
 
     def resolvePackageJson(packageJson: Json): ZIO[Scope, Throwable, Json] =
       defer:
@@ -160,7 +158,7 @@ case class NPMLive(client: Client, licenseDetector: LicenseDetector, git: Git, g
           packageJson
 
         maybeSourceUri.fold(withForkRepo) { sourceUri =>
-          val repoObj = Json.Obj("url" -> Json.Str(sourceUri.toString))
+          val repoObj = Json.Obj("url" -> Json.Str(sourceUri.encode))
           withForkRepo.asObject.map(obj => Json.Obj(obj.toMap.updated("repository", repoObj).toSeq*)).getOrElse(withForkRepo)
         }
 
@@ -307,5 +305,5 @@ object NPM:
     else
       repository
 
-  def repositoryToUri(repositoryUrl: String): Option[AbsoluteUrl] =
-    AbsoluteUrl.parseOption(uriIsh(repositoryUrl))
+  def repositoryToUri(repositoryUrl: String): Option[URL] =
+    URL.parseOption(uriIsh(repositoryUrl))

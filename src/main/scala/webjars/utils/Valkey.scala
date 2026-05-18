@@ -7,6 +7,7 @@ import zio.schema.codec.{BinaryCodec, ProtobufCodec}
 import zio.schema.Schema
 
 import java.net.URI
+import java.util.concurrent.TimeoutException
 
 trait Valkey:
   def layer: ZLayer[Any, Nothing, Redis]
@@ -30,9 +31,9 @@ case class ValkeyLive() extends Valkey:
   private val redisConfigLayer: ZLayer[Any, Throwable, RedisConfig] =
     ZLayer.fromZIO:
       redisUri.map: uri =>
-        RedisConfig(uri.getHost, uri.getPort, ssl = true, verifyCertificate = false)
-      .orElseSucceed:
-        RedisConfig("localhost", 6379)
+        // `rediss://...` → TLS (Heroku, managed Redis). `redis://...` → plaintext (local dev).
+        val ssl = uri.getScheme == "rediss"
+        RedisConfig(uri.getHost, uri.getPort, ssl = ssl, verifyCertificate = false)
 
   private val redisAuthLayer: ZLayer[CodecSupplier & RedisConfig, Throwable, Redis] =
     Redis.singleNode.flatMap: env =>
@@ -40,17 +41,30 @@ case class ValkeyLive() extends Valkey:
         defer:
           val uri = redisUri.run
           val redis = env.get[Redis]
-          val password = uri.getUserInfo.drop(1) // REDIS_URL has an empty username
+          // REDIS_URL on Heroku is `rediss://:password@host:port` (empty
+          // username + ':' separator + password), so we drop the leading ':'.
+          // Local redis URLs without auth produce null here — treat that as "no password".
+          val maybePassword = Option(uri.getUserInfo).map(_.drop(1)).filter(_.nonEmpty)
 
-          val authIfNeeded =
-            redis.ping().catchAll:
-              case e: RedisError if e.getMessage.contains("NOAUTH") =>
-                ZIO.logInfo("Redis NOAUTH detected, authenticating...") *> redis.auth(password)
-              case e =>
-                ZIO.fail(e)
+          // zio-redis silently hangs forever if the TLS handshake never
+          // completes (e.g. ssl=true vs plain redis://). A short timeout on
+          // the first command turns that into a fast-fail at boot.
+          val connectionCheckTimeout = 5.seconds
+          val timeoutMsg = s"Redis connection check timed out after $connectionCheckTimeout — check that REDIS_URL scheme (redis:// vs rediss://) matches the server."
 
-          redis.auth(password).run
-          authIfNeeded.repeat(Schedule.spaced(5.seconds)).forkDaemon.run
+          maybePassword match
+            case Some(password) =>
+              val authIfNeeded =
+                redis.ping().catchAll:
+                  case e: RedisError if e.getMessage.contains("NOAUTH") =>
+                    ZIO.logInfo("Redis NOAUTH detected, authenticating...") *> redis.auth(password)
+                  case e =>
+                    ZIO.fail(e)
+              redis.auth(password).timeoutFail(TimeoutException(timeoutMsg))(connectionCheckTimeout).run
+              authIfNeeded.repeat(Schedule.spaced(5.seconds)).forkDaemon.run
+            case None =>
+              redis.ping().timeoutFail(TimeoutException(timeoutMsg))(connectionCheckTimeout).run
+
           redis
       .orElse:
         ZLayer.succeed(env.get[Redis])

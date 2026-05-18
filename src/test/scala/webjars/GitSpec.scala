@@ -1,10 +1,9 @@
 package webjars
 
-import io.lemonlabs.uri.AbsoluteUrl
-import webjars.utils.{Git, GitLive}
+import webjars.utils.*
 import zio.*
 import zio.compress.*
-import zio.http.Client
+import zio.http.{Client, URL}
 import zio.stream.*
 import zio.test.*
 
@@ -57,7 +56,7 @@ object GitSpec extends ZIOSpecDefault:
       },
       test("fetch a file with a git url syntax") {
         withGit { git =>
-          git.file(AbsoluteUrl.parse("https://github.com/yiminghe/async-validator.git"), "v3.4.0", "LICENSE.md").map { file =>
+          git.file(URL.unsafeParse("https://github.com/yiminghe/async-validator.git"), "v3.4.0", "LICENSE.md").map { file =>
             assertTrue(file.length == 1083, file.contains("The MIT License (MIT)"))
           }
         }

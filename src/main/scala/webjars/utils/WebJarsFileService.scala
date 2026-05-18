@@ -20,7 +20,7 @@ case class WebJarsFileServiceLive(client: Client, config: AppConfig) extends Web
   def getFileList(gav: MavenCentral.GroupArtifactVersion): ZIO[Scope, Throwable, List[String]] =
     defer:
       val url = s"$baseUrl/listfiles/${gav.toPath.dropLeadingSlash}"
-      val response = client.request(Request.get(URL.decode(url).toOption.get)).run
+      val response = client.batched(Request.get(URL.decode(url).toOption.get)).run
       response.status match
         case Status.Ok =>
           val body = response.body.asString.run
@@ -35,7 +35,7 @@ case class WebJarsFileServiceLive(client: Client, config: AppConfig) extends Web
   def getNumFiles(gav: MavenCentral.GroupArtifactVersion): ZIO[Scope, Throwable, Int] =
     defer:
       val url = s"$baseUrl/numfiles/${gav.toPath.dropLeadingSlash}"
-      val response = client.request(Request.get(URL.decode(url).toOption.get)).run
+      val response = client.batched(Request.get(URL.decode(url).toOption.get)).run
       response.status match
         case Status.Ok =>
           val body = response.body.asString.run

@@ -1,10 +1,9 @@
 package webjars
 
-import io.lemonlabs.uri.AbsoluteUrl
 import webjars.TestInfrastructure.testConfig
-import webjars.utils.{LicenseDetector, LicenseDetectorLive}
+import webjars.utils.*
 import zio.*
-import zio.http.Client
+import zio.http.{Client, URL}
 import zio.test.*
 
 object LicenseDetectorSpec extends ZIOSpecDefault:
@@ -14,7 +13,7 @@ object LicenseDetectorSpec extends ZIOSpecDefault:
       for
         client <- ZIO.service[Client]
         licenseDetector = LicenseDetectorLive(client, testConfig.githubAuthToken)
-        result <- ZIO.scoped(licenseDetector.licenseDetect(AbsoluteUrl.parse("http://polymer.github.io/LICENSE.txt")))
+        result <- ZIO.scoped(licenseDetector.licenseDetect(URL.unsafeParse("http://polymer.github.io/LICENSE.txt")))
       yield assertTrue(result.name == "BSD 3-Clause")
     } @@ TestAspect.withLiveClock,
   ).provide(Client.default) @@ TestAspect.timeout(120.seconds)

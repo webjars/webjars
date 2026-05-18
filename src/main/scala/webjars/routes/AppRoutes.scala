@@ -1,7 +1,6 @@
 package webjars.routes
 
 import com.jamesward.zio_mavencentral.MavenCentral
-import io.lemonlabs.uri.AbsoluteUrl
 import webjars.config.AppConfig
 import webjars.models.WebJar
 import webjars.utils.*
@@ -259,7 +258,7 @@ case class AppRoutes(
             json.asObject.flatMap(_.get("license")).flatMap(_.asObject).map { licenses =>
               licenses.toMap.collect { case (name, v) if v.asString.isDefined =>
                 val url = v.asString.get
-                AbsoluteUrl.parseOption(url).fold[License](LicenseWithName(name))(u => LicenseWithNameAndUrl(name, u))
+                URL.parseOption(url).fold[License](LicenseWithName(name))(u => LicenseWithNameAndUrl(name, u))
               }.toSet
             }
           }

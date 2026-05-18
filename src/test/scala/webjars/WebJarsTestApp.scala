@@ -73,7 +73,7 @@ object WebJarsTestApp extends ZIOAppDefault:
         appRoutes           <- ZIO.service[AppRoutes]
         mavenCentralWebJars <- ZIO.service[MavenCentralWebJars]
         _                   <- mavenCentralWebJars.startRefreshLoop()
-        allRoutes            = appRoutes.routes ++ StaticAssets.routes
+        allRoutes            = appRoutes.routes ++ StaticAssets.routes ++ TestStaticAssets.routes
         port                 = sys.env.get("PORT").flatMap(_.toIntOption).getOrElse(9000)
         _                   <- ZIO.logInfo(s"Starting test server on port $port")
         _                   <- Server.serve(allRoutes).provide(

@@ -1,10 +1,9 @@
 package webjars
 
-import io.lemonlabs.uri.AbsoluteUrl
-import webjars.utils.{CacheLive, GitHub, GitHubLive, ServerError}
+import webjars.utils.*
 import webjars.TestInfrastructure.testConfig
 import zio.*
-import zio.http.Client
+import zio.http.{Client, URL}
 import zio.test.*
 
 object GitHubSpec extends ZIOSpecDefault:
@@ -13,11 +12,11 @@ object GitHubSpec extends ZIOSpecDefault:
     suite("gitHubUrl")(
       test("work normally") {
         assertTrue(
-          GitHub.gitHubUrl("git://github.com/isaacs/inherits").get == AbsoluteUrl.parse("https://github.com/isaacs/inherits"),
-          GitHub.gitHubUrl("https://github.com/isaacs/inherits").get == AbsoluteUrl.parse("https://github.com/isaacs/inherits"),
-          GitHub.gitHubUrl(AbsoluteUrl.parse("https://github.com/isaacs/inherits.git")).get == AbsoluteUrl.parse("https://github.com/isaacs/inherits"),
-          GitHub.gitHubUrl(AbsoluteUrl.parse("https://www.github.com/isaacs/inherits.git")).get == AbsoluteUrl.parse("https://www.github.com/isaacs/inherits"),
-          GitHub.gitHubUrl(AbsoluteUrl.parse("https://github.com/zippyui/react-flex#readme")).get == AbsoluteUrl.parse("https://github.com/zippyui/react-flex"),
+          GitHub.gitHubUrl("git://github.com/isaacs/inherits").get == URL.unsafeParse("https://github.com/isaacs/inherits"),
+          GitHub.gitHubUrl("https://github.com/isaacs/inherits").get == URL.unsafeParse("https://github.com/isaacs/inherits"),
+          GitHub.gitHubUrl(URL.unsafeParse("https://github.com/isaacs/inherits.git")).get == URL.unsafeParse("https://github.com/isaacs/inherits"),
+          GitHub.gitHubUrl(URL.unsafeParse("https://www.github.com/isaacs/inherits.git")).get == URL.unsafeParse("https://www.github.com/isaacs/inherits"),
+          GitHub.gitHubUrl(URL.unsafeParse("https://github.com/zippyui/react-flex#readme")).get == URL.unsafeParse("https://github.com/zippyui/react-flex"),
           GitHub.gitHubUrl("https://foo.com").isFailure,
         )
       },
@@ -27,25 +26,25 @@ object GitHubSpec extends ZIOSpecDefault:
         for
           client <- ZIO.service[Client]
           gitHub = GitHubLive(client, testConfig, CacheLive())
-          (homepage, _, _) <- ZIO.scoped(gitHub.currentUrls(AbsoluteUrl.parse("https://github.com/isaacs/inherits")))
-        yield assertTrue(homepage == AbsoluteUrl.parse("https://github.com/isaacs/inherits"))
+          (homepage, _, _) <- ZIO.scoped(gitHub.currentUrls(URL.unsafeParse("https://github.com/isaacs/inherits")))
+        yield assertTrue(homepage == URL.unsafeParse("https://github.com/isaacs/inherits"))
       },
       test("fail for not founds") {
         for
           client <- ZIO.service[Client]
           gitHub = GitHubLive(client, testConfig, CacheLive())
-          result <- ZIO.scoped(gitHub.currentUrls(AbsoluteUrl.parse("http://github.com/asdf1234/zxcv4321"))).exit
+          result <- ZIO.scoped(gitHub.currentUrls(URL.unsafeParse("http://github.com/asdf1234/zxcv4321"))).exit
         yield assertTrue(result.isFailure)
       },
       test("work for sub paths") {
         for
           client <- ZIO.service[Client]
           gitHub = GitHubLive(client, testConfig, CacheLive())
-          (homepage, gitUrl, issuesUrl) <- ZIO.scoped(gitHub.currentUrls(AbsoluteUrl.parse("https://github.com/GIP-RECIA/uPortal-web-components/tree/esco-content-menu/main/@uportal/esco-content-menu-lit")))
+          (homepage, gitUrl, issuesUrl) <- ZIO.scoped(gitHub.currentUrls(URL.unsafeParse("https://github.com/GIP-RECIA/uPortal-web-components/tree/esco-content-menu/main/@uportal/esco-content-menu-lit")))
         yield assertTrue(
-          homepage == AbsoluteUrl.parse("https://github.com/GIP-RECIA/uPortal-web-components"),
-          gitUrl == AbsoluteUrl.parse("https://github.com/GIP-RECIA/uPortal-web-components.git"),
-          issuesUrl == AbsoluteUrl.parse("https://github.com/GIP-RECIA/uPortal-web-components/issues"),
+          homepage == URL.unsafeParse("https://github.com/GIP-RECIA/uPortal-web-components"),
+          gitUrl == URL.unsafeParse("https://github.com/GIP-RECIA/uPortal-web-components.git"),
+          issuesUrl == URL.unsafeParse("https://github.com/GIP-RECIA/uPortal-web-components/issues"),
         )
       },
     ) @@ TestAspect.withLiveClock,
