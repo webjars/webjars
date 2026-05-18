@@ -3,22 +3,30 @@ package webjars.utils
 import com.jamesward.zio_mavencentral.MavenCentral
 import zio.*
 import zio.direct.*
-import zio.http.URL
+import zio.http.{Client, URL}
+import zio.redis.Redis
 import zio.stream.ZStream
 
 import java.io.FileNotFoundException
 
-trait DeployWebJar:
-  def deploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, maybeReleaseVersion: Option[String] = None, maybeSourceUri: Option[URL] = None, maybeLicense: Option[String] = None): ZStream[Scope, Throwable, String]
+trait DeployWebJar[Env]:
+  def deploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, maybeReleaseVersion: Option[String] = None, maybeSourceUri: Option[URL] = None, maybeLicense: Option[String] = None): ZStream[Scope & Client & Redis & Env, Throwable, String]
   def create(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, licenseOverride: Option[Set[License]], groupIdOverride: Option[MavenCentral.GroupId]): ZIO[Scope, Throwable, (MavenCentral.ArtifactId, Array[Byte])]
 
-case class DeployWebJarLive(mavenCentralWebJars: MavenCentralWebJars, mavenCentralDeployer: MavenCentralDeployer, sourceLocator: SourceLocator) extends DeployWebJar:
+case class DeployWebJarLive[Env](mavenCentralWebJars: MavenCentralWebJars, mavenCentralDeployer: MavenCentralDeployer[Env], sourceLocator: SourceLocator) extends DeployWebJar[Env]:
 
-  def deploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, maybeReleaseVersion: Option[String] = None, maybeSourceUri: Option[URL] = None, maybeLicense: Option[String] = None): ZStream[Scope, Throwable, String] =
+  def deploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, maybeReleaseVersion: Option[String] = None, maybeSourceUri: Option[URL] = None, maybeLicense: Option[String] = None): ZStream[Scope & Client & Redis & Env, Throwable, String] =
 
-    def webJarNotYetDeployed(groupId: MavenCentral.GroupId, artifactId: MavenCentral.ArtifactId, version: MavenCentral.Version): ZIO[Scope, Throwable, Unit] =
+    def webJarNotYetDeployed(groupId: MavenCentral.GroupId, artifactId: MavenCentral.ArtifactId, version: MavenCentral.Version): ZIO[Scope & Redis & Client, Throwable, Unit] =
       mavenCentralWebJars.fetchPom(MavenCentral.GroupArtifactVersion(groupId, artifactId, version)).flatMap { _ =>
-        ZIO.fail(new IllegalStateException(s"WebJar $groupId $artifactId $version has already been deployed. Note that if you do not see it on webjars.org it can take >24 hours for the caches to update."))
+        // Already on Maven Central. Queue it for cache refresh (the ZSET
+        // add is idempotent — duplicates are harmless) and fail the deploy
+        // with a clearer next-step message.
+        WebJarsCache.addPendingDeploy(WebJarsCache.PendingDeploy(groupId, artifactId, version)).ignoreLogged *>
+          ZIO.fail(new IllegalStateException(
+            s"WebJar $groupId $artifactId $version has already been deployed to Maven Central. " +
+              "Queued for cache refresh — should appear on webjars.org within ~1 hour."
+          ))
       }.catchSome {
         case _: FileNotFoundException => ZIO.unit
       }
@@ -61,13 +69,19 @@ case class DeployWebJarLive(mavenCentralWebJars: MavenCentralWebJars, mavenCentr
               s"Created ${deployable.name} WebJar",
               s"Deploying Maven Central Release for $gav",
             ) ++ ZStream.fromZIO:
-              mavenCentralDeployer.publish(gav, jar, pom).as:
-                s"""Deployed!
-                   |It can take an hour or more for the artifact to be available in Maven Central.
-                   |GroupID = $groupId
-                   |ArtifactID = $artifactId
-                   |Version = $releaseVersion
-                   """.stripMargin
+              mavenCentralDeployer.publish(gav, jar, pom)
+                // Record the GAV in the pending-deploys queue so the next
+                // refresh cycle picks up the new version once MC propagates.
+                // .ignoreLogged so a Valkey hiccup never blocks a successful
+                // publish — refresh-from-cache is best-effort.
+                .zipLeft(WebJarsCache.addPendingDeploy(WebJarsCache.PendingDeploy(groupId, artifactId, releaseVersion)).ignoreLogged)
+                .as:
+                  s"""Deployed!
+                     |It can take an hour or more for the artifact to be available in Maven Central.
+                     |GroupID = $groupId
+                     |ArtifactID = $artifactId
+                     |Version = $releaseVersion
+                     """.stripMargin
 
   def create(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, licenseOverride: Option[Set[License]], groupIdOverride: Option[MavenCentral.GroupId]): ZIO[Scope, Throwable, (MavenCentral.ArtifactId, Array[Byte])] =
     import deployable.*
@@ -89,4 +103,5 @@ case class DeployWebJarLive(mavenCentralWebJars: MavenCentralWebJars, mavenCentr
       ZIO.succeed(artifactId -> jar).run
 
 object DeployWebJar:
-  val live: ZLayer[MavenCentralWebJars & MavenCentralDeployer & SourceLocator, Nothing, DeployWebJar] = ZLayer.derive[DeployWebJarLive]
+  def live[Env : Tag]: ZLayer[MavenCentralWebJars & MavenCentralDeployer[Env] & SourceLocator, Nothing, DeployWebJar[Env]] =
+    ZLayer.derive[DeployWebJarLive[Env]]

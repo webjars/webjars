@@ -10,18 +10,28 @@ import zio.*
 import zio.direct.*
 import zio.http.*
 import zio.json.*
+import zio.redis.Redis
 import zio.stream.ZStream
 
 import java.io.FileNotFoundException
 import java.net.URLDecoder
 import scala.util.hashing.MurmurHash3
 
-case class AppRoutes(
+case class ExistsResponse(
+  deployable: Boolean,
+  versions: List[String],
+  error: Option[String],
+)
+
+object ExistsResponse:
+  given JsonEncoder[ExistsResponse] = DeriveJsonEncoder.gen[ExistsResponse]
+
+case class AppRoutes[DeployerEnv](
   git: Git,
   cache: Cache,
   mavenCentral: MavenCentralWebJars,
-  deployWebJar: DeployWebJar,
-  deployJobs: DeployJobs,
+  deployWebJar: DeployWebJar[DeployerEnv],
+  deployJobs: DeployJobs[DeployerEnv],
   webJarsFileService: WebJarsFileService,
   config: AppConfig,
   sourceLocator: SourceLocator,
@@ -29,18 +39,11 @@ case class AppRoutes(
   allDeployables: AllDeployables,
   webJars: WebJars,
   popularMetrics: PopularMetrics,
+  popularRanking: PopularRanking,
   searchIndex: SearchIndex,
 ):
 
   private val INDEXING_MSG = "Indexing artifacts — try again in a moment."
-
-  private val MAX_POPULAR_WEBJARS = 20
-
-  private val WEBJAR_FETCH_ERROR = """
-    Looks like there was an error fetching the WebJars.
-    Until the issue is resolved you can search on search.maven.org for <a href="https://search.maven.org/search?q=g:org.webjars">Classic WebJars</a> or <a href="https://search.maven.org/search?q=g:org.webjars.npm">NPM WebJars</a>.
-    If this problem persists please <a href="https://github.com/webjars/webjars/issues/new">file an issue</a>.
-    """
 
   private def maybeCached(request: Request, seq: Seq[WebJar])(f: Seq[WebJar] => Response): Response =
     val hash = MurmurHash3.seqHash(seq)
@@ -53,11 +56,6 @@ case class AppRoutes(
       Response(Status.NotModified)
     else
       f(seq).addHeader(Header.Custom("ETag", etag))
-
-  def allPopular: ZIO[Any, Throwable, Seq[WebJar]] =
-    val reqs = allDeployables.groupIds().map: groupId =>
-      mavenCentral.featuredWebJars(groupId, MAX_POPULAR_WEBJARS)
-    ZIO.collectAll(reqs).map(_.flatten.toSeq)
 
   def allWebJarsData: UIO[List[WebJar]] = searchIndex.snapshot
 
@@ -93,34 +91,28 @@ case class AppRoutes(
   private def corsHeaders(response: Response): Response =
     response.addHeader(Header.AccessControlAllowOrigin.All)
 
-  val routes: Routes[Any, Nothing] = Routes(
+  val routes: Routes[Client & Redis & DeployerEnv, Nothing] = Routes(
 
     // Home page
     Method.GET / "" -> handler { (request: Request) =>
-      allPopular.map { popularWebJars =>
-        maybeCached(request, popularWebJars)(wj => htmlResponse(IndexPage(webJars, Left(wj))))
-      }.catchAll { e =>
-        ZIO.logError(s"index WebJar fetch failed: ${e.getMessage}") *>
-        ZIO.succeed(htmlResponse(IndexPage(webJars, Right(WEBJAR_FETCH_ERROR)), Status.InternalServerError))
+      popularRanking.snapshot.map { popularWebJars =>
+        if popularWebJars.isEmpty then
+          htmlResponse(IndexPage(webJars, Right(INDEXING_MSG)))
+        else
+          maybeCached(request, popularWebJars)(wj => htmlResponse(IndexPage(webJars, Left(wj))))
       }
     },
 
     // Popular WebJars (HTML or JSON)
     Method.GET / "popular" -> handler { (request: Request) =>
-      allPopular.map { popularWebJars =>
+      popularRanking.snapshot.map { popularWebJars =>
         if acceptsJson(request) then
           import webjars.models.WebJar.given
           jsonResponse(popularWebJars.toJson)
+        else if popularWebJars.isEmpty then
+          htmlResponse(WebJarList(Right(INDEXING_MSG)))
         else
           maybeCached(request, popularWebJars)(wj => htmlResponse(WebJarList(Left(wj))))
-      }.catchAll { e =>
-        ZIO.logError(s"popular WebJars failed: ${e.getMessage}") *>
-        ZIO.succeed {
-          if acceptsJson(request) then
-            Response(Status.InternalServerError, Headers(Header.ContentType(MediaType.application.json).untyped), Body.fromString(WEBJAR_FETCH_ERROR))
-          else
-            htmlResponse(WebJarList(Right(WEBJAR_FETCH_ERROR)), Status.InternalServerError)
-        }
       }
     },
 
@@ -200,20 +192,57 @@ case class AppRoutes(
     // Documentation
     Method.GET / "documentation" -> handler(htmlResponse(DocumentationPage(webJars))),
 
-    // Package exists
+    // Package exists. Always refreshes the artifact's Maven Central cache
+    // entry, returning an [[ExistsResponse]]:
+    //   - `deployable`: true if `deployable.versions(name)` succeeded
+    //   - `versions`: current versions on Maven Central (empty if absent)
+    //   - `error`: populated only for *transient* failures
+    //     (rate-limit / 5xx / etc.) so the UI can show "unavailable" instead
+    //     of the raw upstream message. Permanent "not deployable" cases
+    //     leave `error` empty; the UI builds a context-aware message.
+    // Type-agnostic — works the same for NPM and Classic.
     Method.GET / "exists" -> handler { (request: Request) =>
       val webJarType = request.url.queryParams.getAll("webJarType").headOption.getOrElse("")
       val name = request.url.queryParams.getAll("name").headOption.getOrElse("")
 
+      // Walk the cause chain for a non-404 ServerError, which we treat as
+      // a transient failure (rate-limited, 5xx, etc.). 404s are "not found"
+      // and considered permanent.
+      def isTransient(t: Throwable): Boolean = t match
+        case ServerError(_, 404)    => false
+        case _: ServerError         => true
+        case _                      => Option(t.getCause).exists(isTransient)
+
       allDeployables.fromName(webJarType).fold {
         ZIO.succeed(Response(Status.BadRequest, body = Body.fromString(s"Specified WebJar type '$webJarType' does not exist")))
       } { deployable =>
-        ZIO.scoped {
-          deployable.versions(name).map { _ =>
-            Response(Status.Ok, Headers(Header.ContentType(MediaType.application.xml).untyped), Body.fromString("<root></root>"))
-          }
-        }.catchAll { e =>
-          ZIO.succeed(Response(Status.InternalServerError, body = Body.fromString(e.getMessage)))
+        val versionsCheck = ZIO.scoped(deployable.versions(name)).either
+        // For the MC refresh path we want an artifactId even when the
+        // deployable's own resolution fails (e.g., a Classic name like
+        // `dgrid` that isn't in webjars-classic metadata but DOES exist
+        // on Maven Central as `org.webjars:dgrid`). Fall back to using
+        // the name as the artifactId — best-effort; if it's wrong MC just
+        // returns no versions.
+        val artifactIdEffect =
+          ZIO.scoped(deployable.artifactId(name))
+        val mcRefresh =
+          artifactIdEffect
+            .flatMap(aid => mavenCentral.refreshArtifactNow(deployable.groupId, aid))
+            .orElseSucceed(List.empty)
+        versionsCheck.zipPar(mcRefresh).flatMap { (versionsResult, mcVersions) =>
+          val errorField: ZIO[Any, Nothing, Option[String]] = versionsResult match
+            case Right(_) => ZIO.none
+            case Left(t)  =>
+              if isTransient(t) then
+                ZIO.logWarning(s"/exists transient failure for $webJarType:$name — ${t.getMessage}").as(Some("Deployment is unavailable at this time"))
+              else
+                ZIO.none
+          errorField.map: maybeError =>
+            jsonResponse(ExistsResponse(
+              deployable = versionsResult.isRight,
+              versions   = mcVersions.map(_.number),
+              error      = maybeError,
+            ).toJson)
         }
       }
     },
@@ -379,7 +408,7 @@ case class AppRoutes(
     },
   )
 
-  private def handleDeploy(request: Request): ZIO[Any, Nothing, Response] =
+  private def handleDeploy(request: Request): ZIO[Client & Redis & DeployerEnv, Nothing, Response] =
     val webJarType = request.url.queryParams.getAll("webJarType").headOption.getOrElse("")
     val nameOrUrlish = request.url.queryParams.getAll("nameOrUrlish").headOption.getOrElse("")
     val version = request.url.queryParams.getAll("version").headOption.getOrElse("")
@@ -387,31 +416,17 @@ case class AppRoutes(
     allDeployables.fromName(webJarType).fold {
       ZIO.succeed(Response(Status.BadRequest, body = Body.fromString(s"Specified WebJar type '$webJarType' can not be deployed")))
     } { deployable =>
-      val stream: ZStream[Any, Nothing, String] = deployJobs.deploy(deployable, nameOrUrlish, version)
-
-      if acceptsEventStream(request) then
-        ZIO.succeed {
-          Response(
-            Status.Ok,
-            Headers(Header.ContentType(MediaType.text.`event-stream`).untyped),
-            Body.fromStreamChunked(
-              stream.flatMap(msg => ZStream.fromIterable(s"data: $msg\n\n".getBytes))
-            )
-          )
-        }
-      else
-        ZIO.succeed {
-          Response(
-            Status.Ok,
-            Headers(Header.ContentType(MediaType.text.plain).untyped),
-            Body.fromStreamChunked(
-              stream.flatMap(msg => ZStream.fromIterable(msg.getBytes))
-            )
-          )
-        }
+      val stream: ZStream[Client & Redis & DeployerEnv, Nothing, String] = deployJobs.deploy(deployable, nameOrUrlish, version)
+      val bytes =
+        if acceptsEventStream(request) then stream.flatMap(msg => ZStream.fromIterable(s"data: $msg\n\n".getBytes))
+        else                                stream.flatMap(msg => ZStream.fromIterable(msg.getBytes))
+      val contentType =
+        if acceptsEventStream(request) then MediaType.text.`event-stream` else MediaType.text.plain
+      Body.fromStreamChunkedEnv(bytes).orDie.map: body =>
+        Response(Status.Ok, Headers(Header.ContentType(contentType).untyped), body)
     }
 
-  private def handleListFiles(groupId: String, artifactId: String, version: String, request: Request): ZIO[Any, Nothing, Response] =
+  private def handleListFiles(groupId: String, artifactId: String, version: String, request: Request): ZIO[Redis, Nothing, Response] =
     val gav = MavenCentral.GroupArtifactVersion(MavenCentral.GroupId(groupId), MavenCentral.ArtifactId(artifactId), MavenCentral.Version(version))
     popularMetrics.recordListFilesClick(MavenCentral.GroupId(groupId), MavenCentral.ArtifactId(artifactId)) *>
     ZIO.scoped {
@@ -431,4 +446,5 @@ case class AppRoutes(
     }
 
 object AppRoutes:
-  val live: ZLayer[Git & Cache & MavenCentralWebJars & DeployWebJar & DeployJobs & WebJarsFileService & AppConfig & SourceLocator & Classic & AllDeployables & WebJars & PopularMetrics & SearchIndex, Nothing, AppRoutes] = ZLayer.derive[AppRoutes]
+  def live[DeployerEnv : Tag]: ZLayer[Git & Cache & MavenCentralWebJars & DeployWebJar[DeployerEnv] & DeployJobs[DeployerEnv] & WebJarsFileService & AppConfig & SourceLocator & Classic & AllDeployables & WebJars & PopularMetrics & PopularRanking & SearchIndex, Nothing, AppRoutes[DeployerEnv]] =
+    ZLayer.derive[AppRoutes[DeployerEnv]]

@@ -2,48 +2,32 @@ package webjars.utils
 
 import com.jamesward.zio_mavencentral.MavenCentral
 import com.roundeights.hasher.Implicits.*
-import org.bouncycastle.bcpg.{ArmoredOutputStream, BCPGOutputStream, HashAlgorithmTags}
-import org.bouncycastle.openpgp.operator.jcajce.{JcaKeyFingerprintCalculator, JcaPGPContentSignerBuilder, JcePBESecretKeyDecryptorBuilder}
-import org.bouncycastle.openpgp.{PGPSecretKeyRing, PGPSignature, PGPSignatureGenerator}
 import webjars.config.AppConfig
 import zio.*
-import zio.http.{Client, Path}
+import zio.direct.*
+import zio.http.Path
 
 import java.io.ByteArrayOutputStream
-import java.util.Base64
 import java.util.zip.{ZipEntry, ZipOutputStream}
 
-trait MavenCentralDeployer:
-  def publish(gav: MavenCentral.GroupArtifactVersion, jar: Array[Byte], pom: String): ZIO[Any, Throwable, Unit]
+/** Parameterized on its env type so the mock can be `MavenCentralDeployer[Any]`
+ *  (no env) while the production impl is `MavenCentralDeployer[Sonatype]`.
+ *  Consumers depend on `MavenCentralDeployer[A]` and propagate `A` through
+ *  their own env requirements. Pattern borrowed from skillsjars `Deployer[Env]`. */
+trait MavenCentralDeployer[Env]:
+  def publish(gav: MavenCentral.GroupArtifactVersion, jar: Array[Byte], pom: String): ZIO[Env, Throwable, Unit]
 
-case class MavenCentralDeployerLive(config: AppConfig) extends MavenCentralDeployer:
+  /** Sign with the OSS GPG key. Returns `None` to indicate the signer is
+   *  unavailable in this environment (typically the mock without a key in
+   *  the env) — callers can choose to skip the `.asc` files in that case. */
+  def ascSign(toSign: Chunk[Byte]): IO[Throwable, Option[Chunk[Byte]]]
 
-  private def deployLayer(username: String, password: String): ZLayer[Client, Nothing, MavenCentral.Deploy.Sonatype] =
-    MavenCentral.Deploy.Sonatype.fromCredentials(username, password)
+/** Live impl — delegates signing to [[MavenCentral.Signer]] (built once at
+ *  layer construction time from `oss.gpg-*` config). */
+case class MavenCentralDeployerLive(signer: MavenCentral.Signer) extends MavenCentralDeployer[MavenCentral.Deploy.Sonatype]:
 
-  private[webjars] def asc(toSign: Array[Byte]): String =
-    val gpgKey = config.ossGpgKey.getOrElse(throw IllegalStateException("Required config 'oss.gpg-key' is not set"))
-    val gpgPass = config.ossGpgPass.getOrElse(throw IllegalStateException("Required config 'oss.gpg-pass' is not set"))
-    val keyBytes = Base64.getDecoder.decode(gpgKey)
-    val secretKeyRing = new PGPSecretKeyRing(keyBytes, new JcaKeyFingerprintCalculator())
-    val pass = gpgPass.toCharArray
-    val privKey = secretKeyRing.getSecretKey.extractPrivateKey(new JcePBESecretKeyDecryptorBuilder().build(pass))
-    val signerBuilder = new JcaPGPContentSignerBuilder(secretKeyRing.getPublicKey().getAlgorithm, HashAlgorithmTags.SHA1)
-    val sGen = new PGPSignatureGenerator(signerBuilder, secretKeyRing.getPublicKey())
-    sGen.init(PGPSignature.BINARY_DOCUMENT, privKey)
-
-    val bos = new ByteArrayOutputStream()
-    val armor = new ArmoredOutputStream(bos)
-    val bOut = new BCPGOutputStream(armor)
-
-    sGen.update(toSign)
-    sGen.generate().encode(bOut)
-
-    bOut.close()
-    armor.close()
-    bos.close()
-
-    new String(bos.toByteArray)
+  override def ascSign(toSign: Chunk[Byte]): IO[Throwable, Option[Chunk[Byte]]] =
+    signer.ascSign(toSign)
 
   private def createZip(files: Map[String, Array[Byte]]): Array[Byte] =
     val baos = new ByteArrayOutputStream()
@@ -60,30 +44,39 @@ case class MavenCentralDeployerLive(config: AppConfig) extends MavenCentralDeplo
     private def path: Path =
       MavenCentral.artifactPath(gav.groupId, Some(MavenCentral.ArtifactAndVersion(gav.artifactId, Some(gav.version)))) / s"${gav.artifactId}-${gav.version}"
 
-  def publish(gav: MavenCentral.GroupArtifactVersion, jar: Array[Byte], pom: String): ZIO[Any, Throwable, Unit] =
+  def publish(gav: MavenCentral.GroupArtifactVersion, jar: Array[Byte], pom: String): ZIO[MavenCentral.Deploy.Sonatype, Throwable, Unit] =
     for
-      username <- ZIO.fromOption(config.ossDeployUsername).orElseFail(IllegalStateException("Required config 'oss.deploy.username' is not set"))
-      password <- ZIO.fromOption(config.ossDeployPassword).orElseFail(IllegalStateException("Required config 'oss.deploy.password' is not set"))
-      _ <- ZIO.fromOption(config.ossGpgKey).orElseFail(IllegalStateException("Required config 'oss.gpg-key' is not set"))
-      _ <- ZIO.fromOption(config.ossGpgPass).orElseFail(IllegalStateException("Required config 'oss.gpg-pass' is not set"))
-      _ <- ZIO.attempt(println(s"Deploying $gav"))
-      pomAsc = asc(pom.getBytes)
-      jarAsc = asc(jar)
-      files = Map(
-        s"${gav.path}.jar"      -> jar,
-        s"${gav.path}.jar.sha1" -> jar.sha1.hex.getBytes,
-        s"${gav.path}.jar.md5"  -> jar.md5.hex.getBytes,
-        s"${gav.path}.jar.asc"  -> jarAsc.getBytes,
-
-        s"${gav.path}.pom"      -> pom.getBytes,
-        s"${gav.path}.pom.sha1" -> pom.sha1.hex.getBytes,
-        s"${gav.path}.pom.md5"  -> pom.md5.hex.getBytes,
-        s"${gav.path}.pom.asc"  -> pomAsc.getBytes,
-      )
-      zip = createZip(files)
-      name = s"${gav.groupId}${gav.artifactId}-${gav.version}.zip"
-      _ <- MavenCentral.Deploy.uploadVerifyAndPublish(name, zip).provide(Client.default.orDie >>> deployLayer(username, password))
+      pomAscOpt <- ascSign(Chunk.fromArray(pom.getBytes))
+      jarAscOpt <- ascSign(Chunk.fromArray(jar))
+      baseFiles  = Map(
+                     s"${gav.path}.jar"      -> jar,
+                     s"${gav.path}.jar.sha1" -> jar.sha1.hex.getBytes,
+                     s"${gav.path}.jar.md5"  -> jar.md5.hex.getBytes,
+                     s"${gav.path}.pom"      -> pom.getBytes,
+                     s"${gav.path}.pom.sha1" -> pom.sha1.hex.getBytes,
+                     s"${gav.path}.pom.md5"  -> pom.md5.hex.getBytes,
+                   )
+      ascFiles   = pomAscOpt.map(asc => s"${gav.path}.pom.asc" -> asc.toArray).toMap ++
+                     jarAscOpt.map(asc => s"${gav.path}.jar.asc" -> asc.toArray).toMap
+      zip        = createZip(baseFiles ++ ascFiles)
+      name       = s"${gav.groupId}${gav.artifactId}-${gav.version}.zip"
+      _         <- ZIO.logInfo(s"Deploying $gav")
+      _         <- MavenCentral.Deploy.uploadVerifyAndPublish(name, zip)
     yield ()
 
 object MavenCentralDeployer:
-  val live: ZLayer[AppConfig, Nothing, MavenCentralDeployer] = ZLayer.derive[MavenCentralDeployerLive]
+
+  /** Validates `oss.gpg-key` at layer construction time and delegates the
+   *  actual key parsing to [[MavenCentral.Signer.make]]. If either step
+   *  fails the layer build fails so the app refuses to start rather than
+   *  failing at deploy time. */
+  val live: ZLayer[AppConfig, Throwable, MavenCentralDeployer[MavenCentral.Deploy.Sonatype]] =
+    ZLayer.fromZIO(ZIO.service[AppConfig]).flatMap { env =>
+      val config = env.get[AppConfig]
+      config.ossGpgKey match
+        case None =>
+          ZLayer.fail(IllegalStateException("Required config 'oss.gpg-key' is not set"))
+        case Some(key) =>
+          MavenCentral.Signer.make(key, config.ossGpgPass) >>>
+            ZLayer.fromZIO(ZIO.service[MavenCentral.Signer].map(MavenCentralDeployerLive(_)))
+    }

@@ -49,13 +49,10 @@ libraryDependencies ++= Seq(
   "org.scala-lang.modules" %% "scala-xml"     % "2.4.0",
 
   // Maven Central
-  "com.jamesward" %% "zio-mavencentral"       % "0.8.1",
+  "com.jamesward" %% "zio-mavencentral"       % "0.8.3",
 
   // Git
   "org.eclipse.jgit" % "org.eclipse.jgit"     % "7.6.0.202603022253-r",
-
-  // Crypto (GPG signing for Maven Central)
-  "org.bouncycastle" % "bcpg-jdk18on"         % "1.84",  // pulls in bcutil + bcprov
 
   // Hashing
   "com.outr" %% "hasher"                      % "1.2.3",

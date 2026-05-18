@@ -18,8 +18,13 @@ import zio.schema.codec.{BinaryCodec, ProtobufCodec}
  *
  *   • A `valkey/valkey:8.1` Docker container started via Testcontainers,
  *     replacing the production `REDIS_URL` config.
- *   • [[TestInfrastructure.testConfig]] with `mavenCentralLimit = Some(5)`
- *     to keep the artifact-refresh loop fast for local development.
+ *   • The cache is hydrated once at startup by GETting `/all` from
+ *     `https://www.webjars.org` (always fresh, no commit-the-cache-blob in
+ *     git, no Heroku credentials needed). If the fetch fails, the app
+ *     still boots with an empty cache (the home page shows the "Indexing
+ *     artifacts" placeholder).
+ *   • The test app **never** runs the live Maven Central refresh loop —
+ *     that fan-out triggers 429s against our prod IP.
  *   • A [[TestInfrastructure.MockMavenCentralDeployer]] in place of the
  *     real OSS-deploying layer, so no credentials are required and no
  *     artifacts are published to Maven Central.
@@ -35,70 +40,48 @@ object WebJarsTestApp extends ZIOAppDefault:
   override val bootstrap: ZLayer[ZIOAppArgs, Any, Any] =
     Runtime.removeDefaultLoggers >>> zio.logging.consoleLogger()
 
-  /** Eagerly start a fresh valkey container so the `Valkey` service can
-   *  return a layer pointing at the right host:port synchronously. The Redis
-   *  env is materialized once at startup and cached; the returned layer is a
-   *  `succeedEnvironment` wrapper so per-call `.provide(valkey.layer)` reuses
-   *  the same connection (matches the prod `ValkeyLive` shape). Without this
-   *  cache, every call site opens a fresh Redis connection. */
-  private def testValkey(): Valkey =
-    val container = GenericContainer(
+  // Eagerly start a fresh valkey container so the Redis layer can be built
+  // synchronously when constructed.
+  private val container: GenericContainer =
+    val c = GenericContainer(
       dockerImage = "valkey/valkey:8.1",
       exposedPorts = Seq(6379),
       waitStrategy = Wait.forListeningPort(),
     )
-    container.start()
+    c.start()
+    c
 
-    new Valkey:
-      object ProtobufCodecSupplier extends CodecSupplier:
-        def get[A: Schema]: BinaryCodec[A] = ProtobufCodec.protobufCodec
+  private object ProtobufCodecSupplier extends CodecSupplier:
+    def get[A: Schema]: BinaryCodec[A] = ProtobufCodec.protobufCodec
 
-      val codecLayer: ZLayer[Any, Nothing, CodecSupplier] =
-        ZLayer.succeed(ProtobufCodecSupplier)
-
-      private val runtime = Runtime.default
-
-      private val scopeCloseable: Scope.Closeable =
-        Unsafe.unsafe { implicit u => runtime.unsafe.run(Scope.make).getOrThrow() }
-
-      private lazy val redisEnv: ZEnvironment[Redis] =
-        Unsafe.unsafe { implicit u =>
-          runtime.unsafe.run(
-            (ZLayer.succeed(RedisConfig(container.host, container.mappedPort(6379))) ++ codecLayer >>> Redis.singleNode.orDie)
-              .build
-              .provideEnvironment(ZEnvironment(scopeCloseable))
-          ).getOrThrow()
-        }
-
-      val layer: ZLayer[Any, Nothing, Redis] = ZLayer.succeedEnvironment(redisEnv)
-
-      def close(): Unit =
-        Unsafe.unsafe { implicit u =>
-          runtime.unsafe.run(scopeCloseable.close(Exit.unit)).getOrThrow()
-        }
-        container.stop()
-
-  private val testValkeyLayer: ZLayer[Any, Nothing, Valkey] =
-    ZLayer.succeed(testValkey())
-
-  private val devConfig: AppConfig =
-    TestInfrastructure.testConfig.copy(mavenCentralLimit = Some(5))
+  private val testRedisLayer: ZLayer[Any, Nothing, Redis] =
+    ZLayer.succeed(RedisConfig(container.host, container.mappedPort(6379))) ++
+      ZLayer.succeed[CodecSupplier](ProtobufCodecSupplier) >>>
+      Redis.singleNode.orDie
 
   private val testConfigLayer: ZLayer[Any, Nothing, AppConfig] =
-    ZLayer.succeed(devConfig)
+    ZLayer.succeed(TestInfrastructure.testConfig)
 
   def run =
     ZIO.scoped:
+      // MavenCentralWebJars is still wired into the layer (AppRoutes /deploy
+      // uses it), but we intentionally NEVER call startRefreshLoop() here —
+      // the test app must not hammer Maven Central. The cache is hydrated
+      // once from the live /all endpoint instead; if that fails the app
+      // boots with an empty cache and a warning.
       for
-        appRoutes           <- ZIO.service[AppRoutes]
-        mavenCentralWebJars <- ZIO.service[MavenCentralWebJars]
+        appRoutes           <- ZIO.service[AppRoutes[Any]]
         searchIndex         <- ZIO.service[SearchIndex]
+        popularRanking      <- ZIO.service[PopularRanking]
+        _                   <- CacheHydrate.fromUrl(CacheHydrate.DefaultUrl)
+                                 .tapErrorCause(c => ZIO.logWarningCause(s"cache hydration from ${CacheHydrate.DefaultUrl} failed — booting with empty cache", c))
+                                 .ignore
         _                   <- searchIndex.rebuild.forkDaemon
-        _                   <- mavenCentralWebJars.startRefreshLoop()
+        _                   <- popularRanking.populate.forkDaemon
         allRoutes            = appRoutes.routes ++ StaticAssets.routes ++ TestStaticAssets.routes
         port                 = sys.env.get("PORT").flatMap(_.toIntOption).getOrElse(9000)
         _                   <- ZIO.logInfo(s"Starting test server on port $port")
-        _                   <- Server.serve(allRoutes).provide(
+        _                   <- Server.serve(allRoutes).provideSome[Client & zio.redis.Redis](
                                  Server.defaultWith(_.binding(java.net.InetSocketAddress("0.0.0.0", port))),
                                )
       yield ()
@@ -106,7 +89,7 @@ object WebJarsTestApp extends ZIOAppDefault:
       testConfigLayer,
       Client.default,
       Cache.live,
-      testValkeyLayer,
+      testRedisLayer,
       Git.live,
       GitHub.live,
       SemVer.live,
@@ -119,10 +102,11 @@ object WebJarsTestApp extends ZIOAppDefault:
       AllDeployables.live,
       TestInfrastructure.mockMavenCentralDeployerLayer,
       MavenCentralWebJars.live,
-      DeployWebJar.live,
-      DeployJobs.live,
+      DeployWebJar.live[Any],
+      DeployJobs.live[Any],
       WebJars.live,
       PopularMetrics.live,
+      PopularRanking.live,
       SearchIndex.live,
-      AppRoutes.live,
+      AppRoutes.live[Any],
     )

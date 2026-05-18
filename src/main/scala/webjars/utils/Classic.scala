@@ -32,14 +32,18 @@ case class ClassicLive(httpClient: Client, licenseDetector: LicenseDetector, git
   def metadata(nameOrUrlish: NameOrUrlish): ZIO[Scope, Throwable, Metadata] =
     defer:
       val propertiesString = gitHub.raw(URL.unsafeParse("https://github.com/webjars/webjars-classic"), webJarsClassicBranch, s"$nameOrUrlish.properties")
-        .catchAll(_ => ZIO.fail(new Exception(s"The Classic WebJar $nameOrUrlish does not support this")))
+        // 404 → the artifact simply isn't tracked in webjars-classic (a true
+        // "doesn't support this" answer). Other errors (rate-limit, 5xx)
+        // propagate so the caller can distinguish transient failures.
+        .catchSome:
+          case ServerError(_, 404) => ZIO.fail(new Exception(s"The Classic WebJar $nameOrUrlish does not support this"))
         .run
       ZIO.fromTry(Classic.parseMetadata(nameOrUrlish, propertiesString)).run
 
   override def artifactId(nameOrUrlish: NameOrUrlish): ZIO[Scope, Throwable, MavenCentral.ArtifactId] =
     cache.get[Metadata](s"webjars-classic-$nameOrUrlish", 1.hour) {
       metadata(nameOrUrlish)
-    }.map(_.id)
+    }.map(_.id).orElseSucceed(MavenCentral.ArtifactId(nameOrUrlish))
 
   override def excludes(nameOrUrlish: NameOrUrlish): ZIO[Scope, Throwable, Set[String]] = ZIO.succeed(Set.empty)
 

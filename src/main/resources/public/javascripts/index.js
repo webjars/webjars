@@ -138,26 +138,87 @@ function getPackageOrRepoName() {
   return data;
 }
 
+// Toggle the deploy-form UI (version select, Deploy Log, Deploy button)
+// off when the selected webjar can't be deployed through this app.
+function setDeployUiVisible(visible) {
+  $("#deployLogSection").toggleClass("d-none", !visible);
+  $("#deployButton").toggleClass("d-none", !visible);
+}
+
+// Mark the name input as invalid and surface a one-line error in the
+// invalid-feedback slot. Pass a falsy `message` to suppress text but still
+// mark invalid.
+function markNameInvalid(message) {
+  $("#newWebJarName").removeClass("is-valid").addClass("is-invalid");
+  $("#newWebJarNameError").text(message || "");
+}
+
+function markNameValid() {
+  $("#newWebJarName").removeClass("is-invalid").addClass("is-valid");
+  $("#newWebJarNameError").text("");
+}
+
+// Friendly message for the permanent "not deployable" case, when the
+// server didn't provide an explicit error (transient failures come back
+// with `data.error` already populated).
+function notDeployableMessage(packageName) {
+  if (webJarType() === "classic") {
+    return `The Classic WebJar ${packageName} Can't Be Deployed This Way`;
+  }
+  return `The NPM Package ${packageName} was not found`;
+}
+
 function checkPackageName(packageName) {
   $("#newWebJarName").removeClass("is-valid is-invalid");
+  $("#newWebJarNameError").text("");
   $("#newWebJarNameSpinner").addClass("spinner-border");
   $("#newWebJarVersion").val("").trigger("change");
   $("#newWebJarVersion").prop("disabled", true);
-  $("#classicDeployError").addClass("d-none");
+  $("#classicVersions").addClass("d-none");
+  $("#classicVersionsList").empty();
+  $("#classicNewVersionLink").addClass("d-none");
+  $("#classicNewWebJarLink").addClass("d-none");
+  setDeployUiVisible(true);
+
+  var isClassic = webJarType() === "classic";
 
   $.ajax({
     url: `/exists?webJarType=${webJarType()}&name=${packageName}`,
-    success: function (data, status) {
-      $("#newWebJarName").addClass("is-valid");
+    dataType: "json",
+    success: function (data) {
       $("#newWebJarNameSpinner").removeClass("spinner-border");
-      $("#newWebJarVersion").prop("disabled", false);
-    },
-    error: function (data, status) {
-      if (webJarType() === "classic") {
-        $("#classicErrorUrl").attr("href", `https://github.com/webjars/${packageName}/issues/new`);
-        $("#classicDeployError").removeClass("d-none");
+
+      if (data.deployable) {
+        markNameValid();
+        $("#newWebJarVersion").prop("disabled", false);
+      } else {
+        // Permanent not-deployable → construct a context-aware message.
+        // Transient failure → server provides `error` ("Deployment is
+        // unavailable at this time").
+        markNameInvalid(data.error || notDeployableMessage(packageName));
+        var versions = Array.isArray(data.versions) ? data.versions : [];
+        if (versions.length > 0) {
+          $("#classicVersionsList").html(versions.map(function (v) { return $("<li>").text(v); }));
+          $("#classicVersions").removeClass("d-none");
+        }
+        // Classic-only instructions: if the artifact has MC versions, point
+        // the user at its source repo to request a new version; otherwise
+        // suggest opening a webjars-classic ticket to add a new artifact.
+        if (isClassic) {
+          if (versions.length > 0) {
+            $("#classicNewVersionUrl").attr("href", `https://github.com/webjars/${packageName}/issues/new`);
+            $("#classicNewVersionLink").removeClass("d-none");
+          } else {
+            $("#classicNewWebJarLink").removeClass("d-none");
+          }
+        }
+        setDeployUiVisible(false);
+        $("#newWebJarVersion").prop("disabled", true);
       }
-      $("#newWebJarName").addClass("is-invalid");
+    },
+    error: function () {
+      // Network / 4xx / 5xx from our own server — treat as transient.
+      markNameInvalid("Deployment is unavailable at this time");
       $("#newWebJarNameSpinner").removeClass("spinner-border");
       $("#newWebJarVersion").prop("disabled", true);
     },
@@ -302,6 +363,13 @@ $(function () {
 
   $("#newWebJarModal").on("show.bs.modal", function (event) {
     $("#deployButton").attr("disabled", true);
+    // Reset visibility — previous open may have hidden the deploy UI for
+    // a Classic webjar.
+    setDeployUiVisible(true);
+    $("#classicVersions").addClass("d-none");
+    $("#classicVersionsList").empty();
+    $("#classicNewVersionLink").addClass("d-none");
+    $("#classicNewWebJarLink").addClass("d-none");
     $("input[type=radio][name=new_webjar_catalog]:checked").trigger("change");
 
     var groupId = $(event.relatedTarget).data("group-id");
@@ -326,6 +394,7 @@ $(function () {
     } else {
       $("#newWebJarName").val("");
       $("#newWebJarName").removeClass("is-valid").removeClass("is-invalid");
+      $("#newWebJarNameError").text("");
     }
 
     $("#newWebJarVersion").val("").trigger("change");

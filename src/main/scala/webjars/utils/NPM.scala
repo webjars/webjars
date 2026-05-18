@@ -69,7 +69,7 @@ case class NPMLive(client: Client, licenseDetector: LicenseDetector, git: Git, g
               .getOrElse(Set.empty)
           case _ =>
             val body = response.body.asString.run
-            ZIO.fail(new Exception(body)).run
+            ZIO.fail(ServerError(body, response.status.code)).run
 
   def versionJson(packageNameOrGitRepo: NameOrUrlish, version: Version): ZIO[Scope, Throwable, Json] =
     defer:

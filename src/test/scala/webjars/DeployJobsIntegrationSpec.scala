@@ -13,12 +13,11 @@ import zio.test.*
  *  package has a handful of npm deps, exercising the deps-graph iteration. */
 object DeployJobsIntegrationSpec extends ZIOSpecDefault:
 
-  private def withDeployJobs[A](f: (DeployJobs, NPM) => ZIO[Scope, Throwable, A]): ZIO[Client, Throwable, A] =
+  private def withDeployJobs[A](f: (DeployJobs[Any], NPM) => ZIO[Scope & Client & zio.redis.Redis, Throwable, A]): ZIO[Client & zio.redis.Redis, Throwable, A] =
     ZIO.serviceWithZIO[Client] { client =>
       ZIO.scoped {
         val config = testConfig
         val cache = CacheLive()
-        val valkey = ValkeyLive()
         val git = GitLive(client)
         val gitHub = GitHubLive(client, config, cache)
         val semVer = SemVerLive(client)
@@ -28,12 +27,12 @@ object DeployJobsIntegrationSpec extends ZIOSpecDefault:
         val webJarsFileService = WebJarsFileServiceLive(client, config)
         val npm = NPMLive(client, licenseDetector, git, gitHub, maven, semVer)
         val classic = ClassicLive(client, licenseDetector, gitHub, cache, config, npm)
-        val mavenCentralDeployer = MockMavenCentralDeployer()
-        val mavenCentralWebJars = MavenCentralWebJarsLive(config, webJarsFileService, valkey, AllDeployablesLive(classic, npm), TestInfrastructure.noopSearchIndex)
-        val deployWebJar = DeployWebJarLive(mavenCentralWebJars, mavenCentralDeployer, sourceLocator)
-        val jobsLayer = ZLayer.succeed[DeployWebJar](deployWebJar) >>> DeployJobs.live
+        val mavenCentralDeployer: MavenCentralDeployer[Any] = MockMavenCentralDeployer()
+        val mavenCentralWebJars = MavenCentralWebJarsLive(config, webJarsFileService, AllDeployablesLive(classic, npm), TestInfrastructure.noopSearchIndex)
+        val deployWebJar: DeployWebJar[Any] = DeployWebJarLive[Any](mavenCentralWebJars, mavenCentralDeployer, sourceLocator)
+        val jobsLayer = ZLayer.succeed[DeployWebJar[Any]](deployWebJar) >>> DeployJobs.live[Any]
         jobsLayer.build.flatMap { env =>
-          f(env.get[DeployJobs], npm)
+          f(env.get[DeployJobs[Any]], npm)
         }
       }
     }
@@ -54,4 +53,4 @@ object DeployJobsIntegrationSpec extends ZIOSpecDefault:
         }
       }
     },
-  ).provide(Client.default) @@ TestAspect.withLiveClock @@ TestAspect.timeout(300.seconds)
+  ).provide(Client.default, TestInfrastructure.sharedRedisLayer) @@ TestAspect.withLiveClock @@ TestAspect.timeout(300.seconds)

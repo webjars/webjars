@@ -3,7 +3,7 @@ package webjars
 import com.dimafeng.testcontainers.GenericContainer
 import com.jamesward.zio_mavencentral.MavenCentral
 import webjars.models.WebJarVersion
-import webjars.utils.{Valkey, ValkeyLive, WebJarsCache}
+import webjars.utils.{Valkey, WebJarsCache}
 import webjars.utils.WebJarsCache.WebJarMeta
 import zio.*
 import zio.redis.{Redis, RedisConfig}
@@ -24,8 +24,7 @@ object WebJarsCacheSpec extends ZIOSpecDefault:
     c
 
   private val valkeyLayer: ZLayer[Any, Nothing, Redis] =
-    val valkey = ValkeyLive()
-    ZLayer.succeed(RedisConfig(container.host, container.mappedPort(6379))) ++ valkey.codecLayer >>> Redis.singleNode.orDie
+    ZLayer.succeed(RedisConfig(container.host, container.mappedPort(6379))) ++ Valkey.codecSupplierLayer >>> Redis.singleNode.orDie
 
   def spec = suite("WebJarsCache")(
     test("store and retrieve artifact details") {

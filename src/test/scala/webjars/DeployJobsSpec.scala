@@ -27,8 +27,9 @@ object DeployJobsSpec extends ZIOSpecDefault:
     def versions(nameOrUrlish: String): ZIO[Scope, Throwable, Set[String]] = ZIO.dieMessage("not used")
     def depGraph(packageInfo: PackageInfo, deps: Map[String, String] = Map.empty): ZIO[Scope, Throwable, Map[String, String]] = ZIO.dieMessage("not used")
 
-  /** A DeployWebJar that emits a fixed message sequence, slowly. */
-  private class FakeDeployWebJar(messages: List[String], gate: Promise[Nothing, Unit], runs: Ref[Int]) extends DeployWebJar:
+  /** A DeployWebJar that emits a fixed message sequence, slowly.
+   *  `Env = Any` because no Sonatype is needed. */
+  private class FakeDeployWebJar(messages: List[String], gate: Promise[Nothing, Unit], runs: Ref[Int]) extends DeployWebJar[Any]:
     def deploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, maybeReleaseVersion: Option[String] = None, maybeSourceUri: Option[URL] = None, maybeLicense: Option[String] = None): ZStream[Scope, Throwable, String] =
       ZStream.fromZIO(runs.update(_ + 1)).drain ++
         ZStream.fromIterable(messages).tap(_ => ZIO.unit) ++
@@ -45,7 +46,7 @@ object DeployJobsSpec extends ZIOSpecDefault:
         val gate = Promise.make[Nothing, Unit].run
         val runs = Ref.make(0).run
         val fake = FakeDeployWebJar(messages, gate, runs)
-        val jobs = DeployJobs.live.build.provide(ZLayer.succeed[DeployWebJar](fake), Scope.default).run.get[DeployJobs]
+        val jobs = DeployJobs.live[Any].build.provide(ZLayer.succeed[DeployWebJar[Any]](fake), Scope.default).run.get[DeployJobs[Any]]
 
         // First subscriber: pull the first message, then a second subscriber attaches.
         val sub1Fiber = jobs.deploy(FakeDeployable, "pkg", "1.0", deployDependencies = false).runCollect.fork.run
@@ -75,7 +76,7 @@ object DeployJobsSpec extends ZIOSpecDefault:
         val gate = Promise.make[Nothing, Unit].run
         val runs = Ref.make(0).run
         val fake = FakeDeployWebJar(messages, gate, runs)
-        val jobs = DeployJobs.live.build.provide(ZLayer.succeed[DeployWebJar](fake), Scope.default).run.get[DeployJobs]
+        val jobs = DeployJobs.live[Any].build.provide(ZLayer.succeed[DeployWebJar[Any]](fake), Scope.default).run.get[DeployJobs[Any]]
 
         // Spawn N subscribers for the same key. The producer should run once.
         val fibers = ZIO.foreach(1 to 5) { _ =>
@@ -93,4 +94,4 @@ object DeployJobsSpec extends ZIOSpecDefault:
           outs.forall(_.toList == (messages :+ "Deployed!")),
         )
     },
-  ) @@ TestAspect.withLiveClock @@ TestAspect.timeout(30.seconds)
+  ).provide(zio.http.Client.default, TestInfrastructure.sharedRedisLayer) @@ TestAspect.withLiveClock @@ TestAspect.timeout(30.seconds)

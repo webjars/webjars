@@ -20,10 +20,10 @@ import java.time.ZoneOffset
 // Double — Redis itself stores scores as floats so the relative ordering is
 // preserved. github-com-* artifacts get a 3× discount per the spec.
 trait PopularMetrics:
-  def recordSearchAppearance(items: Seq[(MavenCentral.GroupId, MavenCentral.ArtifactId)]): UIO[Unit]
-  def recordListFilesClick(groupId: MavenCentral.GroupId, artifactId: MavenCentral.ArtifactId): UIO[Unit]
+  def recordSearchAppearance(items: Seq[(MavenCentral.GroupId, MavenCentral.ArtifactId)]): URIO[Redis, Unit]
+  def recordListFilesClick(groupId: MavenCentral.GroupId, artifactId: MavenCentral.ArtifactId): URIO[Redis, Unit]
 
-case class PopularMetricsLive(valkey: Valkey) extends PopularMetrics:
+case class PopularMetricsLive() extends PopularMetrics:
 
   // Scaled weights — see file header for why these aren't Doubles.
   private val SearchWeight    = 10L    // 1.0 × 10
@@ -43,7 +43,7 @@ case class PopularMetricsLive(valkey: Valkey) extends PopularMetrics:
       val date = now.atZoneSameInstant(ZoneOffset.UTC).toLocalDate.toString
       s"popular:$date"
 
-  private def writeBatch(label: String, members: Seq[(String, Long)]): UIO[Unit] =
+  private def writeBatch(label: String, members: Seq[(String, Long)]): URIO[Redis, Unit] =
     if members.isEmpty then ZIO.unit
     else
       todayKey.flatMap: key =>
@@ -55,18 +55,17 @@ case class PopularMetricsLive(valkey: Valkey) extends PopularMetrics:
         write
           .tapErrorCause(c => ZIO.logWarningCause(s"PopularMetrics.$label failed", c))
           .ignore
-          .provide(valkey.layer)
           .forkDaemon
           .unit
 
-  def recordSearchAppearance(items: Seq[(MavenCentral.GroupId, MavenCentral.ArtifactId)]): UIO[Unit] =
+  def recordSearchAppearance(items: Seq[(MavenCentral.GroupId, MavenCentral.ArtifactId)]): URIO[Redis, Unit] =
     val members = items.map: (groupId, artifactId) =>
       s"${groupId.toString}:${artifactId.toString}" -> adjustedWeight(SearchWeight, artifactId)
     writeBatch("recordSearchAppearance", members)
 
-  def recordListFilesClick(groupId: MavenCentral.GroupId, artifactId: MavenCentral.ArtifactId): UIO[Unit] =
+  def recordListFilesClick(groupId: MavenCentral.GroupId, artifactId: MavenCentral.ArtifactId): URIO[Redis, Unit] =
     val member = s"${groupId.toString}:${artifactId.toString}"
     writeBatch("recordListFilesClick", Seq(member -> adjustedWeight(ListFilesWeight, artifactId)))
 
 object PopularMetrics:
-  val live: ZLayer[Valkey, Nothing, PopularMetrics] = ZLayer.derive[PopularMetricsLive]
+  val live: ULayer[PopularMetrics] = ZLayer.succeed(PopularMetricsLive())

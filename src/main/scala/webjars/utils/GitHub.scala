@@ -70,7 +70,7 @@ case class GitHubLive(client: Client, config: AppConfig, cache: Cache) extends G
         case Status.Ok => response.body.asString.run
         case _ =>
           val body = response.body.asString.run
-          ZIO.fail(new Exception(body)).run
+          ZIO.fail(ServerError(body, response.status.code)).run
 
   def allPages[T](path: String, accumulator: Set[T] = Set.empty[T])(mapFunction: Response => ZIO[Scope, Throwable, Set[T]]): ZIO[Scope, Throwable, Set[T]] =
     val request = maybeAuthToken.fold(

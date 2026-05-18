@@ -9,24 +9,24 @@ import zio.schema.Schema
 import java.net.URI
 import java.util.concurrent.TimeoutException
 
-trait Valkey:
-  def layer: ZLayer[Any, Nothing, Redis]
-  def codecLayer: ZLayer[Any, Nothing, CodecSupplier]
-  def close(): Unit
-
-case class ValkeyLive() extends Valkey:
+/** Production Redis layer. Reads `REDIS_URL` from the environment, builds
+ *  an authenticated [[Redis]] client, and exposes it as a `ZLayer`. Provided
+ *  once at the application edge ([[webjars.Main]]); services depend on
+ *  `Redis` directly. Tests bypass this and provide their own Redis layer
+ *  pointing at a testcontainer. */
+object Valkey:
 
   object ProtobufCodecSupplier extends CodecSupplier:
     def get[A: Schema]: BinaryCodec[A] = ProtobufCodec.protobufCodec
 
-  val codecLayer: ZLayer[Any, Nothing, CodecSupplier] =
+  val codecSupplierLayer: ULayer[CodecSupplier] =
     ZLayer.succeed(ProtobufCodecSupplier)
 
   private val redisUri: ZIO[Any, Throwable, URI] =
     ZIO.systemWith: system =>
       system.env("REDIS_URL")
         .someOrFail(new RuntimeException("REDIS_URL env var not set"))
-        .map(redisUrl => URI(redisUrl))
+        .map(URI(_))
 
   private val redisConfigLayer: ZLayer[Any, Throwable, RedisConfig] =
     ZLayer.fromZIO:
@@ -73,31 +73,5 @@ case class ValkeyLive() extends Valkey:
       .orElse:
         ZLayer.succeed(env.get[Redis])
 
-  private val runtime = Runtime.default
-
-  private val scopeCloseable: Scope.Closeable =
-    Unsafe.unsafe { implicit u =>
-      runtime.unsafe.run(Scope.make).getOrThrow()
-    }
-
-  private lazy val redisEnv: ZEnvironment[Redis] =
-    Unsafe.unsafe { implicit u =>
-      runtime.unsafe
-        .run(
-          ((redisConfigLayer ++ codecLayer) >>> redisAuthLayer)
-            .build
-            .provideEnvironment(ZEnvironment(scopeCloseable))
-        )
-        .getOrThrow()
-    }
-
-  def close(): Unit =
-    Unsafe.unsafe { implicit u =>
-      runtime.unsafe.run(scopeCloseable.close(Exit.unit)).getOrThrow()
-    }
-
-  val layer: ZLayer[Any, Nothing, Redis] =
-    ZLayer.succeedEnvironment(redisEnv)
-
-object Valkey:
-  val live: ZLayer[Any, Nothing, Valkey] = ZLayer.succeed(ValkeyLive())
+  val live: ZLayer[Any, Throwable, Redis] =
+    (redisConfigLayer ++ codecSupplierLayer) >>> redisAuthLayer

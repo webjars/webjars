@@ -3,9 +3,9 @@ package webjars
 import com.dimafeng.testcontainers.GenericContainer
 import com.jamesward.zio_mavencentral.MavenCentral
 import org.testcontainers.containers.wait.strategy.Wait
-import webjars.utils.{PopularMetrics, PopularMetricsLive, Valkey, ValkeyLive}
+import webjars.utils.{PopularMetrics, PopularMetricsLive, Valkey}
 import zio.*
-import zio.redis.{CodecSupplier, Redis, RedisConfig}
+import zio.redis.{Redis, RedisConfig}
 import zio.test.*
 
 import java.time.ZoneOffset
@@ -22,18 +22,9 @@ object PopularMetricsSpec extends ZIOSpecDefault:
     c
 
   private val redisLayer: ZLayer[Any, Nothing, Redis] =
-    val valkey = ValkeyLive()
-    ZLayer.succeed(RedisConfig(container.host, container.mappedPort(6379))) ++ valkey.codecLayer >>> Redis.singleNode.orDie
+    ZLayer.succeed(RedisConfig(container.host, container.mappedPort(6379))) ++ Valkey.codecSupplierLayer >>> Redis.singleNode.orDie
 
-  // Stand-in Valkey for PopularMetricsLive — provides the testcontainer-backed
-  // Redis layer instead of the prod REDIS_URL one. close() is a no-op because
-  // the testcontainer is shared across the whole suite.
-  private val testValkey: Valkey = new Valkey:
-    val layer: ZLayer[Any, Nothing, Redis] = redisLayer
-    val codecLayer: ZLayer[Any, Nothing, CodecSupplier] = ValkeyLive().codecLayer
-    def close(): Unit = ()
-
-  private val popularMetrics: PopularMetrics = PopularMetricsLive(testValkey)
+  private val popularMetrics: PopularMetrics = PopularMetricsLive()
 
   private val groupId   = MavenCentral.GroupId("org.webjars")
   private val npmGroup  = MavenCentral.GroupId("org.webjars.npm")

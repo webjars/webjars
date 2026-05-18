@@ -18,17 +18,16 @@ import zio.redis.Redis
 // under a second to build.
 trait SearchIndex:
   def snapshot: UIO[List[WebJar]]
-  def rebuild:  UIO[Unit]
+  def rebuild:  URIO[Redis, Unit]
 
 case class SearchIndexLive(
   ref:             Ref[List[WebJar]],
-  valkey:          Valkey,
   allDeployables:  AllDeployables,
 ) extends SearchIndex:
 
   def snapshot: UIO[List[WebJar]] = ref.get
 
-  def rebuild: UIO[Unit] =
+  def rebuild: URIO[Redis, Unit] =
     val build: ZIO[Redis, Throwable, List[WebJar]] =
       ZIO.foreachPar(allDeployables.groupIds().toSeq): groupId =>
         WebJarsCache.getArtifacts(groupId).map: artifactsMap =>
@@ -37,16 +36,14 @@ case class SearchIndexLive(
       .map(_.flatten.sortBy(wj => (wj.groupId, wj.artifactId)).toList)
 
     build
-      .provide(valkey.layer)
       .flatMap(list => ref.set(list) *> ZIO.logInfo(s"SearchIndex rebuilt: ${list.size} artifacts"))
       .tapErrorCause(c => ZIO.logErrorCause("SearchIndex rebuild failed", c))
       .ignore
 
 object SearchIndex:
-  val live: ZLayer[Valkey & AllDeployables, Nothing, SearchIndex] =
+  val live: ZLayer[AllDeployables, Nothing, SearchIndex] =
     ZLayer.scoped:
       for
-        valkey         <- ZIO.service[Valkey]
         allDeployables <- ZIO.service[AllDeployables]
         ref            <- Ref.make(List.empty[WebJar])
-      yield SearchIndexLive(ref, valkey, allDeployables)
+      yield SearchIndexLive(ref, allDeployables)

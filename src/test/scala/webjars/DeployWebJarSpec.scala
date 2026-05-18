@@ -12,12 +12,11 @@ import scala.xml.Elem
 
 object DeployWebJarSpec extends ZIOSpecDefault:
 
-  private def withDeploy[A](f: (DeployWebJar, NPM, Classic) => ZIO[Scope, Throwable, A]): ZIO[Client, Throwable, A] =
+  private def withDeploy[A](f: (DeployWebJar[Any], NPM, Classic) => ZIO[Scope & Client & zio.redis.Redis, Throwable, A]): ZIO[Client & zio.redis.Redis, Throwable, A] =
     ZIO.serviceWithZIO[Client] { client =>
       ZIO.scoped {
         val config = testConfig
         val cache = CacheLive()
-        val valkey = ValkeyLive()
         val git = GitLive(client)
         val gitHub = GitHubLive(client, config, cache)
         val semVer = SemVerLive(client)
@@ -27,9 +26,9 @@ object DeployWebJarSpec extends ZIOSpecDefault:
         val webJarsFileService = WebJarsFileServiceLive(client, config)
         val npm = NPMLive(client, licenseDetector, git, gitHub, maven, semVer)
         val classic = ClassicLive(client, licenseDetector, gitHub, cache, config, npm)
-        val mavenCentralDeployer = MockMavenCentralDeployer()
-        val mavenCentralWebJars = MockMavenCentralWebJars(config, webJarsFileService, valkey, AllDeployablesLive(classic, npm))
-        val deployWebJar = DeployWebJarLive(mavenCentralWebJars, mavenCentralDeployer, sourceLocator)
+        val mavenCentralDeployer: MavenCentralDeployer[Any] = MockMavenCentralDeployer()
+        val mavenCentralWebJars = MockMavenCentralWebJars(config, webJarsFileService, AllDeployablesLive(classic, npm))
+        val deployWebJar: DeployWebJar[Any] = DeployWebJarLive[Any](mavenCentralWebJars, mavenCentralDeployer, sourceLocator)
         f(deployWebJar, npm, classic)
       }
     }
@@ -61,9 +60,9 @@ object DeployWebJarSpec extends ZIOSpecDefault:
         }
       }
     },
-  ).provide(Client.default) @@ TestAspect.withLiveClock @@ TestAspect.timeout(300.seconds)
+  ).provide(Client.default, TestInfrastructure.sharedRedisLayer) @@ TestAspect.withLiveClock @@ TestAspect.timeout(300.seconds)
 
-class MockMavenCentralWebJars(config: webjars.config.AppConfig, webJarsFileService: WebJarsFileService, valkey: Valkey, allDeployables: AllDeployables)
-  extends MavenCentralWebJarsLive(config, webJarsFileService, valkey, allDeployables, TestInfrastructure.noopSearchIndex):
-  override def fetchPom(gav: MavenCentral.GroupArtifactVersion): ZIO[Scope, Throwable, Elem] =
+class MockMavenCentralWebJars(config: webjars.config.AppConfig, webJarsFileService: WebJarsFileService, allDeployables: AllDeployables)
+  extends MavenCentralWebJarsLive(config, webJarsFileService, allDeployables, TestInfrastructure.noopSearchIndex):
+  override def fetchPom(gav: MavenCentral.GroupArtifactVersion): ZIO[Scope & Client, Throwable, Elem] =
     ZIO.fail(new FileNotFoundException("no mock pom"))

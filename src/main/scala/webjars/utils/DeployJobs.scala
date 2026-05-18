@@ -2,15 +2,17 @@ package webjars.utils
 
 import zio.*
 import zio.direct.*
+import zio.http.Client
+import zio.redis.Redis
 import zio.stream.ZStream
 
-trait DeployJobs:
+trait DeployJobs[Env]:
   /** Start or join an in-process deployment job. Every subscriber sees the
    *  full message stream from the beginning, even if they attach after the
    *  job is already running. Concurrent requests for the same
    *  (deployable, nameOrUrlish, upstreamVersion) — including transitive
    *  dependencies of other in-flight jobs — share a single deploy. */
-  def deploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, deployDependencies: Boolean = true): ZStream[Any, Nothing, String]
+  def deploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, deployDependencies: Boolean = true): ZStream[Client & Redis & Env, Nothing, String]
 
 object DeployJobs:
 
@@ -36,19 +38,19 @@ object DeployJobs:
   // see the full transcript but the map doesn't grow unboundedly.
   private val completedJobTtl: Duration = 5.minutes
 
-  val live: ZLayer[DeployWebJar, Nothing, DeployJobs] =
+  def live[Env : Tag]: ZLayer[DeployWebJar[Env], Nothing, DeployJobs[Env]] =
     ZLayer.fromZIO:
       defer:
-        val deployWebJar = ZIO.service[DeployWebJar].run
+        val deployWebJar = ZIO.service[DeployWebJar[Env]].run
         val jobs = Ref.Synchronized.make(Map.empty[Key, Job]).run
-        DeployJobsLive(deployWebJar, jobs)
+        DeployJobsLive[Env](deployWebJar, jobs)
 
-  private case class DeployJobsLive(
-    deployWebJar: DeployWebJar,
+  private case class DeployJobsLive[Env](
+    deployWebJar: DeployWebJar[Env],
     jobs: Ref.Synchronized[Map[Key, Job]],
-  ) extends DeployJobs:
+  ) extends DeployJobs[Env]:
 
-    def deploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, deployDependencies: Boolean = true): ZStream[Any, Nothing, String] =
+    def deploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, deployDependencies: Boolean = true): ZStream[Client & Redis & Env, Nothing, String] =
       val key = Key(deployable.name, nameOrUrlish, upstreamVersion)
       ZStream.unwrap:
         defer:
@@ -63,9 +65,9 @@ object DeployJobs:
 
           subscribe(job)
 
-    private def runProducer(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, deployDependencies: Boolean, job: Job, key: Key): UIO[Unit] =
-      val work: ZIO[Any, Throwable, Unit] =
-        ZIO.scoped:
+    private def runProducer(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, deployDependencies: Boolean, job: Job, key: Key): URIO[Client & Redis & Env, Unit] =
+      val work: ZIO[Client & Redis & Env, Throwable, Unit] =
+        ZIO.scoped[Client & Redis & Env]:
           defer:
             if deployDependencies then runDependencyDeploys(deployable, nameOrUrlish, upstreamVersion, job).run
             deployWebJar.deploy(deployable, nameOrUrlish, upstreamVersion)
@@ -77,7 +79,7 @@ object DeployJobs:
         _ => ZIO.unit,
       ) *> finishJob(job) *> scheduleCleanup(key, job)
 
-    private def runDependencyDeploys(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, job: Job): ZIO[Scope, Throwable, Unit] =
+    private def runDependencyDeploys(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, job: Job): ZIO[Scope & Client & Redis & Env, Throwable, Unit] =
       defer:
         publish(job, "Determining dependency graph").run
         val packageInfo = deployable.info(nameOrUrlish, upstreamVersion).run

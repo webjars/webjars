@@ -43,3 +43,68 @@ object WebJarsCache:
           v
       val updated = artifact.copy(versions = updatedVersions)
       setArtifactDetails(groupArtifact, updated).run
+
+  // Tombstones: artifact ids that we tried to refresh and failed
+  // (typically 404 on maven-metadata — orphan entries in the directory
+  // listing). The refresher consults this set to avoid re-attempting the
+  // same broken IDs on every cycle. 7-day TTL so artifacts that come back
+  // eventually get retried.
+  private def tombstoneKey(groupId: MavenCentral.GroupId): String = s"tombstone:${groupId.toString}"
+  private val tombstoneTtl: Duration = 7.days
+
+  def addTombstone(groupId: MavenCentral.GroupId, artifactId: MavenCentral.ArtifactId): ZIO[Redis, Throwable, Unit] =
+    ZIO.serviceWithZIO[Redis]: redis =>
+      val key = tombstoneKey(groupId)
+      redis.sAdd(key, artifactId.toString) *>
+        redis.expire(key, tombstoneTtl).unit
+
+  def getTombstones(groupId: MavenCentral.GroupId): ZIO[Redis, Throwable, Set[MavenCentral.ArtifactId]] =
+    ZIO.serviceWithZIO[Redis]: redis =>
+      redis.sMembers(tombstoneKey(groupId)).returning[String]
+        .map(_.map(MavenCentral.ArtifactId(_)).toSet)
+
+  // Pending deploys: GAVs we've just published via this app, awaiting Maven
+  // Central propagation (~1hr). Stored as a ZSET with epoch-second scores
+  // so we can age out stuck entries with ZREMRANGEBYSCORE. Members use `|`
+  // as the separator since `:` already appears in groupIds like
+  // `org.webjars.npm`.
+  case class PendingDeploy(groupId: MavenCentral.GroupId, artifactId: MavenCentral.ArtifactId, version: MavenCentral.Version)
+
+  private val PendingDeploysKey = "pending_deploys"
+
+  private def encodePending(p: PendingDeploy): String =
+    s"${p.groupId.toString}|${p.artifactId.toString}|${p.version.toString}"
+
+  private def decodePending(s: String): Option[PendingDeploy] =
+    s.split('|') match
+      case Array(g, a, v) => Some(PendingDeploy(MavenCentral.GroupId(g), MavenCentral.ArtifactId(a), MavenCentral.Version(v)))
+      case _              => None
+
+  def addPendingDeploy(p: PendingDeploy): ZIO[Redis, Throwable, Unit] =
+    for
+      now   <- Clock.currentDateTime.map(_.toInstant.getEpochSecond)
+      score  = now.toDouble
+      _     <- ZIO.serviceWithZIO[Redis](_.zAdd(PendingDeploysKey)(MemberScore(encodePending(p), score)).unit)
+    yield ()
+
+  def getPendingDeploys: ZIO[Redis, Throwable, Set[PendingDeploy]] =
+    ZIO.serviceWithZIO[Redis]: redis =>
+      redis
+        .zRange(PendingDeploysKey, SortedSetRange.Range(RangeMinimum(0), RangeMaximum.Inclusive(-1)))
+        .returning[String]
+        .map(_.toList.flatMap(decodePending).toSet)
+
+  def removePendingDeploy(p: PendingDeploy): ZIO[Redis, Throwable, Unit] =
+    ZIO.serviceWithZIO[Redis](_.zRem(PendingDeploysKey, encodePending(p)).unit)
+
+  // Drop entries older than the given age (e.g., a deploy that never made
+  // it to MC after 48h is probably abandoned).
+  def cullStalePendingDeploys(maxAge: Duration): ZIO[Redis, Throwable, Long] =
+    for
+      now    <- Clock.currentDateTime.map(_.toInstant.getEpochSecond)
+      cutoff  = (now - maxAge.getSeconds).toDouble
+      removed <- ZIO.serviceWithZIO[Redis](_.zRemRangeByScore(
+                  PendingDeploysKey,
+                  SortedSetRange.ScoreRange(ScoreMinimum.Infinity, ScoreMaximum.Open(cutoff)),
+                ))
+    yield removed
