@@ -1,6 +1,8 @@
 package webjars
 
 import com.dimafeng.testcontainers.GenericContainer
+import com.jamesward.zio_http_guard.CrawlerLimiter
+import com.jamesward.zio_mavencentral.MavenCentral
 import org.testcontainers.containers.wait.strategy.Wait
 import webjars.config.AppConfig
 import webjars.routes.{AppRoutes, StaticAssets}
@@ -79,12 +81,14 @@ object WebJarsTestApp extends ZIOAppDefault:
         _                   <- searchIndex.rebuild.forkDaemon
         _                   <- popularRanking.populate.forkDaemon
         // Mirrors Main.scala — log method/url/status/duration_ms plus the
-        // User-Agent so reStartTest / runTest output matches production.
+        // User-Agent so reStartTest / runTest output matches production,
+        // and apply the same crawler limiter on /listfiles.
         allRoutes            = (appRoutes.routes ++ StaticAssets.routes ++ TestStaticAssets.routes) @@
+                                 CrawlerLimits.middleware @@
                                  Middleware.requestLogging(loggedRequestHeaders = Set(Header.UserAgent))
         port                 = sys.env.get("PORT").flatMap(_.toIntOption).getOrElse(9000)
         _                   <- ZIO.logInfo(s"Starting test server on port $port")
-        _                   <- Server.serve(allRoutes).provideSome[Client & zio.redis.Redis](
+        _                   <- Server.serve(allRoutes).provideSome[Client & zio.redis.Redis & CrawlerLimiter[MavenCentral.GroupArtifactVersion]](
                                  Server.defaultWith(_.binding(java.net.InetSocketAddress("0.0.0.0", port))),
                                )
       yield ()
@@ -112,4 +116,5 @@ object WebJarsTestApp extends ZIOAppDefault:
       PopularRanking.live,
       SearchIndex.live,
       AppRoutes.live[Any],
+      CrawlerLimits.layer,
     )

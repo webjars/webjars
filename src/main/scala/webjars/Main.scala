@@ -1,5 +1,6 @@
 package webjars
 
+import com.jamesward.zio_http_guard.CrawlerLimiter
 import com.jamesward.zio_mavencentral.MavenCentral
 import webjars.config.AppConfig
 import webjars.routes.{AppRoutes, StaticAssets}
@@ -26,12 +27,14 @@ object Main extends ZIOAppDefault:
         _ <- mavenCentralWebJars.startRefreshLoop()
         // Log every request with method/url/status/duration_ms and the
         // User-Agent header — useful for spotting bot/crawler traffic
-        // (e.g. heavy hitters on /listfiles).
+        // (e.g. heavy hitters on /listfiles). The crawler limiter sits
+        // *inside* the logging aspect so 429 responses still get logged.
         allRoutes = (appRoutes.routes ++ StaticAssets.routes) @@
+          CrawlerLimits.middleware @@
           Middleware.requestLogging(loggedRequestHeaders = Set(Header.UserAgent))
         port = sys.env.get("PORT").flatMap(_.toIntOption).getOrElse(9000)
         _ <- ZIO.logInfo(s"Starting server on port $port")
-        _ <- Server.serve(allRoutes).provideSome[Client & Redis & MavenCentral.Deploy.Sonatype](
+        _ <- Server.serve(allRoutes).provideSome[Client & Redis & MavenCentral.Deploy.Sonatype & CrawlerLimiter[MavenCentral.GroupArtifactVersion]](
           Server.defaultWith(_.binding(java.net.InetSocketAddress("0.0.0.0", port))),
         )
       yield ()
@@ -60,4 +63,5 @@ object Main extends ZIOAppDefault:
       PopularRanking.live,
       SearchIndex.live,
       AppRoutes.live[MavenCentral.Deploy.Sonatype],
+      CrawlerLimits.layer,
     )
