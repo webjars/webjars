@@ -12,7 +12,7 @@ import zio.redis.Redis
 object Main extends ZIOAppDefault:
 
   override val bootstrap: ZLayer[ZIOAppArgs, Any, Any] =
-    Runtime.removeDefaultLoggers >>> zio.logging.consoleLogger()
+    Logging.bootstrap
 
   def run =
     ZIO.scoped:
@@ -24,7 +24,11 @@ object Main extends ZIOAppDefault:
         _ <- searchIndex.rebuild.forkDaemon
         _ <- popularRanking.populate.forkDaemon
         _ <- mavenCentralWebJars.startRefreshLoop()
-        allRoutes = appRoutes.routes ++ StaticAssets.routes
+        // Log every request with method/url/status/duration_ms and the
+        // User-Agent header — useful for spotting bot/crawler traffic
+        // (e.g. heavy hitters on /listfiles).
+        allRoutes = (appRoutes.routes ++ StaticAssets.routes) @@
+          Middleware.requestLogging(loggedRequestHeaders = Set(Header.UserAgent))
         port = sys.env.get("PORT").flatMap(_.toIntOption).getOrElse(9000)
         _ <- ZIO.logInfo(s"Starting server on port $port")
         _ <- Server.serve(allRoutes).provideSome[Client & Redis & MavenCentral.Deploy.Sonatype](

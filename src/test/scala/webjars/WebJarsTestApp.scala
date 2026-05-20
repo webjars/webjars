@@ -38,7 +38,7 @@ import zio.schema.codec.{BinaryCodec, ProtobufCodec}
 object WebJarsTestApp extends ZIOAppDefault:
 
   override val bootstrap: ZLayer[ZIOAppArgs, Any, Any] =
-    Runtime.removeDefaultLoggers >>> zio.logging.consoleLogger()
+    Logging.bootstrap
 
   // Eagerly start a fresh valkey container so the Redis layer can be built
   // synchronously when constructed.
@@ -78,7 +78,10 @@ object WebJarsTestApp extends ZIOAppDefault:
                                  .ignore
         _                   <- searchIndex.rebuild.forkDaemon
         _                   <- popularRanking.populate.forkDaemon
-        allRoutes            = appRoutes.routes ++ StaticAssets.routes ++ TestStaticAssets.routes
+        // Mirrors Main.scala — log method/url/status/duration_ms plus the
+        // User-Agent so reStartTest / runTest output matches production.
+        allRoutes            = (appRoutes.routes ++ StaticAssets.routes ++ TestStaticAssets.routes) @@
+                                 Middleware.requestLogging(loggedRequestHeaders = Set(Header.UserAgent))
         port                 = sys.env.get("PORT").flatMap(_.toIntOption).getOrElse(9000)
         _                   <- ZIO.logInfo(s"Starting test server on port $port")
         _                   <- Server.serve(allRoutes).provideSome[Client & zio.redis.Redis](
