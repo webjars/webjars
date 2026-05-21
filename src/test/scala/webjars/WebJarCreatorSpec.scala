@@ -8,9 +8,25 @@ import zio.stream.*
 import zio.test.*
 
 import java.net.URI
+import java.nio.file.FileSystems
 import java.util.zip.GZIPInputStream
 
 object WebJarCreatorSpec extends ZIOSpecDefault:
+
+  // Build a synthetic tar archive in-memory from (name, content) pairs using
+  // the zio-compress TarArchiver pipeline.
+  private def buildTar(entries: Seq[(String, String)]): ZIO[Any, Throwable, Chunk[Byte]] =
+    ZStream
+      .fromIterable(entries.map { case (name, content) =>
+        val bytes = Chunk.fromArray(content.getBytes)
+        val entry: ArchiveEntry[Some, Any] = ArchiveEntry(
+          name = name,
+          uncompressedSize = Some(bytes.length.toLong),
+        )
+        (entry, ZStream.fromChunk(bytes))
+      })
+      .via(TarArchiver.archive)
+      .runCollect
 
   def spec = suite("WebJarCreator")(
     test("isExcluded with **") {
@@ -157,4 +173,72 @@ object WebJarCreatorSpec extends ZIOSpecDefault:
         }
       }
     } @@ TestAspect.timeout(zio.Duration.fromSeconds(120)),
+    test("normalizes `./` path segments and dedupes (issue #2220)") {
+      // Mirrors the malformed `hookable-5.5.3` npm tarball, which contains both
+      // `package/./dist/index.cjs` and `package/dist/index.cjs`. Without
+      // normalization, the resulting webjar contains entries like
+      // `META-INF/resources/webjars/test/1.0.0/./dist/index.cjs`, which causes
+      // JDK ZipFileSystem to reject the jar (JDK-8283486). The duplicates also
+      // make the zip ambiguous to consumers.
+      val cjsContent = "module.exports = {};"
+      val mjsContent = "export default {};"
+      val pkgJson = """{"name":"test","version":"1.0.0"}"""
+
+      buildTar(
+        Seq(
+          "package/./dist/index.cjs" -> cjsContent,
+          "package/dist/index.cjs" -> cjsContent,
+          "package/package.json" -> pkgJson,
+          "package/dist/index.mjs" -> mjsContent,
+        )
+      ).flatMap { tarBytes =>
+        WebJarCreator
+          .createWebJar(
+            ZStream.fromChunk(tarBytes),
+            Some("*/"),
+            Set.empty,
+            "<pom/>",
+            "Test",
+            Set.empty,
+            MavenCentral.GroupId("org.webjars.npm"),
+            MavenCentral.ArtifactId("test"),
+            MavenCentral.Version("1.0.0"),
+            "test/1.0.0/",
+          )
+          .flatMap { webJar =>
+            ZStream
+              .fromChunk(Chunk.fromArray(webJar))
+              .via(ZipUnarchiver.unarchive)
+              .map(_._1.name)
+              .runCollect
+              .flatMap { allNames =>
+                val asList = allNames.toList
+                // Spot-check that the JDK can open the jar as a file system
+                // (this is the actual symptom reported in issue #2220).
+                ZIO.attemptBlocking {
+                  val tmp = java.nio.file.Files.createTempFile("webjar-issue-2220-", ".jar")
+                  try {
+                    java.nio.file.Files.write(tmp, webJar)
+                    val uri = new URI("jar:" + tmp.toUri.toString)
+                    val fs = FileSystems.newFileSystem(uri, java.util.Collections.emptyMap[String, Any]())
+                    fs.close()
+                  } finally {
+                    java.nio.file.Files.deleteIfExists(tmp)
+                  }
+                }.as {
+                  assertTrue(
+                    // No `./` segments anywhere in any entry name
+                    asList.forall(name => !name.split('/').contains(".")),
+                    // No duplicate entries
+                    asList.distinct == asList,
+                    // The expected normalized entry is present
+                    asList.contains("META-INF/resources/webjars/test/1.0.0/dist/index.cjs"),
+                    asList.contains("META-INF/resources/webjars/test/1.0.0/dist/index.mjs"),
+                    asList.contains("META-INF/resources/webjars/test/1.0.0/package.json"),
+                  )
+                }
+              }
+          }
+      }
+    },
   )

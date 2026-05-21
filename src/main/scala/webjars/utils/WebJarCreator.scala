@@ -38,6 +38,27 @@ object WebJarCreator:
         if path.endsWith("/") then reassembled + "/" else reassembled
       }
 
+  /** Normalize an archive entry path by removing `.` segments and resolving
+    * `..` segments. This guards against malformed source archives like the
+    * `hookable` npm tarball (issue #2220) which contains entries such as
+    * `package/./dist/index.cjs` alongside `package/dist/index.cjs`. The `./`
+    * element causes JDK ZipFileSystem to reject the jar (JDK-8283486), and
+    * the duplicate makes the resulting zip ambiguous.
+    */
+  def normalizeName(name: String): String =
+    if name.isEmpty then name
+    else
+      val isDir = name.endsWith("/")
+      val cleaned = name.split('/').foldLeft(Vector.empty[String]) { (acc, part) =>
+        part match
+          case "" | "." => acc
+          case ".." if acc.nonEmpty && acc.last != ".." => acc.dropRight(1)
+          case ".." => acc // drop unresolved leading `..` to avoid invalid zip entries
+          case _ => acc :+ part
+      }
+      val joined = cleaned.mkString("/")
+      if isDir && joined.nonEmpty then joined + "/" else joined
+
   private def fileEntry(path: String, contents: String): (ArchiveEntry[Option, Any], ZStream[Any, Throwable, Byte]) =
     (ArchiveEntry(name = path), ZStream.fromChunk(Chunk.fromArray(contents.getBytes)))
 
@@ -102,35 +123,50 @@ object WebJarCreator:
       )
 
     val transformedEntries: ZStream[Any, Throwable, (ArchiveEntry[Option, Any], ZStream[Any, Throwable, Byte])] =
-      unarchiveStream(input).mapZIO { case (entryName, isDir, content) =>
-        val maybeNames = maybeBaseDirGlob.fold[Array[String]](Array(entryName)) { baseDirGlobs =>
-          baseDirGlobs.split(',').flatMap { baseDirGlob =>
-            removeGlobPath(baseDirGlob, entryName)
-          }
-        }
-
-        val filteredNames = maybeNames.filter(name => !isExcluded(exclude, name, isDir))
-
-        if isDir then
-          ZIO.succeed(filteredNames.toSeq.map { name =>
-            val path = webJarPrefix + name
-            (ArchiveEntry(name = path, isDirectory = true): ArchiveEntry[Option, Any], ZStream.empty: ZStream[Any, Throwable, Byte])
-          })
-        else if filteredNames.isEmpty then
-          content.runDrain.as(Seq.empty)
-        else if filteredNames.length == 1 then
-          ZIO.succeed(filteredNames.toSeq.map { name =>
-            val path = webJarPrefix + name
-            (ArchiveEntry(name = path): ArchiveEntry[Option, Any], content)
-          })
-        else
-          content.runCollect.map { bytes =>
-            filteredNames.toSeq.map { name =>
-              val path = webJarPrefix + name
-              (ArchiveEntry(name = path): ArchiveEntry[Option, Any], ZStream.fromChunk(bytes): ZStream[Any, Throwable, Byte])
+      ZStream.unwrap {
+        // Track seen entry names so duplicates produced by malformed source
+        // archives (e.g. `package/./foo` and `package/foo` both normalizing
+        // to the same path — see issue #2220) are emitted only once.
+        Ref.make(Set.empty[String]).map { seenNamesRef =>
+          unarchiveStream(input).mapZIO { case (entryName, isDir, content) =>
+            val maybeNames = maybeBaseDirGlob.fold[Array[String]](Array(entryName)) { baseDirGlobs =>
+              baseDirGlobs.split(',').flatMap { baseDirGlob =>
+                removeGlobPath(baseDirGlob, entryName)
+              }
             }
-          }
-      }.flatMap(entries => ZStream.fromIterable(entries))
+
+            val filteredNames = maybeNames
+              .filter(name => !isExcluded(exclude, name, isDir))
+              .map(normalizeName)
+              .filter(_.nonEmpty)
+
+            seenNamesRef.modify { seen =>
+              val toEmit = filteredNames.filter(n => !seen.contains(webJarPrefix + n))
+              (toEmit, seen ++ toEmit.map(webJarPrefix + _))
+            }.flatMap { uniqueNames =>
+              if isDir then
+                ZIO.succeed(uniqueNames.toSeq.map { name =>
+                  val path = webJarPrefix + name
+                  (ArchiveEntry(name = path, isDirectory = true): ArchiveEntry[Option, Any], ZStream.empty: ZStream[Any, Throwable, Byte])
+                })
+              else if uniqueNames.isEmpty then
+                content.runDrain.as(Seq.empty)
+              else if uniqueNames.length == 1 then
+                ZIO.succeed(uniqueNames.toSeq.map { name =>
+                  val path = webJarPrefix + name
+                  (ArchiveEntry(name = path): ArchiveEntry[Option, Any], content)
+                })
+              else
+                content.runCollect.map { bytes =>
+                  uniqueNames.toSeq.map { name =>
+                    val path = webJarPrefix + name
+                    (ArchiveEntry(name = path): ArchiveEntry[Option, Any], ZStream.fromChunk(bytes): ZStream[Any, Throwable, Byte])
+                  }
+                }
+            }
+          }.flatMap(entries => ZStream.fromIterable(entries))
+        }
+      }
 
     (staticEntries ++ transformedEntries)
       .via(ZipArchiver.archive)
