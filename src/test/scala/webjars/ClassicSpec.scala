@@ -122,6 +122,68 @@ object ClassicSpec extends ZIOSpecDefault:
         }
       },
     ) @@ TestAspect.withLiveClock,
+    suite("jquery-ui")(
+      // Reproduces https://github.com/webjars/webjars/issues/2221 — GitHub's
+      // License API returns spdx_id=NOASSERTION for jquery-ui's modified
+      // LICENSE.txt, which previously propagated straight into the published
+      // POM as `<name>NOASSERTION</name>`. Now treated as UnresolvedLicense
+      // so the .properties override / LICENSE-file fallback can take over.
+      test("license is UnresolvedLicense when GitHub returns NOASSERTION") {
+        withClassic { classic =>
+          val metadata = MetadataNormal(
+            com.jamesward.zio_mavencentral.MavenCentral.ArtifactId("jquery-ui"),
+            "jQuery UI",
+            "jquery/jquery-ui",
+            None, None, None, None, None,
+          )
+          classic.license(metadata).map { licenseMetadata =>
+            assertTrue(licenseMetadata == UnresolvedLicense)
+          }
+        }
+      },
+      test("license honors license.name/license.url overrides for GitHub-based metadata") {
+        withClassic { classic =>
+          val metadata = MetadataNormal(
+            com.jamesward.zio_mavencentral.MavenCentral.ArtifactId("jquery-ui"),
+            "jQuery UI",
+            "jquery/jquery-ui",
+            None, None, None,
+            Some("MIT License"),
+            Some("https://github.com/jquery/jquery-ui/blob/main/LICENSE.txt"),
+          )
+          classic.license(metadata).map { licenseMetadata =>
+            assertTrue(
+              licenseMetadata == ProvidedLicense(
+                LicenseWithNameAndUrl("MIT License", URL.unsafeParse("https://github.com/jquery/jquery-ui/blob/main/LICENSE.txt"))
+              )
+            )
+          }
+        }
+      },
+      test("resolved licenses use overrides and never contain NOASSERTION") {
+        withClassic { classic =>
+          val metadata = MetadataNormal(
+            com.jamesward.zio_mavencentral.MavenCentral.ArtifactId("jquery-ui"),
+            "jQuery UI",
+            "jquery/jquery-ui",
+            Some("https://jqueryui.com/resources/download/jquery-ui-${version}.zip"),
+            None,
+            Some("*/"),
+            Some("MIT License"),
+            Some("https://github.com/jquery/jquery-ui/blob/main/LICENSE.txt"),
+          )
+          classic.infoFromMetadata(metadata, "1.14.2", None).flatMap { packageInfo =>
+            classic.licensesFromMetadata(metadata, "1.14.2", packageInfo).map { licenses =>
+              assertTrue(
+                licenses.nonEmpty,
+                licenses.exists(_.maybeName.contains("MIT License")),
+                !licenses.exists(_.maybeName.contains("NOASSERTION")),
+              )
+            }
+          }
+        }
+      },
+    ) @@ TestAspect.withLiveClock,
     suite("flexmonster")(
       test("have versions") {
         withClassic { classic =>

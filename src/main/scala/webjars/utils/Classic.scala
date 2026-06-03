@@ -55,49 +55,44 @@ case class ClassicLive(httpClient: Client, licenseDetector: LicenseDetector, git
   def license(metadata: Metadata): ZIO[Scope, Throwable, LicenseMetadata] =
     metadata match
       case metadataNormal: MetadataNormal =>
-        defer:
-          val url = s"https://api.github.com/repos/${metadataNormal.repo}/license"
-          val baseRequest = Request.get(URL.decode(url).toOption.get)
-            .addHeader(Header.Accept(MediaType.application.json))
-          val request = gitHub.maybeAuthToken.fold(baseRequest)(token =>
-            baseRequest.addHeader(Header.Authorization.Bearer(token))
-          )
-          val response = httpClient.batched(request).run
-          response.status match
-            case Status.Ok =>
-              import zio.json.*
-              import zio.json.ast.Json
-              val body = response.body.asString.run
-              val json = ZIO.fromEither(body.fromJson[Json].left.map(new Exception(_))).run
-              val spdxId = json.asObject
-                .flatMap(_.get("license"))
-                .flatMap(_.asObject)
-                .flatMap(_.get("spdx_id"))
-                .flatMap(_.asString)
-                .getOrElse("Unknown")
-              LicenseMetadata.SpdxLicense(spdxId)
-            case _ =>
-              val body = response.body.asString.run
-              ZIO.fail(ServerError(body, response.status.code)).run
+        Classic.providedLicense(metadataNormal.licenseName, metadataNormal.licenseUrl).getOrElse {
+          defer:
+            val url = s"https://api.github.com/repos/${metadataNormal.repo}/license"
+            val baseRequest = Request.get(URL.decode(url).toOption.get)
+              .addHeader(Header.Accept(MediaType.application.json))
+            val request = gitHub.maybeAuthToken.fold(baseRequest)(token =>
+              baseRequest.addHeader(Header.Authorization.Bearer(token))
+            )
+            val response = httpClient.batched(request).run
+            response.status match
+              case Status.Ok =>
+                import zio.json.*
+                import zio.json.ast.Json
+                val body = response.body.asString.run
+                val json = ZIO.fromEither(body.fromJson[Json].left.map(new Exception(_))).run
+                val maybeSpdxId = json.asObject
+                  .flatMap(_.get("license"))
+                  .flatMap(_.asObject)
+                  .flatMap(_.get("spdx_id"))
+                  .flatMap(_.asString)
+                // GitHub returns spdx_id="NOASSERTION" when its license-detection
+                // can't classify the LICENSE file (e.g. a custom variant). Treat
+                // that — along with a missing/empty spdx_id — as an unresolved
+                // license so callers can fall back to the LICENSE-file detector
+                // or to the .properties override.
+                maybeSpdxId match
+                  case Some(spdxId) if spdxId.nonEmpty && spdxId != "NOASSERTION" =>
+                    LicenseMetadata.SpdxLicense(spdxId)
+                  case _ =>
+                    LicenseMetadata.UnresolvedLicense
+              case _ =>
+                val body = response.body.asString.run
+                ZIO.fail(ServerError(body, response.status.code)).run
+        }
 
       case metadataNpm: MetadataNpm =>
-        (metadataNpm.licenseName, metadataNpm.licenseUrl) match
-          case (Some(licenseName), Some(licenseUrl)) =>
-            ZIO.fromTry {
-              URL.parseTry(licenseUrl).map { absoluteLicenseUrl =>
-                LicenseMetadata.ProvidedLicense(LicenseWithNameAndUrl(licenseName, absoluteLicenseUrl))
-              }
-            }
-          case (Some(licenseName), None) =>
-            ZIO.succeed(LicenseMetadata.ProvidedLicense(LicenseWithName(licenseName)))
-          case (None, Some(licenseUrl)) =>
-            ZIO.fromTry {
-              URL.parseTry(licenseUrl).map { absoluteLicenseUrl =>
-                LicenseMetadata.ProvidedLicense(LicenseWithUrl(absoluteLicenseUrl))
-              }
-            }
-          case _ =>
-            ZIO.succeed(LicenseMetadata.UnresolvedLicense)
+        Classic.providedLicense(metadataNpm.licenseName, metadataNpm.licenseUrl)
+          .getOrElse(ZIO.succeed(LicenseMetadata.UnresolvedLicense))
 
   override def info(nameOrUrlish: NameOrUrlish, version: Version, maybeSourceUri: Option[URL]): ZIO[Scope, Throwable, PackageInfo] =
     cache.get[Metadata](s"webjars-classic-$nameOrUrlish", 1.hour) {
@@ -210,9 +205,31 @@ object Classic:
   sealed trait Metadata:
     val id: MavenCentral.ArtifactId
 
-  case class MetadataNormal(id: MavenCentral.ArtifactId, name: String, repo: String, download: Option[String], requireJsMain: Option[String], baseDir: Option[String]) extends Metadata
+  case class MetadataNormal(id: MavenCentral.ArtifactId, name: String, repo: String, download: Option[String], requireJsMain: Option[String], baseDir: Option[String], licenseName: Option[String], licenseUrl: Option[String]) extends Metadata
 
   case class MetadataNpm(id: MavenCentral.ArtifactId, packageName: String, licenseName: Option[String], licenseUrl: Option[String]) extends Metadata
+
+  /** Lift the optional `license.name` / `license.url` overrides from a
+   *  properties file into a `LicenseMetadata`. Returns `None` when neither
+   *  override is set so callers can fall back to their own detection path. */
+  private[utils] def providedLicense(maybeName: Option[String], maybeUrl: Option[String]): Option[ZIO[Any, Throwable, LicenseMetadata]] =
+    (maybeName, maybeUrl) match
+      case (Some(licenseName), Some(licenseUrl)) =>
+        Some(ZIO.fromTry {
+          URL.parseTry(licenseUrl).map { absoluteLicenseUrl =>
+            LicenseMetadata.ProvidedLicense(LicenseWithNameAndUrl(licenseName, absoluteLicenseUrl))
+          }
+        })
+      case (Some(licenseName), None) =>
+        Some(ZIO.succeed(LicenseMetadata.ProvidedLicense(LicenseWithName(licenseName))))
+      case (None, Some(licenseUrl)) =>
+        Some(ZIO.fromTry {
+          URL.parseTry(licenseUrl).map { absoluteLicenseUrl =>
+            LicenseMetadata.ProvidedLicense(LicenseWithUrl(absoluteLicenseUrl))
+          }
+        })
+      case (None, None) =>
+        None
 
   def parseMetadata(nameOrUrlish: String, propertiesString: String): Try[Metadata] =
     Try {
@@ -232,7 +249,7 @@ object Classic:
         for
           name <- maybeName
           repo <- maybeRepo
-        yield MetadataNormal(MavenCentral.ArtifactId(nameOrUrlish), name, repo, maybeDownload, maybeRequireJsMain, maybeBaseDir)
+        yield MetadataNormal(MavenCentral.ArtifactId(nameOrUrlish), name, repo, maybeDownload, maybeRequireJsMain, maybeBaseDir, maybeLicenseName, maybeLicenseUrl)
       } { npmName =>
         Some(MetadataNpm(MavenCentral.ArtifactId(nameOrUrlish), npmName, maybeLicenseName, maybeLicenseUrl))
       }

@@ -51,4 +51,27 @@ object ClassicParseMetadataSpec extends ZIOSpecDefault:
         result.get.asInstanceOf[MetadataNormal].download.contains("https://registry.npmjs.org/vega/-/vega-${version}.tgz"),
       )
     },
+    test("parse normal metadata with license overrides") {
+      val props = """name=jQuery UI
+                    |repo=jquery/jquery-ui
+                    |license.name=MIT License
+                    |license.url=https://github.com/jquery/jquery-ui/blob/main/LICENSE.txt""".stripMargin
+      val result = Classic.parseMetadata("jquery-ui", props)
+      assertTrue(
+        result.isSuccess,
+        result.get.isInstanceOf[MetadataNormal],
+        result.get.asInstanceOf[MetadataNormal].licenseName.contains("MIT License"),
+        result.get.asInstanceOf[MetadataNormal].licenseUrl.contains("https://github.com/jquery/jquery-ui/blob/main/LICENSE.txt"),
+      )
+    },
+    test("parse normal metadata without license overrides") {
+      val props = """name=Swagger UI
+                    |repo=swagger-api/swagger-ui""".stripMargin
+      val result = Classic.parseMetadata("swagger-ui", props)
+      assertTrue(
+        result.isSuccess,
+        result.get.asInstanceOf[MetadataNormal].licenseName.isEmpty,
+        result.get.asInstanceOf[MetadataNormal].licenseUrl.isEmpty,
+      )
+    },
   )
