@@ -94,4 +94,4 @@ object DeployJobsSpec extends ZIOSpecDefault:
           outs.forall(_.toList == (messages :+ "Deployed!")),
         )
     },
-  ).provide(zio.http.Client.default, TestInfrastructure.sharedRedisLayer) @@ TestAspect.withLiveClock @@ TestAspect.timeout(30.seconds)
+  ).provide(zio.http.Client.default, TestInfrastructure.sharedRedisLayer, MavenCentral.MavenCentralRepo.live) @@ TestAspect.withLiveClock @@ TestAspect.timeout(30.seconds)

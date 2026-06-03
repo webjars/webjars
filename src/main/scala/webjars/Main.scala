@@ -34,7 +34,7 @@ object Main extends ZIOAppDefault:
           Middleware.requestLogging(loggedRequestHeaders = Set(Header.UserAgent))
         port = sys.env.get("PORT").flatMap(_.toIntOption).getOrElse(9000)
         _ <- ZIO.logInfo(s"Starting server on port $port")
-        _ <- Server.serve(allRoutes).provideSome[Client & Redis & MavenCentral.Deploy.Sonatype & CrawlerLimiter[MavenCentral.GroupArtifactVersion]](
+        _ <- Server.serve(allRoutes).provideSome[Client & Redis & MavenCentral.Deploy.Sonatype & MavenCentral.MavenCentralRepo & CrawlerLimiter[MavenCentral.GroupArtifactVersion]](
           Server.defaultWith(_.binding(java.net.InetSocketAddress("0.0.0.0", port))),
         )
       yield ()
@@ -55,6 +55,7 @@ object Main extends ZIOAppDefault:
       AllDeployables.live,
       MavenCentralDeployer.live,
       MavenCentral.Deploy.Sonatype.Live,
+      MavenCentral.MavenCentralRepo.live,
       MavenCentralWebJars.live,
       DeployWebJar.live[MavenCentral.Deploy.Sonatype],
       DeployJobs.live[MavenCentral.Deploy.Sonatype],

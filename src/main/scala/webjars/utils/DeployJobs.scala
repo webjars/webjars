@@ -1,5 +1,6 @@
 package webjars.utils
 
+import com.jamesward.zio_mavencentral.MavenCentral.MavenCentralRepo
 import zio.*
 import zio.direct.*
 import zio.http.Client
@@ -12,7 +13,7 @@ trait DeployJobs[Env]:
    *  job is already running. Concurrent requests for the same
    *  (deployable, nameOrUrlish, upstreamVersion) — including transitive
    *  dependencies of other in-flight jobs — share a single deploy. */
-  def deploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, deployDependencies: Boolean = true): ZStream[Client & Redis & Env, Nothing, String]
+  def deploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, deployDependencies: Boolean = true): ZStream[Client & Redis & MavenCentralRepo & Env, Nothing, String]
 
 object DeployJobs:
 
@@ -50,7 +51,7 @@ object DeployJobs:
     jobs: Ref.Synchronized[Map[Key, Job]],
   ) extends DeployJobs[Env]:
 
-    def deploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, deployDependencies: Boolean = true): ZStream[Client & Redis & Env, Nothing, String] =
+    def deploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, deployDependencies: Boolean = true): ZStream[Client & Redis & MavenCentralRepo & Env, Nothing, String] =
       val key = Key(deployable.name, nameOrUrlish, upstreamVersion)
       ZStream.unwrap:
         defer:
@@ -65,9 +66,9 @@ object DeployJobs:
 
           subscribe(job)
 
-    private def runProducer(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, deployDependencies: Boolean, job: Job, key: Key): URIO[Client & Redis & Env, Unit] =
-      val work: ZIO[Client & Redis & Env, Throwable, Unit] =
-        ZIO.scoped[Client & Redis & Env]:
+    private def runProducer(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, deployDependencies: Boolean, job: Job, key: Key): URIO[Client & Redis & MavenCentralRepo & Env, Unit] =
+      val work: ZIO[Client & Redis & MavenCentralRepo & Env, Throwable, Unit] =
+        ZIO.scoped[Client & Redis & MavenCentralRepo & Env]:
           defer:
             if deployDependencies then runDependencyDeploys(deployable, nameOrUrlish, upstreamVersion, job).run
             deployWebJar.deploy(deployable, nameOrUrlish, upstreamVersion)
@@ -79,7 +80,7 @@ object DeployJobs:
         _ => ZIO.unit,
       ) *> finishJob(job) *> scheduleCleanup(key, job)
 
-    private def runDependencyDeploys(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, job: Job): ZIO[Scope & Client & Redis & Env, Throwable, Unit] =
+    private def runDependencyDeploys(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, job: Job): ZIO[Scope & Client & Redis & MavenCentralRepo & Env, Throwable, Unit] =
       defer:
         publish(job, "Determining dependency graph").run
         val packageInfo = deployable.info(nameOrUrlish, upstreamVersion).run

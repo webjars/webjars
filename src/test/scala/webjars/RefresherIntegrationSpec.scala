@@ -67,7 +67,7 @@ object RefresherIntegrationSpec extends ZIOSpecDefault:
   // GETs per group, ~4 total).
   private val SecondRunBudget: Duration =  5.seconds
 
-  private def runRefresh(mc: MavenCentralWebJars): ZIO[Client & Redis, Throwable, Long] =
+  private def runRefresh(mc: MavenCentralWebJars): ZIO[Client & Redis & MavenCentral.MavenCentralRepo, Throwable, Long] =
     for
       start  <- Clock.nanoTime
       _      <- mc.refreshAll(groupIds)
@@ -115,4 +115,5 @@ object RefresherIntegrationSpec extends ZIOSpecDefault:
   ).provide(
     Client.default.update(_ @@ ZClientAspect.requestLogging()),
     redisLayer,
+    MavenCentral.MavenCentralRepo.live,
   ) @@ TestAspect.ifEnvSet("RUN_REFRESH_INTEGRATION")
