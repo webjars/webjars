@@ -31,7 +31,13 @@ trait Deployable:
 
   def maybeBaseDirGlob(nameOrUrlish: NameOrUrlish): ZIO[Scope, Throwable, Option[Version]]
 
-  def pathPrefix(artifactId: MavenCentral.ArtifactId, releaseVersion: MavenCentral.Version, packageInfo: PackageInfo): String = s"$artifactId/$releaseVersion/"
+  def pathPrefix(artifactId: MavenCentral.ArtifactId, releaseVersion: MavenCentral.Version, packageInfo: PackageInfo): String =
+    // SemVer 2.0 build metadata (the `+N` suffix used by the redeploy
+    // entrypoint to bump immutable Maven Central releases) doesn't affect
+    // version precedence, so it's intentionally excluded from the in-jar
+    // resource path. e.g. `1.14.2+1` → `<artifactId>/1.14.2/`.
+    val pathVersion = releaseVersion.toString.takeWhile(_ != '+')
+    s"$artifactId/$pathVersion/"
 
   def info(nameOrUrlish: NameOrUrlish, version: Version, maybeSourceUri: Option[URL] = None): ZIO[Scope, Throwable, PackageInfo]
 

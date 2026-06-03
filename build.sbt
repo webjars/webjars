@@ -4,6 +4,12 @@ scalaVersion := "3.8.4"
 
 enablePlugins(JavaAppPackaging)
 
+// Lock down the primary launcher so `bin/webjars` keeps booting the server
+// `Main` even though we now ship a second main class. sbt-native-packager
+// auto-generates `bin/deploy` from `webjars.Deploy` because of multiple
+// discovered main classes — we don't need a custom mapping for it.
+Compile / mainClass := Some("webjars.Main")
+
 val zioVersion = "2.1.26"
 val zioHttpVersion = "3.11.1"
 val zioJsonVersion = "0.9.2"
