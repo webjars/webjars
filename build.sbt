@@ -1,6 +1,6 @@
 name := "webjars"
 
-scalaVersion := "3.8.3"
+scalaVersion := "3.8.4"
 
 enablePlugins(JavaAppPackaging)
 
