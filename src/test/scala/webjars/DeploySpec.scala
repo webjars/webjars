@@ -31,14 +31,14 @@ object DeploySpec extends ZIOSpecDefault:
    *  avoid a top-level clash with the one in `DeployWebJarSpec`. */
   private class NoPomMavenCentralWebJars(config: webjars.config.AppConfig, webJarsFileService: WebJarsFileService, allDeployables: AllDeployables)
       extends MavenCentralWebJarsLive(config, webJarsFileService, allDeployables, TestInfrastructure.noopSearchIndex):
-    override def fetchPom(gav: MavenCentral.GroupArtifactVersion): ZIO[Scope & Client, Throwable, Elem] =
+    override def fetchPom(gav: MavenCentral.GroupArtifactVersion): ZIO[MavenCentral.MavenCentralRepo, Throwable, Elem] =
       ZIO.fail(new FileNotFoundException("no mock pom"))
 
   /** Build a fully-wired `(deployWebJar, allDeployables, capturingDeployer)`
    *  triple using mocks that don't touch Sonatype or persist to Redis. */
   private def withRedeploy[A](
-    f: (DeployWebJar[Any], AllDeployables, CapturingDeployer) => ZIO[Scope & Client & zio.redis.Redis, Throwable, A]
-  ): ZIO[Client & zio.redis.Redis, Throwable, A] =
+    f: (DeployWebJar[Any], AllDeployables, CapturingDeployer) => ZIO[Scope & Client & zio.redis.Redis & MavenCentral.MavenCentralRepo, Throwable, A]
+  ): ZIO[Client & zio.redis.Redis & MavenCentral.MavenCentralRepo, Throwable, A] =
     ZIO.serviceWithZIO[Client] { client =>
       ZIO.scoped {
         val config             = testConfig
@@ -128,6 +128,6 @@ object DeploySpec extends ZIOSpecDefault:
           }
       }
     },
-  ).provide(Client.default, TestInfrastructure.sharedRedisLayer) @@
+  ).provide(Client.default, TestInfrastructure.sharedRedisLayer, MavenCentral.MavenCentralRepo.live) @@
     TestAspect.withLiveClock @@
     TestAspect.timeout(300.seconds)

@@ -1,5 +1,6 @@
 package webjars
 
+import com.jamesward.zio_mavencentral.MavenCentral
 import webjars.utils.*
 import webjars.TestInfrastructure.{MockMavenCentralDeployer, testConfig}
 import zio.*
@@ -13,7 +14,7 @@ import zio.test.*
  *  package has a handful of npm deps, exercising the deps-graph iteration. */
 object DeployJobsIntegrationSpec extends ZIOSpecDefault:
 
-  private def withDeployJobs[A](f: (DeployJobs[Any], NPM) => ZIO[Scope & Client & zio.redis.Redis, Throwable, A]): ZIO[Client & zio.redis.Redis, Throwable, A] =
+  private def withDeployJobs[A](f: (DeployJobs[Any], NPM) => ZIO[Scope & Client & zio.redis.Redis & MavenCentral.MavenCentralRepo, Throwable, A]): ZIO[Client & zio.redis.Redis & MavenCentral.MavenCentralRepo, Throwable, A] =
     ZIO.serviceWithZIO[Client] { client =>
       ZIO.scoped {
         val config = testConfig
@@ -53,4 +54,4 @@ object DeployJobsIntegrationSpec extends ZIOSpecDefault:
         }
       }
     },
-  ).provide(Client.default, TestInfrastructure.sharedRedisLayer) @@ TestAspect.withLiveClock @@ TestAspect.timeout(300.seconds)
+  ).provide(Client.default, TestInfrastructure.sharedRedisLayer, MavenCentral.MavenCentralRepo.live) @@ TestAspect.withLiveClock @@ TestAspect.timeout(300.seconds)

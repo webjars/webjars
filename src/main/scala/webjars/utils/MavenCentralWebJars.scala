@@ -1,7 +1,7 @@
 package webjars.utils
 
 import com.jamesward.zio_mavencentral.MavenCentral
-import com.jamesward.zio_mavencentral.MavenCentral.retryOnServerError
+import com.jamesward.zio_mavencentral.MavenCentral.MavenCentralRepo
 import webjars.config.AppConfig
 import webjars.models.{WebJar, WebJarVersion}
 import zio.*
@@ -14,28 +14,30 @@ import java.time.ZonedDateTime
 import scala.xml.Elem
 
 trait MavenCentralWebJars:
-  def fetchPom(gav: MavenCentral.GroupArtifactVersion): ZIO[Scope & Client, Throwable, Elem]
-  private[utils] def refreshGroup(groupId: MavenCentral.GroupId, updateNumFiles: Boolean = true): ZIO[Client & Redis, Throwable, Set[MavenCentral.ArtifactId]]
-  def refreshAll(groupIds: Set[MavenCentral.GroupId]): ZIO[Client & Redis, Nothing, Unit]
-  def startRefreshLoop(): ZIO[Client & Redis, Nothing, Fiber.Runtime[Nothing, Unit]]
+  def fetchPom(gav: MavenCentral.GroupArtifactVersion): ZIO[MavenCentralRepo, Throwable, Elem]
+  private[utils] def refreshGroup(groupId: MavenCentral.GroupId, updateNumFiles: Boolean = true): ZIO[Client & Redis & MavenCentralRepo, Throwable, Set[MavenCentral.ArtifactId]]
+  def refreshAll(groupIds: Set[MavenCentral.GroupId]): ZIO[Client & Redis & MavenCentralRepo, Nothing, Unit]
+  def startRefreshLoop(): ZIO[Client & Redis & MavenCentralRepo, Nothing, Fiber.Runtime[Nothing, Unit]]
   def searchWebJars(groupId: MavenCentral.GroupId, query: Option[String]): ZIO[Redis, Throwable, Seq[WebJar]]
   /** On-demand refresh of a single artifact's version list from Maven
    *  Central. Used by the UI "show me current versions" path on Classic
    *  WebJars that can't be deployed through this app. Returns the resulting
    *  versions list from the cache (post-refresh). */
-  def refreshArtifactNow(groupId: MavenCentral.GroupId, artifactId: MavenCentral.ArtifactId): ZIO[Client & Redis, Throwable, List[WebJarVersion]]
+  def refreshArtifactNow(groupId: MavenCentral.GroupId, artifactId: MavenCentral.ArtifactId): ZIO[Client & Redis & MavenCentralRepo, Throwable, List[WebJarVersion]]
 
 case class MavenCentralWebJarsLive(config: AppConfig, webJarsFileService: WebJarsFileService, allDeployables: AllDeployables, searchIndex: SearchIndex) extends MavenCentralWebJars:
 
-  def fetchPom(gav: MavenCentral.GroupArtifactVersion): ZIO[Scope & Client, Throwable, Elem] =
+  def fetchPom(gav: MavenCentral.GroupArtifactVersion): ZIO[MavenCentralRepo, Throwable, Elem] =
     MavenCentral.pom(gav.groupId, gav.artifactId, gav.version).mapError {
       case _: MavenCentral.NotFoundError => FileNotFoundException("pom not found")
       case t: Throwable => t
     }
 
-  private def fetchWebJarNameAndUrl(gav: MavenCentral.GroupArtifactVersion): ZIO[Client & Scope, Nothing, (String, String)] =
+  // Mirror fallback + per-mirror circuit breakers in `MavenCentralRepo`
+  // replace the per-call `retryOnServerError` we used in 0.8.x — transient
+  // 5xx / 429 / 403 are now handled inside the repo layer.
+  private def fetchWebJarNameAndUrl(gav: MavenCentral.GroupArtifactVersion): ZIO[MavenCentralRepo, Nothing, (String, String)] =
     MavenCentral.pom(gav.groupId, gav.artifactId, gav.version)
-      .retryOnServerError
       .flatMap: xml =>
         val artifactId = (xml \ "artifactId").text
         val rawName = (xml \ "name").text
@@ -53,7 +55,6 @@ case class MavenCentralWebJarsLive(config: AppConfig, webJarsFileService: WebJar
             val parentArtifactId = (xml \ "parent" \ "artifactId").text
             val parentVersion = (xml \ "parent" \ "version").text
             MavenCentral.pom(MavenCentral.GroupId(parentGroupId), MavenCentral.ArtifactId(parentArtifactId), MavenCentral.Version(parentVersion))
-              .retryOnServerError
               .map { parentXml => (parentXml \ "scm" \ "url").text }
 
         url.map(name -> _)
@@ -61,15 +62,14 @@ case class MavenCentralWebJarsLive(config: AppConfig, webJarsFileService: WebJar
         ZIO.succeed:
           gav.artifactId.toString -> s"https://github.com/webjars/${gav.artifactId}"
 
-  private def fetchVersions(groupId: MavenCentral.GroupId, artifactId: MavenCentral.ArtifactId): ZIO[Client & Scope, Throwable, MavenCentral.WithCacheInfo[Seq[MavenCentral.Version]]] =
+  private def fetchVersions(groupId: MavenCentral.GroupId, artifactId: MavenCentral.ArtifactId): ZIO[MavenCentralRepo, Throwable, MavenCentral.WithCacheInfo[Seq[MavenCentral.Version]]] =
     MavenCentral.searchVersions(groupId, artifactId)
-      .retryOnServerError
       .mapError {
         case _: MavenCentral.GroupIdOrArtifactIdNotFoundError => Throwable("groupId or artifactId not found")
         case t: Throwable => t
       }
 
-  private def fetchArtifactIds(groupId: MavenCentral.GroupId): ZIO[Client & Scope, Throwable, MavenCentral.WithCacheInfo[Seq[MavenCentral.ArtifactId]]] =
+  private def fetchArtifactIds(groupId: MavenCentral.GroupId): ZIO[MavenCentralRepo, Throwable, MavenCentral.WithCacheInfo[Seq[MavenCentral.ArtifactId]]] =
     MavenCentral.searchArtifacts(groupId).mapBoth({
       case _: MavenCentral.GroupIdNotFoundError => Throwable("groupId not found")
       case t: Throwable => t
@@ -83,7 +83,7 @@ case class MavenCentralWebJarsLive(config: AppConfig, webJarsFileService: WebJar
         })
     })
 
-  private def refreshArtifact(groupId: MavenCentral.GroupId, artifactId: MavenCentral.ArtifactId, versions: Seq[WebJarVersion], updateNumFiles: Boolean): ZIO[Client & Redis & Scope, Throwable, Unit] =
+  private def refreshArtifact(groupId: MavenCentral.GroupId, artifactId: MavenCentral.ArtifactId, versions: Seq[WebJarVersion], updateNumFiles: Boolean): ZIO[Client & Redis & MavenCentralRepo & Scope, Throwable, Unit] =
     ZIO.logInfo(s"Refreshing artifact: $groupId:$artifactId") *> {
       val refresh = defer:
         val versionsResult = fetchVersions(groupId, artifactId).run
@@ -118,11 +118,11 @@ case class MavenCentralWebJarsLive(config: AppConfig, webJarsFileService: WebJar
   // the dominant source of 429-storms (one HEAD per artifact × every cycle).
   // Detecting version changes for already-cached artifacts is a separate
   // problem we'll solve later (likely demand-driven or via a feed).
-  private[utils] def refreshGroup(groupId: MavenCentral.GroupId, updateNumFiles: Boolean = true): ZIO[Client & Redis, Throwable, Set[MavenCentral.ArtifactId]] =
+  private[utils] def refreshGroup(groupId: MavenCentral.GroupId, updateNumFiles: Boolean = true): ZIO[Client & Redis & MavenCentralRepo, Throwable, Set[MavenCentral.ArtifactId]] =
     ZIO.logInfo(s"Refreshing groupId: $groupId with updateNumFiles: $updateNumFiles") *>
     ZIO.scoped:
       defer:
-        val artifactsResult  = fetchArtifactIds(groupId).retryOnServerError.run
+        val artifactsResult  = fetchArtifactIds(groupId).run
         val cachedArtifacts  = WebJarsCache.getArtifacts(groupId).run
         val tombstoned       = WebJarsCache.getTombstones(groupId).run
         val missingArtifacts = artifactsResult.value.toSet -- cachedArtifacts.keySet -- tombstoned
@@ -147,7 +147,7 @@ case class MavenCentralWebJarsLive(config: AppConfig, webJarsFileService: WebJar
   // publish), refreshes each affected artifact's metadata from MC, and
   // removes pending entries whose version has landed in cache. Entries
   // older than 48h are dropped — assumed-abandoned deploys never propagate.
-  private[utils] def refreshPendingDeploys(): ZIO[Client & Redis, Throwable, Unit] =
+  private[utils] def refreshPendingDeploys(): ZIO[Client & Redis & MavenCentralRepo, Throwable, Unit] =
     ZIO.scoped:
       defer:
         val staleCount = WebJarsCache.cullStalePendingDeploys(48.hours).run
@@ -178,12 +178,12 @@ case class MavenCentralWebJarsLive(config: AppConfig, webJarsFileService: WebJar
             refreshAndCheck.tapErrorCause(c => ZIO.logErrorCause(s"refreshPendingDeploys failed for $gid:$aid", c)).ignore
           }.withParallelism(3).run
 
-  def refreshAll(groupIds: Set[MavenCentral.GroupId]): ZIO[Client & Redis, Nothing, Unit] =
+  def refreshAll(groupIds: Set[MavenCentral.GroupId]): ZIO[Client & Redis & MavenCentralRepo, Nothing, Unit] =
     ZIO.foreachDiscard(groupIds)(groupId => refreshGroup(groupId).ignoreLogged) *>
       refreshPendingDeploys().ignoreLogged *>
       searchIndex.rebuild.forkDaemon.unit
 
-  def startRefreshLoop(): ZIO[Client & Redis, Nothing, Fiber.Runtime[Nothing, Unit]] =
+  def startRefreshLoop(): ZIO[Client & Redis & MavenCentralRepo, Nothing, Fiber.Runtime[Nothing, Unit]] =
     val once = refreshAll(allDeployables.groupIds())
     val effect = config.mavenCentralRefreshInterval.fold(once)(interval => once.repeat(Schedule.spaced(interval)).unit)
     effect
@@ -199,7 +199,7 @@ case class MavenCentralWebJarsLive(config: AppConfig, webJarsFileService: WebJar
   def searchWebJars(groupId: MavenCentral.GroupId, query: Option[String]): ZIO[Redis, Throwable, Seq[WebJar]] =
     WebJarsCache.getArtifacts(groupId, query = query).map(_.toWebJars(groupId))
 
-  def refreshArtifactNow(groupId: MavenCentral.GroupId, artifactId: MavenCentral.ArtifactId): ZIO[Client & Redis, Throwable, List[WebJarVersion]] =
+  def refreshArtifactNow(groupId: MavenCentral.GroupId, artifactId: MavenCentral.ArtifactId): ZIO[Client & Redis & MavenCentralRepo, Throwable, List[WebJarVersion]] =
     val ga = MavenCentral.GroupArtifact(groupId, artifactId)
     ZIO.scoped:
       defer:

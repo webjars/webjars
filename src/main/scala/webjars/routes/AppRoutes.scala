@@ -91,7 +91,7 @@ case class AppRoutes[DeployerEnv](
   private def corsHeaders(response: Response): Response =
     response.addHeader(Header.AccessControlAllowOrigin.All)
 
-  val routes: Routes[Client & Redis & DeployerEnv, Nothing] = Routes(
+  val routes: Routes[Client & Redis & MavenCentral.MavenCentralRepo & DeployerEnv, Nothing] = Routes(
 
     // Home page
     Method.GET / "" -> handler { (request: Request) =>
@@ -408,7 +408,7 @@ case class AppRoutes[DeployerEnv](
     },
   )
 
-  private def handleDeploy(request: Request): ZIO[Client & Redis & DeployerEnv, Nothing, Response] =
+  private def handleDeploy(request: Request): ZIO[Client & Redis & MavenCentral.MavenCentralRepo & DeployerEnv, Nothing, Response] =
     val webJarType = request.url.queryParams.getAll("webJarType").headOption.getOrElse("")
     val nameOrUrlish = request.url.queryParams.getAll("nameOrUrlish").headOption.getOrElse("")
     val version = request.url.queryParams.getAll("version").headOption.getOrElse("")
@@ -416,7 +416,7 @@ case class AppRoutes[DeployerEnv](
     allDeployables.fromName(webJarType).fold {
       ZIO.succeed(Response(Status.BadRequest, body = Body.fromString(s"Specified WebJar type '$webJarType' can not be deployed")))
     } { deployable =>
-      val stream: ZStream[Client & Redis & DeployerEnv, Nothing, String] = deployJobs.deploy(deployable, nameOrUrlish, version)
+      val stream: ZStream[Client & Redis & MavenCentral.MavenCentralRepo & DeployerEnv, Nothing, String] = deployJobs.deploy(deployable, nameOrUrlish, version)
       val bytes =
         if acceptsEventStream(request) then stream.flatMap(msg => ZStream.fromIterable(s"data: $msg\n\n".getBytes))
         else                                stream.flatMap(msg => ZStream.fromIterable(msg.getBytes))

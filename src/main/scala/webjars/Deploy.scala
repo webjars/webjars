@@ -2,7 +2,7 @@ package webjars
 
 import com.jamesward.zio_http_guard.CrawlerLimiter
 import com.jamesward.zio_mavencentral.MavenCentral
-import com.jamesward.zio_mavencentral.MavenCentral.{ArtifactId, GroupArtifactVersion, GroupId, Version}
+import com.jamesward.zio_mavencentral.MavenCentral.{ArtifactId, GroupArtifactVersion, GroupId, MavenCentralRepo, Version}
 import webjars.config.AppConfig
 import webjars.utils.*
 import zio.*
@@ -56,8 +56,9 @@ object Deploy extends ZIOAppDefault:
 
   /** Query Maven Central for the existing versions of an artifact. A
    *  not-found response (artifact has never been published) collapses to
-   *  an empty set so the caller can publish the upstream version unchanged. */
-  def existingVersions(groupId: GroupId, artifactId: ArtifactId): ZIO[Client, Throwable, Set[String]] =
+   *  an empty set so the caller can publish the upstream version unchanged.
+   *  Mirror fallback + circuit breakers live inside `MavenCentralRepo`. */
+  def existingVersions(groupId: GroupId, artifactId: ArtifactId): ZIO[MavenCentralRepo, Throwable, Set[String]] =
     MavenCentral.searchVersions(groupId, artifactId)
       .map(_.value.iterator.map(_.toString).toSet)
       .catchAll {
@@ -75,7 +76,7 @@ object Deploy extends ZIOAppDefault:
     allDeployables: AllDeployables,
     deployWebJar: DeployWebJar[Env],
     existingVersions: Set[String],
-  ): ZStream[Scope & Client & Redis & Env, Throwable, String] =
+  ): ZStream[Scope & Client & Redis & MavenCentralRepo & Env, Throwable, String] =
     allDeployables.fromGroupId(gav.groupId) match
       case None =>
         ZStream.fail(new IllegalArgumentException(
@@ -99,7 +100,7 @@ object Deploy extends ZIOAppDefault:
    *  carry around a separate "what's already published" cache) and runs
    *  the full streaming redeploy, logging each progress message. Fails the
    *  app with a non-zero exit if the deploy stream errors. */
-  private def runRedeploy(gav: GroupArtifactVersion): ZIO[Scope & Client & Redis & AllDeployables & DeployWebJar[MavenCentral.Deploy.Sonatype] & MavenCentral.Deploy.Sonatype, Throwable, Unit] =
+  private def runRedeploy(gav: GroupArtifactVersion): ZIO[Scope & Client & Redis & MavenCentralRepo & AllDeployables & DeployWebJar[MavenCentral.Deploy.Sonatype] & MavenCentral.Deploy.Sonatype, Throwable, Unit] =
     defer:
       val allDeployables = ZIO.service[AllDeployables].run
       val deployWebJar   = ZIO.service[DeployWebJar[MavenCentral.Deploy.Sonatype]].run
@@ -142,6 +143,7 @@ object Deploy extends ZIOAppDefault:
         AllDeployables.live,
         MavenCentralDeployer.live,
         MavenCentral.Deploy.Sonatype.Live,
+        MavenCentralRepo.live,
         MavenCentralWebJars.live,
         DeployWebJar.live[MavenCentral.Deploy.Sonatype],
         SearchIndex.live,

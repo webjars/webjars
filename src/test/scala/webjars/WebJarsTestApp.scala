@@ -88,7 +88,7 @@ object WebJarsTestApp extends ZIOAppDefault:
                                  Middleware.requestLogging(loggedRequestHeaders = Set(Header.UserAgent))
         port                 = sys.env.get("PORT").flatMap(_.toIntOption).getOrElse(9000)
         _                   <- ZIO.logInfo(s"Starting test server on port $port")
-        _                   <- Server.serve(allRoutes).provideSome[Client & zio.redis.Redis & CrawlerLimiter[MavenCentral.GroupArtifactVersion]](
+        _                   <- Server.serve(allRoutes).provideSome[Client & zio.redis.Redis & MavenCentral.MavenCentralRepo & CrawlerLimiter[MavenCentral.GroupArtifactVersion]](
                                  Server.defaultWith(_.binding(java.net.InetSocketAddress("0.0.0.0", port))),
                                )
       yield ()
@@ -108,6 +108,7 @@ object WebJarsTestApp extends ZIOAppDefault:
       Classic.live,
       AllDeployables.live,
       TestInfrastructure.mockMavenCentralDeployerLayer,
+      MavenCentral.MavenCentralRepo.live,
       MavenCentralWebJars.live,
       DeployWebJar.live[Any],
       DeployJobs.live[Any],
