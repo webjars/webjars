@@ -213,4 +213,43 @@ object ClassicSpec extends ZIOSpecDefault:
         }
       },
     ) @@ TestAspect.withLiveClock,
+    suite("npm metadata with repo and base.dir overrides")(
+      // @tabby_ai/hijri-converter publishes no `repository` field, so the
+      // default https://github.com/<name> fallback 404s. The `repo` override
+      // resolves that, and `base.dir=*/dist` scopes the JAR to the
+      // published dist/ directory.
+      test("info uses repo override for sourceConnectionUri") {
+        withClassic { classic =>
+          val metadata = MetadataNpm(
+            com.jamesward.zio_mavencentral.MavenCentral.ArtifactId("tabby_ai__hijri-converter"),
+            "@tabby_ai/hijri-converter",
+            Some("tabby-ai/hijri-converter"),
+            Some("*/dist"),
+            None, None,
+          )
+          classic.infoFromMetadata(metadata, "1.0.5", None).map { info =>
+            assertTrue(
+              info.name == "@tabby_ai/hijri-converter",
+              info.version == "1.0.5",
+              info.maybeGitHubUrl.contains(URL.unsafeParse("https://github.com/tabby-ai/hijri-converter")),
+              info.sourceConnectionUri.toString == "https://github.com/tabby-ai/hijri-converter.git",
+            )
+          }
+        }
+      },
+      test("base.dir override is returned by maybeBaseDirGlobFromMetadata") {
+        withClassic { classic =>
+          val metadata = MetadataNpm(
+            com.jamesward.zio_mavencentral.MavenCentral.ArtifactId("tabby_ai__hijri-converter"),
+            "@tabby_ai/hijri-converter",
+            Some("tabby-ai/hijri-converter"),
+            Some("*/dist"),
+            None, None,
+          )
+          classic.maybeBaseDirGlobFromMetadata(metadata).map { baseDirGlob =>
+            assertTrue(baseDirGlob.contains("*/dist"))
+          }
+        }
+      },
+    ) @@ TestAspect.withLiveClock,
   ).provide(Client.default) @@ TestAspect.timeout(300.seconds)

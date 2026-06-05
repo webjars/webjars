@@ -32,8 +32,29 @@ object ClassicParseMetadataSpec extends ZIOSpecDefault:
         result.get.isInstanceOf[MetadataNpm],
         result.get.id == MavenCentral.ArtifactId("flexmonster"),
         result.get.asInstanceOf[MetadataNpm].packageName == "flexmonster",
+        result.get.asInstanceOf[MetadataNpm].repo.isEmpty,
+        result.get.asInstanceOf[MetadataNpm].baseDir.isEmpty,
         result.get.asInstanceOf[MetadataNpm].licenseName.contains("Flexmonster Terms"),
         result.get.asInstanceOf[MetadataNpm].licenseUrl.contains("https://www.flexmonster.com/terms"),
+      )
+    },
+    test("parse npm metadata with repo and base.dir overrides") {
+      // Some scoped npm packages publish a package.json without a
+      // `repository` field, so the WebJars fallback to
+      // `https://github.com/<name>` 404s. The `repo` override fixes that
+      // and feeds the right GitHub URL into the POM. `base.dir` lets us
+      // limit the JAR contents to the published `dist/` directory.
+      val props = """npm=@tabby_ai/hijri-converter
+                    |repo=tabby-ai/hijri-converter
+                    |base.dir=*/dist""".stripMargin
+      val result = Classic.parseMetadata("tabby_ai__hijri-converter", props)
+      assertTrue(
+        result.isSuccess,
+        result.get.isInstanceOf[MetadataNpm],
+        result.get.id == MavenCentral.ArtifactId("tabby_ai__hijri-converter"),
+        result.get.asInstanceOf[MetadataNpm].packageName == "@tabby_ai/hijri-converter",
+        result.get.asInstanceOf[MetadataNpm].repo.contains("tabby-ai/hijri-converter"),
+        result.get.asInstanceOf[MetadataNpm].baseDir.contains("*/dist"),
       )
     },
     test("fail on invalid metadata") {

@@ -169,7 +169,15 @@ case class ClassicLive(httpClient: Client, licenseDetector: LicenseDetector, git
         )
       case metadataNpm: MetadataNpm =>
         defer:
-          val packageInfo = npm.info(metadataNpm.packageName, version, maybeSourceUri).run
+          // A `repo=owner/repo` override in the .properties takes precedence
+          // over the caller's `maybeSourceUri` and over whatever `repository`
+          // the upstream package.json declares (often missing for scoped
+          // packages whose NPM org name doesn't match the GitHub org name —
+          // e.g. @tabby_ai vs github.com/tabby-ai).
+          val effectiveSourceUri = metadataNpm.repo
+            .flatMap(repo => URL.parseOption(s"https://github.com/$repo"))
+            .orElse(maybeSourceUri)
+          val packageInfo = npm.info(metadataNpm.packageName, version, effectiveSourceUri).run
           val licenseMetadata = license(metadataNpm).run
           packageInfo.copy(metadataLicenses = Seq(licenseMetadata))
 
@@ -193,7 +201,11 @@ case class ClassicLive(httpClient: Client, licenseDetector: LicenseDetector, git
   def maybeBaseDirGlobFromMetadata(metadata: Metadata): ZIO[Scope, Throwable, Option[String]] =
     metadata match
       case metadataNormal: MetadataNormal => ZIO.succeed(metadataNormal.baseDir)
-      case metadataNpm: MetadataNpm => npm.maybeBaseDirGlob(metadataNpm.packageName)
+      case metadataNpm: MetadataNpm =>
+        // Honor a `base.dir` override (e.g. `*/dist`) before falling back to
+        // the NPM default (`*/`, which keeps the whole tarball minus the
+        // top-level `package/` directory).
+        metadataNpm.baseDir.fold(npm.maybeBaseDirGlob(metadataNpm.packageName))(d => ZIO.succeed(Some(d)))
 
   def licensesFromMetadata(metadata: Metadata, version: Version, packageInfo: PackageInfo): ZIO[Scope, Throwable, Set[License]] =
     licenses(metadata.id.toString, version, packageInfo)
@@ -207,7 +219,7 @@ object Classic:
 
   case class MetadataNormal(id: MavenCentral.ArtifactId, name: String, repo: String, download: Option[String], requireJsMain: Option[String], baseDir: Option[String], licenseName: Option[String], licenseUrl: Option[String]) extends Metadata
 
-  case class MetadataNpm(id: MavenCentral.ArtifactId, packageName: String, licenseName: Option[String], licenseUrl: Option[String]) extends Metadata
+  case class MetadataNpm(id: MavenCentral.ArtifactId, packageName: String, repo: Option[String], baseDir: Option[String], licenseName: Option[String], licenseUrl: Option[String]) extends Metadata
 
   /** Lift the optional `license.name` / `license.url` overrides from a
    *  properties file into a `LicenseMetadata`. Returns `None` when neither
@@ -251,7 +263,7 @@ object Classic:
           repo <- maybeRepo
         yield MetadataNormal(MavenCentral.ArtifactId(nameOrUrlish), name, repo, maybeDownload, maybeRequireJsMain, maybeBaseDir, maybeLicenseName, maybeLicenseUrl)
       } { npmName =>
-        Some(MetadataNpm(MavenCentral.ArtifactId(nameOrUrlish), npmName, maybeLicenseName, maybeLicenseUrl))
+        Some(MetadataNpm(MavenCentral.ArtifactId(nameOrUrlish), npmName, maybeRepo, maybeBaseDir, maybeLicenseName, maybeLicenseUrl))
       }
     }.flatMap {
       case Some(metadata) => scala.util.Success(metadata)
