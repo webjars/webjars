@@ -129,8 +129,13 @@ case class ClassicLive(httpClient: Client, licenseDetector: LicenseDetector, git
           e => ZIO.fail(e),
           gitHubUrl => gitHub.raw(gitHubUrl, version, filename)
         )
-      case _: MetadataNpm =>
-        npm.file(nameOrUrlish, version, filename)
+      case metadataNpm: MetadataNpm =>
+        // Look up the file by the actual NPM package name, not the
+        // properties-file basename — they differ for scoped packages
+        // (e.g. `tabby_ai__hijri-converter.properties` vs
+        // `npm=@tabby_ai/hijri-converter`) because `@` and `/` aren't
+        // legal in a Maven artifactId.
+        npm.file(metadataNpm.packageName, version, filename)
     }
 
   override def versions(nameOrUrlish: NameOrUrlish): ZIO[Scope, Throwable, Set[Version]] =
@@ -139,8 +144,13 @@ case class ClassicLive(httpClient: Client, licenseDetector: LicenseDetector, git
     }.flatMap {
       case metadataNormal: MetadataNormal =>
         gitHub.tags(metadataNormal.repo)
-      case _: MetadataNpm =>
-        npm.versions(nameOrUrlish)
+      case metadataNpm: MetadataNpm =>
+        // Same reasoning as `file`: query NPM by the real package name.
+        // Without this, /exists returns deployable=false for any classic
+        // NPM webjar whose .properties basename doesn't match the NPM
+        // package name, which surfaces in the UI as
+        // "The Classic WebJar … Can't Be Deployed This Way".
+        npm.versions(metadataNpm.packageName)
     }
 
   override def depGraph(packageInfo: PackageInfo, deps: Map[String, String]): ZIO[Scope, Throwable, Map[String, String]] =

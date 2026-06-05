@@ -237,6 +237,20 @@ object ClassicSpec extends ZIOSpecDefault:
           }
         }
       },
+      // Regression: `versions(nameOrUrlish)` previously forwarded
+      // `nameOrUrlish` straight to `npm.versions`, which 404s for any
+      // classic NPM webjar whose .properties basename differs from the
+      // NPM package name (scoped packages have to use a `__` basename
+      // because `@`/`/` aren't legal in a Maven artifactId). That made
+      // /exists return deployable=false and the UI surfaced
+      // "The Classic WebJar … Can't Be Deployed This Way".
+      test("versions resolves scoped NPM package via the .properties basename") {
+        withClassic { classic =>
+          classic.versions("tabby_ai__hijri-converter").map { versions =>
+            assertTrue(versions.contains("1.0.5"))
+          }
+        }
+      },
       test("base.dir override is returned by maybeBaseDirGlobFromMetadata") {
         withClassic { classic =>
           val metadata = MetadataNpm(
