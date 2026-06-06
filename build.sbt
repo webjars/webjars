@@ -11,7 +11,7 @@ enablePlugins(JavaAppPackaging)
 Compile / mainClass := Some("webjars.Main")
 
 val zioVersion = "2.1.26"
-val zioHttpVersion = "3.11.1"
+val zioHttpVersion = "3.11.2"
 val zioJsonVersion = "0.9.2"
 val zioConfigVersion = "4.0.7"
 val zioLoggingVersion = "2.5.3"
