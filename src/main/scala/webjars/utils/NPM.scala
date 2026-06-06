@@ -20,7 +20,7 @@ trait NPM extends Deployable:
   def justDeps(nameOrUrlish: NameOrUrlish, version: Version): ZIO[Scope, Throwable, Map[String, String]]
   def latestDep(nameOrUrlish: NameOrUrlish, version: Version): ZIO[Scope, Throwable, Version]
 
-case class NPMLive(client: Client, licenseDetector: LicenseDetector, git: Git, gitHub: GitHub, maven: Maven, semVer: SemVer) extends NPM:
+case class NPMLive(client: Client, git: Git, gitHub: GitHub, maven: Maven, semVer: SemVer) extends NPM:
 
   private val BASE_URL: URL = URL.unsafeParse("https://registry.npmjs.org")
 
@@ -281,7 +281,7 @@ case class NPMLive(client: Client, licenseDetector: LicenseDetector, git: Git, g
 
 object NPM:
 
-  val live: ZLayer[Client & LicenseDetector & Git & GitHub & Maven & SemVer, Nothing, NPM] = ZLayer.derive[NPMLive]
+  val live: ZLayer[Client & Git & GitHub & Maven & SemVer, Nothing, NPM] = ZLayer.derive[NPMLive]
 
   def uriIsh(repository: String): String =
     if repository.startsWith("git+https://") then

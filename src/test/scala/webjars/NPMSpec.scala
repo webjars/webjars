@@ -21,8 +21,7 @@ object NPMSpec extends ZIOSpecDefault:
         val gitHub = GitHubLive(client, testConfig, cache)
         val semVer = SemVerLive(client)
         val maven = MavenLive(git, semVer)
-        val licenseDetector = LicenseDetectorLive(client, testConfig.githubAuthToken)
-        val npm = NPMLive(client, licenseDetector, git, gitHub, maven, semVer)
+        val npm = NPMLive(client, git, gitHub, maven, semVer)
         f(npm)
       }
     }
@@ -325,18 +324,25 @@ object NPMSpec extends ZIOSpecDefault:
         }
       },
       test("convert github license URL to license") {
+        // After dropping the OSS license detector we no longer fetch + classify
+        // the file at the URL — the URL itself is recorded in the POM by
+        // reference. Reviewers can click through to verify.
         withNpm { npm =>
           npm.licenseReference("foo", "0.0.0", "https://github.com/facebook/flux/blob/master/LICENSE").map { result =>
-            assertTrue(result == Set(LicenseWithNameAndUrl("BSD 3-Clause", URL.unsafeParse("https://github.com/facebook/flux/blob/master/LICENSE"))))
+            assertTrue(result == Set(LicenseWithUrl(URL.unsafeParse("https://github.com/facebook/flux/blob/master/LICENSE"))))
           }
         }
       },
-      test("be able to be fetched from git repos") {
+      test("ms 0.7.1 has no metadata licenses → LicenseNotFoundException") {
+        // Pre-SPDX-convention legacy package: no `license` field in
+        // package.json. Without the LICENSE-file scan + content classifier
+        // we used to do, the deploy fails Systemic so the deploy-failure
+        // tracker can flag it for a manual override.
         withNpm { npm =>
           for
             packageInfo <- npm.info("ms", "0.7.1")
-            licenses <- npm.licenses("ms", "0.7.1", packageInfo)
-          yield assertTrue(licenses == Set(LicenseWithName("MIT")))
+            result <- npm.licenses("ms", "0.7.1", packageInfo).exit
+          yield assertTrue(result.is(_.failure).isInstanceOf[LicenseNotFoundException])
         }
       },
     ) @@ TestAspect.withLiveClock,

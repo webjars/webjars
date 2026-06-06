@@ -19,7 +19,7 @@ Run the all tests:
 1. `./sbt test`
 
 Run a specific test, i.e.:
-1. `testOnly webjars.LicenseDetectorSpec -- -t "convert raw"`
+1. `testOnly webjars.DeployFailureSpec`
 
 
 (todo: how do we avoid fully repopulating the maven central cache)

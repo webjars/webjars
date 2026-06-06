@@ -39,15 +39,22 @@ object DeployJobs:
   // see the full transcript but the map doesn't grow unboundedly.
   private val completedJobTtl: Duration = 5.minutes
 
-  def live[Env : Tag]: ZLayer[DeployWebJar[Env], Nothing, DeployJobs[Env]] =
+  // Cap on how long we'll wait for the GitHub-issue tracker to file/close
+  // before giving up. A slow GitHub response must NOT drag out the SSE
+  // stream the user is watching.
+  private val trackerTimeout: Duration = 10.seconds
+
+  def live[Env : Tag]: ZLayer[DeployWebJar[Env] & DeployFailureTracker, Nothing, DeployJobs[Env]] =
     ZLayer.fromZIO:
       defer:
         val deployWebJar = ZIO.service[DeployWebJar[Env]].run
-        val jobs = Ref.Synchronized.make(Map.empty[Key, Job]).run
-        DeployJobsLive[Env](deployWebJar, jobs)
+        val tracker      = ZIO.service[DeployFailureTracker].run
+        val jobs         = Ref.Synchronized.make(Map.empty[Key, Job]).run
+        DeployJobsLive[Env](deployWebJar, tracker, jobs)
 
   private case class DeployJobsLive[Env](
     deployWebJar: DeployWebJar[Env],
+    tracker: DeployFailureTracker,
     jobs: Ref.Synchronized[Map[Key, Job]],
   ) extends DeployJobs[Env]:
 
@@ -67,6 +74,8 @@ object DeployJobs:
           subscribe(job)
 
     private def runProducer(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, deployDependencies: Boolean, job: Job, key: Key): URIO[Client & Redis & MavenCentralRepo & Env, Unit] =
+      val deployKey = DeployFailureTracker.DeployKey(deployable.groupId, nameOrUrlish, upstreamVersion)
+
       val work: ZIO[Client & Redis & MavenCentralRepo & Env, Throwable, Unit] =
         ZIO.scoped[Client & Redis & MavenCentralRepo & Env]:
           defer:
@@ -76,9 +85,41 @@ object DeployJobs:
               .run
 
       work.foldZIO(
-        e => publish(job, Option(e.getMessage).getOrElse(e.getClass.getSimpleName)),
-        _ => ZIO.unit,
+        e => handleFailure(job, deployKey, e),
+        _ => handleSuccess(deployKey),
       ) *> finishJob(job) *> scheduleCleanup(key, job)
+
+    /** Failure path: publish the error message, the classification tag,
+     *  and (for Systemic failures) the URL of the GitHub tracking issue
+     *  the tracker filed/updated. The tracker call is bounded by
+     *  `trackerTimeout` so a slow GitHub never drags the SSE stream. */
+    private def handleFailure(job: Job, deployKey: DeployFailureTracker.DeployKey, e: Throwable): URIO[Redis, Unit] =
+      val failure = DeployFailure.classify(e)
+      // First the human-readable error so the deploy log still reads
+      // naturally. Then a single tagged line so downstream code (and
+      // the JS log linkifier) can pick out the category without having
+      // to re-classify the same throwable.
+      publish(job, failure.message) *>
+        publish(job, s"[deploy-failure:${DeployFailure.tag(failure)}]") *>
+        defer:
+          if !DeployFailure.shouldFileIssue(failure) then ()
+          else
+            val logSnapshot = job.log.get.run
+            val maybeUrl = tracker
+              .trackFailure(deployKey, failure, logSnapshot)
+              .timeout(trackerTimeout)
+              .map(_.flatten)
+              .run
+            maybeUrl match
+              case Some(url) => publish(job, s"Tracking issue: ${url.encode}").run
+              case None      => ()
+
+    /** Success path: tell the tracker so it can auto-close any open issue
+     *  it had filed for this deploy key. Bounded the same way as the
+     *  failure path so a slow GitHub doesn't keep the job alive. Errors
+     *  on the close are swallowed by `tracker.resolveSuccess` itself. */
+    private def handleSuccess(deployKey: DeployFailureTracker.DeployKey): URIO[Redis, Unit] =
+      tracker.resolveSuccess(deployKey).timeout(trackerTimeout).unit
 
     private def runDependencyDeploys(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, job: Job): ZIO[Scope & Client & Redis & MavenCentralRepo & Env, Throwable, Unit] =
       defer:

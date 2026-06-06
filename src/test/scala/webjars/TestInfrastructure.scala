@@ -21,7 +21,22 @@ object TestInfrastructure:
     fileServiceUrl = "https://webjars-file-service.herokuapp.com",
     mavenCentralRefreshInterval = None,
     useWebJarsCdn = false,
+    // Default to None in tests so the live tracker is opt-in: only
+    // tests that wire `DeployFailureTracker` explicitly will exercise
+    // GitHub-side behavior. Production overrides this to `webjars/webjars`.
+    deployFailureIssuesRepo = None,
   )
+
+  /** A `DeployFailureTracker` that always short-circuits — useful for
+   *  tests that don't care about issue filing. */
+  object NoopDeployFailureTracker extends DeployFailureTracker:
+    def trackFailure(deployKey: DeployFailureTracker.DeployKey, failure: DeployFailure, deployLog: zio.Chunk[String]): zio.URIO[zio.redis.Redis, Option[zio.http.URL]] =
+      ZIO.none
+    def resolveSuccess(deployKey: DeployFailureTracker.DeployKey): zio.URIO[zio.redis.Redis, Unit] =
+      ZIO.unit
+
+  val noopDeployFailureTrackerLayer: ZLayer[Any, Nothing, DeployFailureTracker] =
+    ZLayer.succeed[DeployFailureTracker](NoopDeployFailureTracker)
 
   /** Mock deployer with `Env = Any` — no Sonatype layer needed.
    *  `ascSign` opportunistically signs if `OSS_GPG_KEY` is set in the env

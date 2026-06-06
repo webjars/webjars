@@ -24,7 +24,7 @@ trait Classic extends Deployable:
   def maybeBaseDirGlobFromMetadata(metadata: Metadata): ZIO[Scope, Throwable, Option[String]]
   def licensesFromMetadata(metadata: Metadata, version: Version, packageInfo: PackageInfo): ZIO[Scope, Throwable, Set[License]]
 
-case class ClassicLive(httpClient: Client, licenseDetector: LicenseDetector, gitHub: GitHub, cache: Cache, config: AppConfig, npm: NPM) extends Classic:
+case class ClassicLive(httpClient: Client, gitHub: GitHub, cache: Cache, config: AppConfig, npm: NPM) extends Classic:
   import Classic.*
 
   private lazy val webJarsClassicBranch = "main"
@@ -222,7 +222,7 @@ case class ClassicLive(httpClient: Client, licenseDetector: LicenseDetector, git
 
 object Classic:
 
-  val live: ZLayer[Client & LicenseDetector & GitHub & Cache & AppConfig & NPM, Nothing, Classic] = ZLayer.derive[ClassicLive]
+  val live: ZLayer[Client & GitHub & Cache & AppConfig & NPM, Nothing, Classic] = ZLayer.derive[ClassicLive]
 
   sealed trait Metadata:
     val id: MavenCentral.ArtifactId

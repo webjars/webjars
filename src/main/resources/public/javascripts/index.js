@@ -329,8 +329,32 @@ $(function () {
     event.preventDefault();
 
     var deployLog = $("#deployLog");
+    // Render a single SSE message into the deploy log. Every message is
+    // appended as a text node by default — we only specialize the
+    // "Tracking issue: <url>" line that the deploy-failure tracker emits
+    // on Systemic failures, so the user gets a clickable hyperlink to
+    // the GitHub issue.
     function log(message) {
-      deployLog.append(document.createTextNode(message));
+      var trackingPrefix = "Tracking issue: ";
+      var trackingIdx = message.indexOf(trackingPrefix);
+      if (trackingIdx === 0) {
+        var rest = message.slice(trackingPrefix.length).trim();
+        // Defend against the rest containing whitespace/junk after the
+        // URL — only linkify the leading URL token.
+        var urlEnd = rest.search(/\s/);
+        var url = urlEnd === -1 ? rest : rest.slice(0, urlEnd);
+        var trailing = urlEnd === -1 ? "\n" : rest.slice(urlEnd);
+        deployLog.append(document.createTextNode(trackingPrefix));
+        var $a = $("<a>")
+          .attr("href", url)
+          .attr("target", "_blank")
+          .attr("rel", "noopener noreferrer")
+          .text(url);
+        deployLog.append($a);
+        deployLog.append(document.createTextNode(trailing));
+      } else {
+        deployLog.append(document.createTextNode(message));
+      }
       deployLog.animate({ scrollTop: deployLog.prop("scrollHeight") }, 0);
     }
 

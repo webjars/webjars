@@ -135,7 +135,6 @@ object Deploy extends ZIOAppDefault:
         GitHub.live,
         SemVer.live,
         Maven.live,
-        LicenseDetector.live,
         SourceLocator.live,
         WebJarsFileService.live,
         NPM.live,

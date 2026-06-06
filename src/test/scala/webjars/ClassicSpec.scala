@@ -20,9 +20,8 @@ object ClassicSpec extends ZIOSpecDefault:
         val gitHub = GitHubLive(client, testConfig, cache)
         val semVer = SemVerLive(client)
         val maven = MavenLive(git, semVer)
-        val licenseDetector = LicenseDetectorLive(client, testConfig.githubAuthToken)
-        val npm = NPMLive(client, licenseDetector, git, gitHub, maven, semVer)
-        val classic = ClassicLive(client, licenseDetector, gitHub, cache, testConfig, npm)
+        val npm = NPMLive(client, git, gitHub, maven, semVer)
+        val classic = ClassicLive(client, gitHub, cache, testConfig, npm)
         f(classic)
       }
     }

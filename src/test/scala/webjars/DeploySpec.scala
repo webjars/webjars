@@ -47,11 +47,10 @@ object DeploySpec extends ZIOSpecDefault:
         val gitHub             = GitHubLive(client, config, cache)
         val semVer             = SemVerLive(client)
         val maven              = MavenLive(git, semVer)
-        val licenseDetector    = LicenseDetectorLive(client, testConfig.githubAuthToken)
         val sourceLocator      = SourceLocatorLive(client, git)
         val webJarsFileService = WebJarsFileServiceLive(client, config)
-        val npm                = NPMLive(client, licenseDetector, git, gitHub, maven, semVer)
-        val classic            = ClassicLive(client, licenseDetector, gitHub, cache, config, npm)
+        val npm                = NPMLive(client, git, gitHub, maven, semVer)
+        val classic            = ClassicLive(client, gitHub, cache, config, npm)
         val allDeployables     = AllDeployablesLive(classic, npm)
         val mavenCentralWebJars: MavenCentralWebJars = NoPomMavenCentralWebJars(config, webJarsFileService, allDeployables)
         for

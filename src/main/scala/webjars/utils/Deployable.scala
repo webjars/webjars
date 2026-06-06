@@ -11,8 +11,6 @@ import java.io.{FileNotFoundException, InputStream}
 
 trait Deployable:
 
-  val licenseDetector: LicenseDetector
-
   extension (s: Version)
     def vless: Version = s.stripPrefix("v").replace("^v", "^").replace("~v", "v")
     def vwith: Version = if (s.startsWith("v")) s else "v" + s
@@ -49,14 +47,21 @@ trait Deployable:
 
   def versions(nameOrUrlish: NameOrUrlish): ZIO[Scope, Throwable, Set[Version]]
 
+  /** Resolve the set of licenses to record in the published POM, based
+   *  purely on what the package declares in its metadata.
+   *
+   *  No content-based detection: an SPDX string in the package's
+   *  `license` (or `licenses`) field, or a `.properties` override on a
+   *  Classic webjar, is what we trust. URLs and `SEE LICENSE IN <file>`
+   *  pointers are recorded by reference (`LicenseWithUrl`) so reviewers
+   *  can click through, but we don't try to classify their contents.
+   *
+   *  If nothing in metadata yields a license, fail with
+   *  [[LicenseNotFoundException]] — that's a `Systemic` failure and the
+   *  deploy-failure tracker will file an issue so a human can pick a
+   *  manual override (e.g. `license.name`/`license.url` in
+   *  `webjars-classic`'s `.properties`). */
   def licenses(nameOrUrlish: NameOrUrlish, version: Version, packageInfo: PackageInfo): ZIO[Scope, Throwable, Set[License]] =
-
-    def tryToGetLicenseFromVariousFiles(files: Set[String]): ZIO[Scope, Throwable, License] =
-      files.headOption.fold[ZIO[Scope, Throwable, License]](ZIO.fail(NoValidLicenses())) { licenseFile =>
-        file(nameOrUrlish, version, licenseFile).flatMap(licenseDetector.licenseDetect).catchAll { _ =>
-          tryToGetLicenseFromVariousFiles(files.tail)
-        }
-      }
 
     val normalizedLicenses = packageInfo.metadataLicenses.map {
       case LicenseMetadata.SpdxLicense(spdxLicense) =>
@@ -79,14 +84,7 @@ trait Deployable:
     }
 
     resolvedLicenses
-      .filterOrFail(_.nonEmpty)(new NoSuchElementException("No licenses resolved"))
-      .catchAll { _ =>
-        tryToGetLicenseFromVariousFiles(licenseDetector.typicalLicenseFiles).map(Set(_))
-      }
-      .filterOrFail(_.nonEmpty)(new NoSuchElementException("No licenses found"))
-      .catchAll { _ =>
-        ZIO.fail(LicenseNotFoundException(s"${this.name} - $nameOrUrlish $version"))
-      }
+      .filterOrFail(_.nonEmpty)(LicenseNotFoundException(s"${this.name} - $nameOrUrlish $version"))
 
   def archiveFile(nameOrUrlish: NameOrUrlish, version: Version, filename: String): ZIO[Scope, Throwable, String] =
     defer:
@@ -103,15 +101,24 @@ trait Deployable:
         .orElseFail(new FileNotFoundException(s"Could not find $filename in archive for $nameOrUrlish $version"))
         .run
 
+  /** Resolve a single SPDX-string license entry to a [[License]] set.
+   *
+   *   - `(MIT OR Apache-2.0)` → split into one named license per option.
+   *   - `http(s)://…` → record by URL only. We don't fetch + classify.
+   *   - `file://…` → record the file:// URL itself; reviewers can dig
+   *     into the published JAR to read it.
+   *   - anything else → treat as a literal SPDX-ish name.
+   *
+   *  None of these branches can fail today; each one yields a non-empty
+   *  set. The only way `Deployable.licenses` can produce an empty set is
+   *  if every entry in `metadataLicenses` resolves to `Set.empty` (i.e.
+   *  every entry was `UnresolvedLicense`), and that's surfaced as
+   *  `LicenseNotFoundException` upstream. */
   def licenseReference(nameOrUrlish: NameOrUrlish, version: Version, license: String): ZIO[Scope, Throwable, Set[License]] =
     if license.startsWith("http://") || license.startsWith("https://") then
-      licenseDetector.licenseDetect(URL.unsafeParse(license)).map(Set(_))
+      ZIO.fromTry(URL.parseTry(license)).map(url => Set[License](LicenseWithUrl(url)))
     else if license.startsWith("file://") then
-      file(nameOrUrlish, version, license.stripPrefix("file://")).flatMap { fileContent =>
-        licenseDetector.licenseDetect(fileContent)
-      }.catchAll { _ =>
-        ZIO.succeed(LicenseWithUrl(URL.unsafeParse(license)))
-      }.map(Set(_))
+      ZIO.fromTry(URL.parseTry(license)).map(url => Set[License](LicenseWithUrl(url)))
     else if license.startsWith("(") && license.endsWith(")") && !license.contains("AND") then
       ZIO.succeed {
         license.stripPrefix("(").stripSuffix(")").replace(" or ", " OR ").split(" OR ").toSet.map(LicenseWithName(_))

@@ -12,6 +12,10 @@ case class AppConfig(
   fileServiceUrl: String,
   mavenCentralRefreshInterval: Option[Duration],
   useWebJarsCdn: Boolean,
+  /** `<owner>/<repo>` to file deploy-failure tracking issues against.
+   *  When unset, the tracker short-circuits to a no-op so we never spam
+   *  a misconfigured environment. Defaults to `webjars/webjars`. */
+  deployFailureIssuesRepo: Option[String],
 )
 
 object AppConfig:
@@ -37,6 +41,7 @@ object AppConfig:
         fileServiceUrl = optString("webjars.file-service.url").getOrElse("https://webjars-file-service.herokuapp.com"),
         mavenCentralRefreshInterval = Some(1.hour),
         useWebJarsCdn = optBoolean("webjars.cdn").getOrElse(true),
+        deployFailureIssuesRepo = optString("webjars.deploy-failure-issues-repo").orElse(Some("webjars/webjars")),
       )
     }
   }
