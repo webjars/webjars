@@ -427,11 +427,35 @@ case class AppRoutes[DeployerEnv](
     }
 
   private def handleListFiles(groupId: String, artifactId: String, version: String, request: Request): ZIO[Redis, Nothing, Response] =
-    val gav = MavenCentral.GroupArtifactVersion(MavenCentral.GroupId(groupId), MavenCentral.ArtifactId(artifactId), MavenCentral.Version(version))
-    popularMetrics.recordListFilesClick(MavenCentral.GroupId(groupId), MavenCentral.ArtifactId(artifactId)) *>
+    val gid = MavenCentral.GroupId(groupId)
+    val aid = MavenCentral.ArtifactId(artifactId)
+    val ga  = MavenCentral.GroupArtifact(gid, aid)
+    val gav = MavenCentral.GroupArtifactVersion(gid, aid, MavenCentral.Version(version))
+    popularMetrics.recordListFilesClick(gid, aid) *>
     ZIO.scoped {
       cache.get[List[String]](s"listfiles-$groupId-$artifactId-$version", 1.day) {
         webJarsFileService.getFileList(gav)
+      }.tap { fileList =>
+        // Opportunistic numFiles backfill: the file-service has already
+        // produced the file list; the count is `fileList.size` for free.
+        // We only write if the cached version's `numFiles` is currently
+        // None — repeat clicks on already-filled versions become a single
+        // Redis read (no write). This rides on user traffic for the
+        // long tail that the periodic refreshMissingNumFiles cycle
+        // hasn't gotten to yet.
+        //
+        // Forked-and-ignored so the user response doesn't wait on the
+        // Redis round-trip and a transient Redis blip can't fail the
+        // request. If this write is lost, the next refresh cycle's
+        // backfill pass picks it up.
+        val maybeBackfill =
+          WebJarsCache.getArtifact(ga).flatMap {
+            case Some(meta) if meta.versions.exists(v => v.number == version && v.numFiles.isEmpty) =>
+              WebJarsCache.updateVersion(ga, version, fileList.size)
+            case _ =>
+              ZIO.unit
+          }
+        maybeBackfill.ignoreLogged.forkDaemon
       }.map { fileList =>
         if acceptsJson(request) then
           corsHeaders(jsonResponse(fileList.toJson))

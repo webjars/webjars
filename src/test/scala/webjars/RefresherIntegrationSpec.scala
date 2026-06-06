@@ -87,6 +87,7 @@ object RefresherIntegrationSpec extends ZIOSpecDefault:
             def groupIds(): Set[MavenCentral.GroupId] = RefresherIntegrationSpec.groupIds
           ,
           TestInfrastructure.noopSearchIndex,
+          TestInfrastructure.noopPopularRanking,
         )
         for
           hydrated     <- CacheHydrate.fromUrl(CacheHydrate.DefaultUrl)

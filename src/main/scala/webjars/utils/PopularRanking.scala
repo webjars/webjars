@@ -20,6 +20,18 @@ import java.time.ZoneOffset
 trait PopularRanking:
   def snapshot: UIO[List[WebJar]]
   def populate: URIO[Redis, Unit]
+  /** One-shot rebuild from the current `WebJarsCache` state. Unlike
+   *  [[populate]], this does NOT retry when the underlying cache is
+   *  empty — it's intended to be called from the periodic refresh
+   *  cycle, after the cache has already been hydrated, so that
+   *  numFiles backfills (and any other artifact updates) propagate
+   *  into the popular-ranking snapshot serving `/` and `/popular`.
+   *
+   *  Without this, the snapshot is frozen at the values present when
+   *  [[populate]] first succeeded — typically once per dyno lifetime
+   *  on Heroku. Updates to `WebJarsCache` after that point would not
+   *  be reflected on the home page until the next dyno cycle. */
+  def rebuild:  URIO[Redis, Unit]
 
 case class PopularRankingLive(
   ref:            Ref[List[WebJar]],
@@ -94,6 +106,14 @@ case class PopularRankingLive(
 
     loop
       .tapErrorCause(c => ZIO.logErrorCause("PopularRanking populate failed", c))
+      .ignore
+
+  def rebuild: URIO[Redis, Unit] =
+    // One-shot: re-aggregate from WebJarsCache and update the Ref iff the
+    // result is non-empty. Empty results (e.g. transient Redis blip) leave
+    // the prior snapshot in place — preferable to wiping the home page.
+    tryPopulate
+      .tapErrorCause(c => ZIO.logErrorCause("PopularRanking rebuild failed", c))
       .ignore
 
 object PopularRanking:

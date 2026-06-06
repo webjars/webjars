@@ -30,7 +30,7 @@ object DeploySpec extends ZIOSpecDefault:
    *  Tests provide existing-versions independently. Named distinctly to
    *  avoid a top-level clash with the one in `DeployWebJarSpec`. */
   private class NoPomMavenCentralWebJars(config: webjars.config.AppConfig, webJarsFileService: WebJarsFileService, allDeployables: AllDeployables)
-      extends MavenCentralWebJarsLive(config, webJarsFileService, allDeployables, TestInfrastructure.noopSearchIndex):
+      extends MavenCentralWebJarsLive(config, webJarsFileService, allDeployables, TestInfrastructure.noopSearchIndex, TestInfrastructure.noopPopularRanking):
     override def fetchPom(gav: MavenCentral.GroupArtifactVersion): ZIO[MavenCentral.MavenCentralRepo, Throwable, Elem] =
       ZIO.fail(new FileNotFoundException("no mock pom"))
 

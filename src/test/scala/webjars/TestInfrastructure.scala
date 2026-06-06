@@ -66,6 +66,15 @@ object TestInfrastructure:
     def snapshot: UIO[List[webjars.models.WebJar]] = ZIO.succeed(List.empty)
     def rebuild: URIO[Redis, Unit] = ZIO.unit
 
+  // No-op PopularRanking for tests that don't exercise the home page.
+  // Snapshot is always empty; populate and rebuild are no-ops so
+  // `refreshAll` doesn't try to compute aggregate scores against test
+  // data it doesn't care about.
+  val noopPopularRanking: PopularRanking = new PopularRanking:
+    def snapshot: UIO[List[webjars.models.WebJar]] = ZIO.succeed(List.empty)
+    def populate: URIO[Redis, Unit]                = ZIO.unit
+    def rebuild:  URIO[Redis, Unit]                = ZIO.unit
+
   // Shared Valkey testcontainer for any spec that needs to satisfy a Redis
   // requirement (typically the deploy specs — Redis isn't actually used
   // there, but the type-level requirement must be satisfied). Lazy so the

@@ -62,6 +62,6 @@ object DeployWebJarSpec extends ZIOSpecDefault:
   ).provide(Client.default, TestInfrastructure.sharedRedisLayer, MavenCentral.MavenCentralRepo.live) @@ TestAspect.withLiveClock @@ TestAspect.timeout(300.seconds)
 
 class MockMavenCentralWebJars(config: webjars.config.AppConfig, webJarsFileService: WebJarsFileService, allDeployables: AllDeployables)
-  extends MavenCentralWebJarsLive(config, webJarsFileService, allDeployables, TestInfrastructure.noopSearchIndex):
+  extends MavenCentralWebJarsLive(config, webJarsFileService, allDeployables, TestInfrastructure.noopSearchIndex, TestInfrastructure.noopPopularRanking):
   override def fetchPom(gav: MavenCentral.GroupArtifactVersion): ZIO[MavenCentral.MavenCentralRepo, Throwable, Elem] =
     ZIO.fail(new FileNotFoundException("no mock pom"))

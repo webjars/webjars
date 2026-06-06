@@ -146,5 +146,6 @@ object Deploy extends ZIOAppDefault:
         MavenCentralWebJars.live,
         DeployWebJar.live[MavenCentral.Deploy.Sonatype],
         SearchIndex.live,
+        PopularRanking.live,
       )
     }
