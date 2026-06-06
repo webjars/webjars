@@ -34,17 +34,23 @@ object MavenCentralWebJarsSpec extends ZIOSpecDefault:
    *  versions were actually queried (e.g. that already-filled versions
    *  are skipped).
    *
-   *  Two flavours of failure are supported, matching what the real
+   *  Three flavours of failure are supported, matching what the real
    *  service emits:
-   *    - `notFoundFor`: returns `FileNotFoundException` (the structured
-   *      "the jar doesn't exist on Maven Central" signal that triggers
-   *      version-tombstoning).
+   *    - `notFoundFor`: returns `WebJarNotFoundException` (a
+   *      `FileNotFoundException` subtype with the
+   *      [[WebJarsFileService.UnusableWebJarException]] marker — the
+   *      "jar isn't on Maven Central" signal).
+   *    - `unprocessableFor`: returns `WebJarUnprocessableException`
+   *      (also a `UnusableWebJarException` — the "jar is on Maven
+   *      Central but is corrupt" signal, surfaced as a 422 by the
+   *      real file-service).
    *    - `failFor`: returns a generic `RuntimeException` (transient
    *      failure — should NOT tombstone). */
   private class FakeFileService(
     callsRef: Ref[Vector[MavenCentral.GroupArtifactVersion]],
     failFor: Set[String] = Set.empty,
     notFoundFor: Set[String] = Set.empty,
+    unprocessableFor: Set[String] = Set.empty,
     numFilesFor: String => Int = _ => 42,
   ) extends WebJarsFileService:
 
@@ -54,7 +60,9 @@ object MavenCentralWebJarsSpec extends ZIOSpecDefault:
     def getNumFiles(gav: MavenCentral.GroupArtifactVersion): ZIO[Scope, Throwable, Int] =
       callsRef.update(_ :+ gav) *> {
         if notFoundFor.contains(gav.version.toString) then
-          ZIO.fail(new java.io.FileNotFoundException(s"simulated 404 for ${gav.version}"))
+          ZIO.fail(new WebJarsFileService.WebJarNotFoundException(s"simulated 404 for ${gav.version}"))
+        else if unprocessableFor.contains(gav.version.toString) then
+          ZIO.fail(new WebJarsFileService.WebJarUnprocessableException(s"simulated 422 for ${gav.version}"))
         else if failFor.contains(gav.version.toString) then
           ZIO.fail(new RuntimeException(s"simulated transient failure for ${gav.version}"))
         else
@@ -70,11 +78,12 @@ object MavenCentralWebJarsSpec extends ZIOSpecDefault:
     callsRef: Ref[Vector[MavenCentral.GroupArtifactVersion]],
     failFor: Set[String] = Set.empty,
     notFoundFor: Set[String] = Set.empty,
+    unprocessableFor: Set[String] = Set.empty,
     numFilesFor: String => Int,
   ): MavenCentralWebJars =
     MavenCentralWebJarsLive(
       TestInfrastructure.testConfig,
-      FakeFileService(callsRef, failFor = failFor, notFoundFor = notFoundFor, numFilesFor = numFilesFor),
+      FakeFileService(callsRef, failFor = failFor, notFoundFor = notFoundFor, unprocessableFor = unprocessableFor, numFilesFor = numFilesFor),
       new AllDeployables:
         def fromGroupId(g: MavenCentral.GroupId)  = None
         def fromName(n: String)                   = None
@@ -198,6 +207,55 @@ object MavenCentralWebJarsSpec extends ZIOSpecDefault:
         // The ghost is in the version-tombstone set so the next cycle
         // skips it instead of re-fetching numFiles.
         tombstones == Set("1.0.1"),
+      )
+    },
+
+    test("refreshMissingNumFiles tombstones a corrupt-jar version on 422 (WebJarUnprocessableException)") {
+      // The file-service returns 422 when the jar IS published but
+      // its contents can't be processed (corrupt zip, encoding bug,
+      // etc.). Same tombstone semantics as 404 — the version is
+      // permanently unusable as a webjar — but a different cause.
+      // Both 404 and 422 share the `UnusableWebJarException` marker
+      // so the cache cleanup pattern-match treats them identically.
+      val groupId = groupFor("tombstones-corrupt")
+      val ga      = artifact(groupId, "browserify-aes")
+      for
+        callsRef     <- Ref.make(Vector.empty[MavenCentral.GroupArtifactVersion])
+        mc            = buildMC(groupId, callsRef, unprocessableFor = Set("1.2.0"), numFilesFor = _ => 13)
+        _            <- seed(ga, List("1.1.0" -> None, "1.2.0" -> None))
+        _            <- mc.refreshMissingNumFiles(groupId)
+        versions     <- readVersions(ga)
+        tombstones   <- WebJarsCache.getVersionTombstones(ga)
+      yield assertTrue(
+        versions.map(_.number).toSet == Set("1.1.0"),
+        versions.find(_.number == "1.1.0").flatMap(_.numFiles).contains(13),
+        tombstones == Set("1.2.0"),
+      )
+    },
+
+    test("WebJarNotFoundException IS-A FileNotFoundException — protects existing consumer pattern matches") {
+      // Some callers (e.g. AppRoutes' previous catchAll) match on
+      // `FileNotFoundException` directly. Keeping the inheritance
+      // invariant means those don't break when we route 404s through
+      // `WebJarNotFoundException` instead. Verify it explicitly so a
+      // future refactor doesn't silently regress.
+      val ex = new WebJarsFileService.WebJarNotFoundException("test")
+      assertTrue(
+        ex.isInstanceOf[java.io.FileNotFoundException],
+        ex.isInstanceOf[WebJarsFileService.UnusableWebJarException],
+      )
+    },
+
+    test("WebJarUnprocessableException IS-A UnusableWebJarException but NOT a FileNotFoundException") {
+      // 422 is semantically distinct from 404 ("file exists but is
+      // corrupt" vs "file doesn't exist"). The marker trait unifies
+      // their tombstone treatment without forcing a FileNotFoundException
+      // identity that would mislead consumers that legitimately care
+      // about the distinction.
+      val ex = new WebJarsFileService.WebJarUnprocessableException("test")
+      assertTrue(
+        !ex.isInstanceOf[java.io.FileNotFoundException],
+        ex.isInstanceOf[WebJarsFileService.UnusableWebJarException],
       )
     },
 

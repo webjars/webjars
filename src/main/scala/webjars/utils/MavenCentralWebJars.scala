@@ -231,8 +231,11 @@ case class MavenCentralWebJarsLive(config: AppConfig, webJarsFileService: WebJar
               webJarsFileService.getNumFiles(versionGav)
                 .map(nf => Right(version.toString -> nf))
                 .catchAll {
-                  case _: FileNotFoundException =>
-                    ZIO.logInfo(s"Tombstoning ghost version (no jar at Maven Central): $versionGav") *>
+                  case _: WebJarsFileService.UnusableWebJarException =>
+                    // 404 (missing jar) or 422 (corrupt jar) — both
+                    // mean this version can never produce a useful
+                    // file list. Tombstone and remove from cache.
+                    ZIO.logInfo(s"Tombstoning ghost version (permanent failure): $versionGav") *>
                       ZIO.succeed(Left(version.toString))
                   case error =>
                     ZIO.logWarning(s"numFiles fetch failed for $versionGav: ${error.getMessage}") *>
@@ -446,8 +449,12 @@ case class MavenCentralWebJarsLive(config: AppConfig, webJarsFileService: WebJar
                     webJarsFileService.getNumFiles(versionGav(versionStr))
                       .map(nf => Right(versionStr -> nf))
                       .catchAll {
-                        case _: FileNotFoundException =>
-                          ZIO.logInfo(s"Tombstoning ghost version (no jar at Maven Central): ${versionGav(versionStr)}") *>
+                        case _: WebJarsFileService.UnusableWebJarException =>
+                          // 404 (missing jar) or 422 (corrupt jar) —
+                          // both mean this version can never produce
+                          // a useful file list. Tombstone and remove
+                          // from cache.
+                          ZIO.logInfo(s"Tombstoning ghost version (permanent failure): ${versionGav(versionStr)}") *>
                             ZIO.succeed(Left(versionStr))
                         case error =>
                           ZIO.logWarning(s"Backfill of numFiles failed for ${versionGav(versionStr)}: ${error.getMessage}") *>

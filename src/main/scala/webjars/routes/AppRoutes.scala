@@ -471,7 +471,11 @@ case class AppRoutes[DeployerEnv](
           corsHeaders(htmlResponse(FileListPage(groupId, artifactId, version, fileList)))
       }
     }.catchAll {
-      case _: FileNotFoundException =>
+      case _: WebJarsFileService.UnusableWebJarException =>
+        // Covers both `WebJarNotFoundException` (404 — jar isn't
+        // published) and `WebJarUnprocessableException` (422 —
+        // jar exists but is corrupt). Either way the user can't
+        // get a file list for this version, so return 404.
         ZIO.succeed(corsHeaders(Response(Status.NotFound, body = Body.fromString(s"WebJar Not Found $groupId : $artifactId : $version"))))
       case e: Throwable =>
         ZIO.succeed(corsHeaders(Response(Status.InternalServerError, body = Body.fromString(s"Problems retrieving WebJar ($groupId : $artifactId : $version) - ${e.getMessage}"))))
