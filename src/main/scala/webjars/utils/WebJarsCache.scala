@@ -30,8 +30,21 @@ object WebJarsCache:
         limit.fold(webJars)(webJars.take)
 
   def setArtifactDetails(groupArtifact: GroupArtifact, webJarMeta: WebJarMeta): ZIO[Redis, Throwable, Unit] =
-    ZIO.serviceWithZIO[Redis]: redis =>
-      redis.hSet(groupArtifact.groupId, groupArtifact.artifactId -> webJarMeta).unit
+    // Defensive: refuse to write entries with empty artifactId. Older
+    // zio-mavencentral parsing could leak `<a href="/">` directory
+    // listings through as an empty artifactId, producing corrupted
+    // hash entries that ate up the periodic numFiles backfill loop
+    // because `searchVersions(groupId, "")` resolved to the
+    // groupId-as-artifact's `maven-metadata.xml` instead of failing.
+    // The current library version filters these correctly at the
+    // discovery boundary, but this guard ensures the cache itself
+    // can't be corrupted by any future regression at any other
+    // upstream layer.
+    if groupArtifact.artifactId.toString.isEmpty then
+      ZIO.die(IllegalArgumentException(s"Refusing to cache artifact with empty artifactId in groupId ${groupArtifact.groupId}"))
+    else
+      ZIO.serviceWithZIO[Redis]: redis =>
+        redis.hSet(groupArtifact.groupId, groupArtifact.artifactId -> webJarMeta).unit
 
   def updateVersion(groupArtifact: GroupArtifact, version: String, numFiles: Int): ZIO[Redis, Throwable, Unit] =
     defer:
