@@ -444,10 +444,15 @@ case class AppRoutes[DeployerEnv](
         // long tail that the periodic refreshMissingNumFiles cycle
         // hasn't gotten to yet.
         //
-        // Forked-and-ignored so the user response doesn't wait on the
-        // Redis round-trip and a transient Redis blip can't fail the
-        // request. If this write is lost, the next refresh cycle's
-        // backfill pass picks it up.
+        // Forked so the user response doesn't wait on the Redis
+        // round-trip and a transient Redis blip can't fail the request.
+        // We log failures at WARN (not the default `.ignoreLogged`,
+        // which logs at DEBUG and would be invisible in production) so
+        // we can spot patterns: a single clobbered write is fine — the
+        // next refresh cycle recovers it — but repeated failures for
+        // the same artifact would mean we should tombstone it. If this
+        // becomes a problem we can add a per-(ga, version) failure
+        // counter in Redis with a TTL and bail out after N failures.
         val maybeBackfill =
           WebJarsCache.getArtifact(ga).flatMap {
             case Some(meta) if meta.versions.exists(v => v.number == version && v.numFiles.isEmpty) =>
@@ -455,7 +460,10 @@ case class AppRoutes[DeployerEnv](
             case _ =>
               ZIO.unit
           }
-        maybeBackfill.ignoreLogged.forkDaemon
+        maybeBackfill
+          .tapErrorCause(c => ZIO.logWarningCause(s"listfiles-click numFiles backfill failed for $ga:$version", c))
+          .ignore
+          .forkDaemon
       }.map { fileList =>
         if acceptsJson(request) then
           corsHeaders(jsonResponse(fileList.toJson))
