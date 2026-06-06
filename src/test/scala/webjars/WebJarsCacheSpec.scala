@@ -67,4 +67,28 @@ object WebJarsCacheSpec extends ZIOSpecDefault:
         artifactDetails <- WebJarsCache.getArtifact(jqueryGroupArtifact)
       yield assertTrue(artifactDetails.head.versions.head.numFiles.contains(123))
     },
+    test("version tombstones round-trip") {
+      // Per-(groupId, artifactId) version-level tombstones for ghost
+      // versions — broken publishes where MC's metadata lists a version
+      // but the jar isn't actually present.
+      val ga = MavenCentral.GroupArtifact(MavenCentral.GroupId("org.webjars.npm"), MavenCentral.ArtifactId("killable"))
+      val otherGa = MavenCentral.GroupArtifact(MavenCentral.GroupId("org.webjars.npm"), MavenCentral.ArtifactId("react"))
+      for
+        emptyBefore  <- WebJarsCache.getVersionTombstones(ga)
+        _            <- WebJarsCache.addVersionTombstone(ga, "1.0.1")
+        _            <- WebJarsCache.addVersionTombstone(ga, "0.5.0-broken")
+        // Adding to `ga` does not pollute another artifact's set.
+        _            <- WebJarsCache.addVersionTombstone(otherGa, "99.99.99-fake")
+        afterGa      <- WebJarsCache.getVersionTombstones(ga)
+        afterOther   <- WebJarsCache.getVersionTombstones(otherGa)
+        // Idempotent — adding a duplicate is safe.
+        _            <- WebJarsCache.addVersionTombstone(ga, "1.0.1")
+        afterDuplicate <- WebJarsCache.getVersionTombstones(ga)
+      yield assertTrue(
+        emptyBefore.isEmpty,
+        afterGa == Set("1.0.1", "0.5.0-broken"),
+        afterOther == Set("99.99.99-fake"),
+        afterDuplicate == Set("1.0.1", "0.5.0-broken"),
+      )
+    },
   ).provideLayer(valkeyLayer) @@ TestAspect.sequential @@ TestAspect.timeout(60.seconds)

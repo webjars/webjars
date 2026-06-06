@@ -181,15 +181,24 @@ case class MavenCentralWebJarsLive(config: AppConfig, webJarsFileService: WebJar
           ZIO.logInfo(s"Skipping pom-packaged artifact: $groupId:$artifactId").run
           WebJarsCache.addTombstone(groupId, artifactId).run
         else
+          // Filter out already-known ghost versions (broken publishes
+          // where Maven Central's metadata lists a version but the
+          // jar file isn't actually published — e.g. only a .pom in
+          // the version's directory). The version-tombstone set is
+          // the source of truth for "we already verified this is a
+          // ghost; don't re-fetch numFiles for it".
+          val versionTombstones = WebJarsCache.getVersionTombstones(gav.noVersion).run
+          val publishedVersions = versionsResult.value.filterNot(v => versionTombstones.contains(v.toString))
+
           WebJarsCache.setArtifactDetails(
             gav.noVersion,
-            WebJarsCache.WebJarMeta(pomMeta.name, pomMeta.sourceUrl, versionsResult.value.map(v => WebJarVersion(v.toString, None)).toList, versionsResult.maybeLastModified.getOrElse(ZonedDateTime.now()))
+            WebJarsCache.WebJarMeta(pomMeta.name, pomMeta.sourceUrl, publishedVersions.map(v => WebJarVersion(v.toString, None)).toList, versionsResult.maybeLastModified.getOrElse(ZonedDateTime.now()))
           ).run
 
           val resolvedVersions = versions.flatMap: webJarVersion =>
             webJarVersion.numFiles.map(_ => webJarVersion.number)
 
-          val versionsToRefresh = versionsResult.value.diff(resolvedVersions)
+          val versionsToRefresh = publishedVersions.diff(resolvedVersions)
 
           // numFiles work runs in-band (NOT `forkDaemon`) so it survives
           // process restarts. The historical bug here: forking off the
@@ -200,11 +209,16 @@ case class MavenCentralWebJarsLive(config: AppConfig, webJarsFileService: WebJar
           // anything that slipped through, but doing the work in-band on
           // first write closes the common case.
           //
-          // Per-version failures are logged-and-ignored so a single
-          // 5xx/timeout from the file-service can't fail the whole
-          // artifact refresh — which would otherwise tombstone the
-          // artifact in the surrounding `refreshGroup` catch and cost us
-          // its metadata too.
+          // Per-version failures are split:
+          //   - `FileNotFoundException` (404 from file-service ⇒ jar
+          //     genuinely doesn't exist on Maven Central) ⇒ tombstone
+          //     the version and remove it from the cached versions
+          //     list. This is the canonical "broken publish" signal,
+          //     e.g. `org.webjars.npm:killable:1.0.1` where only the
+          //     POM was uploaded.
+          //   - Anything else (5xx, transport, parse) ⇒ log-and-skip;
+          //     the version stays in cache with `numFiles=None` and
+          //     `refreshMissingNumFiles` will retry it next cycle.
           //
           // We collect all numFiles in parallel then write the artifact
           // ONCE — `WebJarsCache.updateVersion` is a non-atomic
@@ -212,23 +226,35 @@ case class MavenCentralWebJarsLive(config: AppConfig, webJarsFileService: WebJar
           // artifact races and clobbers writes. Single setArtifactDetails
           // is atomic per artifact.
           ZIO.when(updateNumFiles && versionsToRefresh.nonEmpty):
-            val fetched = ZIO.foreachPar(versionsToRefresh) { version =>
+            val fetchOutcome = ZIO.foreachPar(versionsToRefresh) { version =>
               val versionGav = gav.copy(version = version)
               webJarsFileService.getNumFiles(versionGav)
-                .map(nf => Some(version.toString -> nf))
-                .tapError(error => ZIO.logWarning(s"numFiles fetch failed for $versionGav: ${error.getMessage}"))
-                .catchAll(_ => ZIO.none)
-            }.withParallelism(5).map(_.flatten.toMap)
+                .map(nf => Right(version.toString -> nf))
+                .catchAll {
+                  case _: FileNotFoundException =>
+                    ZIO.logInfo(s"Tombstoning ghost version (no jar at Maven Central): $versionGav") *>
+                      ZIO.succeed(Left(version.toString))
+                  case error =>
+                    ZIO.logWarning(s"numFiles fetch failed for $versionGav: ${error.getMessage}") *>
+                      ZIO.succeed(Right(version.toString -> -1))  // sentinel: -1 means "leave as None"
+                }
+            }.withParallelism(5).map { results =>
+              val ghosts    = results.collect { case Left(v) => v }.toSet
+              val successes = results.collect { case Right((v, nf)) if nf >= 0 => v -> nf }.toMap
+              (successes, ghosts)
+            }
 
-            fetched.flatMap { results =>
-              if results.isEmpty then ZIO.unit
-              else
+            fetchOutcome.flatMap { (successes, ghosts) =>
+              // Tombstone ghosts first (small Redis writes; idempotent
+              // sAdds). Then patch the cache exactly once: set numFiles
+              // on successes, drop ghost versions entirely.
+              ZIO.foreachDiscard(ghosts)(v => WebJarsCache.addVersionTombstone(gav.noVersion, v)) *>
                 WebJarsCache.getArtifact(gav.noVersion).flatMap {
                   case None       => ZIO.unit  // race: artifact disappeared
                   case Some(meta) =>
-                    val patched = meta.versions.map { v =>
-                      results.get(v.number).fold(v)(nf => v.copy(numFiles = Some(nf)))
-                    }
+                    val patched = meta.versions
+                      .filterNot(v => ghosts.contains(v.number))
+                      .map(v => successes.get(v.number).fold(v)(nf => v.copy(numFiles = Some(nf))))
                     WebJarsCache.setArtifactDetails(gav.noVersion, meta.copy(versions = patched))
                 }
             }
@@ -405,23 +431,43 @@ case class MavenCentralWebJarsLive(config: AppConfig, webJarsFileService: WebJar
                 val missingVersions = meta.versions.filter(_.numFiles.isEmpty).map(_.number)
                 if missingVersions.isEmpty then 0
                 else
-                  // Fetch each missing version's numFiles in parallel;
-                  // collect successes into a Map. Per-version failures
-                  // are isolated and logged.
-                  val fetched = ZIO.foreachPar(missingVersions) { versionStr =>
+                  // Fetch each missing version's numFiles in parallel.
+                  // Per-version outcomes split into:
+                  //   - `Right((v, nf))` ⇒ success, patch numFiles
+                  //   - `Left(v)`        ⇒ FileNotFoundException; the
+                  //     jar genuinely doesn't exist on Maven Central
+                  //     (broken publish ⇒ POM-only, e.g.
+                  //     `org.webjars.npm:killable:1.0.1`). Tombstone
+                  //     the version and remove it from the cached
+                  //     versions list.
+                  //   - `Right((v, -1))` ⇒ other transient failure;
+                  //     leave `numFiles=None`, retry next cycle.
+                  val outcomes = ZIO.foreachPar(missingVersions) { versionStr =>
                     webJarsFileService.getNumFiles(versionGav(versionStr))
-                      .map(nf => Some(versionStr -> nf))
-                      .tapError(error => ZIO.logWarning(s"Backfill of numFiles failed for ${versionGav(versionStr)}: ${error.getMessage}"))
-                      .catchAll(_ => ZIO.none)
-                  }.withParallelism(3).map(_.flatten.toMap).run
+                      .map(nf => Right(versionStr -> nf))
+                      .catchAll {
+                        case _: FileNotFoundException =>
+                          ZIO.logInfo(s"Tombstoning ghost version (no jar at Maven Central): ${versionGav(versionStr)}") *>
+                            ZIO.succeed(Left(versionStr))
+                        case error =>
+                          ZIO.logWarning(s"Backfill of numFiles failed for ${versionGav(versionStr)}: ${error.getMessage}") *>
+                            ZIO.succeed(Right(versionStr -> -1))
+                      }
+                  }.withParallelism(3).run
 
-                  if fetched.isEmpty then 0
+                  val ghosts    = outcomes.collect { case Left(v) => v }.toSet
+                  val successes = outcomes.collect { case Right((v, nf)) if nf >= 0 => v -> nf }.toMap
+
+                  // Tombstone ghosts (idempotent sAdd; cheap).
+                  ZIO.foreachDiscard(ghosts)(v => WebJarsCache.addVersionTombstone(ga, v)).run
+
+                  if successes.isEmpty && ghosts.isEmpty then 0
                   else
-                    val patched = meta.versions.map { v =>
-                      fetched.get(v.number).fold(v)(nf => v.copy(numFiles = Some(nf)))
-                    }
+                    val patched = meta.versions
+                      .filterNot(v => ghosts.contains(v.number))
+                      .map(v => successes.get(v.number).fold(v)(nf => v.copy(numFiles = Some(nf))))
                     WebJarsCache.setArtifactDetails(ga, meta.copy(versions = patched)).run
-                    fetched.size
+                    successes.size
 
           perArtifact
             .tapError(error => ZIO.logWarning(s"Backfill failed for $ga: ${error.getMessage}"))

@@ -76,6 +76,38 @@ object WebJarsCache:
       redis.sMembers(tombstoneKey(groupId)).returning[String]
         .map(_.map(MavenCentral.ArtifactId(_)).toSet)
 
+  // Version-level tombstones: GAVs where Maven Central's metadata lists
+  // the version but the underlying jar doesn't actually exist. The
+  // canonical case is a broken publish — a POM was uploaded but the jar
+  // upload failed and was never recovered (e.g. `org.webjars.npm:killable:1.0.1`,
+  // which has only `killable-1.0.1.pom` in its directory).
+  //
+  // The signal is structured: `WebJarsFileService.getNumFiles` returns
+  // a `FileNotFoundException` (status 404 from the file-service) only
+  // when the file-service can't find the jar on Maven Central. Other
+  // errors (5xx, transport) become a generic Exception, so we don't
+  // confuse "transiently unreachable" with "permanently absent".
+  //
+  // When we detect a ghost, we add it to this set AND remove the
+  // version from `WebJarMeta.versions` — so it stops appearing in
+  // search/popular/list/all/artifact-detail pages, and the
+  // periodic numFiles backfill stops retrying it. 7-day TTL: if a
+  // missing jar is ever re-published, the tombstone expires and
+  // discovery picks it back up.
+  private def versionTombstoneKey(ga: GroupArtifact): String =
+    s"version-tombstone:${ga.groupId}:${ga.artifactId}"
+  private val versionTombstoneTtl: Duration = 7.days
+
+  def addVersionTombstone(ga: GroupArtifact, version: String): ZIO[Redis, Throwable, Unit] =
+    ZIO.serviceWithZIO[Redis]: redis =>
+      val key = versionTombstoneKey(ga)
+      redis.sAdd(key, version) *>
+        redis.expire(key, versionTombstoneTtl).unit
+
+  def getVersionTombstones(ga: GroupArtifact): ZIO[Redis, Throwable, Set[String]] =
+    ZIO.serviceWithZIO[Redis]: redis =>
+      redis.sMembers(versionTombstoneKey(ga)).returning[String].map(_.toSet)
+
   // Pending deploys: GAVs we've just published via this app, awaiting Maven
   // Central propagation (~1hr). Stored as a ZSET with epoch-second scores
   // so we can age out stuck entries with ZREMRANGEBYSCORE. Members use `|`

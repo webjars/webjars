@@ -32,10 +32,19 @@ object MavenCentralWebJarsSpec extends ZIOSpecDefault:
    *  based on the GAV's version string, optionally failing for some.
    *  All callers are recorded in `callsRef` so tests can assert which
    *  versions were actually queried (e.g. that already-filled versions
-   *  are skipped). */
+   *  are skipped).
+   *
+   *  Two flavours of failure are supported, matching what the real
+   *  service emits:
+   *    - `notFoundFor`: returns `FileNotFoundException` (the structured
+   *      "the jar doesn't exist on Maven Central" signal that triggers
+   *      version-tombstoning).
+   *    - `failFor`: returns a generic `RuntimeException` (transient
+   *      failure — should NOT tombstone). */
   private class FakeFileService(
     callsRef: Ref[Vector[MavenCentral.GroupArtifactVersion]],
     failFor: Set[String] = Set.empty,
+    notFoundFor: Set[String] = Set.empty,
     numFilesFor: String => Int = _ => 42,
   ) extends WebJarsFileService:
 
@@ -44,8 +53,10 @@ object MavenCentralWebJarsSpec extends ZIOSpecDefault:
 
     def getNumFiles(gav: MavenCentral.GroupArtifactVersion): ZIO[Scope, Throwable, Int] =
       callsRef.update(_ :+ gav) *> {
-        if failFor.contains(gav.version.toString) then
-          ZIO.fail(new RuntimeException(s"simulated file-service failure for ${gav.version}"))
+        if notFoundFor.contains(gav.version.toString) then
+          ZIO.fail(new java.io.FileNotFoundException(s"simulated 404 for ${gav.version}"))
+        else if failFor.contains(gav.version.toString) then
+          ZIO.fail(new RuntimeException(s"simulated transient failure for ${gav.version}"))
         else
           ZIO.succeed(numFilesFor(gav.version.toString))
       }
@@ -54,10 +65,16 @@ object MavenCentralWebJarsSpec extends ZIOSpecDefault:
    *  the live impl directly because the trait method we exercise
    *  (`refreshMissingNumFiles`) doesn't need `MavenCentralRepo` — it
    *  reads from Redis and calls the file service. */
-  private def buildMC(groupId: MavenCentral.GroupId, callsRef: Ref[Vector[MavenCentral.GroupArtifactVersion]], failFor: Set[String], numFilesFor: String => Int): MavenCentralWebJars =
+  private def buildMC(
+    groupId: MavenCentral.GroupId,
+    callsRef: Ref[Vector[MavenCentral.GroupArtifactVersion]],
+    failFor: Set[String] = Set.empty,
+    notFoundFor: Set[String] = Set.empty,
+    numFilesFor: String => Int,
+  ): MavenCentralWebJars =
     MavenCentralWebJarsLive(
       TestInfrastructure.testConfig,
-      FakeFileService(callsRef, failFor = failFor, numFilesFor = numFilesFor),
+      FakeFileService(callsRef, failFor = failFor, notFoundFor = notFoundFor, numFilesFor = numFilesFor),
       new AllDeployables:
         def fromGroupId(g: MavenCentral.GroupId)  = None
         def fromName(n: String)                   = None
@@ -153,6 +170,93 @@ object MavenCentralWebJarsSpec extends ZIOSpecDefault:
         calls.isEmpty,
         versions.find(_.number == "1.0.0").flatMap(_.numFiles).contains(10),
         versions.find(_.number == "1.1.0").flatMap(_.numFiles).contains(20),
+      )
+    },
+
+    test("refreshMissingNumFiles tombstones a ghost version on FileNotFoundException AND removes it from the cache") {
+      // Canonical case: `org.webjars.npm:killable:1.0.1` — Maven Central
+      // metadata lists 1.0.1 but the directory only has the .pom (no jar),
+      // so the file-service returns 404 (FileNotFoundException). We
+      // distinguish this signal from generic Throwable failures so that
+      // permanent missing-jar versions get pruned instead of retried
+      // every cycle forever.
+      val groupId = groupFor("tombstones-ghost")
+      val ga      = artifact(groupId, "killable")
+      for
+        callsRef     <- Ref.make(Vector.empty[MavenCentral.GroupArtifactVersion])
+        mc            = buildMC(groupId, callsRef, notFoundFor = Set("1.0.1"), numFilesFor = _ => 7)
+        _            <- seed(ga, List("1.0.0" -> None, "1.0.1" -> None))
+        _            <- mc.refreshMissingNumFiles(groupId)
+        versions     <- readVersions(ga)
+        tombstones   <- WebJarsCache.getVersionTombstones(ga)
+      yield assertTrue(
+        // 1.0.1 is gone from the cached versions list (won't show up in
+        // search/popular/all/list/artifact-detail).
+        versions.map(_.number).toSet == Set("1.0.0"),
+        // 1.0.0 succeeded with the fake's numFiles.
+        versions.find(_.number == "1.0.0").flatMap(_.numFiles).contains(7),
+        // The ghost is in the version-tombstone set so the next cycle
+        // skips it instead of re-fetching numFiles.
+        tombstones == Set("1.0.1"),
+      )
+    },
+
+    test("refreshMissingNumFiles does NOT tombstone on a generic (transient) failure") {
+      // Critical to distinguish from the previous test: a generic
+      // `Throwable` (5xx, transport error, parse error) is treated as
+      // transient. The version stays in cache with `numFiles=None` so
+      // the next cycle retries. NOT added to the version-tombstone set.
+      val groupId = groupFor("no-tombstone-on-transient")
+      val ga      = artifact(groupId, "a")
+      for
+        callsRef     <- Ref.make(Vector.empty[MavenCentral.GroupArtifactVersion])
+        mc            = buildMC(groupId, callsRef, failFor = Set("1.0.0"), numFilesFor = _ => 99)
+        _            <- seed(ga, List("1.0.0" -> None, "1.1.0" -> None))
+        _            <- mc.refreshMissingNumFiles(groupId)
+        versions     <- readVersions(ga)
+        tombstones   <- WebJarsCache.getVersionTombstones(ga)
+      yield assertTrue(
+        // 1.0.0 still in cache (not removed; will retry next cycle).
+        versions.map(_.number).toSet == Set("1.0.0", "1.1.0"),
+        // 1.0.0 still has numFiles=None.
+        versions.find(_.number == "1.0.0").flatMap(_.numFiles).isEmpty,
+        // 1.1.0 succeeded with the fake's value.
+        versions.find(_.number == "1.1.0").flatMap(_.numFiles).contains(99),
+        // No tombstone written — the next cycle will retry the
+        // transient failure.
+        tombstones.isEmpty,
+      )
+    },
+
+    test("refreshMissingNumFiles is idempotent on repeated ghost-detection") {
+      // Once a version is tombstoned, a subsequent run of the same
+      // backfill shouldn't re-add it to the cached versions list, and
+      // shouldn't repeatedly fetch numFiles for it. This is the key
+      // property: ghost versions don't keep generating WARN log noise
+      // every cycle.
+      val groupId = groupFor("idempotent-ghost")
+      val ga      = artifact(groupId, "killable")
+      for
+        callsRef    <- Ref.make(Vector.empty[MavenCentral.GroupArtifactVersion])
+        mc           = buildMC(groupId, callsRef, notFoundFor = Set("1.0.1"), numFilesFor = _ => 5)
+        _           <- seed(ga, List("1.0.0" -> None, "1.0.1" -> None))
+        // First run: detects and tombstones 1.0.1.
+        _           <- mc.refreshMissingNumFiles(groupId)
+        afterFirst  <- callsRef.get.map(_.size)
+        // Second run: 1.0.1 should already be gone from the cache,
+        // and the cached 1.0.0 already has numFiles, so no calls to
+        // file-service.
+        _           <- mc.refreshMissingNumFiles(groupId)
+        afterSecond <- callsRef.get.map(_.size)
+        versions    <- readVersions(ga)
+      yield assertTrue(
+        // First run: hits 1.0.0 + 1.0.1 once each.
+        afterFirst == 2,
+        // Second run: zero new calls (cache is fully resolved + ghost
+        // was removed).
+        afterSecond == afterFirst,
+        // Cache reflects the cleanup.
+        versions.map(_.number).toSet == Set("1.0.0"),
       )
     },
 
