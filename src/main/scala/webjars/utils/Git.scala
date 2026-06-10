@@ -61,7 +61,11 @@ case class GitLive(client: Client) extends Git:
         case _ =>
           ZIO.fail(new Exception(s"Could not get HEAD for url: $httpUrl")).run
 
-  def gitUrl(gitRepo: String): ZIO[Scope, Throwable, String] =
+  // Compose the canonical https/jgit-ready URL form of a git repo reference WITHOUT following
+  // any HTTP redirects. Used for naming (artifactId) so that the result is a stable, deterministic
+  // function of the input — Maven Central coordinates are immutable, so we cannot let GitHub
+  // owner-renames change a webjar's identity after the fact.
+  private def composeGitUrl(gitRepo: String): String =
     val resolvedUrl = if gitRepo.contains("://") then
       gitRepo.replace("git://", "https://")
     else if gitRepo.contains("github:") then
@@ -69,7 +73,10 @@ case class GitLive(client: Client) extends Git:
     else
       s"https://github.com/$gitRepo"
 
-    val jgitReadyUrl = resolvedUrl.replace("git+", "")
+    resolvedUrl.replace("git+", "")
+
+  def gitUrl(gitRepo: String): ZIO[Scope, Throwable, String] =
+    val jgitReadyUrl = composeGitUrl(gitRepo)
 
     if jgitReadyUrl.startsWith("http") then
       resolveRedirect(jgitReadyUrl)
@@ -79,8 +86,8 @@ case class GitLive(client: Client) extends Git:
   def artifactId(nameOrUrlish: String): ZIO[Scope, Throwable, String] =
     defer:
       if isGit(nameOrUrlish) then
-        val resolved = gitUrl(nameOrUrlish).run
-        val url = ZIO.fromTry(URL.parseTry(resolved.stripSuffix(".git"))).run
+        val composed = composeGitUrl(nameOrUrlish)
+        val url = ZIO.fromTry(URL.parseTry(composed.stripSuffix(".git"))).run
         val host = url.host.getOrElse("").replaceAll("\\W", "-")
         val path = url.path.encode.replaceAll("\\W", "-")
         host + path

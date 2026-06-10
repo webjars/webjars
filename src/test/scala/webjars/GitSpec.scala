@@ -107,6 +107,25 @@ object GitSpec extends ZIOSpecDefault:
           git.artifactId("@reactivex/rxjs").map(r => assertTrue(r == "reactivex__rxjs"))
         }
       },
+      test("is stable across upstream GitHub repo renames (no redirect-following)") {
+        // facebook/react was renamed to react/react upstream. The artifactId is a permanent
+        // Maven Central coordinate, so it MUST be a deterministic function of the input string —
+        // following GitHub's 301 here would silently rename the webjar. See CI failure on
+        // commit a4266b5 (2026-06-10).
+        withGit { git =>
+          for
+            fromGit       <- git.artifactId("git://github.com/facebook/react.git")
+            fromGithubKey <- git.artifactId("github:facebook/react")
+            fromShorthand <- git.artifactId("facebook/react")
+            fromHttps     <- git.artifactId("https://github.com/facebook/react.git")
+          yield assertTrue(
+            fromGit       == "github-com-facebook-react",
+            fromGithubKey == "github-com-facebook-react",
+            fromShorthand == "github-com-facebook-react",
+            fromHttps     == "github-com-facebook-react",
+          )
+        }
+      },
     ) @@ TestAspect.withLiveClock,
     suite("versionsOnBranch")(
       test("get the commits on a branch") {
