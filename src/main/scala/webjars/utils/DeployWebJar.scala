@@ -38,51 +38,73 @@ case class DeployWebJarLive[Env](mavenCentralWebJars: MavenCentralWebJars, maven
         val groupId = deployable.groupId
         val artifactId = deployable.artifactId(nameOrUrlish).run
         val releaseVersion = deployable.releaseVersion(maybeReleaseVersion, packageInfo)
+        val gav = MavenCentral.GroupArtifactVersion(groupId, artifactId, releaseVersion)
+
+        // Each stage announces itself BEFORE running its work, so a
+        // partial deploy log on failure pinpoints which stage was in
+        // flight. Earlier this whole flow was one big `defer` block whose
+        // status messages were emitted only at the end — meaning a
+        // failure mid-flow (e.g. `LicenseNotFoundException` during
+        // `deployable.licenses`) showed only the bare exception message
+        // with no context for which stage produced it. See issue #2229.
+        val licensesEffect = maybeLicense.fold(
+          deployable.licenses(nameOrUrlish, upstreamVersion, packageInfo)
+        )(license => ZIO.succeed(Set[License](LicenseWithName(license))))
 
         ZStream.succeed(s"Got package info for $groupId $artifactId $releaseVersion") ++
-        ZStream.unwrap:
-          defer:
-            webJarNotYetDeployed(groupId, artifactId, releaseVersion).run
-
-            val licenses = maybeLicense.fold(deployable.licenses(nameOrUrlish, upstreamVersion, packageInfo))(license =>
-              ZIO.succeed(Set[License](LicenseWithName(license)))
-            ).run
-
-            val mavenDependencies = deployable.mavenDependencies(packageInfo.dependencies).run
-            val optionalMavenDependencies = deployable.mavenDependencies(packageInfo.optionalDependencies).run
-            val sourceUrl = sourceLocator.sourceUrl(packageInfo.sourceConnectionUri).run
-            val pom = PomTemplate(groupId, artifactId, releaseVersion, packageInfo, sourceUrl, mavenDependencies, optionalMavenDependencies, licenses)
-            val zip = deployable.archive(nameOrUrlish, upstreamVersion).run
-            val excludes = deployable.excludes(nameOrUrlish).run
-            val pathPrefix = deployable.pathPrefix(artifactId, releaseVersion, packageInfo)
-            val maybeBaseDirGlob = deployable.maybeBaseDirGlob(nameOrUrlish).run
-            val jar = WebJarCreator.createWebJar(ZStream.fromInputStream(zip), maybeBaseDirGlob, excludes, pom, packageInfo.name, licenses, groupId, artifactId, releaseVersion, pathPrefix).run
-            val gav = MavenCentral.GroupArtifactVersion(groupId, artifactId, releaseVersion)
-
-            ZStream(
-              s"Resolving licenses & dependencies for $groupId $artifactId $releaseVersion",
-              s"Resolved Licenses: ${licenses.mkString(",")}",
-              "Converted dependencies to Maven",
-              "Converted optional dependencies to Maven",
-              s"Got the source URL: $sourceUrl",
-              "Generated POM",
-              s"Fetched ${deployable.name} zip",
-              s"Created ${deployable.name} WebJar",
-              s"Deploying Maven Central Release for $gav",
-            ) ++ ZStream.fromZIO:
-              mavenCentralDeployer.publish(gav, jar, pom)
-                // Record the GAV in the pending-deploys queue so the next
-                // refresh cycle picks up the new version once MC propagates.
-                // .ignoreLogged so a Valkey hiccup never blocks a successful
-                // publish — refresh-from-cache is best-effort.
-                .zipLeft(WebJarsCache.addPendingDeploy(WebJarsCache.PendingDeploy(groupId, artifactId, releaseVersion)).ignoreLogged)
-                .as:
-                  s"""Deployed!
-                     |It can take an hour or more for the artifact to be available in Maven Central.
-                     |GroupID = $groupId
-                     |ArtifactID = $artifactId
-                     |Version = $releaseVersion
-                     """.stripMargin
+        ZStream.succeed(s"Verifying $gav is not already on Maven Central") ++
+        ZStream.execute(webJarNotYetDeployed(groupId, artifactId, releaseVersion)) ++
+        ZStream.succeed(s"Resolving licenses for $gav") ++
+        ZStream.fromZIO(licensesEffect).flatMap { licenses =>
+          ZStream.succeed(s"Resolved Licenses: ${licenses.mkString(",")}") ++
+          ZStream.succeed(s"Resolving Maven dependencies for $gav") ++
+          ZStream.fromZIO(deployable.mavenDependencies(packageInfo.dependencies)).flatMap { mavenDependencies =>
+            ZStream.fromZIO(deployable.mavenDependencies(packageInfo.optionalDependencies)).flatMap { optionalMavenDependencies =>
+              ZStream.succeed("Converted dependencies to Maven") ++
+              ZStream.succeed("Converted optional dependencies to Maven") ++
+              ZStream.succeed(s"Locating source URL for $gav") ++
+              ZStream.fromZIO(sourceLocator.sourceUrl(packageInfo.sourceConnectionUri)).flatMap { sourceUrl =>
+                val pom = PomTemplate(groupId, artifactId, releaseVersion, packageInfo, sourceUrl, mavenDependencies, optionalMavenDependencies, licenses)
+                val pathPrefix = deployable.pathPrefix(artifactId, releaseVersion, packageInfo)
+                ZStream.succeed(s"Got the source URL: $sourceUrl") ++
+                ZStream.succeed("Generated POM") ++
+                ZStream.succeed(s"Fetching ${deployable.name} archive for $gav") ++
+                ZStream.fromZIO(deployable.archive(nameOrUrlish, upstreamVersion)).flatMap { zip =>
+                  ZStream.fromZIO(deployable.excludes(nameOrUrlish)).flatMap { excludes =>
+                    ZStream.fromZIO(deployable.maybeBaseDirGlob(nameOrUrlish)).flatMap { maybeBaseDirGlob =>
+                      ZStream.succeed(s"Fetched ${deployable.name} zip") ++
+                      ZStream.succeed(s"Building ${deployable.name} WebJar for $gav") ++
+                      ZStream.fromZIO(
+                        WebJarCreator.createWebJar(
+                          ZStream.fromInputStream(zip), maybeBaseDirGlob, excludes, pom,
+                          packageInfo.name, licenses, groupId, artifactId, releaseVersion, pathPrefix,
+                        )
+                      ).flatMap { jar =>
+                        ZStream.succeed(s"Created ${deployable.name} WebJar") ++
+                        ZStream.succeed(s"Deploying Maven Central Release for $gav") ++
+                        ZStream.fromZIO {
+                          mavenCentralDeployer.publish(gav, jar, pom)
+                            // Record the GAV in the pending-deploys queue so the next
+                            // refresh cycle picks up the new version once MC propagates.
+                            // .ignoreLogged so a Valkey hiccup never blocks a successful
+                            // publish — refresh-from-cache is best-effort.
+                            .zipLeft(WebJarsCache.addPendingDeploy(WebJarsCache.PendingDeploy(groupId, artifactId, releaseVersion)).ignoreLogged)
+                            .as:
+                              s"""Deployed!
+                                 |It can take an hour or more for the artifact to be available in Maven Central.
+                                 |GroupID = $groupId
+                                 |ArtifactID = $artifactId
+                                 |Version = $releaseVersion
+                                 """.stripMargin
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
 
   def create(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, licenseOverride: Option[Set[License]], groupIdOverride: Option[MavenCentral.GroupId]): ZIO[Scope, Throwable, (MavenCentral.ArtifactId, Array[Byte])] =
     import deployable.*

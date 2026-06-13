@@ -37,6 +37,7 @@ object DeployFailureTrackerSpec extends ZIOSpecDefault:
     def raw(gitHubUrl: URL, tagCommitOrBranch: String, fileName: String): ZIO[Scope, Throwable, String] = ZIO.dieMessage("unused")
     def allPages[T](path: String, accumulator: Set[T] = Set.empty[T])(mapFunction: Response => ZIO[Scope, Throwable, Set[T]]): ZIO[Scope, Throwable, Set[T]] = ZIO.dieMessage("unused")
     def tags(repo: String): ZIO[Scope, Throwable, Set[String]] = ZIO.dieMessage("unused")
+    def repoLicense(gitHubUrl: URL): ZIO[Scope, Throwable, Option[String]] = ZIO.dieMessage("unused")
 
     def findOpenIssueByTitle(repo: GitHub.Repo, title: String, label: String): ZIO[Scope, Throwable, Option[GitHub.Issue]] =
       ref.get.map { state =>

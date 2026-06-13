@@ -196,6 +196,37 @@ case class NPMLive(client: Client, git: Git, gitHub: GitHub, maven: Maven, semVe
         versionJson(packageNameOrGitRepo, version).run
       packageInfo(json).run
 
+  /** GitHub-URL deploys frequently encounter `package.json` files that
+   *  omit the `license` field — the repo is the source-of-truth and its
+   *  GitHub-detected SPDX license is what npm-ish tooling would surface
+   *  anyway. So when the npm metadata yields no licenses AND the input
+   *  was a git URL, fall back to GitHub's `/repos/:owner/:repo/license`
+   *  endpoint as a last resort.
+   *
+   *  Scoped to git-URL deploys only — for npm registry deploys the
+   *  registry metadata is the canonical source, and a missing license
+   *  there should still surface as `LicenseNotFoundException` (the
+   *  existing `ms 0.7.1` test exercises that path). See issue #2229. */
+  override def licenses(nameOrUrlish: NameOrUrlish, version: Version, packageInfo: PackageInfo): ZIO[Scope, Throwable, Set[License]] =
+    super.licenses(nameOrUrlish, version, packageInfo).catchSome {
+      case _: LicenseNotFoundException if git.isGit(nameOrUrlish) =>
+        packageInfo.maybeGitHubUrl match
+          case Some(gitHubUrl) =>
+            gitHub.repoLicense(gitHubUrl).flatMap {
+              case Some(spdx) => ZIO.succeed(Set[License](LicenseWithName(spdx)))
+              case None       =>
+                ZIO.fail(LicenseNotFoundException(
+                  s"License not found in $name metadata for $nameOrUrlish $version " +
+                    s"(GitHub repo at $gitHubUrl has no detected SPDX license either)"
+                ))
+            }
+          case None =>
+            ZIO.fail(LicenseNotFoundException(
+              s"License not found in $name metadata for $nameOrUrlish $version " +
+                "(no GitHub URL to fall back on)"
+            ))
+    }
+
   override def archive(packageNameOrGitRepo: String, version: Version): ZIO[Scope, Throwable, InputStream] =
     if git.isGit(packageNameOrGitRepo) then
       git.tar(packageNameOrGitRepo, version, Set("node_modules"))

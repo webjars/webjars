@@ -338,11 +338,21 @@ object NPMSpec extends ZIOSpecDefault:
         // package.json. Without the LICENSE-file scan + content classifier
         // we used to do, the deploy fails Systemic so the deploy-failure
         // tracker can flag it for a manual override.
+        //
+        // The GitHub-license fallback added for issue #2229 is scoped to
+        // git-URL deploys (`git.isGit(...)`), so the registry path here
+        // still surfaces `LicenseNotFoundException`.
         withNpm { npm =>
           for
             packageInfo <- npm.info("ms", "0.7.1")
             result <- npm.licenses("ms", "0.7.1", packageInfo).exit
-          yield assertTrue(result.is(_.failure).isInstanceOf[LicenseNotFoundException])
+          yield assertTrue(
+            result.is(_.failure).isInstanceOf[LicenseNotFoundException],
+            // Message now spells out *what* failed so it's
+            // self-explanatory in the deploy-failure issue body.
+            result.is(_.failure).getMessage.contains("License not found"),
+            result.is(_.failure).getMessage.contains("ms 0.7.1"),
+          )
         }
       },
     ) @@ TestAspect.withLiveClock,

@@ -59,6 +59,28 @@ object DeployWebJarSpec extends ZIOSpecDefault:
         }
       }
     },
+    // Reproduces webjars/webjars#2229: a github-URL-based NPM deploy where
+    // package.json has no `license` field but the GitHub repo has a
+    // recognized SPDX license. Before the fix, this failed Systemically
+    // with `LicenseNotFoundException` and the deploy log contained no
+    // detail beyond "NPM - <url> <version>". After the fix, we fall back
+    // to GitHub's repo-license API and the deploy proceeds.
+    test("work with a github URL whose package.json has no license but repo has one (issue #2229)") {
+      withDeploy { (deployWebJar, npm, _) =>
+        deployWebJar.deploy(npm, "https://github.com/ingcreators/hypermedia-components", "v0.0.1-alpha.0").runCollect.map { output =>
+          val all = output.mkString("\n")
+          assertTrue(
+            // Per-stage progress messages emit BEFORE the work runs, so
+            // a partial transcript on failure tells you which stage was
+            // in flight.
+            all.contains("Resolving licenses"),
+            // GitHub-detected license becomes the resolved license.
+            all.contains("Resolved Licenses: MIT"),
+            all.contains("Deployed!"),
+          )
+        }
+      }
+    },
   ).provide(Client.default, TestInfrastructure.sharedRedisLayer, MavenCentral.MavenCentralRepo.live) @@ TestAspect.withLiveClock @@ TestAspect.timeout(300.seconds)
 
 class MockMavenCentralWebJars(config: webjars.config.AppConfig, webJarsFileService: WebJarsFileService, allDeployables: AllDeployables)

@@ -84,7 +84,7 @@ trait Deployable:
     }
 
     resolvedLicenses
-      .filterOrFail(_.nonEmpty)(LicenseNotFoundException(s"${this.name} - $nameOrUrlish $version"))
+      .filterOrFail(_.nonEmpty)(LicenseNotFoundException(s"License not found in ${this.name} metadata for $nameOrUrlish $version"))
 
   def archiveFile(nameOrUrlish: NameOrUrlish, version: Version, filename: String): ZIO[Scope, Throwable, String] =
     defer:

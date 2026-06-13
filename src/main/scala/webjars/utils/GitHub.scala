@@ -23,6 +23,20 @@ trait GitHub:
   def allPages[T](path: String, accumulator: Set[T] = Set.empty[T])(mapFunction: Response => ZIO[Scope, Throwable, Set[T]]): ZIO[Scope, Throwable, Set[T]]
   def tags(repo: String): ZIO[Scope, Throwable, Set[Version]]
 
+  /** Look up GitHub's auto-detected license SPDX id for `gitHubUrl`.
+   *  Calls `GET /repos/:owner/:repo/license`. Returns:
+   *
+   *   - `Some(spdx)` when GitHub recognized a standard license file.
+   *   - `None` when the repo has no LICENSE file (404), GitHub couldn't
+   *     classify the file (`spdx_id == "NOASSERTION"`), or the URL isn't
+   *     a github.com URL we can resolve to `<owner>/<repo>`.
+   *
+   *  Used as a last-resort license source in `NPMLive.licenses` for
+   *  github-URL-based deploys whose `package.json` omits a `license`
+   *  field — see issue #2229. Cached briefly so a deploy retry doesn't
+   *  re-hit the GitHub API for every dependency. */
+  def repoLicense(gitHubUrl: URL): ZIO[Scope, Throwable, Option[String]]
+
   /** Find an open issue with the given exact title.
    *
    *  Used by the deploy-failure tracker as a safety net: when our Redis
@@ -143,6 +157,64 @@ case class GitHubLive(client: Client, config: AppConfig, cache: Cache) extends G
         val body = response.body.asString.run
         val tags = ZIO.fromEither(body.fromJson[List[Json]].left.map(new Exception(_))).run
         tags.flatMap(_.asObject.flatMap(_.get("name")).flatMap(_.asString)).toSet
+    }
+
+  def repoLicense(gitHubUrl: URL): ZIO[Scope, Throwable, Option[String]] =
+    import zio.json.ast.Json
+
+    // The /license endpoint reports stable, GitHub-classified SPDX ids,
+    // so we cache aggressively (1 day). License changes on a published
+    // tag are exceedingly rare; the cost of a stale cache hit is much
+    // smaller than the cost of an unauth'd 60/h rate-limit blowup
+    // during a burst of deploys.
+    val cacheKey = s"github-repo-license:${gitHubUrl.encode}"
+    cache.get[Option[String]](cacheKey, 1.day) {
+      val maybeOwnerRepo: Option[(String, String)] =
+        for
+          owner <- GitHub.maybeGitHubOrg(gitHubUrl)
+          repo  <- GitHub.maybeGitHubRepo(gitHubUrl).map(_.stripSuffix(".git"))
+          if owner.nonEmpty && repo.nonEmpty
+        yield (owner, repo)
+
+      maybeOwnerRepo match
+        case None => ZIO.succeed(None)
+        case Some((owner, repo)) =>
+          val baseRequest = Request.get(URL.unsafeParse(s"https://api.github.com/repos/$owner/$repo/license"))
+            .addHeader(Header.Accept(MediaType.application.json))
+          val request = maybeAuthToken.fold(baseRequest)(token =>
+            baseRequest.addHeader(Header.Authorization.Bearer(token))
+          )
+
+          defer:
+            val response = client.batched(request).run
+            response.status match
+              case Status.Ok =>
+                val body = response.body.asString.run
+                val maybeSpdx = body.fromJson[Json].toOption
+                  .flatMap(_.asObject)
+                  .flatMap(_.get("license"))
+                  .flatMap(_.asObject)
+                  .flatMap(_.get("spdx_id"))
+                  .flatMap(_.asString)
+                // GitHub returns "NOASSERTION" when a LICENSE file exists
+                // but couldn't be classified. Don't pretend we know the
+                // license in that case — falling through to the
+                // LicenseNotFoundException is the right move so the
+                // deploy-failure tracker can flag it for a manual
+                // override.
+                maybeSpdx.filter(s => s.nonEmpty && s != "NOASSERTION")
+              case Status.NotFound =>
+                // No LICENSE file detected. Treat as "no license" rather
+                // than failing — caller decides whether to surface a
+                // LicenseNotFoundException.
+                None
+              case _ =>
+                // Any other status (rate limit, auth issue, transient
+                // 5xx) is recoverable: log and treat as "couldn't
+                // determine". A real fix is for someone to look at the
+                // deploy-failure issue and either retry or pin a
+                // license.
+                None
     }
 
   /** Build an authenticated request for `https://api.github.com/<path>`,
