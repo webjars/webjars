@@ -60,7 +60,7 @@ libraryDependencies ++= Seq(
   "com.jamesward" %% "zio-mavencentral"       % "0.12.0",
 
   // Git
-  "org.eclipse.jgit" % "org.eclipse.jgit"     % "7.6.0.202603022253-r",
+  "org.eclipse.jgit" % "org.eclipse.jgit"     % "7.7.0.202606012155-r",
 
   // Hashing
   "com.outr" %% "hasher"                      % "1.2.3",
