@@ -18,13 +18,14 @@ set _JAVACMD=
 set _SBT_OPTS=
 set _JAVA_OPTS=
 
-set init_sbt_version=1.9.2
+set init_sbt_version=_to_be_replaced
 set sbt_default_mem=1024
 set default_sbt_opts=
 set default_java_opts=-Dfile.encoding=UTF-8
 set sbt_jar=
 set build_props_sbt_version=
 set run_native_client=
+set run_jvm_client=
 set shutdownall=
 
 set sbt_args_print_version=
@@ -38,6 +39,7 @@ set sbt_args_color=
 set sbt_args_no_colors=
 set sbt_args_no_global=
 set sbt_args_no_share=
+set sbt_args_no_hide_jdk_warnings=
 set sbt_args_sbt_jar=
 set sbt_args_ivy=
 set sbt_args_supershell=
@@ -45,12 +47,15 @@ set sbt_args_timings=
 set sbt_args_traces=
 set sbt_args_sbt_boot=
 set sbt_args_sbt_cache=
-set sbt_args_sbt_create=
+set sbt_args_allow_empty=
 set sbt_args_sbt_dir=
 set sbt_args_sbt_version=
 set sbt_args_mem=
 set sbt_args_client=
+set sbt_args_jvm_client=
 set sbt_args_no_server=
+set sbt_args_experimental_execution_log=
+set is_this_dir_sbt=0
 
 rem users can set SBT_OPTS via .sbtopts
 if exist .sbtopts for /F %%A in (.sbtopts) do (
@@ -72,11 +77,13 @@ rem TODO: remove/deprecate sbtconfig.txt and parse the sbtopts files
 rem FIRST we load the config file of extra options.
 set SBT_CONFIG=!SBT_HOME!\conf\sbtconfig.txt
 set SBT_CFG_OPTS=
-for /F "tokens=* eol=# usebackq delims=" %%i in ("!SBT_CONFIG!") do (
-  set DO_NOT_REUSE_ME=%%i
-  rem ZOMG (Part #2) WE use !! here to delay the expansion of
-  rem SBT_CFG_OPTS, otherwise it remains "" for this loop.
-  set SBT_CFG_OPTS=!SBT_CFG_OPTS! !DO_NOT_REUSE_ME!
+if exist "!SBT_CONFIG!" (
+  for /F "tokens=* eol=# usebackq delims=" %%i in ("!SBT_CONFIG!") do (
+    set DO_NOT_REUSE_ME=%%i
+    rem ZOMG (Part #2) WE use !! here to delay the expansion of
+    rem SBT_CFG_OPTS, otherwise it remains "" for this loop.
+    set SBT_CFG_OPTS=!SBT_CFG_OPTS! !DO_NOT_REUSE_ME!
+  )
 )
 
 rem poor man's jenv (which is not available on Windows)
@@ -112,20 +119,22 @@ if not defined _JAVACMD (
 
 if not defined _JAVACMD set _JAVACMD=java
 
-rem users can set JAVA_OPTS via .jvmopts (sbt-extras style)
-if exist .jvmopts for /F %%A in (.jvmopts) do (
-  set _jvmopts_line=%%A
-  if not "!_jvmopts_line:~0,1!" == "#" (
-    if defined _JAVA_OPTS (
-      set _JAVA_OPTS=!_JAVA_OPTS! %%A
-    ) else (
-      set _JAVA_OPTS=%%A
-    )
-  )
-)
+rem We use the value of the JAVA_OPTS environment variable if defined, rather than the config. 
+if not defined _JAVA_OPTS if defined JAVA_OPTS set _JAVA_OPTS=%JAVA_OPTS% 
 
-rem We use the value of the JAVA_OPTS environment variable if defined, rather than the config.
-if not defined _JAVA_OPTS if defined JAVA_OPTS set _JAVA_OPTS=%JAVA_OPTS%
+rem users can set JAVA_OPTS via .jvmopts (sbt-extras style) 
+if exist .jvmopts for /F %%A in (.jvmopts) do ( 
+  set _jvmopts_line=%%A 
+  if not "!_jvmopts_line:~0,1!" == "#" ( 
+    if defined _JAVA_OPTS ( 
+      set _JAVA_OPTS=!_JAVA_OPTS! %%A 
+    ) else ( 
+      set _JAVA_OPTS=%%A 
+    ) 
+  ) 
+) 
+ 
+rem If nothing is defined, use the defaults. 
 if not defined _JAVA_OPTS if defined default_java_opts set _JAVA_OPTS=!default_java_opts!
 
 rem We use the value of the SBT_OPTS environment variable if defined, rather than the config.
@@ -188,6 +197,15 @@ if defined _client_arg (
   goto args_loop
 )
 
+if "%~0" == "--jvm-client" set _jvm_client_arg=true
+
+if defined _jvm_client_arg (
+  set _jvm_client_arg=
+  set sbt_args_jvm_client=1
+  set SBT_ARGS=--client !SBT_ARGS!
+  goto args_loop
+)
+
 if "%~0" == "-batch" set _batch_arg=true
 if "%~0" == "--batch" set _batch_arg=true
 
@@ -215,6 +233,14 @@ if defined _no_server_arg (
   goto args_loop
 )
 
+if "%~0" == "--no-hide-jdk-warnings" set _no_hide_jdk_warnings=true
+
+if defined _no_hide_jdk_warnings (
+  set _no_hide_jdk_warnings=
+  set sbt_args_no_hide_jdk_warnings=1
+  goto args_loop
+)
+
 if "%~0" == "-no-global" set _no_global_arg=true
 if "%~0" == "--no-global" set _no_global_arg=true
 
@@ -233,12 +259,14 @@ if defined _traces_arg (
   goto args_loop
 )
 
-if "%~0" == "-sbt-create" set _sbt_create_arg=true
-if "%~0" == "--sbt-create" set _sbt_create_arg=true
+if "%~0" == "-sbt-create" set _allow_empty_arg=true
+if "%~0" == "--sbt-create" set _allow_empty_arg=true
+if "%~0" == "-allow-empty" set _allow_empty_arg=true
+if "%~0" == "--allow-empty" set _allow_empty_arg=true
 
-if defined _sbt_create_arg (
-  set _sbt_create_arg=
-  set sbt_args_sbt_create=1
+if defined _allow_empty_arg (
+  set _allow_empty_arg=
+  set sbt_args_allow_empty=1
   goto args_loop
 )
 
@@ -392,6 +420,21 @@ if defined _color_arg (
   goto args_loop
 )
 
+if "%~0" == "--experimental_execution_log" set _experimental_execution_log_arg=true
+
+if defined _experimental_execution_log_arg (
+  set _experimental_execution_log_arg=
+  if not "%~1" == "" (
+   set sbt_args_experimental_execution_log=%~1
+   shift
+   goto args_loop
+  ) else (
+   echo "%~0" is missing a value
+   goto error
+  )
+  goto args_loop
+)
+
 if "%~0" == "--no-share" set _no_share_arg=true
 if "%~0" == "-no-share" set _no_share_arg=true
 
@@ -412,6 +455,11 @@ if defined _timings_arg (
 
 if "%~0" == "shutdownall" (
   set shutdownall=1
+  goto args_loop
+)
+
+if "%~0" == "bsp" (
+  set sbt_args_client=0
   goto args_loop
 )
 
@@ -470,6 +518,11 @@ if "%~0" == "new" (
     set sbt_new=true
   )
 )
+if "%~0" == "init" (
+  if not defined SBT_ARGS (
+    set sbt_new=true
+  )
+)
 
 if "%g:~0,2%" == "-D" (
   rem special handling for -D since '=' gets parsed away
@@ -515,34 +568,53 @@ if not "%g:~0,5%" == "-XX:+" if not "%g:~0,5%" == "-XX:-" if "%g:~0,3%" == "-XX"
   )
 )
 
+rem handle -X JVM options (e.g., -Xmx1G, -Xms512M, -Xss4M) - fixes #5742
+if "%g:~0,2%" == "-X" (
+  call :dlog [args_loop] -X JVM argument %~0
+  call :addJava %~0
+  goto args_loop
+)
+
+if defined sbt_new if "%g:~0,2%" == "--" (
+  rem special handling for -- template arguments since '=' gets parsed away on Windows
+  for /F "tokens=1 delims==" %%a in ("%g%") do (
+    rem make sure it doesn't have the '=' already
+    if "%g%" == "%%a" (
+      if not "%~1" == "" (
+        call :dlog [args_loop] -- argument %~0=%~1
+        set "SBT_ARGS=!SBT_ARGS! %~0=%~1"
+        shift
+        goto args_loop
+      )
+    )
+  )
+)
+
 rem the %0 (instead of %~0) preserves original argument quoting
 set SBT_ARGS=!SBT_ARGS! %0
 
 goto args_loop
 :args_end
 
+if exist build.sbt (
+  set is_this_dir_sbt=1
+)
+if exist project\build.properties (
+  set is_this_dir_sbt=1
+)
+
+rem Store current directory in a variable for delayed expansion to handle paths with parentheses
+set "CURRENT_DIR=%CD%"
+
 rem Confirm a user's intent if the current directory does not look like an sbt
 rem top-level directory and the "new" command was not given.
 
-if not defined sbt_args_sbt_create if not defined sbt_args_print_version if not defined sbt_args_print_sbt_version if not defined sbt_args_print_sbt_script_version if not defined shutdownall if not exist build.sbt (
-  if not exist project\ (
+if not defined sbt_args_allow_empty if not defined sbt_args_print_version if not defined sbt_args_print_sbt_version if not defined sbt_args_print_sbt_script_version if not defined shutdownall (
+  if not !is_this_dir_sbt! equ 1 (
     if not defined sbt_new (
-      echo [warn] Neither build.sbt nor a 'project' directory in the current directory: "%CD%"
-      setlocal
-:confirm
-      echo c^) continue
-      echo q^) quit
-
-      set /P reply=^?
-      if /I "!reply!" == "c" (
-        goto confirm_end
-      ) else if /I "!reply!" == "q" (
-        exit /B 1
-      )
-
-      goto confirm
-:confirm_end
-      endlocal
+      >&2 echo [error] Neither build.sbt nor a 'project' directory in the current directory: "!CURRENT_DIR!"
+      >&2 echo [error] run 'sbt new', touch build.sbt, or run 'sbt --allow-empty'.
+      goto error
     )
   )
 )
@@ -557,7 +629,7 @@ if !shutdownall! equ 1 (
     taskkill /F /PID %%i
     set /a count=!count!+1
   )
-  echo shutdown !count! sbt processes
+  >&2 echo shutdown !count! sbt processes
   goto :eof
 )
 
@@ -566,12 +638,12 @@ if !sbt_args_print_sbt_script_version! equ 1 (
   goto :eof
 )
 
-if !run_native_client! equ 1 (
+call :checkjava
+
+if !run_native_client! equ 1 if not defined sbt_args_print_version (
   goto :runnative !SBT_ARGS!
   goto :eof
 )
-
-call :checkjava
 
 if defined sbt_args_sbt_jar (
   set "sbt_jar=!sbt_args_sbt_jar!"
@@ -624,6 +696,8 @@ if defined sbt_args_sbt_version (
 
 if defined sbt_args_sbt_dir (
   set _SBT_OPTS=-Dsbt.global.base=!sbt_args_sbt_dir! !_SBT_OPTS!
+) else if defined LOCALAPPDATA (
+  set _SBT_OPTS=-Dsbt.global.base=!LOCALAPPDATA!\sbt !_SBT_OPTS!
 )
 
 if defined sbt_args_sbt_boot (
@@ -660,6 +734,16 @@ if defined sbt_args_no_server (
   set _SBT_OPTS=-Dsbt.io.virtual=false -Dsbt.server.autostart=false !_SBT_OPTS!
 )
 
+if not defined sbt_args_no_hide_jdk_warnings (
+  if /I !JAVA_VERSION! EQU 25 (
+    set _SBT_OPTS=--sun-misc-unsafe-memory-access=allow --enable-native-access=ALL-UNNAMED !_SBT_OPTS!
+  )
+)
+
+if defined sbt_args_experimental_execution_log (
+  set _SBT_OPTS=-Dsbt.experimental_execution_log=!sbt_args_experimental_execution_log! !_SBT_OPTS!
+)
+
 rem TODO: _SBT_OPTS needs to be processed as args and diffed against SBT_ARGS
 
 if !sbt_args_print_sbt_version! equ 1 (
@@ -669,9 +753,18 @@ if !sbt_args_print_sbt_version! equ 1 (
 )
 
 if !sbt_args_print_version! equ 1 (
-  call :set_sbt_version
-  echo sbt version in this project: !sbt_version!
-  echo sbt script version: !init_sbt_version!
+  if !is_this_dir_sbt! equ 1 (
+    if defined build_props_sbt_version (
+      call :set_sbt_version_from_build_props
+    ) else (
+      call :set_sbt_version
+    )
+    if defined sbt_version echo sbt version in this project: !sbt_version!
+  )
+  echo sbt runner version: !init_sbt_version!
+  >&2 echo.
+  >&2 echo [info] sbt runner ^(sbt-the-batch-script^) is a runner to run any declared version of sbt.
+  >&2 echo [info] Actual version of the sbt is declared using project\build.properties for each build.
   goto :eof
 )
 
@@ -680,6 +773,8 @@ if defined sbt_args_verbose (
   echo "!_JAVACMD!"
   if defined _JAVA_OPTS ( call :echolist !_JAVA_OPTS! )
   if defined _SBT_OPTS ( call :echolist !_SBT_OPTS! )
+  if defined JAVA_TOOL_OPTIONS ( call :echolist %JAVA_TOOL_OPTIONS% )
+  if defined JDK_JAVA_OPTIONS ( call :echolist %JDK_JAVA_OPTIONS% )
   echo -cp
   echo "!sbt_jar!"
   echo xsbt.boot.Boot
@@ -687,7 +782,7 @@ if defined sbt_args_verbose (
   echo.
 )
 
-"!_JAVACMD!" !_JAVA_OPTS! !_SBT_OPTS! -cp "!sbt_jar!" xsbt.boot.Boot %*
+"!_JAVACMD!" !_JAVA_OPTS! !_SBT_OPTS! %JAVA_TOOL_OPTIONS% %JDK_JAVA_OPTIONS% -cp "!sbt_jar!" xsbt.boot.Boot %*
 
 goto :eof
 
@@ -733,6 +828,18 @@ if "%p:~0,2%" == "-D" (
 
 if not "%p:~0,5%" == "-XX:+" if not "%p:~0,5%" == "-XX:-" if "%p:~0,3%" == "-XX" (
   rem special handling for -XX since '=' gets parsed away
+  for /F "tokens=1 delims==" %%a in ("%p%") do (
+    rem make sure it doesn't have the '=' already
+    if "%p%" == "%%a" if not "%~1" == "" (
+      echo %0=%1
+      shift
+      goto echolist
+    )
+  )
+)
+
+if defined sbt_new if "%p:~0,2%" == "--" (
+  rem special handling for -- template arguments since '=' gets parsed away on Windows
   for /F "tokens=1 delims==" %%a in ("%p%") do (
     rem make sure it doesn't have the '=' already
     if "%p%" == "%%a" if not "%~1" == "" (
@@ -821,26 +928,33 @@ exit /B 0
 exit /B 0
 
 :addDefaultMemory
-  rem if we detect any of these settings in ${JAVA_OPTS} or ${JAVA_TOOL_OPTIONS} we need to NOT output our settings.
+  rem if we detect any of these settings in ${JAVA_OPTS} or ${JAVA_TOOL_OPTIONS} or ${JDK_JAVA_OPTIONS} we need to NOT output our settings.
   rem The reason is the Xms/Xmx, if they don't line up, cause errors.
 
   set _has_memory_args=
 
-  if defined _JAVA_OPTS for /F %%g in ("!_JAVA_OPTS!") do (
+  if defined _JAVA_OPTS for %%g in (%_JAVA_OPTS%) do (
     set "p=%%g"
     if "!p:~0,4!" == "-Xmx" set _has_memory_args=1
     if "!p:~0,4!" == "-Xms" set _has_memory_args=1
     if "!p:~0,4!" == "-Xss" set _has_memory_args=1
   )
 
-  if defined JAVA_TOOL_OPTIONS for /F %%g in ("%JAVA_TOOL_OPTIONS%") do (
+  if defined JAVA_TOOL_OPTIONS for %%g in (%JAVA_TOOL_OPTIONS%) do (
     set "p=%%g"
     if "!p:~0,4!" == "-Xmx" set _has_memory_args=1
     if "!p:~0,4!" == "-Xms" set _has_memory_args=1
     if "!p:~0,4!" == "-Xss" set _has_memory_args=1
   )
 
-  if defined _SBT_OPTS for /F %%g in ("!_SBT_OPTS!") do (
+  if defined JDK_JAVA_OPTIONS for %%g in (%JDK_JAVA_OPTIONS%) do (
+    set "p=%%g"
+    if "!p:~0,4!" == "-Xmx" set _has_memory_args=1
+    if "!p:~0,4!" == "-Xms" set _has_memory_args=1
+    if "!p:~0,4!" == "-Xss" set _has_memory_args=1
+  )
+
+  if defined _SBT_OPTS for %%g in (%_SBT_OPTS%) do (
     set "p=%%g"
     if "!p:~0,4!" == "-Xmx" set _has_memory_args=1
     if "!p:~0,4!" == "-Xms" set _has_memory_args=1
@@ -880,6 +994,11 @@ for /f "delims=.-_ tokens=1-2" %%v in ("!JAVA_VERSION!") do (
 
 rem parse the first two segments of sbt.version and set run_native_client to
 rem 1 if the user has also indicated they want to use native client.
+rem sbt new/init should not use native client as it needs to run outside a project
+if defined sbt_new (
+  set run_native_client=
+  exit /B 0
+)
 set sbtV=!build_props_sbt_version!
 set sbtBinaryV_1=
 set sbtBinaryV_2=
@@ -887,44 +1006,71 @@ for /F "delims=.-_ tokens=1-2" %%v in ("!sbtV!") do (
   set sbtBinaryV_1=%%v
   set sbtBinaryV_2=%%w
 )
-set native_client_ready=
+rem default to run_native_client=1 for sbt 2.x
 if !sbtBinaryV_1! geq 2 (
-  set native_client_ready=1
+  if !sbt_args_jvm_client! equ 1 (
+    set run_native_client=
+    set run_jvm_client=1
+  ) else (
+    if !sbt_args_client! equ 0 (
+      set run_native_client=
+    ) else (
+      set run_native_client=1
+    )
+  )
 ) else (
   if !sbtBinaryV_1! geq 1 (
     if !sbtBinaryV_2! geq 4 (
-      set native_client_ready=1
+      if !sbt_args_jvm_client! equ 1 (
+        set run_native_client=
+        set run_jvm_client=1
+      ) else (
+        if !sbt_args_client! equ 1 (
+          set run_native_client=1
+        )
+      )
     )
   )
 )
-if !native_client_ready! equ 1 (
-  if !sbt_args_client! equ 1 (
-    set run_native_client=1
-  )
-)
-set native_client_ready=
 
 exit /B 0
 
 :checkjava
-set /a required_version=6
+set /a required_version=8
+rem sbt 2.x requires JDK 17+
+set "_sbt_check_ver=!build_props_sbt_version!"
+if not defined _sbt_check_ver set "_sbt_check_ver=!init_sbt_version!"
+if defined _sbt_check_ver (
+  for /F "delims=.-_ tokens=1" %%m in ("!_sbt_check_ver!") do (
+    if %%m GEQ 2 set /a required_version=17
+  )
+)
+set "_sbt_check_ver="
 if /I !JAVA_VERSION! GEQ !required_version! (
   exit /B 0
 )
-echo.
-echo The Java Development Kit ^(JDK^) installation you have is not up to date.
-echo sbt requires at least version !required_version!+, you have
-echo version "!JAVA_VERSION!"
-echo.
-echo Please go to http://www.oracle.com/technetwork/java/javase/downloads/ and download
-echo a valid JDK and install before running sbt.
-echo.
+if !required_version! GEQ 17 (
+  >&2 echo.
+  >&2 echo [error] sbt 2.x requires JDK 17 or above, but you have JDK !JAVA_VERSION!
+  >&2 echo.
+  exit /B 1
+)
+>&2 echo.
+>&2 echo The Java Development Kit ^(JDK^) installation you have is not up to date.
+>&2 echo sbt requires at least version !required_version!+, you have
+>&2 echo version "!JAVA_VERSION!"
+>&2 echo.
+>&2 echo Go to https://adoptium.net/ etc and download
+>&2 echo a valid JDK and install before running sbt.
+>&2 echo.
 exit /B 1
 
 :copyrt
 if /I !JAVA_VERSION! GEQ 9 (
   "!_JAVACMD!" !_JAVA_OPTS! !_SBT_OPTS! -jar "!sbt_jar!" --rt-ext-dir > "%TEMP%.\rtext.txt"
-  set /p java9_ext= < "%TEMP%.\rtext.txt"
+  rem Filter for the line containing java9-rt-ext- to avoid picking up debug agent output
+  set "java9_ext="
+  for /f "tokens=*" %%a in ('findstr /c:"java9-rt-ext-" "%TEMP%.\rtext.txt"') do set "java9_ext=%%a"
   set "java9_rt=!java9_ext!\rt.jar"
 
   if not exist "!java9_rt!" (
@@ -968,11 +1114,11 @@ echo.
 echo   -h ^| --help         print this message
 echo   -v ^| --verbose      this runner is chattier
 echo   -V ^| --version      print sbt version information
-echo   --numeric-version   print the numeric sbt version (sbt sbtVersion)
-echo   --script-version    print the version of sbt script
-echo   -d ^| --debug        set sbt log level to debug
-echo   -debug-inc ^| --debug-inc
-echo                       enable extra debugging for the incremental debugger
+echo   --server            run sbt server in the foreground, instead of using sbtn
+echo   --client            run sbtn (native client), and start sbt server in the background
+echo   --no-server         run sbtn, and fail if it cannot connect to a server
+echo   --jvm-client        run JVM client, and start sbt server in the background
+echo   --allow-empty       start sbt even if current directory contains no sbt project
 echo   --no-colors         disable ANSI color codes
 echo   --color=auto^|always^|true^|false^|never
 echo                       enable or disable ANSI color codes      ^(sbt 1.3 and above^)
@@ -1008,6 +1154,15 @@ echo                       are prepended to the runner args
 echo   !SBT_CONFIG!
 echo                       if this file exists, it is prepended to the runner args
 echo   -Dkey=val           pass -Dkey=val directly to the java runtime
+echo   -X^<flag^>            pass -X^<flag^> directly to the java runtime
+echo                       ^(e.g., -Xmx1G, -Xms512M, -Xss4M^)
+echo   --numeric-version   print the numeric sbt version (sbt sbtVersion)
+echo   --script-version    print the version of sbt script
+echo   -d ^| --debug        set sbt log level to debug
+echo   -debug-inc ^| --debug-inc
+echo                       enable extra debugging for the incremental compiler
+echo   --experimental_execution_log=true^|^<path^>
+echo                       enable experimental execution log
 rem echo   -J-X                pass option -X directly to the java runtime
 rem echo                       ^(-J is stripped^)
 rem echo   -S-X                add -X to sbt's scalacOptions ^(-S is stripped^)
@@ -1020,8 +1175,26 @@ echo.
 exit /B 1
 
 :set_sbt_version
-rem set project sbtVersion
-for /F "usebackq tokens=2" %%G in (`CALL "!_JAVACMD!" -jar "!sbt_jar!" "sbtVersion" 2^>^&1`) do set "sbt_version=%%G"
+set "sbt_version="
+for /F "usebackq tokens=1,2 delims= " %%a in (`CALL "!_JAVACMD!" -jar "!sbt_jar!" "sbtVersion" 2^>^&1`) do (
+  if "%%a" == "[info]" (
+    set "_version_candidate=%%b"
+  ) else (
+    set "_version_candidate=%%a"
+  )
+  echo !_version_candidate!| findstr /R "^[0-9][0-9.]*[-+0-9A-Za-z._]*$" >nul && set "sbt_version=!_version_candidate!"
+)
+if not defined sbt_version if defined build_props_sbt_version set "sbt_version=!build_props_sbt_version!"
+exit /B 0
+
+:set_sbt_version_from_build_props
+set "sbt_version=!build_props_sbt_version!"
+for /F "tokens=* delims= " %%a in ("!sbt_version!") do set "sbt_version=%%a"
+:trim_version_end
+if "!sbt_version:~-1!" == " " (
+  set "sbt_version=!sbt_version:~0,-1!"
+  goto trim_version_end
+)
 exit /B 0
 
 :error

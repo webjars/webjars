@@ -114,26 +114,9 @@ Compile / doc / sources := Seq.empty
 
 // Boot the full server with the same testcontainer-backed valkey + literal
 // test config used by the unit-test layer. Useful for live smoke tests
-// (`test-integration.sh`) and for `reStartTest` below.
-lazy val runTest = taskKey[Unit]("run WebJarsTestApp")
+// (`test-integration.sh`) and for `Test/runReload` below.
+@transient lazy val runTest = taskKey[Unit]("run WebJarsTestApp")
 
 runTest := (Test / runMain).toTask(" webjars.WebJarsTestApp").value
 
-// Re-run `WebJarsTestApp` in a forked JVM, restarting on file changes.
-// Mirrors the `reStartTest` task in javadoccentral.
-lazy val reStartTest =
-  inputKey[spray.revolver.AppProcess]("re-start, but test")
-
-reStartTest :=
-  Def.inputTask {
-    spray.revolver.Actions.restartApp(
-      streams.value,
-      reLogTag.value,
-      thisProjectRef.value,
-      reForkOptions.value,
-      Some("webjars.WebJarsTestApp"),
-      (Test / fullClasspath).value,
-      reStartArgs.value,
-      spray.revolver.Actions.startArgsParser.parsed
-    )
-  }.dependsOn(Compile / products).evaluated
+Test / run / mainClass := Some("webjars.WebJarsTestApp")
