@@ -3,6 +3,7 @@ package webjars.utils
 import org.eclipse.jgit.api.Git as GitApi
 import org.eclipse.jgit.api.ResetCommand.ResetType
 import webjars.utils.Deployable.Version
+import webjars.utils.ResilientHttp.batchedResilient
 import zio.*
 import zio.direct.*
 import zio.http.*
@@ -42,7 +43,7 @@ case class GitLive(client: Client) extends Git:
   def resolveRedirect(httpUrl: String): ZIO[Scope, Throwable, String] =
     defer:
       val url = URL.unsafeParse(httpUrl)
-      val response = client.batched(Request.get(url)).run
+      val response = client.batchedResilient(Request.get(url)).run
       response.status match
         case Status.MovedPermanently | Status.Found =>
           response.header(Header.Location) match

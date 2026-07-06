@@ -3,6 +3,7 @@ package webjars.utils
 import zio.*
 import zio.direct.*
 import zio.http.*
+import webjars.utils.ResilientHttp.batchedResilient
 
 import scala.util.{Success, Try}
 
@@ -17,7 +18,7 @@ case class SemVerLive(client: Client) extends SemVer:
   def validRange(s: String): ZIO[Scope, Throwable, Option[String]] =
     defer:
       val url = URL.decode(s"$baseUrl/validRange?range=${java.net.URLEncoder.encode(s, "UTF-8")}").toOption.get
-      val response = client.batched(Request.get(url)).run
+      val response = client.batchedResilient(Request.get(url)).run
       if response.status == Status.Ok then
         Some(response.body.asString.run)
       else
@@ -31,7 +32,7 @@ case class SemVerLive(client: Client) extends SemVer:
         val vParams = versions.map(v => s"v=${java.net.URLEncoder.encode(v, "UTF-8")}").mkString("&")
         val rangeParam = s"range=${java.net.URLEncoder.encode(range, "UTF-8")}"
         val url = URL.decode(s"$baseUrl/maxSatisfying?$vParams&$rangeParam").toOption.get
-        val response = client.batched(Request.get(url)).run
+        val response = client.batchedResilient(Request.get(url)).run
         if response.status == Status.Ok then
           Some(response.body.asString.run)
         else

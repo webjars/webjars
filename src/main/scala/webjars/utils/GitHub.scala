@@ -2,6 +2,7 @@ package webjars.utils
 
 import webjars.config.AppConfig
 import webjars.utils.Deployable.Version
+import webjars.utils.ResilientHttp.batchedResilient
 import zio.*
 import zio.direct.*
 import zio.http.*
@@ -93,7 +94,7 @@ case class GitHubLive(client: Client, config: AppConfig, cache: Cache) extends G
       )
 
       defer:
-        val response = client.batched(reqWithAuth).run
+        val response = client.batchedResilient(reqWithAuth).run
         response.status match
           case Status.MovedPermanently =>
             response.header(Header.Location) match
@@ -116,7 +117,7 @@ case class GitHubLive(client: Client, config: AppConfig, cache: Cache) extends G
       val request = maybeAuthToken.fold(baseRequest)(token =>
         baseRequest.addHeader(Header.Authorization.Bearer(token))
       )
-      val response = client.batched(request).run
+      val response = client.batchedResilient(request).run
       response.status match
         case Status.Ok => response.body.asString.run
         case _ =>
@@ -131,7 +132,7 @@ case class GitHubLive(client: Client, config: AppConfig, cache: Cache) extends G
     )
 
     defer:
-      val response = client.batched(request).run
+      val response = client.batchedResilient(request).run
       response.status match
         case Status.Ok =>
           val these = mapFunction(response).run
@@ -186,7 +187,7 @@ case class GitHubLive(client: Client, config: AppConfig, cache: Cache) extends G
           )
 
           defer:
-            val response = client.batched(request).run
+            val response = client.batchedResilient(request).run
             response.status match
               case Status.Ok =>
                 val body = response.body.asString.run
@@ -236,7 +237,7 @@ case class GitHubLive(client: Client, config: AppConfig, cache: Cache) extends G
       val req = authedJsonRequest(
         s"repos/${repo.owner}/${repo.name}/issues?state=open&labels=${URLEncoder.encode(label)}&per_page=100"
       ).run
-      val response = client.batched(req).run
+      val response = client.batchedResilient(req).run
       response.status match
         case Status.Ok =>
           val body = response.body.asString.run

@@ -3,6 +3,7 @@ package webjars.utils
 import com.jamesward.zio_mavencentral.MavenCentral
 import webjars.config.AppConfig
 import webjars.utils.Deployable.{NameOrUrlish, Version}
+import webjars.utils.ResilientHttp.batchedResilient
 import zio.*
 import zio.direct.*
 import zio.http.*
@@ -63,7 +64,7 @@ case class ClassicLive(httpClient: Client, gitHub: GitHub, cache: Cache, config:
             val request = gitHub.maybeAuthToken.fold(baseRequest)(token =>
               baseRequest.addHeader(Header.Authorization.Bearer(token))
             )
-            val response = httpClient.batched(request).run
+            val response = httpClient.batchedResilient(request).run
             response.status match
               case Status.Ok =>
                 import zio.json.*
@@ -105,7 +106,7 @@ case class ClassicLive(httpClient: Client, gitHub: GitHub, cache: Cache, config:
   private def downloadExists(url: String): ZIO[Scope, Throwable, URL] =
     defer:
       val absoluteUrl = ZIO.fromTry(URL.parseTry(url)).run
-      val response = httpClient.batched(Request.head(absoluteUrl)).run
+      val response = httpClient.batchedResilient(Request.head(absoluteUrl)).run
       response.status match
         case s if s.isSuccess || s.isRedirection => absoluteUrl
         case _ => ZIO.fail(new Exception(s"${absoluteUrl.encode} does not exist")).run

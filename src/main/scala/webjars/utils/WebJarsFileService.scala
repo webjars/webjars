@@ -2,6 +2,7 @@ package webjars.utils
 
 import com.jamesward.zio_mavencentral.MavenCentral
 import webjars.config.AppConfig
+import webjars.utils.ResilientHttp.batchedResilient
 import zio.*
 import zio.direct.*
 import zio.http.*
@@ -29,7 +30,7 @@ case class WebJarsFileServiceLive(client: Client, config: AppConfig) extends Web
   def getFileList(gav: MavenCentral.GroupArtifactVersion): ZIO[Scope, Throwable, List[String]] =
     defer:
       val url = serviceUrl("listfiles", gav)
-      val response = client.batched(Request.get(url)).run
+      val response = client.batchedResilient(Request.get(url)).run
       response.status match
         case Status.Ok =>
           val body = response.body.asString.run
@@ -51,7 +52,7 @@ case class WebJarsFileServiceLive(client: Client, config: AppConfig) extends Web
   def getNumFiles(gav: MavenCentral.GroupArtifactVersion): ZIO[Scope, Throwable, Int] =
     defer:
       val url = serviceUrl("numfiles", gav)
-      val response = client.batched(Request.get(url)).run
+      val response = client.batchedResilient(Request.get(url)).run
       response.status match
         case Status.Ok =>
           val body = response.body.asString.run

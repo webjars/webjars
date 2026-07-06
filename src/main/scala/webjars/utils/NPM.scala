@@ -2,6 +2,7 @@ package webjars.utils
 
 import com.jamesward.zio_mavencentral.MavenCentral
 import webjars.utils.Deployable.{NameOrUrlish, Version}
+import webjars.utils.ResilientHttp.batchedResilient
 import zio.*
 import zio.direct.*
 import zio.http.*
@@ -60,7 +61,7 @@ case class NPMLive(client: Client, git: Git, gitHub: GitHub, maven: Maven, semVe
         val url = registryMetadataUrl(packageNameOrGitRepo)
         val request = Request.get(url)
           .addHeader(Header.Accept(MediaType("application", "vnd.npm.install-v1+json")))
-        val response = client.batched(request).run
+        val response = client.batchedResilient(request).run
         response.status match
           case Status.Ok =>
             val body = response.body.asString.run
@@ -74,7 +75,7 @@ case class NPMLive(client: Client, git: Git, gitHub: GitHub, maven: Maven, semVe
   def versionJson(packageNameOrGitRepo: NameOrUrlish, version: Version): ZIO[Scope, Throwable, Json] =
     defer:
       val url = registryMetadataUrl(packageNameOrGitRepo, Some(version))
-      val response = client.batched(Request.get(url)).run
+      val response = client.batchedResilient(Request.get(url)).run
       response.status match
         case Status.Ok =>
           val body = response.body.asString.run
