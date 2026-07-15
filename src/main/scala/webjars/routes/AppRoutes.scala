@@ -14,7 +14,6 @@ import zio.redis.Redis
 import zio.stream.ZStream
 
 import java.io.FileNotFoundException
-import java.net.URLDecoder
 import scala.util.hashing.MurmurHash3
 
 case class ExistsResponse(
@@ -369,12 +368,17 @@ case class AppRoutes[DeployerEnv](
     },
 
     // List files (with and without groupId)
+    // `version` is a zio-http path segment: it's already percent-decoded
+    // (e.g. `%2B` -> `+`) by the time the handler sees it. Do NOT run it
+    // through `URLDecoder.decode` again -- that applies
+    // application/x-www-form-urlencoded semantics, which also folds `+`
+    // into a space, corrupting versions like `1.14.2+1` into `1.14.2 1`.
     Method.GET / "listfiles" / string("artifactId") / string("version") -> handler { (artifactId: String, version: String, request: Request) =>
-      handleListFiles("org.webjars", artifactId, URLDecoder.decode(version, "UTF-8"), request)
+      handleListFiles("org.webjars", artifactId, version, request)
     },
 
     Method.GET / "listfiles" / string("groupId") / string("artifactId") / string("version") -> handler { (groupId: String, artifactId: String, version: String, request: Request) =>
-      handleListFiles(groupId, artifactId, URLDecoder.decode(version, "UTF-8"), request)
+      handleListFiles(groupId, artifactId, version, request)
     },
 
     // File redirect
