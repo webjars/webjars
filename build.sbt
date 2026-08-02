@@ -12,7 +12,7 @@ Compile / mainClass := Some("webjars.Main")
 
 val zioVersion = "2.1.26"
 val zioHttpVersion = "3.11.2"
-val zioJsonVersion = "0.9.2"
+val zioJsonVersion = "0.10.0"
 val zioConfigVersion = "4.0.7"
 val zioLoggingVersion = "2.5.3"
 // Pinned at 1.1.4 — 2.x hangs the tar tests in this project
