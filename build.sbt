@@ -57,7 +57,7 @@ libraryDependencies ++= Seq(
   "org.scala-lang.modules" %% "scala-xml"     % "2.4.0",
 
   // Maven Central
-  "com.jamesward" %% "zio-mavencentral"       % "0.12.0",
+  "com.jamesward" %% "zio-mavencentral"       % "0.13.2",
 
   // Git
   "org.eclipse.jgit" % "org.eclipse.jgit"     % "7.7.0.202606012155-r",
