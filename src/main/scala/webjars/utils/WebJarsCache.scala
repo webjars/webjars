@@ -16,13 +16,14 @@ object WebJarsCache:
 
   def getArtifact(groupArtifact: GroupArtifact): ZIO[Redis, RedisError, Option[WebJarMeta]] =
     ZIO.serviceWithZIO[Redis]: redis =>
-      redis.hGet(groupArtifact.groupId, groupArtifact.artifactId).returning[WebJarMeta]
+      redis.hGet(groupArtifact.groupId.toString, groupArtifact.artifactId.toString).returning[WebJarMeta]
 
   def getArtifacts(groupId: MavenCentral.GroupId, limit: Option[Int] = None, query: Option[String] = None): ZIO[Redis, RedisError, Map[MavenCentral.ArtifactId, WebJarMeta]] =
     ZIO.serviceWithZIO[Redis]: redis =>
-      val filtered = redis.hGetAll(groupId).returning[MavenCentral.ArtifactId, WebJarMeta].map: webJars =>
-        query.fold(webJars): q =>
-          webJars.filter: (artifactId, meta) =>
+      val filtered = redis.hGetAll(groupId.toString).returning[String, WebJarMeta].map: webJars =>
+        val typed = webJars.map((k, v) => MavenCentral.ArtifactId(k) -> v)
+        query.fold(typed): q =>
+          typed.filter: (artifactId, meta) =>
             artifactId.toString.toLowerCase.contains(q.toLowerCase) ||
               meta.name.toLowerCase.contains(q.toLowerCase)
 
@@ -44,7 +45,7 @@ object WebJarsCache:
       ZIO.die(IllegalArgumentException(s"Refusing to cache artifact with empty artifactId in groupId ${groupArtifact.groupId}"))
     else
       ZIO.serviceWithZIO[Redis]: redis =>
-        redis.hSet(groupArtifact.groupId, groupArtifact.artifactId -> webJarMeta).unit
+        redis.hSet(groupArtifact.groupId.toString, groupArtifact.artifactId.toString -> webJarMeta).unit
 
   def updateVersion(groupArtifact: GroupArtifact, version: String, numFiles: Int): ZIO[Redis, Throwable, Unit] =
     defer:
