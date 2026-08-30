@@ -43,7 +43,7 @@ libraryDependencies ++= Seq(
   // Redis
   "dev.zio" %% "zio-redis"                    % "1.2.1",
 
-  "com.jamesward" %% "zio-http-guard" % "0.0.1",
+  "com.jamesward" %% "zio-http-guard" % "0.0.2",
 
   // In-process cache
   "dev.zio" %% "zio-cache"                    % "0.2.8",
