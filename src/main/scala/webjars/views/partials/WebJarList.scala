@@ -7,6 +7,11 @@ import java.net.URLEncoder
 
 object WebJarList:
 
+  private def webJarType(groupId: String): String = groupId match
+    case "org.webjars"     => "classic"
+    case "org.webjars.npm" => "npm"
+    case unsupported        => throw IllegalArgumentException(s"Unsupported WebJar group ID: $unsupported")
+
   private def displayNumFiles(maybeNumFiles: Option[Int]): String =
     maybeNumFiles.fold("List")(_.toString)
 
@@ -42,6 +47,7 @@ object WebJarList:
             Dom.attr("data-bs-toggle", "modal"),
             Dom.attr("data-bs-target", "#newWebJarModal"),
             Dom.attr("data-group-id", webjar.groupId.toString),
+            Dom.attr("data-webjar-type", webJarType(webjar.groupId)),
             Dom.attr("data-artifact-id", webjar.artifactId.toString),
             Dom.attr("data-name", webjar.name),
             Dom.raw("""<svg class="bi bi-plus-lg"><use href="#plus-lg"></use></svg>"""),

@@ -21,8 +21,8 @@ object DeploySpec extends ZIOSpecDefault:
   final class CapturingDeployer(ref: Ref[Option[(MavenCentral.GroupArtifactVersion, Array[Byte], String)]])
       extends MavenCentralDeployer[Any]:
     def captured: UIO[Option[(MavenCentral.GroupArtifactVersion, Array[Byte], String)]] = ref.get
-    def publish(gav: MavenCentral.GroupArtifactVersion, jar: Array[Byte], pom: String): ZIO[Any, Throwable, Unit] =
-      ref.set(Some((gav, jar, pom)))
+    def publish(gav: MavenCentral.GroupArtifactVersion, jar: Deployable.ArchiveStream, pom: String): ZIO[Any, Throwable, Unit] =
+      jar.runCollect.flatMap(bytes => ref.set(Some((gav, bytes.toArray, pom))))
     def ascSign(toSign: Chunk[Byte]): IO[Throwable, Option[Chunk[Byte]]] = ZIO.none
 
   /** Same shape as `DeployWebJarSpec.MockMavenCentralWebJars`: claims no POM
@@ -64,8 +64,8 @@ object DeploySpec extends ZIOSpecDefault:
 
   private def jarEntryNames(jar: Array[Byte]): ZIO[Any, Throwable, Set[String]] =
     ZStream.fromChunk(Chunk.fromArray(jar))
-      .via(ZipUnarchiver.unarchive)
-      .map(_._1.name)
+      .via(ZipUnarchiver.list)
+      .map(_.name)
       .runCollect
       .map(_.toSet)
 

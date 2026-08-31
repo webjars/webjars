@@ -1,17 +1,14 @@
 package webjars.utils
 
 import com.jamesward.zio_mavencentral.MavenCentral
-import webjars.utils.Deployable.{NameOrUrlish, Version}
+import webjars.utils.Deployable.{ArchiveStream, NameOrUrlish, Version}
 import webjars.utils.ResilientHttp.batchedResilient
 import zio.*
 import zio.direct.*
 import zio.http.*
 import zio.json.*
 import zio.json.ast.Json
-
-import java.io.InputStream
-import java.util.zip.{GZIPInputStream, ZipException}
-import scala.util.Try
+import zio.stream.*
 
 trait NPM extends Deployable:
   override val name: String = "NPM"
@@ -32,7 +29,7 @@ case class NPMLive(client: Client, git: Git, gitHub: GitHub, maven: Maven, semVe
     ZIO.succeed(Set("node_modules"))
 
   override def maybeBaseDirGlob(nameOrUrlish: NameOrUrlish): ZIO[Scope, Throwable, Option[Version]] =
-    ZIO.succeed(Some("*/"))
+    ZIO.some("*/")
 
   private def registryMetadataUrl(packageName: String, maybeVersion: Option[Version] = None): URL =
     maybeVersion.fold {
@@ -52,6 +49,13 @@ case class NPMLive(client: Client, git: Git, gitHub: GitHub, maven: Maven, semVe
       BASE_URL / scope / packageName / "-" / s"$packageName-$version.tgz"
     else
       BASE_URL / maybeScopeAndPackageName / "-" / s"$maybeScopeAndPackageName-$version.tgz"
+
+  private def download(url: URL): ArchiveStream =
+    client.stream(Request.get(url)): response =>
+      if response.status.isSuccess then response.body.asStream
+      else
+        ZStream.unwrap:
+          response.body.asString.map(body => ZStream.fail(ServerError(body, response.status.code)))
 
   override def versions(packageNameOrGitRepo: NameOrUrlish): ZIO[Scope, Throwable, Set[Version]] =
     if git.isGit(packageNameOrGitRepo) then
@@ -82,7 +86,7 @@ case class NPMLive(client: Client, git: Git, gitHub: GitHub, maven: Maven, semVe
           ZIO.fromEither(body.fromJson[Json].left.map(new Exception(_))).run
         case _ =>
           val body = response.body.asString.run
-          ZIO.fail(new Exception(body)).run
+          ZIO.fail(ServerError(body, response.status.code)).run
 
   private def jsonString(json: Json, field: String): Option[String] =
     json.asObject.flatMap(_.get(field)).flatMap(_.asString)
@@ -228,24 +232,12 @@ case class NPMLive(client: Client, git: Git, gitHub: GitHub, maven: Maven, semVe
             ))
     }
 
-  override def archive(packageNameOrGitRepo: String, version: Version): ZIO[Scope, Throwable, InputStream] =
+  override def archive(packageNameOrGitRepo: String, version: Version): ArchiveStream =
     if git.isGit(packageNameOrGitRepo) then
-      git.tar(packageNameOrGitRepo, version, Set("node_modules"))
+      git.archive(packageNameOrGitRepo, version, Set("node_modules"))
     else
-      ZIO.fromTry {
-        Try {
-          val url = registryTgzUrl(packageNameOrGitRepo, version).toJavaURI.toURL
-          val inputStream = url.openConnection().getInputStream
-          val gzipInputStream = new GZIPInputStream(inputStream)
-          gzipInputStream
-        }.recoverWith {
-          case _: ZipException =>
-            Try {
-              val url = registryTgzUrl(packageNameOrGitRepo, version).toJavaURI.toURL
-              url.openConnection().getInputStream
-            }
-        }
-      }
+      download(registryTgzUrl(packageNameOrGitRepo, version))
+        .via(Gzip.decompressOrIdentity)
 
   override def file(packageNameOrGitRepo: String, version: Version, filename: String): ZIO[Scope, Throwable, String] =
     if git.isGit(packageNameOrGitRepo) then

@@ -1,13 +1,13 @@
 package webjars.utils
 
 import com.jamesward.zio_mavencentral.MavenCentral
-import webjars.utils.Deployable.{NameOrUrlish, Version}
+import webjars.utils.Deployable.{ArchiveStream, NameOrUrlish, Version}
 import zio.*
 import zio.direct.*
 import zio.http.URL
 import zio.stream.*
 
-import java.io.{FileNotFoundException, InputStream}
+import java.io.FileNotFoundException
 
 trait Deployable:
 
@@ -41,7 +41,7 @@ trait Deployable:
 
   def mavenDependencies(dependencies: Map[String, String]): ZIO[Scope, Throwable, Set[(MavenCentral.GroupArtifact, String)]]
 
-  def archive(nameOrUrlish: NameOrUrlish, version: Version): ZIO[Scope, Throwable, InputStream]
+  def archive(nameOrUrlish: NameOrUrlish, version: Version): ArchiveStream
 
   def file(nameOrUrlish: NameOrUrlish, version: Version, filename: String): ZIO[Scope, Throwable, String]
 
@@ -88,12 +88,11 @@ trait Deployable:
 
   def archiveFile(nameOrUrlish: NameOrUrlish, version: Version, filename: String): ZIO[Scope, Throwable, String] =
     defer:
-      val resource = archive(nameOrUrlish, version).run
-      val maybeContent = WebJarCreator.unarchiveStream(ZStream.fromInputStream(resource))
+      val maybeContent = WebJarCreator.unarchiveStream(archive(nameOrUrlish, version))
         .filter(_._1 == filename)
         .take(1)
         .mapZIO { case (_, _, content) =>
-          content.via(ZPipeline.utf8Decode).runCollect.map(_.mkString)
+          ZStream.fromChunk(content).via(ZPipeline.utf8Decode).runCollect.map(_.mkString)
         }
         .runHead
         .run
@@ -143,6 +142,7 @@ trait Deployable:
   def depGraph(packageInfo: PackageInfo, deps: Map[String, String] = Map.empty[String, String]): ZIO[Scope, Throwable, Map[String, String]]
 
 object Deployable:
+  type ArchiveStream = ZStream[Any, Throwable, Byte]
   type NameOrUrlish = String
   type Version = String
 

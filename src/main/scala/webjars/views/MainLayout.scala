@@ -24,16 +24,9 @@ object MainLayout:
 
         // Styles — main.css is generated from main.scss by sbt-sass and includes Bootstrap
         link(rel := "stylesheet", href := "/assets/main.css"),
-        link(rel := "stylesheet", href := webJars.url(select2, "css/select2.min.css")),
-        link(rel := "stylesheet", href := webJars.url(`select2-bootstrap-5-theme`, "dist/select2-bootstrap-5-theme.min.css")),
-        link(rel := "stylesheet", href := webJars.url(highlightjs, "styles/atom-one-dark.min.css")),
 
         // Scripts
-        script(src := webJars.url(jquery, "jquery.min.js")),
         script(src := webJars.url(bootstrap, "dist/js/bootstrap.bundle.min.js")),
-        script(src := webJars.url(select2, "js/select2.full.min.js")),
-        script(src := webJars.url(highlightjs, "highlight.min.js")),
-        script(Dom.raw("hljs.highlightAll();")),
         script(src := "/assets/javascripts/color-modes.js"),
 
         // Google tag (gtag.js)

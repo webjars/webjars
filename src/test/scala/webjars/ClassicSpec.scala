@@ -58,32 +58,24 @@ object ClassicSpec extends ZIOSpecDefault:
     suite("archive")(
       test("work") {
         withClassic { classic =>
-          classic.archive("swagger-ui", "v5.15.1").flatMap { inputStream =>
-            ZStream.fromInputStream(inputStream).runCollect.flatMap { bytes =>
-              ZStream.fromChunk(bytes)
-                .via(ZipUnarchiver.unarchive)
-                .map(_._1.name)
-                .runCollect
-                .map { files =>
-                  assertTrue(files.contains("swagger-ui-5.15.1/dist/swagger-ui.js"))
-                }
+          classic.archive("swagger-ui", "v5.15.1")
+            .via(ZipUnarchiver.list)
+            .map(_.name)
+            .runCollect
+            .map { files =>
+              assertTrue(files.contains("swagger-ui-5.15.1/dist/swagger-ui.js"))
             }
-          }
         }
       },
       test("work when download url does not have a v") {
         withClassic { classic =>
-          classic.archive("vega", "v5.32.0").flatMap { inputStream =>
-            ZStream.fromInputStream(inputStream).runCollect.flatMap { bytes =>
-              ZStream.fromChunk(bytes)
-                .via(TarUnarchiver.unarchive)
-                .map(_._1.name)
-                .runCollect
-                .map { files =>
-                  assertTrue(files.contains("package/build/vega.min.js"))
-                }
+          classic.archive("vega", "v5.32.0")
+            .via(TarUnarchiver.list)
+            .map(_.name)
+            .runCollect
+            .map { files =>
+              assertTrue(files.contains("package/build/vega.min.js"))
             }
-          }
         }
       },
     ) @@ TestAspect.withLiveClock,

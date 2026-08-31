@@ -13,3 +13,5 @@
 /.metals
 /.mcp.json
 /.claude/scheduled_tasks.lock
+/.kiro/settings/lsp.json
+/.kiro/skills/

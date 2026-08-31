@@ -43,8 +43,8 @@ object TestInfrastructure:
    *  (so manual end-to-end tests can verify a real signature), otherwise
    *  returns `None`. */
   class MockMavenCentralDeployer extends MavenCentralDeployer[Any]:
-    def publish(gav: MavenCentral.GroupArtifactVersion, jar: Array[Byte], pom: String): ZIO[Any, Throwable, Unit] =
-      ZIO.logInfo(s"[mock] would deploy $gav (jar ${jar.length} bytes, pom ${pom.length} chars)")
+    def publish(gav: MavenCentral.GroupArtifactVersion, jar: Deployable.ArchiveStream, pom: String): ZIO[Any, Throwable, Unit] =
+      jar.runCount.flatMap(size => ZIO.logInfo(s"[mock] would deploy $gav (jar $size bytes, pom ${pom.length} chars)"))
 
     override def ascSign(toSign: Chunk[Byte]): IO[Throwable, Option[Chunk[Byte]]] =
       ZIO.systemWith(_.env("OSS_GPG_KEY")).flatMap:

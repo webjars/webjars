@@ -80,8 +80,8 @@ object WebJarCreatorSpec extends ZIOSpecDefault:
         val inputStream = url.openConnection().getInputStream
         new GZIPInputStream(inputStream).readAllBytes()
       }.flatMap { bytes =>
-        WebJarCreator.createWebJar(ZStream.fromChunk(Chunk.fromArray(bytes)), Some("*/"), Set("node_modules"), "test", "Test", Set.empty, MavenCentral.GroupId("test"), MavenCentral.ArtifactId("test"), MavenCentral.Version("2.10.0"), "test").map { webJar =>
-          assertTrue(webJar.length > 0)
+        WebJarCreator.createWebJar(ZStream.fromChunk(Chunk.fromArray(bytes)), Some("*/"), Set("node_modules"), "test", "Test", Set.empty, MavenCentral.GroupId("test"), MavenCentral.ArtifactId("test"), MavenCentral.Version("2.10.0"), "test").runCount.map { size =>
+          assertTrue(size > 0)
         }
       }
     } @@ TestAspect.timeout(zio.Duration.fromSeconds(120)),
@@ -91,15 +91,13 @@ object WebJarCreatorSpec extends ZIOSpecDefault:
         val inputStream = url.openConnection().getInputStream
         new GZIPInputStream(inputStream).readAllBytes()
       }.flatMap { bytes =>
-        WebJarCreator.createWebJar(ZStream.fromChunk(Chunk.fromArray(bytes)), Some("*/"), Set("node_modules"), "", "Test", Set.empty, MavenCentral.GroupId("org.webjars.npm"), MavenCentral.ArtifactId("react-redux"), MavenCentral.Version("4.4.32"), "react-redux/4.4.32/").flatMap { webJar =>
-          ZStream.fromChunk(Chunk.fromArray(webJar))
-            .via(ZipUnarchiver.unarchive)
-            .map(_._1.name)
+        WebJarCreator.createWebJar(ZStream.fromChunk(Chunk.fromArray(bytes)), Some("*/"), Set("node_modules"), "", "Test", Set.empty, MavenCentral.GroupId("org.webjars.npm"), MavenCentral.ArtifactId("react-redux"), MavenCentral.Version("4.4.32"), "react-redux/4.4.32/")
+            .via(ZipUnarchiver.list)
+            .map(_.name)
             .runCollect
             .map { allNames =>
               assertTrue(allNames.contains("META-INF/resources/webjars/react-redux/4.4.32/package.json"))
             }
-        }
       }
     } @@ TestAspect.timeout(zio.Duration.fromSeconds(60)),
     test("handle packages where the contents are in the base dir") {
@@ -108,15 +106,13 @@ object WebJarCreatorSpec extends ZIOSpecDefault:
         val inputStream = url.openConnection().getInputStream
         new GZIPInputStream(inputStream).readAllBytes()
       }.flatMap { bytes =>
-        WebJarCreator.createWebJar(ZStream.fromChunk(Chunk.fromArray(bytes)), None, Set("node_modules"), "", "Test", Set.empty, MavenCentral.GroupId("org.webjars.npm"), MavenCentral.ArtifactId("react-redux"), MavenCentral.Version("4.4.32"), "react-redux/4.4.32/").flatMap { webJar =>
-          ZStream.fromChunk(Chunk.fromArray(webJar))
-            .via(ZipUnarchiver.unarchive)
-            .map(_._1.name)
+        WebJarCreator.createWebJar(ZStream.fromChunk(Chunk.fromArray(bytes)), None, Set("node_modules"), "", "Test", Set.empty, MavenCentral.GroupId("org.webjars.npm"), MavenCentral.ArtifactId("react-redux"), MavenCentral.Version("4.4.32"), "react-redux/4.4.32/")
+            .via(ZipUnarchiver.list)
+            .map(_.name)
             .runCollect
             .map { allNames =>
               assertTrue(allNames.contains("META-INF/resources/webjars/react-redux/4.4.32/react-redux/package.json"))
             }
-        }
       }
     } @@ TestAspect.timeout(zio.Duration.fromSeconds(60)),
     test("create subdirectories for contents") {
@@ -125,16 +121,13 @@ object WebJarCreatorSpec extends ZIOSpecDefault:
         val inputStream = url.openConnection().getInputStream
         new GZIPInputStream(inputStream).readAllBytes()
       }.flatMap { bytes =>
-        WebJarCreator.createWebJar(ZStream.fromChunk(Chunk.fromArray(bytes)), Some("*/"), Set("node_modules"), "", "Test", Set.empty, MavenCentral.GroupId("org.webjars.npm"), MavenCentral.ArtifactId("react-router"), MavenCentral.Version("2.0.41"), "react-router/2.0.41/").flatMap { webJar =>
-          ZStream.fromChunk(Chunk.fromArray(webJar))
-            .via(ZipUnarchiver.unarchive)
-            .filter(_._1.name == "META-INF/resources/webjars/react-router/2.0.41/lib/")
-            .map(_._1)
+        WebJarCreator.createWebJar(ZStream.fromChunk(Chunk.fromArray(bytes)), Some("*/"), Set("node_modules"), "", "Test", Set.empty, MavenCentral.GroupId("org.webjars.npm"), MavenCentral.ArtifactId("react-router"), MavenCentral.Version("2.0.41"), "react-router/2.0.41/")
+            .via(ZipUnarchiver.list)
+            .filter(_.name == "META-INF/resources/webjars/react-router/2.0.41/lib/")
             .runHead
             .map { maybeLib =>
               assertTrue(maybeLib.exists(_.isDirectory))
             }
-        }
       }
     } @@ TestAspect.timeout(zio.Duration.fromSeconds(60)),
     test("handle non gzip tgzs") {
@@ -142,15 +135,13 @@ object WebJarCreatorSpec extends ZIOSpecDefault:
         val url = new URI("https://registry.npmjs.org/@types/escodegen/-/escodegen-0.0.2.tgz").toURL
         url.openConnection().getInputStream.readAllBytes()
       }.flatMap { bytes =>
-        WebJarCreator.createWebJar(ZStream.fromChunk(Chunk.fromArray(bytes)), Some("*/"), Set("node_modules"), "", "Test", Set.empty, MavenCentral.GroupId("org.webjars.npm"), MavenCentral.ArtifactId("escodegen"), MavenCentral.Version("0.0.2"), "escodegen/0.0.2/").flatMap { webJar =>
-          ZStream.fromChunk(Chunk.fromArray(webJar))
-            .via(ZipUnarchiver.unarchive)
-            .map(_._1.name)
+        WebJarCreator.createWebJar(ZStream.fromChunk(Chunk.fromArray(bytes)), Some("*/"), Set("node_modules"), "", "Test", Set.empty, MavenCentral.GroupId("org.webjars.npm"), MavenCentral.ArtifactId("escodegen"), MavenCentral.Version("0.0.2"), "escodegen/0.0.2/")
+            .via(ZipUnarchiver.list)
+            .map(_.name)
             .runCollect
             .map { allNames =>
               assertTrue(allNames.contains("META-INF/resources/webjars/escodegen/0.0.2/package.json"))
             }
-        }
       }
     } @@ TestAspect.timeout(zio.Duration.fromSeconds(60)),
     test("multi-base") {
@@ -159,10 +150,9 @@ object WebJarCreatorSpec extends ZIOSpecDefault:
         url.openConnection().getInputStream.readAllBytes()
       }.flatMap { bytes =>
         val baseDir = Some("*/dist,*/min")
-        WebJarCreator.createWebJar(ZStream.fromChunk(Chunk.fromArray(bytes)), baseDir, Set.empty, "", "Test", Set.empty, MavenCentral.GroupId(""), MavenCentral.ArtifactId(""), MavenCentral.Version(""), "moment/").flatMap { webJar =>
-          ZStream.fromChunk(Chunk.fromArray(webJar))
-            .via(ZipUnarchiver.unarchive)
-            .map(_._1.name)
+        WebJarCreator.createWebJar(ZStream.fromChunk(Chunk.fromArray(bytes)), baseDir, Set.empty, "", "Test", Set.empty, MavenCentral.GroupId(""), MavenCentral.ArtifactId(""), MavenCentral.Version(""), "moment/")
+            .via(ZipUnarchiver.list)
+            .map(_.name)
             .runCollect
             .map { allNames =>
               assertTrue(
@@ -170,7 +160,6 @@ object WebJarCreatorSpec extends ZIOSpecDefault:
                 allNames.contains("META-INF/resources/webjars/moment/moment.js"),
               )
             }
-        }
       }
     } @@ TestAspect.timeout(zio.Duration.fromSeconds(120)),
     test("normalizes `./` path segments and dedupes (issue #2220)") {
@@ -205,11 +194,12 @@ object WebJarCreatorSpec extends ZIOSpecDefault:
             MavenCentral.Version("1.0.0"),
             "test/1.0.0/",
           )
+          .runCollect
           .flatMap { webJar =>
             ZStream
-              .fromChunk(Chunk.fromArray(webJar))
-              .via(ZipUnarchiver.unarchive)
-              .map(_._1.name)
+              .fromChunk(webJar)
+              .via(ZipUnarchiver.list)
+              .map(_.name)
               .runCollect
               .flatMap { allNames =>
                 val asList = allNames.toList
@@ -218,7 +208,7 @@ object WebJarCreatorSpec extends ZIOSpecDefault:
                 ZIO.attemptBlocking {
                   val tmp = java.nio.file.Files.createTempFile("webjar-issue-2220-", ".jar")
                   try {
-                    java.nio.file.Files.write(tmp, webJar)
+                    java.nio.file.Files.write(tmp, webJar.toArray)
                     val uri = new URI("jar:" + tmp.toUri.toString)
                     val fs = FileSystems.newFileSystem(uri, java.util.Collections.emptyMap[String, Any]())
                     fs.close()

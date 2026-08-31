@@ -1,6 +1,7 @@
 package webjars.utils
 
 import com.jamesward.zio_mavencentral.MavenCentral
+import com.jamesward.zio_mavencentral.MavenCentralSchemas.given
 import com.jamesward.zio_mavencentral.MavenCentral.GroupArtifact
 import webjars.models.WebJarVersion
 import zio.*

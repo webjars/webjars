@@ -1,8 +1,29 @@
 name := "webjars"
 
-scalaVersion := "3.8.4"
+scalaVersion := "3.9.0"
 
-enablePlugins(JavaAppPackaging)
+// --- Local library co-development -------------------------------------------
+// `-Dlocal` swaps published artifacts for source checkouts under `../../` when
+// present, e.g. `./sbt -Dlocal test`. This mirrors the pattern in
+// ../../toolbook/build.sbt while keeping this single-module build flat.
+// Normal and CI builds use the published artifacts declared below.
+val zioGitDir                = file("../../zio-git")
+val zioMavenCentralDir       = file("../../zio-mavencentral")
+val useLocalSubprojects      = sys.props.get("local").isDefined
+val zioGitLocal              = useLocalSubprojects && zioGitDir.exists()
+val zioMavenCentralLocal     = useLocalSubprojects && zioMavenCentralDir.exists()
+
+// Source dependencies wired onto the root project below only under `-Dlocal`.
+val localSubprojectDeps: Seq[ClasspathDep[ProjectReference]] =
+  (if (zioGitLocal) Seq(RootProject(zioGitDir): ClasspathDep[ProjectReference]) else Seq.empty) ++
+    (if (zioMavenCentralLocal) Seq(RootProject(zioMavenCentralDir): ClasspathDep[ProjectReference]) else Seq.empty)
+
+// Published artifacts are used only when their local checkout is not active,
+// so source projects and published jars never both land on the classpath.
+libraryDependencies ++=
+  (if (zioGitLocal) Seq.empty else Seq("com.jamesward" %% "zio-git" % "0.0.2")) ++
+  (if (zioMavenCentralLocal) Seq.empty
+   else Seq("com.jamesward" %% "zio-mavencentral" % "0.14.0"))
 
 // Lock down the primary launcher so `bin/webjars` keeps booting the server
 // `Main` even though we now ship a second main class. sbt-native-packager
@@ -10,60 +31,18 @@ enablePlugins(JavaAppPackaging)
 // discovered main classes — we don't need a custom mapping for it.
 Compile / mainClass := Some("webjars.Main")
 
-val zioVersion = "2.1.26"
-val zioHttpVersion = "3.11.2"
-val zioJsonVersion = "0.9.2"
-val zioConfigVersion = "4.0.7"
-val zioLoggingVersion = "2.5.3"
-// Pinned at 1.1.4 — 2.x hangs the tar tests in this project
-// (`ArchiveCreator - tar with file excludes`, etc.). Revisit when 2.x
-// either documents the migration or those tests are rewritten.
-val zioStreamsCompressVersion = "1.1.4"
+val zioStreamsCompressVersion = "2.1.4"
 
 libraryDependencies ++= Seq(
-  // ZIO core
-  "dev.zio" %% "zio"                          % zioVersion,
-  "dev.zio" %% "zio-streams"                  % zioVersion,
-  "dev.zio" %% "zio-direct"                   % "1.0.0-RC7",
-
-  // ZIO HTTP (web framework + client + template2)
-  "dev.zio" %% "zio-http"                     % zioHttpVersion,
-
-  // JSON
-  "dev.zio" %% "zio-json"                     % zioJsonVersion,
-
-  // Configuration
-  "dev.zio" %% "zio-config"                   % zioConfigVersion,
-  "dev.zio" %% "zio-config-typesafe"          % zioConfigVersion,
-
-  // Logging
-  "dev.zio" %% "zio-logging"                  % zioLoggingVersion,
-  "org.slf4j" % "slf4j-simple"                % "2.0.18",
-
-  // Redis
+  "dev.zio" %% "zio-config-typesafe"          % "4.0.8",
+  "dev.zio" %% "zio-logging-slf4j2-bridge"    % "2.5.3",
   "dev.zio" %% "zio-redis"                    % "1.2.1",
-
-  "com.jamesward" %% "zio-http-guard" % "0.0.1",
-
-  // In-process cache
   "dev.zio" %% "zio-cache"                    % "0.2.8",
+  "com.jamesward" %% "zio-http-guard"         % "0.0.2",
 
-  // Archive handling (ZIO Streams Compress)
   "dev.zio" %% "zio-streams-compress-tar"     % zioStreamsCompressVersion,
   "dev.zio" %% "zio-streams-compress-zip"     % zioStreamsCompressVersion,
   "dev.zio" %% "zio-streams-compress-gzip"    % zioStreamsCompressVersion,
-
-  // XML
-  "org.scala-lang.modules" %% "scala-xml"     % "2.4.0",
-
-  // Maven Central
-  "com.jamesward" %% "zio-mavencentral"       % "0.12.0",
-
-  // Git
-  "org.eclipse.jgit" % "org.eclipse.jgit"     % "7.7.1.202607240634-r",
-
-  // Hashing
-  "com.outr" %% "hasher"                      % "1.2.3",
 
   // WebJars
   //  • `WebJar` scope — version source for the generated locator (build-time only).
@@ -72,18 +51,13 @@ libraryDependencies ++= Seq(
   // Prod jar contains none of these; URLs are baked at build time.
   "org.webjars.npm" % "bootstrap"                 % "5.3.8"   % Set(WebJar, Test, Sass),
   "org.webjars"     % "highlightjs"               % "11.11.1" % Set(WebJar, Test),
-  // jquery pinned to 3.7.1 — jquery 4.0.0 drops legacy APIs that
-  // select2 4.0.13 (still our pinned version) relies on.
-  "org.webjars"     % "jquery"                    % "3.7.1"  % Set(WebJar, Test),
-  "org.webjars"     % "select2"                   % "4.0.13" % Set(WebJar, Test),
-  "org.webjars.npm" % "select2-bootstrap-5-theme" % "1.3.0"  % Set(WebJar, Test),
-  "org.webjars.npm" % "jquery.typewatch"          % "2.1.0"  % Set(WebJar, Test),
 
-  // Testing
-  "dev.zio" %% "zio-test"                     % zioVersion % Test,
-  "dev.zio" %% "zio-test-sbt"                 % zioVersion % Test,
-  "dev.zio" %% "zio-http-testkit"             % zioHttpVersion % Test,
+  "dev.zio" %% "zio-test-sbt"                 % ("dev.zio" %% "zio").version % Test,
+  "dev.zio" %% "zio-http-testkit"             % ("dev.zio" %% "zio-http").version % Test,
   "com.dimafeng" %% "testcontainers-scala-core" % "0.44.1" % Test,
+  "rocks.earlyeffect" %% "chekhov-zio-test"   % "0.0.5" % Test,
+
+  "com.jamesward" % "skills" % "0.0.3" % Skills,
 )
 
 fork := true
@@ -112,11 +86,25 @@ Compile / packageDoc / publishArtifact := false
 
 Compile / doc / sources := Seq.empty
 
-// Boot the full server with the same testcontainer-backed valkey + literal
-// test config used by the unit-test layer. Useful for live smoke tests
-// (`test-integration.sh`) and for `Test/runReload` below.
-@transient lazy val runTest = taskKey[Unit]("run WebJarsTestApp")
+//// Boot the full server with the same testcontainer-backed valkey + literal
+//// test config used by the unit-test layer. Useful for live smoke tests
+//// (`test-integration.sh`) and for `Test/runReload` below.
+//@transient lazy val runTest = taskKey[Unit]("run WebJarsTestApp")
+//
+//runTest := (Test / runMain).toTask(" webjars.WebJarsTestApp").value
 
-runTest := (Test / runMain).toTask(" webjars.WebJarsTestApp").value
+Test / mainClass := Some("webjars.WebJarsTestApp")
 
-Test / run / mainClass := Some("webjars.WebJarsTestApp")
+// Explicit root project so we can attach optional local source dependencies
+// under `-Dlocal` (a bare build.sbt can't call `.dependsOn`). Under sbt 2.0,
+// the bare settings above are applied to every subproject, so this root still
+// picks them all up and the build stays flat. Published artifacts are used for
+// any local checkout that is absent.
+lazy val root = (project in file("."))
+  .enablePlugins(JavaAppPackaging)
+  .dependsOn(localSubprojectDeps *)
+
+skillsJarsOutputDir := Some(file(".kiro/skills"))
+
+mcpEnabled := true        // default: false
+mcpPort    := 5055        // default: 5010

@@ -1,19 +1,14 @@
 package webjars.utils
 
-import org.eclipse.jgit.api.Git as GitApi
-import org.eclipse.jgit.api.ResetCommand.ResetType
-import webjars.utils.Deployable.Version
+import com.jamesward.zio_git.*
+import webjars.utils.Deployable.{ArchiveStream, Version}
 import webjars.utils.ResilientHttp.batchedResilient
 import zio.*
 import zio.direct.*
 import zio.http.*
+import zio.stream.*
 
-import java.io.{File, InputStream}
-import java.nio.charset.CodingErrorAction
-import java.nio.file.{Files, Path}
-import scala.io.{Codec, Source}
-import scala.jdk.CollectionConverters.*
-import scala.util.{Try, Using}
+import java.nio.charset.StandardCharsets
 
 trait Git:
   def isGit(packageNameOrGitRepo: String): Boolean
@@ -22,20 +17,45 @@ trait Git:
   def artifactId(nameOrUrlish: String): ZIO[Scope, Throwable, String]
   def versions(gitRepo: String): ZIO[Scope, Throwable, Set[String]]
   def versionsOnBranch(gitRepo: String, branch: String): ZIO[Scope, Throwable, Seq[String]]
-  def cloneOrCheckout(gitRepo: String, version: Version, retry: Boolean = true): ZIO[Scope, Throwable, File]
+  def latestCommitOnBranch(gitRepo: String, branch: String): ZIO[Scope, Throwable, String]
   def file(uri: URL, version: Version, fileName: String): ZIO[Scope, Throwable, String]
   def file(gitRepo: String, tagCommitOrBranch: Version, fileName: String): ZIO[Scope, Throwable, String]
-  def tar(gitRepo: String, version: Version, excludes: Set[String]): ZIO[Scope, Throwable, InputStream]
+  def archive(gitRepo: String, version: Version, excludes: Set[String]): ArchiveStream
 
+/**
+ * Git repository reader backed by [[com.jamesward.zio_git.GitHttp]] — a
+ * read-only, no-auth smart-HTTP (`git-upload-pack`) client — rather than jgit.
+ *
+ * The pure/naming helpers ([[isGit]], [[artifactId]]) and the HTTP-redirect
+ * resolution ([[resolveRedirect]], [[gitUrl]]) are unchanged. The repo-reading
+ * operations no longer clone to disk:
+ *
+ *   - [[versions]] lists tags from the ref advertisement.
+ *   - [[versionsOnBranch]] fetches the provider's normal history pack; hosted
+ *     providers commonly cache it, giving this latency-bounded endpoint better
+ *     performance than dynamically generating a filtered pack.
+ *   - [[latestCommitOnBranch]] resolves only the branch tip, without history.
+ *   - [[file]] resolves the committish (annotated tags are peeled) and reads
+ *     the single file from that commit's tree, in memory.
+ *   - [[archive]] reads the whole tree at the resolved commit and creates a
+ *     deterministic ZIP stream.
+ */
 case class GitLive(client: Client) extends Git:
 
-  private def deleteRecursively(file: File): Unit =
-    if file.isDirectory then
-      file.listFiles().foreach(deleteRecursively)
-    file.delete()
+  // A GitHttp is just a thin wrapper around the shared zio-http Client, so we
+  // build one here rather than requiring it as a constructor arg — keeps the
+  // `GitLive(client)` shape the tests and `Git.live` rely on.
+  private val gitHttp: GitHttp = GitHttp(client)
 
-  val cacheDir: Path = Files.createTempDirectory("git")
-  cacheDir.toFile.deleteOnExit()
+  private def toThrowable(error: GitError): Throwable = error match
+    case GitError.Transport(cause) => cause
+    case other                     => new Exception(other.toString)
+
+  /** Resolve `gitRepo` to a canonical, redirect-followed https URL and parse it
+   *  into a zio-git [[RepoUrl]] (the smart-HTTP base). */
+  private def repoUrl(gitRepo: String): ZIO[Scope, Throwable, RepoUrl] =
+    gitUrl(gitRepo).flatMap: url =>
+      ZIO.fromEither(RepoUrl.parse(url)).mapError(e => new Exception(s"Invalid git url: $url ($e)"))
 
   def isGit(packageNameOrGitRepo: String): Boolean =
     packageNameOrGitRepo.contains("/") && !packageNameOrGitRepo.startsWith("@")
@@ -62,7 +82,7 @@ case class GitLive(client: Client) extends Git:
         case _ =>
           ZIO.fail(new Exception(s"Could not get HEAD for url: $httpUrl")).run
 
-  // Compose the canonical https/jgit-ready URL form of a git repo reference WITHOUT following
+  // Compose the canonical https/git-ready URL form of a git repo reference WITHOUT following
   // any HTTP redirects. Used for naming (artifactId) so that the result is a stable, deterministic
   // function of the input — Maven Central coordinates are immutable, so we cannot let GitHub
   // owner-renames change a webjar's identity after the fact.
@@ -77,12 +97,12 @@ case class GitLive(client: Client) extends Git:
     resolvedUrl.replace("git+", "")
 
   def gitUrl(gitRepo: String): ZIO[Scope, Throwable, String] =
-    val jgitReadyUrl = composeGitUrl(gitRepo)
+    val readyUrl = composeGitUrl(gitRepo)
 
-    if jgitReadyUrl.startsWith("http") then
-      resolveRedirect(jgitReadyUrl)
+    if readyUrl.startsWith("http") then
+      resolveRedirect(readyUrl)
     else
-      ZIO.succeed(jgitReadyUrl)
+      ZIO.succeed(readyUrl)
 
   def artifactId(nameOrUrlish: String): ZIO[Scope, Throwable, String] =
     defer:
@@ -97,77 +117,53 @@ case class GitLive(client: Client) extends Git:
 
   def versions(gitRepo: String): ZIO[Scope, Throwable, Set[String]] =
     defer:
-      val url = gitUrl(gitRepo).run
-      ZIO.fromTry(Try {
-        val tags = GitApi.lsRemoteRepository()
-          .setRemote(url)
-          .setTags(true)
-          .call()
-        tags.asScala.map(_.getName.stripPrefix("refs/tags/")).toSet
-      }).run
+      val repo = repoUrl(gitRepo).run
+      gitHttp.tags(repo).mapBoth(toThrowable, _.map(_.name).toSet).run
 
   def versionsOnBranch(gitRepo: String, branch: String): ZIO[Scope, Throwable, Seq[String]] =
     defer:
-      gitUrl(gitRepo).run
-      val baseDir = cloneOrCheckout(gitRepo, s"origin/$branch").run
-      ZIO.fromTry(Try {
-        val commits = GitApi.open(baseDir).log().call()
-        commits.asScala.toSeq.map(_.getId.abbreviate(10).name())
-      }).run
+      val repo = repoUrl(gitRepo).run
+      val commits = gitHttp.fullBranchLog(repo, branch, HistoryFetchMode.ServerDefault).mapError(toThrowable).run
+      commits.map(_.id.hex.take(10))
 
-  def cloneOrCheckout(gitRepo: String, version: Version, retry: Boolean = true): ZIO[Scope, Throwable, File] =
-    gitUrl(gitRepo).flatMap { url =>
-      val baseDir = new File(cacheDir.toFile, url)
-
-      def cloneOrPull: ZIO[Any, Throwable, File] =
-        if !baseDir.exists() then
-          ZIO.fromTry(Try {
-            GitApi.cloneRepository()
-              .setURI(url).setDirectory(baseDir)
-              .setCloneAllBranches(true).setNoCheckout(true)
-              .call()
-            baseDir
-          })
-        else
-          ZIO.fromTry(Try {
-            GitApi.open(baseDir).fetch().setRemote("origin").call()
-            baseDir
-          })
-
-      def checkout: ZIO[Any, Throwable, File] =
-        defer:
-          cloneOrPull.run
-          val ref = ZIO.fromTry(Try {
-            val found = GitApi.open(baseDir).getRepository.findRef(version)
-            if found != null then found.getName else version
-          }).run
-          ZIO.fromTry(Try {
-            GitApi.open(baseDir).reset().setMode(ResetType.HARD).setRef(ref).call()
-            baseDir
-          }).run
-
-      checkout.catchAll { t =>
-        ZIO.succeed(deleteRecursively(baseDir)) *>
-          (if retry then cloneOrCheckout(gitRepo, version, retry = false)
-           else ZIO.fail(t))
-      }
-    }
+  def latestCommitOnBranch(gitRepo: String, branch: String): ZIO[Scope, Throwable, String] =
+    defer:
+      val repo = repoUrl(gitRepo).run
+      val commit = gitHttp.resolveCommit(repo, Some(branch)).mapError(toThrowable).run
+      commit.hex.take(10)
 
   def file(uri: URL, version: Version, fileName: String): ZIO[Scope, Throwable, String] =
     file(uri.encode, version, fileName)
 
   def file(gitRepo: String, tagCommitOrBranch: Version, fileName: String): ZIO[Scope, Throwable, String] =
-    defer:
-      val baseDir = cloneOrCheckout(gitRepo, tagCommitOrBranch).run
-      val decoder = Codec.UTF8.decoder.onMalformedInput(CodingErrorAction.IGNORE)
-      ZIO.fromTry(Using(Source.fromFile(new File(baseDir, fileName))(decoder))(_.mkString)).run
+    repoUrl(gitRepo).flatMap: repo =>
+      val program =
+        for
+          commit <- gitHttp.resolveCommittish(repo, tagCommitOrBranch)
+          files  <- gitHttp.readFiles(repo, commit)
+          bytes  <- ZIO.fromOption(files.get(fileName))
+                      .orElseFail(GitError.ObjectNotFound(commit))
+        yield String(bytes.toArray, StandardCharsets.UTF_8)
+      program.mapError(toThrowable)
 
-  def tar(gitRepo: String, version: Version, excludes: Set[String]): ZIO[Scope, Throwable, InputStream] =
-    defer:
-      val baseDir = cloneOrCheckout(gitRepo, version).run
-      val resolvedExcludes = excludes.map(new File(baseDir, _))
-      val allExcludes = Set(new File(baseDir, ".git")) ++ resolvedExcludes
-      ArchiveCreator.tarDir(baseDir, allExcludes).run
+  def archive(gitRepo: String, version: Version, excludes: Set[String]): ArchiveStream =
+    ZStream.unwrapScoped:
+      defer:
+        val repo = repoUrl(gitRepo).run
+        val commit = gitHttp.resolveCommittish(repo, version).mapError(toThrowable).run
+        // zio-git currently resolves the smart-HTTP pack into an in-memory
+        // object map before exposing tree files. ArchiveCreator itself streams;
+        // this is the remaining repository-source materialization boundary.
+        val files = gitHttp.readFiles(repo, commit).mapError(toThrowable).run
+        ArchiveCreator.archiveFiles(applyExcludes(files, excludes))
+
+  /** Drop entries whose top-level path segment is an excluded name (e.g.
+   *  `node_modules`). Git trees never contain a `.git` entry, so — unlike the
+   *  old disk-clone path — there's nothing else to strip. */
+  private def applyExcludes(files: Map[String, Chunk[Byte]], excludes: Set[String]): Map[String, Chunk[Byte]] =
+    if excludes.isEmpty then files
+    else files.filterNot: (path, _) =>
+      excludes.exists(ex => path == ex || path.startsWith(s"$ex/"))
 
 object Git:
   val live: ZLayer[Client, Nothing, Git] = ZLayer.derive[GitLive]

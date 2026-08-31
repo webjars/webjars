@@ -95,11 +95,13 @@ object DeployJobs:
      *  `trackerTimeout` so a slow GitHub never drags the SSE stream. */
     private def handleFailure(job: Job, deployKey: DeployFailureTracker.DeployKey, e: Throwable): URIO[Redis, Unit] =
       val failure = DeployFailure.classify(e)
-      // First the human-readable error so the deploy log still reads
-      // naturally. Then a single tagged line so downstream code (and
-      // the JS log linkifier) can pick out the category without having
-      // to re-classify the same throwable.
-      publish(job, failure.message) *>
+      val logMessage = s"deploy failed groupId=${deployKey.groupId} name=${deployKey.nameOrUrlish} version=${deployKey.version} category=${DeployFailure.tag(failure)}"
+      val logCause = failure match
+        case _: DeployFailure.Systemic => ZIO.logErrorCause(logMessage, Cause.fail(e))
+        case _                         => ZIO.logWarningCause(logMessage, Cause.fail(e))
+
+      logCause *>
+        publish(job, failure.userMessage) *>
         publish(job, s"[deploy-failure:${DeployFailure.tag(failure)}]") *>
         defer:
           if !DeployFailure.shouldFileIssue(failure) then ()

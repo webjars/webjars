@@ -21,7 +21,7 @@ object DeployJobsSpec extends ZIOSpecDefault:
     def maybeBaseDirGlob(nameOrUrlish: String): ZIO[Scope, Throwable, Option[String]] = ZIO.dieMessage("not used")
     def info(nameOrUrlish: String, version: String, maybeSourceUri: Option[URL] = None): ZIO[Scope, Throwable, PackageInfo] = ZIO.dieMessage("not used")
     def mavenDependencies(dependencies: Map[String, String]): ZIO[Scope, Throwable, Set[(MavenCentral.GroupArtifact, String)]] = ZIO.dieMessage("not used")
-    def archive(nameOrUrlish: String, version: String): ZIO[Scope, Throwable, java.io.InputStream] = ZIO.dieMessage("not used")
+    def archive(nameOrUrlish: String, version: String): Deployable.ArchiveStream = ZStream.dieMessage("not used")
     def file(nameOrUrlish: String, version: String, filename: String): ZIO[Scope, Throwable, String] = ZIO.dieMessage("not used")
     def versions(nameOrUrlish: String): ZIO[Scope, Throwable, Set[String]] = ZIO.dieMessage("not used")
     def depGraph(packageInfo: PackageInfo, deps: Map[String, String] = Map.empty): ZIO[Scope, Throwable, Map[String, String]] = ZIO.dieMessage("not used")
@@ -34,7 +34,7 @@ object DeployJobsSpec extends ZIOSpecDefault:
         ZStream.fromIterable(messages).tap(_ => ZIO.unit) ++
         ZStream.fromZIO(gate.await).drain ++
         ZStream.succeed("Deployed!")
-    def create(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, licenseOverride: Option[Set[License]], groupIdOverride: Option[MavenCentral.GroupId]): ZIO[Scope, Throwable, (MavenCentral.ArtifactId, Array[Byte])] =
+    def create(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, licenseOverride: Option[Set[License]], groupIdOverride: Option[MavenCentral.GroupId]): ZIO[Scope, Throwable, (MavenCentral.ArtifactId, Deployable.ArchiveStream)] =
       ZIO.dieMessage("not used")
 
   private val messages = List("m1", "m2", "m3")
@@ -43,14 +43,14 @@ object DeployJobsSpec extends ZIOSpecDefault:
   private class FailingDeployWebJar(failure: Throwable) extends DeployWebJar[Any]:
     def deploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, maybeReleaseVersion: Option[String] = None, maybeSourceUri: Option[URL] = None, maybeLicense: Option[String] = None): ZStream[Scope, Throwable, String] =
       ZStream.succeed("Got package info") ++ ZStream.fail(failure)
-    def create(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, licenseOverride: Option[Set[License]], groupIdOverride: Option[MavenCentral.GroupId]): ZIO[Scope, Throwable, (MavenCentral.ArtifactId, Array[Byte])] =
+    def create(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, licenseOverride: Option[Set[License]], groupIdOverride: Option[MavenCentral.GroupId]): ZIO[Scope, Throwable, (MavenCentral.ArtifactId, Deployable.ArchiveStream)] =
       ZIO.dieMessage("not used")
 
   /** A DeployWebJar that always succeeds with a fixed message. */
   private class SucceedingDeployWebJar extends DeployWebJar[Any]:
     def deploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, maybeReleaseVersion: Option[String] = None, maybeSourceUri: Option[URL] = None, maybeLicense: Option[String] = None): ZStream[Scope, Throwable, String] =
       ZStream("Deployed!")
-    def create(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, licenseOverride: Option[Set[License]], groupIdOverride: Option[MavenCentral.GroupId]): ZIO[Scope, Throwable, (MavenCentral.ArtifactId, Array[Byte])] =
+    def create(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, licenseOverride: Option[Set[License]], groupIdOverride: Option[MavenCentral.GroupId]): ZIO[Scope, Throwable, (MavenCentral.ArtifactId, Deployable.ArchiveStream)] =
       ZIO.dieMessage("not used")
 
   /** A DeployFailureTracker that records every track / resolve call so
@@ -148,7 +148,8 @@ object DeployJobsSpec extends ZIOSpecDefault:
 
         assertTrue(
           out.exists(_.contains("Got package info")),
-          out.exists(_.contains("no license — fake 1.0")),
+          out.exists(_ == "A valid license could not be determined from the package metadata. A maintainer may need to review this package."),
+          !out.exists(_.contains("no license — fake 1.0")),
           out.exists(_ == "[deploy-failure:systemic]"),
           out.exists(_ == s"Tracking issue: ${issueUrl.encode}"),
           tracked.size == 1,
@@ -178,6 +179,8 @@ object DeployJobsSpec extends ZIOSpecDefault:
         val tracked = failuresRef.get.run
 
         assertTrue(
+          out.exists(_ == "The requested package or version could not be found. Check the package name and version, then try again."),
+          !out.exists(_.contains("upstream not found")),
           out.exists(_ == "[deploy-failure:user-input]"),
           !out.exists(_.startsWith("Tracking issue:")),
           tracked.isEmpty,

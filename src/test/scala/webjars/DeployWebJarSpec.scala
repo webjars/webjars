@@ -4,6 +4,7 @@ import com.jamesward.zio_mavencentral.MavenCentral
 import webjars.utils.*
 import webjars.TestInfrastructure.{MockMavenCentralDeployer, testConfig}
 import zio.*
+import zio.direct.*
 import zio.http.Client
 import zio.test.*
 
@@ -13,6 +14,9 @@ import scala.xml.Elem
 object DeployWebJarSpec extends ZIOSpecDefault:
 
   private def withDeploy[A](f: (DeployWebJar[Any], NPM, Classic) => ZIO[Scope & Client & zio.redis.Redis & MavenCentral.MavenCentralRepo, Throwable, A]): ZIO[Client & zio.redis.Redis & MavenCentral.MavenCentralRepo, Throwable, A] =
+    withDeploy(pomExists = false)(f)
+
+  private def withDeploy[A](pomExists: Boolean)(f: (DeployWebJar[Any], NPM, Classic) => ZIO[Scope & Client & zio.redis.Redis & MavenCentral.MavenCentralRepo, Throwable, A]): ZIO[Client & zio.redis.Redis & MavenCentral.MavenCentralRepo, Throwable, A] =
     ZIO.serviceWithZIO[Client] { client =>
       ZIO.scoped {
         val config = testConfig
@@ -26,7 +30,7 @@ object DeployWebJarSpec extends ZIOSpecDefault:
         val npm = NPMLive(client, git, gitHub, maven, semVer)
         val classic = ClassicLive(client, gitHub, cache, config, npm)
         val mavenCentralDeployer: MavenCentralDeployer[Any] = MockMavenCentralDeployer()
-        val mavenCentralWebJars = MockMavenCentralWebJars(config, webJarsFileService, AllDeployablesLive(classic, npm))
+        val mavenCentralWebJars = MockMavenCentralWebJars(config, webJarsFileService, AllDeployablesLive(classic, npm), pomExists)
         val deployWebJar: DeployWebJar[Any] = DeployWebJarLive[Any](mavenCentralWebJars, mavenCentralDeployer, sourceLocator)
         f(deployWebJar, npm, classic)
       }
@@ -43,6 +47,24 @@ object DeployWebJarSpec extends ZIOSpecDefault:
             last.contains("Version = 3.2.1"),
           )
         }
+      }
+    },
+    test("already deployed is an idempotent success without a failure marker") {
+      withDeploy(pomExists = true) { (deployWebJar, npm, _) =>
+        defer:
+          val jobs = DeployJobs.live[Any].build.provide(
+            ZLayer.succeed[DeployWebJar[Any]](deployWebJar),
+            TestInfrastructure.noopDeployFailureTrackerLayer,
+            Scope.default,
+          ).run.get[DeployJobs[Any]]
+          val output = jobs.deploy(npm, "bootstrap-scss", "5.3.8", deployDependencies = false).runCollect.run
+          assertTrue(
+            output.exists(_.contains("has already been deployed to Maven Central")),
+            output.exists(_.contains("Queued for cache refresh")),
+            !output.exists(_.startsWith("[deploy-failure:")),
+            !output.exists(_.contains("Resolving licenses")),
+            !output.exists(_.contains("Deployed!")),
+          )
       }
     },
     test("work with Classic") {
@@ -83,7 +105,8 @@ object DeployWebJarSpec extends ZIOSpecDefault:
     },
   ).provide(Client.default, TestInfrastructure.sharedRedisLayer, MavenCentral.MavenCentralRepo.live) @@ TestAspect.withLiveClock @@ TestAspect.timeout(300.seconds)
 
-class MockMavenCentralWebJars(config: webjars.config.AppConfig, webJarsFileService: WebJarsFileService, allDeployables: AllDeployables)
+class MockMavenCentralWebJars(config: webjars.config.AppConfig, webJarsFileService: WebJarsFileService, allDeployables: AllDeployables, pomExists: Boolean = false)
   extends MavenCentralWebJarsLive(config, webJarsFileService, allDeployables, TestInfrastructure.noopSearchIndex, TestInfrastructure.noopPopularRanking):
   override def fetchPom(gav: MavenCentral.GroupArtifactVersion): ZIO[MavenCentral.MavenCentralRepo, Throwable, Elem] =
-    ZIO.fail(new FileNotFoundException("no mock pom"))
+    if pomExists then ZIO.succeed(<project/>)
+    else ZIO.fail(new FileNotFoundException("no mock pom"))

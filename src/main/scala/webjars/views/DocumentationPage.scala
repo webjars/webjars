@@ -1,5 +1,6 @@
 package webjars.views
 
+import webjars.generated.WebJars.Artifact.highlightjs
 import webjars.utils.WebJars
 import webjars.views.documentations.*
 import zio.http.template2.*
@@ -51,7 +52,12 @@ object DocumentationPage:
   )
 
   def apply(webJars: WebJars): Dom =
-    val extraHead = script(Dom.boolAttr("defer"), src := "/assets/javascripts/docs.js")
+    val extraHead = Dom.fragment(
+      link(rel := "stylesheet", href := webJars.url(highlightjs, "styles/atom-one-dark.min.css")),
+      script(src := webJars.url(highlightjs, "highlight.min.js")),
+      script(Dom.raw("hljs.highlightAll();")),
+      script(Dom.boolAttr("defer"), src := "/assets/javascripts/docs.js"),
+    )
 
     val tabs: Seq[Dom] = docs.zipWithIndex.map { case ((id, label, _), i) =>
       docTab(id, label, active = i == 0)

@@ -25,6 +25,7 @@ import java.util.concurrent.TimeoutException
 sealed trait DeployFailure:
   val cause: Throwable
   val message: String = Option(cause.getMessage).filter(_.nonEmpty).getOrElse(cause.getClass.getSimpleName)
+  final def userMessage: String = DeployFailure.userMessage(this)
 
 object DeployFailure:
 
@@ -82,6 +83,42 @@ object DeployFailure:
     // Everything else: be conservative. We'd rather miss an issue than
     // spam the tracker with unknown junk.
     case _                                                          => Transient(t)
+
+  /** Plain-language message safe to show in the deploy UI. Technical details
+   *  remain available through [[DeployFailure.message]] for logs and tracking
+   *  issues, but are never sent to the browser. */
+  def userMessage(failure: DeployFailure): String = failure match
+    case UserInput(ServerError(_, 404)) =>
+      "The requested package or version could not be found. Check the package name and version, then try again."
+    case _: UserInput =>
+      "The requested WebJar could not be deployed. Check the package name and version, then try again."
+    case Transient(ServerError(_, 429)) =>
+      "An upstream service is temporarily rate limiting requests. Please wait a few minutes and try again."
+    case _: Transient =>
+      "A required upstream service is temporarily unavailable. Please try the deployment again in a few minutes."
+    case Systemic(_: LicenseNotFoundException) | Systemic(_: NoValidLicenses) =>
+      "A valid license could not be determined from the package metadata. A maintainer may need to review this package."
+    case Systemic(_: MissingMetadataException) =>
+      "The package is missing metadata required to build a WebJar. A maintainer may need to review this package."
+    case Systemic(_: UnauthorizedError) | Systemic(ServerError(_, 401 | 403)) =>
+      "WebJars could not access a required upstream service. The service configuration may need attention."
+    case Systemic(_: FileNotFoundException) =>
+      "The package archive is missing a file required to build the WebJar. A maintainer may need to review this package."
+    case _: Systemic =>
+      "WebJars encountered a problem while preparing this package. A maintainer may need to review it."
+
+  /** Plain-language message safe to return from the public create APIs. */
+  def createUserMessage(failure: DeployFailure): String = failure match
+    case UserInput(ServerError(_, 404)) =>
+      "The requested package or version could not be found. Check the package name and version, then try again."
+    case _: UserInput =>
+      "The requested WebJar could not be created. Check the package name and version, then try again."
+    case Transient(ServerError(_, 429)) =>
+      "An upstream service is temporarily rate limiting requests. Please wait a few minutes and try again."
+    case _: Transient =>
+      "A required upstream service is temporarily unavailable. Please try creating the WebJar again in a few minutes."
+    case systemic: Systemic =>
+      userMessage(systemic)
 
   /** Short tag used in the SSE log line so the user (and the test) can
    *  tell which bucket a failure landed in. */

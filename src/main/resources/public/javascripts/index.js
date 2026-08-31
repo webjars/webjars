@@ -1,166 +1,261 @@
-function setupWebJarList() {
-  // list files modal
-  $(".file-list-link").click(onFileList);
-
-  // build tool change handler
-  $("#buildtoolselect").find("input").click(function (e) {
-      // update for each webjar
-      buildTool = $(this).attr("value");
-      updateAllDetails(buildTool);
-    });
+function all(selector, root = document) {
+  return Array.from(root.querySelectorAll(selector));
 }
 
-// Track the in-flight list request so a fast backspace (which fires several
-// "rea", "reac", "react" requests, then a /popular) can't have a stale search
-// response land after /popular and overwrite the popular list.
-var currentListRequest = null;
+function byId(id) {
+  return document.getElementById(id);
+}
 
-function loadList(url, titleText) {
-  if (currentListRequest) currentListRequest.abort();
-  currentListRequest = $.get(url, function (data) {
-    $("#listTitle").text(titleText);
-    $("#webJarList").html(data);
-    setupWebJarList();
+function setupWebJarList() {
+  all(".file-list-link").forEach(function (link) {
+    link.onclick = onFileList;
   });
+
+  all("#buildtoolselect input").forEach(function (input) {
+    input.onclick = function () {
+      updateAllDetails(input.value);
+    };
+  });
+
+  const selectedBuildTool = document.querySelector("input[type=radio][name=buildtool]:checked");
+  if (selectedBuildTool) {
+    updateAllDetails(selectedBuildTool.value);
+  }
+}
+
+let currentListController = null;
+
+async function loadList(url, titleText) {
+  if (currentListController) {
+    currentListController.abort();
+  }
+
+  const controller = new AbortController();
+  currentListController = controller;
+
+  try {
+    const response = await fetch(url, {
+      headers: { Accept: "text/html" },
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      throw new Error(`List request failed with status ${response.status}`);
+    }
+
+    const data = await response.text();
+    if (currentListController !== controller) {
+      return;
+    }
+
+    byId("listTitle").textContent = titleText;
+    byId("webJarList").innerHTML = data;
+    setupWebJarList();
+  } catch (error) {
+    if (error.name !== "AbortError") {
+      console.error("Could not load the WebJar list", error);
+    }
+  }
 }
 
 function searchWebJars(query, groupIds) {
-  var groupIdsQueryString = groupIds.reduce(function (acc, val) {
-    acc += `&groupId=${val}`;
-    return acc;
-  }, "");
-  loadList(`/search?query=${encodeURIComponent(query)}${groupIdsQueryString}`, "Search Results");
+  const params = new URLSearchParams({ query: query });
+  groupIds.forEach(function (groupId) {
+    params.append("groupId", groupId);
+  });
+  loadList(`/search?${params.toString()}`, "Search Results");
 }
 
 function loadPopular() {
   loadList("/popular", "Popular WebJars");
 }
 
-function onFileList(event) {
-  // allow middle clicks to open in a new tab
-  if (event.button === 0 && !event.metaKey) {
-    event.preventDefault();
-    $("#fileListModalLabel").text(`Files for ${$(this).parents("tr").data("artifact")}`);
-    $("#fileListModal .modal-body").text("Loading...");
-    $("#fileListModal").removeData("modal");
-    $("#fileListModal .modal-body").load($(this).attr("href"));
-    $("#fileListModal").modal("show");
+let currentFileListController = null;
+
+async function onFileList(event) {
+  if (event.button !== 0 || event.metaKey || event.ctrlKey) {
+    return;
+  }
+
+  event.preventDefault();
+  if (currentFileListController) {
+    currentFileListController.abort();
+  }
+  const controller = new AbortController();
+  currentFileListController = controller;
+
+  const link = event.currentTarget;
+  const row = link.closest("tr");
+  const modalElement = byId("fileListModal");
+  const modalBody = modalElement.querySelector(".modal-body");
+
+  byId("fileListModalLabel").textContent = `Files for ${row.dataset.artifact}`;
+  modalBody.textContent = "Loading...";
+  bootstrap.Modal.getOrCreateInstance(modalElement).show();
+
+  try {
+    const response = await fetch(link.href, {
+      headers: { Accept: "text/html" },
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      throw new Error(`File list request failed with status ${response.status}`);
+    }
+    const html = await response.text();
+    if (currentFileListController === controller) {
+      modalBody.innerHTML = html;
+    }
+  } catch (error) {
+    if (error.name !== "AbortError" && currentFileListController === controller) {
+      modalBody.textContent = "The file list is unavailable at this time.";
+      console.error("Could not load the WebJar file list", error);
+    }
   }
 }
 
 function changeVersion(event) {
-  var buildtool = $("input[type=radio][name=buildtool]").val();
-  var row = $(event.target).parents("tr");
-  updateDetails(buildtool, row);
+  const selectedBuildTool = document.querySelector("input[type=radio][name=buildtool]:checked");
+  const row = event.target.closest("tr");
+  if (selectedBuildTool && row) {
+    updateDetails(selectedBuildTool.value, row);
+  }
 }
 
 function updateDetails(buildTool, row) {
-  var groupId = row.attr("data-group");
-  var artifactId = row.attr("data-artifact");
+  const groupId = row.dataset.group;
+  const artifactId = row.dataset.artifact;
+  const webJarVersion = row.querySelector(".versions");
+  if (!webJarVersion) {
+    return;
+  }
 
-  var webJarVersion = row.find(".versions");
-
-  // update instructions
-  var instructions = "";
+  const version = webJarVersion.value;
+  let instructions = "";
   switch (buildTool) {
     case "buildr":
-      instructions = `'${groupId}:${artifactId}:jar:${webJarVersion.val()}'`;
+      instructions = `'${groupId}:${artifactId}:jar:${version}'`;
       break;
     case "gradle":
-      instructions = `runtimeOnly("${groupId}:${artifactId}:${webJarVersion.val()}")`;
+      instructions = `runtimeOnly("${groupId}:${artifactId}:${version}")`;
       break;
     case "grape":
-      instructions = `@Grapes(
-    @Grab(group='${groupId}', module='${artifactId}', version='webJarVersion.val()')
-)`;
+      instructions = `@Grapes(\n    @Grab(group='${groupId}', module='${artifactId}', version='${version}')\n)`;
       break;
     case "ivy":
-      instructions = `<dependency org="${groupId}" name="${artifactId}" rev="${webJarVersion.val()}" />`;
+      instructions = `<dependency org="${groupId}" name="${artifactId}" rev="${version}" />`;
       break;
     case "leiningen":
-      instructions = `${groupId}/${artifactId} "${webJarVersion.val()}"`;
+      instructions = `${groupId}/${artifactId} "${version}"`;
       break;
     case "maven":
-      instructions = `<dependency>
-    <groupId>${groupId}</groupId>
-    <artifactId>${artifactId}</artifactId>
-    <version>${webJarVersion.val()}</version>
-</dependency>`;
+      instructions = `<dependency>\n    <groupId>${groupId}</groupId>\n    <artifactId>${artifactId}</artifactId>\n    <version>${version}</version>\n</dependency>`;
       break;
     case "sbt":
-      instructions = `"${groupId}" % "${artifactId}" % "${webJarVersion.val()}"`;
+      instructions = `"${groupId}" % "${artifactId}" % "${version}"`;
       break;
   }
 
-  row.find(".build-instructions pre").text(instructions);
+  const instructionsElement = row.querySelector(".build-instructions pre");
+  if (instructionsElement) {
+    instructionsElement.textContent = instructions;
+  }
 
-  // update files link
-  var filesLink = $("<a>").attr("href", `/listfiles/${groupId}/${artifactId}/${webJarVersion.val()}`).addClass("file-list-link");
-  filesLink.click(onFileList);
-  filesLink.text(`${webJarVersion.find(":selected").data("numfiles")} Files`);
-  row.find(".files").empty().append(filesLink);
+  const selectedOption = webJarVersion.selectedOptions[0];
+  const numFiles = selectedOption && selectedOption.dataset.numfiles
+    ? selectedOption.dataset.numfiles
+    : "List";
+  const filesLink = document.createElement("a");
+  filesLink.href = `/listfiles/${groupId}/${artifactId}/${encodeURIComponent(version)}`;
+  filesLink.className = "file-list-link";
+  filesLink.textContent = `${numFiles} Files`;
+  filesLink.onclick = onFileList;
+
+  const filesElement = row.querySelector(".files");
+  if (filesElement) {
+    filesElement.replaceChildren(filesLink);
+  }
 }
 
 function updateAllDetails(buildTool) {
-  $("tr[data-artifact]").each(function () {
-    updateDetails(buildTool, $(this));
+  all("tr[data-artifact]").forEach(function (row) {
+    updateDetails(buildTool, row);
   });
 }
 
-// from: http://stackoverflow.com/a/105074/77409
-function guid() {
-  function s4() {
-    return Math.floor((1 + Math.random()) * 0x10000)
-      .toString(16)
-      .substring(1);
-  }
-
-  return `${s4()}${s4()}-${s4()}-${s4()}-${s4()}-${s4()}${s4()}${s4()}`;
-}
-
 function webJarType() {
-  return $("input[type=radio][name=new_webjar_catalog]:checked").val();
+  const selected = document.querySelector("input[type=radio][name=new_webjar_catalog]:checked");
+  return selected ? selected.value : undefined;
 }
 
-function getPackageOrRepoName() {
-  var packageOrUrl = $("#newWebJarName").val().split("#");
-
-  var data = {};
-
-  if (packageOrUrl.length > 0) {
-    data.packageOrRepo = packageOrUrl[0];
-  }
-
+function parsePackageOrRepoName(value) {
+  const packageOrUrl = (value || "").trim().split("#");
+  const data = { packageOrRepo: packageOrUrl[0].trim() };
   if (packageOrUrl.length === 2) {
-    data.branch = packageOrUrl[1];
+    data.branch = packageOrUrl[1].trim();
   }
-
   return data;
 }
 
-// Toggle the deploy-form UI (version select, Deploy Log, Deploy button)
-// off when the selected webjar can't be deployed through this app.
-function setDeployUiVisible(visible) {
-  $("#deployLogSection").toggleClass("d-none", !visible);
-  $("#deployButton").toggleClass("d-none", !visible);
+function getPackageOrRepoName() {
+  return parsePackageOrRepoName(byId("newWebJarName").value);
 }
 
-// Mark the name input as invalid and surface a one-line error in the
-// invalid-feedback slot. Pass a falsy `message` to suppress text but still
-// mark invalid.
+function setDeployUiVisible(visible) {
+  byId("deployLogSection").classList.toggle("d-none", !visible);
+  byId("deployButton").classList.toggle("d-none", !visible);
+}
+
 function markNameInvalid(message) {
-  $("#newWebJarName").removeClass("is-valid").addClass("is-invalid");
-  $("#newWebJarNameError").text(message || "");
+  const nameInput = byId("newWebJarName");
+  nameInput.classList.remove("is-valid");
+  nameInput.classList.add("is-invalid");
+  byId("newWebJarNameError").textContent = message || "";
 }
 
 function markNameValid() {
-  $("#newWebJarName").removeClass("is-invalid").addClass("is-valid");
-  $("#newWebJarNameError").text("");
+  const nameInput = byId("newWebJarName");
+  nameInput.classList.remove("is-invalid");
+  nameInput.classList.add("is-valid");
+  byId("newWebJarNameError").textContent = "";
 }
 
-// Friendly message for the permanent "not deployable" case, when the
-// server didn't provide an explicit error (transient failures come back
-// with `data.error` already populated).
+function clearDeployError() {
+  byId("deployError").classList.add("d-none");
+  byId("deployErrorMessage").textContent = "";
+  byId("deployErrorTracking").classList.add("d-none");
+  const trackingUrl = byId("deployErrorTrackingUrl");
+  trackingUrl.removeAttribute("href");
+  trackingUrl.textContent = "";
+}
+
+function showDeployError(category, message) {
+  let title;
+  let alertClass;
+
+  if (category === "user-input") {
+    title = "Check the deployment details";
+    alertClass = "alert-warning";
+  } else if (category === "transient") {
+    title = "Deployment temporarily unavailable";
+    alertClass = "alert-warning";
+  } else {
+    title = "Deployment failed";
+    alertClass = "alert-danger";
+  }
+
+  byId("deployErrorTitle").textContent = title;
+  byId("deployErrorMessage").textContent = message || "The WebJar could not be deployed.";
+  const deployError = byId("deployError");
+  deployError.classList.remove("alert-danger", "alert-warning", "d-none");
+  deployError.classList.add(alertClass);
+}
+
+function showDeployTrackingIssue(url) {
+  const trackingUrl = byId("deployErrorTrackingUrl");
+  trackingUrl.href = url;
+  trackingUrl.textContent = url;
+  byId("deployErrorTracking").classList.remove("d-none");
+}
+
 function notDeployableMessage(packageName) {
   if (webJarType() === "classic") {
     return `The Classic WebJar ${packageName} Can't Be Deployed This Way`;
@@ -168,266 +263,369 @@ function notDeployableMessage(packageName) {
   return `The NPM Package ${packageName} was not found`;
 }
 
-function checkPackageName(packageName) {
-  $("#newWebJarName").removeClass("is-valid is-invalid");
-  $("#newWebJarNameError").text("");
-  $("#newWebJarNameSpinner").addClass("spinner-border");
-  $("#newWebJarVersion").val("").trigger("change");
-  $("#newWebJarVersion").prop("disabled", true);
-  $("#classicVersions").addClass("d-none");
-  $("#classicVersionsList").empty();
-  $("#classicNewVersionLink").addClass("d-none");
-  $("#classicNewWebJarLink").addClass("d-none");
+function resetVersionSelect(label = "Select a version") {
+  const versionSelect = byId("newWebJarVersion");
+  versionSelect.replaceChildren(new Option(label, "", true, true));
+  versionSelect.disabled = true;
+  byId("deployButton").disabled = true;
+}
+
+function resetClassicGuidance() {
+  byId("classicVersions").classList.add("d-none");
+  byId("classicVersionsList").replaceChildren();
+  byId("classicNewVersionLink").classList.add("d-none");
+  byId("classicNewWebJarLink").classList.add("d-none");
+}
+
+let nameCheckSequence = 0;
+let currentNameController = null;
+let currentVersionsController = null;
+
+function abortPackageRequests() {
+  if (currentNameController) {
+    currentNameController.abort();
+    currentNameController = null;
+  }
+  if (currentVersionsController) {
+    currentVersionsController.abort();
+    currentVersionsController = null;
+  }
+}
+
+async function loadPackageVersions(sequence, packageOrRepoName) {
+  if (currentVersionsController) {
+    currentVersionsController.abort();
+  }
+
+  const controller = new AbortController();
+  currentVersionsController = controller;
+  const versionSelect = byId("newWebJarVersion");
+  resetVersionSelect("Loading versions...");
+  versionSelect.setAttribute("aria-busy", "true");
+
+  const params = new URLSearchParams({
+    webJarType: webJarType() || "",
+    name: packageOrRepoName.packageOrRepo,
+  });
+  if (packageOrRepoName.branch !== undefined) {
+    params.set("branch", packageOrRepoName.branch);
+  }
+
+  try {
+    const response = await fetch(`/versions?${params.toString()}`, {
+      headers: { Accept: "application/json" },
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      throw new Error(`Versions request failed with status ${response.status}`);
+    }
+
+    const versions = await response.json();
+    if (sequence !== nameCheckSequence) {
+      return;
+    }
+    if (!Array.isArray(versions)) {
+      throw new Error("Versions response was not an array");
+    }
+
+    resetVersionSelect(versions.length > 0 ? "Select a version" : "No versions available");
+    versions.forEach(function (version) {
+      versionSelect.add(new Option(version, version));
+    });
+    versionSelect.disabled = versions.length === 0;
+  } catch (error) {
+    if (error.name !== "AbortError" && sequence === nameCheckSequence) {
+      resetVersionSelect("Versions unavailable");
+      markNameInvalid("Versions are unavailable at this time");
+      console.error("Could not load package versions", error);
+    }
+  } finally {
+    if (sequence === nameCheckSequence) {
+      versionSelect.removeAttribute("aria-busy");
+    }
+  }
+}
+
+async function checkPackageName(packageName) {
+  packageName = (packageName || "").trim();
+
+  if (packageName.length === 0) {
+    nameCheckSequence += 1;
+    abortPackageRequests();
+    const nameInput = byId("newWebJarName");
+    nameInput.classList.remove("is-valid", "is-invalid");
+    byId("newWebJarNameError").textContent = "";
+    byId("newWebJarNameSpinner").classList.remove("spinner-border");
+    resetVersionSelect();
+    resetClassicGuidance();
+    setDeployUiVisible(true);
+    return;
+  }
+
+  abortPackageRequests();
+  const sequence = ++nameCheckSequence;
+  const controller = new AbortController();
+  currentNameController = controller;
+
+  const nameInput = byId("newWebJarName");
+  nameInput.classList.remove("is-valid", "is-invalid");
+  byId("newWebJarNameError").textContent = "";
+  byId("newWebJarNameSpinner").classList.add("spinner-border");
+  resetVersionSelect();
+  resetClassicGuidance();
   setDeployUiVisible(true);
 
-  var isClassic = webJarType() === "classic";
+  const selectedType = webJarType() || "";
+  const packageOrRepoName = parsePackageOrRepoName(packageName);
+  const params = new URLSearchParams({ webJarType: selectedType, name: packageOrRepoName.packageOrRepo });
 
-  $.ajax({
-    url: `/exists?webJarType=${webJarType()}&name=${packageName}`,
-    dataType: "json",
-    success: function (data) {
-      $("#newWebJarNameSpinner").removeClass("spinner-border");
+  try {
+    const response = await fetch(`/exists?${params.toString()}`, {
+      headers: { Accept: "application/json" },
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      throw new Error(`Package check failed with status ${response.status}`);
+    }
 
-      if (data.deployable) {
-        markNameValid();
-        $("#newWebJarVersion").prop("disabled", false);
+    const data = await response.json();
+    if (sequence !== nameCheckSequence) {
+      return;
+    }
+
+    byId("newWebJarNameSpinner").classList.remove("spinner-border");
+    if (data.deployable) {
+      markNameValid();
+      await loadPackageVersions(sequence, packageOrRepoName);
+      return;
+    }
+
+    markNameInvalid(data.error || notDeployableMessage(packageName));
+    const versions = Array.isArray(data.versions) ? data.versions : [];
+    if (versions.length > 0) {
+      const list = byId("classicVersionsList");
+      versions.forEach(function (version) {
+        const item = document.createElement("li");
+        item.textContent = version;
+        list.append(item);
+      });
+      byId("classicVersions").classList.remove("d-none");
+    }
+
+    if (selectedType === "classic") {
+      if (versions.length > 0) {
+        byId("classicNewVersionUrl").href = `https://github.com/webjars/${packageName}/issues/new`;
+        byId("classicNewVersionLink").classList.remove("d-none");
       } else {
-        // Permanent not-deployable → construct a context-aware message.
-        // Transient failure → server provides `error` ("Deployment is
-        // unavailable at this time").
-        markNameInvalid(data.error || notDeployableMessage(packageName));
-        var versions = Array.isArray(data.versions) ? data.versions : [];
-        if (versions.length > 0) {
-          $("#classicVersionsList").html(versions.map(function (v) { return $("<li>").text(v); }));
-          $("#classicVersions").removeClass("d-none");
-        }
-        // Classic-only instructions: if the artifact has MC versions, point
-        // the user at its source repo to request a new version; otherwise
-        // suggest opening a webjars-classic ticket to add a new artifact.
-        if (isClassic) {
-          if (versions.length > 0) {
-            $("#classicNewVersionUrl").attr("href", `https://github.com/webjars/${packageName}/issues/new`);
-            $("#classicNewVersionLink").removeClass("d-none");
-          } else {
-            $("#classicNewWebJarLink").removeClass("d-none");
-          }
-        }
-        setDeployUiVisible(false);
-        $("#newWebJarVersion").prop("disabled", true);
+        byId("classicNewWebJarLink").classList.remove("d-none");
       }
-    },
-    error: function () {
-      // Network / 4xx / 5xx from our own server — treat as transient.
+    }
+    setDeployUiVisible(false);
+    resetVersionSelect();
+  } catch (error) {
+    if (error.name !== "AbortError" && sequence === nameCheckSequence) {
       markNameInvalid("Deployment is unavailable at this time");
-      $("#newWebJarNameSpinner").removeClass("spinner-border");
-      $("#newWebJarVersion").prop("disabled", true);
-    },
-  });
+      byId("newWebJarNameSpinner").classList.remove("spinner-border");
+      resetVersionSelect();
+    }
+  }
 }
 
 function handleSearch() {
-  var searchText = $("#search").val().trim();
-  var groupIds = $("input[name='search_catalog[]']:checked")
-    .map(function () {
-      return $(this).val();
-    })
-    .get();
+  const searchText = byId("search").value.trim();
+  const groupIds = all("input[name='search_catalog[]']:checked").map(function (input) {
+    return input.value;
+  });
 
   if (searchText === "") {
-    $("#clearSearch").hide();
+    byId("clearSearch").style.display = "none";
     loadPopular();
   } else {
-    $("#clearSearch").show();
+    byId("clearSearch").style.display = "";
     searchWebJars(searchText, groupIds);
   }
 }
 
 function clearSearch() {
-  $("#search").val("");
-  $("#clearSearch").hide();
+  byId("search").value = "";
+  byId("clearSearch").style.display = "none";
   loadPopular();
 }
 
-$(function () {
+function initializeIndexPage() {
   setupWebJarList();
 
-  // `input` (not `keyup`) so paste / cut / IME / programmatic edits all
-  // count, and length === 0 (full delete) triggers the reset-to-popular path.
-  $("#search").on("input", function () {
-    var len = this.value.length;
-    if (len === 0 || len > 2) {
-      handleSearch();
+  const searchInput = byId("search");
+  if (searchInput) {
+    searchInput.addEventListener("input", function () {
+      const length = searchInput.value.length;
+      if (length === 0 || length > 2) {
+        handleSearch();
+      } else {
+        byId("clearSearch").style.display = "";
+      }
+    });
+    searchInput.addEventListener("keydown", function (event) {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        handleSearch();
+      }
+    });
+  }
+
+  all("input[name='search_catalog[]']").forEach(function (input) {
+    input.addEventListener("change", handleSearch);
+  });
+
+  const clearSearchButton = byId("clearSearch");
+  if (clearSearchButton) {
+    clearSearchButton.addEventListener("click", clearSearch);
+    clearSearchButton.addEventListener("keydown", function (event) {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        clearSearch();
+      }
+    });
+  }
+
+  let nameDebounceTimer = null;
+  all("input[type=radio][name=new_webjar_catalog]").forEach(function (input) {
+    input.addEventListener("change", function () {
+      clearTimeout(nameDebounceTimer);
+      const nameInput = byId("newWebJarName");
+      nameInput.disabled = false;
+      if (nameInput.value.length > 0) {
+        checkPackageName(nameInput.value);
+      }
+    });
+  });
+
+  byId("newWebJarName").addEventListener("input", function (event) {
+    clearTimeout(nameDebounceTimer);
+    if (event.target.value.trim().length === 0) {
+      checkPackageName(event.target.value);
     } else {
-      // 1-2 chars: surface the clear affordance, defer the fetch
-      $("#clearSearch").show();
+      nameDebounceTimer = setTimeout(function () {
+        checkPackageName(event.target.value);
+      }, 600);
     }
   });
 
-  // Enter forces a search regardless of length.
-  $("#search").on("keydown", function (event) {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      handleSearch();
-    }
+  byId("newWebJarVersion").addEventListener("change", function (event) {
+    byId("deployButton").disabled = event.target.value.length === 0;
   });
 
-  $("input[name='search_catalog[]']").change(function () {
-    handleSearch();
-  });
-
-  $("#clearSearch").click(clearSearch);
-
-  // Keyboard accessibility on the SVG clear button.
-  $("#clearSearch").on("keydown", function (event) {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      clearSearch();
-    }
-  });
-
-  $("#newWebJarName").typeWatch({
-    callback: checkPackageName,
-    wait: 600,
-    captureLength: 0,
-  });
-
-  $("#newWebJarVersion").select2({
-      dropdownParent: $("#newWebJarVersion").parent(),
-      theme: "bootstrap-5",
-      placeholder: $(this).data("placeholder"),
-      ajax: {
-        url: function() {
-          var packageOrRepoName = getPackageOrRepoName();
-
-          var url = `/versions?webJarType=${webJarType()}&name=${packageOrRepoName.packageOrRepo}`;
-
-          if (packageOrRepoName.branch !== undefined) {
-            url += `&branch=${packageOrRepoName.branch}`;
-          }
-
-          return url;
-        },
-        dataType: "json",
-        delay: 250,
-        processResults: function(data, params) {
-          if (!!params.term) {
-            data = data.filter(item => item.startsWith(params.term));
-          }
-
-          const results = data.map(item => ({ id: item, text: item }));
-
-          return { results };
-        }
-      },
-    })
-    .on("select2:select", function () {
-      $("#deployButton").attr("disabled", false);
-    })
-    .val("");
-
-  $("#deployButton").click(function (event) {
+  byId("deployButton").addEventListener("click", function (event) {
     event.preventDefault();
 
-    var deployLog = $("#deployLog");
-    // Render a single SSE message into the deploy log. Every message is
-    // appended as a text node by default — we only specialize the
-    // "Tracking issue: <url>" line that the deploy-failure tracker emits
-    // on Systemic failures, so the user gets a clickable hyperlink to
-    // the GitHub issue.
+    const deployLog = byId("deployLog");
+    let latestMessage = "";
+    clearDeployError();
+
     function log(message) {
-      var trackingPrefix = "Tracking issue: ";
-      var trackingIdx = message.indexOf(trackingPrefix);
+      const failureMatch = message.trim().match(/^\[deploy-failure:(user-input|transient|systemic)\]$/);
+      if (failureMatch !== null) {
+        showDeployError(failureMatch[1], latestMessage);
+        return;
+      }
+
+      const trackingPrefix = "Tracking issue: ";
+      const trackingIdx = message.indexOf(trackingPrefix);
       if (trackingIdx === 0) {
-        var rest = message.slice(trackingPrefix.length).trim();
-        // Defend against the rest containing whitespace/junk after the
-        // URL — only linkify the leading URL token.
-        var urlEnd = rest.search(/\s/);
-        var url = urlEnd === -1 ? rest : rest.slice(0, urlEnd);
-        var trailing = urlEnd === -1 ? "\n" : rest.slice(urlEnd);
+        const rest = message.slice(trackingPrefix.length).trim();
+        const urlEnd = rest.search(/\s/);
+        const url = urlEnd === -1 ? rest : rest.slice(0, urlEnd);
+        const trailing = urlEnd === -1 ? "\n" : rest.slice(urlEnd);
+        showDeployTrackingIssue(url);
         deployLog.append(document.createTextNode(trackingPrefix));
-        var $a = $("<a>")
-          .attr("href", url)
-          .attr("target", "_blank")
-          .attr("rel", "noopener noreferrer")
-          .text(url);
-        deployLog.append($a);
-        deployLog.append(document.createTextNode(trailing));
+        const link = document.createElement("a");
+        link.href = url;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.textContent = url;
+        deployLog.append(link, document.createTextNode(trailing));
       } else {
+        latestMessage = message.trim();
         deployLog.append(document.createTextNode(message));
       }
-      deployLog.animate({ scrollTop: deployLog.prop("scrollHeight") }, 0);
+      deployLog.scrollTop = deployLog.scrollHeight;
     }
 
-    $("#deployButton").attr("disabled", true);
+    byId("deployButton").disabled = true;
+    const packageOrRepoName = getPackageOrRepoName();
+    const artifactId = packageOrRepoName.packageOrRepo;
+    const version = byId("newWebJarVersion").value;
 
-    var packageOrRepoName = getPackageOrRepoName();
+    deployLog.textContent = "Starting Deploy\n";
+    const deployUrl = `/deploy?webJarType=${webJarType()}&nameOrUrlish=${encodeURIComponent(artifactId)}&version=${encodeURIComponent(version)}`;
+    const source = new EventSource(deployUrl);
 
-    var artifactId = packageOrRepoName.packageOrRepo;
-    var version = $("#newWebJarVersion").val();
-
-    deployLog.text("Starting Deploy\n");
-
-    var deployUrl = `/deploy?webJarType=${webJarType()}&nameOrUrlish=${encodeURIComponent(artifactId)}&version=${encodeURIComponent(version)}`;
-    var source = new EventSource(deployUrl);
-
-    source.addEventListener("message", function (e) {
-      if (e.data.length > 0) {
-        var message = e.data;
-        if (!e.data.endsWith("\n")) {
-          message = message + "\n";
-        }
+    source.addEventListener("message", function (messageEvent) {
+      if (messageEvent.data.length > 0) {
+        const message = messageEvent.data.endsWith("\n") ? messageEvent.data : `${messageEvent.data}\n`;
         log(message);
       }
     });
-    source.addEventListener("error", function (e) {
+    source.addEventListener("error", function () {
       source.close();
-      $("#deployButton").attr("disabled", false);
+      byId("deployButton").disabled = false;
     });
   });
 
-  $("#newWebJarModal").on("show.bs.modal", function (event) {
-    $("#deployButton").attr("disabled", true);
-    // Reset visibility — previous open may have hidden the deploy UI for
-    // a Classic webjar.
+  byId("newWebJarModal").addEventListener("show.bs.modal", function (event) {
+    clearTimeout(nameDebounceTimer);
+    nameCheckSequence += 1;
+    abortPackageRequests();
+    byId("deployButton").disabled = true;
     setDeployUiVisible(true);
-    $("#classicVersions").addClass("d-none");
-    $("#classicVersionsList").empty();
-    $("#classicNewVersionLink").addClass("d-none");
-    $("#classicNewWebJarLink").addClass("d-none");
-    $("input[type=radio][name=new_webjar_catalog]:checked").trigger("change");
+    clearDeployError();
+    resetClassicGuidance();
 
-    var groupId = $(event.relatedTarget).data("group-id");
-    var artifactId = $(event.relatedTarget).data("artifact-id");
-    var name = $(event.relatedTarget).data("name");
-    var input = undefined;
+    const trigger = event.relatedTarget
+      ? event.relatedTarget.closest("[data-bs-target='#newWebJarModal']")
+      : null;
+    const selectedWebJarType = trigger ? trigger.dataset.webjarType : undefined;
+    const artifactId = trigger ? trigger.dataset.artifactId : undefined;
+    const name = trigger ? trigger.dataset.name : undefined;
 
-    $("input[type=radio][name=new_webjar_catalog]").prop("checked", false);
+    all("input[type=radio][name=new_webjar_catalog]").forEach(function (input) {
+      input.checked = false;
+    });
 
-    if (groupId === "org.webjars") {
-      $("input[type=radio][name=new_webjar_catalog][value='classic']").prop("checked", true).trigger("change");
-      input = artifactId;
+    const nameInput = byId("newWebJarName");
+    nameInput.value = "";
+    nameInput.disabled = true;
+    nameInput.classList.remove("is-valid", "is-invalid");
+    byId("newWebJarNameError").textContent = "";
+    resetVersionSelect();
+    byId("deployLog").textContent = "";
+
+    let inputValue;
+    if (selectedWebJarType === "classic") {
+      const classicInput = document.querySelector("input[name=new_webjar_catalog][value='classic']");
+      classicInput.checked = true;
+      classicInput.dispatchEvent(new Event("change", { bubbles: true }));
+      inputValue = artifactId;
+    } else if (selectedWebJarType === "npm") {
+      const npmInput = document.querySelector("input[name=new_webjar_catalog][value='npm']");
+      npmInput.checked = true;
+      npmInput.dispatchEvent(new Event("change", { bubbles: true }));
+      inputValue = name;
     }
-    else if (groupId === "org.webjars.npm") {
-      $("input[type=radio][name=new_webjar_catalog][value='npm']").prop("checked", true).trigger("change");
-      input = name;
+
+    if (inputValue !== undefined) {
+      nameInput.value = inputValue;
+      checkPackageName(inputValue);
     }
-
-    if (input !== undefined) {
-      $("#newWebJarName").val(input);
-      checkPackageName(input);
-    } else {
-      $("#newWebJarName").val("");
-      $("#newWebJarName").removeClass("is-valid").removeClass("is-invalid");
-      $("#newWebJarNameError").text("");
-    }
-
-    $("#newWebJarVersion").val("").trigger("change");
-    $("#newWebJarVersion").prop("disabled", true);
-
-    $("#deployLog").text("");
   });
-});
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initializeIndexPage);
+} else {
+  initializeIndexPage();
+}
 
 function cometMessage(event) {
-  console.log("Received event: " + event);
+  console.log(`Received event: ${event}`);
 }

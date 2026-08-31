@@ -1,29 +1,21 @@
 package webjars.utils
 
+import com.jamesward.zio_git.GitIgnore
 import com.jamesward.zio_mavencentral.MavenCentral
-import org.eclipse.jgit.ignore.IgnoreNode
 import zio.*
 import zio.compress.*
+import zio.direct.*
 import zio.stream.*
 
-import java.io.ByteArrayInputStream
 import java.nio.file.Paths
-import scala.annotation.tailrec
 
 object WebJarCreator:
 
-  @tailrec
+  private def parseExcludes(excludes: Iterable[String]): Either[Throwable, GitIgnore] =
+    GitIgnore.parse(excludes).left.map(error => IllegalArgumentException(s"Invalid exclude pattern: $error"))
+
   def isExcluded(excludes: Set[String], name: String, isDirectory: Boolean): Boolean =
-    val ignoreNode = new IgnoreNode()
-    val excludesInputStream = new ByteArrayInputStream(excludes.mkString("\n").getBytes)
-    ignoreNode.parse(excludesInputStream)
-    ignoreNode.isIgnored(name, isDirectory) match
-      case IgnoreNode.MatchResult.IGNORED => true
-      case IgnoreNode.MatchResult.NOT_IGNORED => false
-      case IgnoreNode.MatchResult.CHECK_PARENT | IgnoreNode.MatchResult.CHECK_PARENT_NEGATE_FIRST_MATCH =>
-        val parent = name.split("/").dropRight(1).mkString("/")
-        if parent == "" then false
-        else isExcluded(excludes, parent, true)
+    parseExcludes(excludes).fold(throw _, _.isIgnored(name, isDirectory))
 
   def removeGlobPath(glob: String, path: String): Option[String] =
     val globParts = glob.split('/')
@@ -65,23 +57,30 @@ object WebJarCreator:
   private def dirEntry(path: String): (ArchiveEntry[Option, Any], ZStream[Any, Throwable, Byte]) =
     (ArchiveEntry(name = if path.endsWith("/") then path else path + "/", isDirectory = true), ZStream.empty)
 
-  def unarchiveStream(input: ZStream[Any, Throwable, Byte]): ZStream[Any, Throwable, (String, Boolean, ZStream[Any, Throwable, Byte])] =
-    ZStream.unwrap {
-      input.runCollect.map { bytes =>
-        val isZip = bytes.length >= 2 && (bytes(0) & 0xff) == 0x50 && (bytes(1) & 0xff) == 0x4b
-        val byteStream = ZStream.fromChunk(bytes)
-        if isZip then
-          byteStream.via(ZipUnarchiver.unarchive).map { case (entry, content) =>
-            (entry.name, entry.isDirectory, content: ZStream[Any, Throwable, Byte])
+  /** Detect ZIP/TAR and detach each entry's content before emitting it.
+    * zio-streams-compress 2.x requires entry N to be fully consumed before N+1
+    * is pulled; downstream transformations may buffer outer entries, so each
+    * nested content stream is collected independently and then re-streamed. */
+  def unarchiveStream(input: ZStream[Any, Throwable, Byte]): ZStream[Any, Throwable, (String, Boolean, Chunk[Byte])] =
+    val branch = ZPipeline.branchAfter[Any, Throwable, Byte, (String, Boolean, Chunk[Byte])](2): prefix =>
+      val restorePrefix = ZPipeline.prepend(prefix)
+      val isZip = prefix.length >= 2 && (prefix(0) & 0xff) == 0x50 && (prefix(1) & 0xff) == 0x4b
+      if isZip then
+        restorePrefix >>> ZipUnarchiver.unarchive.mapZIO { case (entry, content) =>
+          content.runCollect.map { bytes =>
+            (entry.name, entry.isDirectory, bytes)
           }
-        else
-          byteStream.via(TarUnarchiver.unarchive).map { case (entry, content) =>
-            (entry.name, entry.isDirectory, content: ZStream[Any, Throwable, Byte])
+        }
+      else
+        restorePrefix >>> TarUnarchiver.unarchive.mapZIO { case (entry, content) =>
+          content.runCollect.map { bytes =>
+            (entry.name, entry.isDirectory, bytes)
           }
-      }
-    }
+        }
 
-  def createWebJar(input: ZStream[Any, Throwable, Byte], maybeBaseDirGlob: Option[String], exclude: Set[String], pom: String, webJarName: String, licenses: Set[License], groupId: MavenCentral.GroupId, artifactId: MavenCentral.ArtifactId, version: MavenCentral.Version, pathPrefix: String): ZIO[Any, Throwable, Array[Byte]] =
+    input.via(branch)
+
+  def createWebJar(input: ZStream[Any, Throwable, Byte], maybeBaseDirGlob: Option[String], exclude: Set[String], pom: String, webJarName: String, licenses: Set[License], groupId: MavenCentral.GroupId, artifactId: MavenCentral.ArtifactId, version: MavenCentral.Version, pathPrefix: String): Deployable.ArchiveStream =
 
     val webJarPrefix = s"META-INF/resources/webjars/$pathPrefix"
 
@@ -123,11 +122,13 @@ object WebJarCreator:
       )
 
     val transformedEntries: ZStream[Any, Throwable, (ArchiveEntry[Option, Any], ZStream[Any, Throwable, Byte])] =
-      ZStream.unwrap {
-        // Track seen entry names so duplicates produced by malformed source
-        // archives (e.g. `package/./foo` and `package/foo` both normalizing
-        // to the same path — see issue #2220) are emitted only once.
-        Ref.make(Set.empty[String]).map { seenNamesRef =>
+      ZStream.unwrap:
+        defer:
+          val ignore = ZIO.fromEither(parseExcludes(exclude)).run
+          // Track seen entry names so duplicates produced by malformed source
+          // archives (e.g. `package/./foo` and `package/foo` both normalizing
+          // to the same path — see issue #2220) are emitted only once.
+          val seenNamesRef = Ref.make(Set.empty[String]).run
           unarchiveStream(input).mapZIO { case (entryName, isDir, content) =>
             val maybeNames = maybeBaseDirGlob.fold[Array[String]](Array(entryName)) { baseDirGlobs =>
               baseDirGlobs.split(',').flatMap { baseDirGlob =>
@@ -136,39 +137,26 @@ object WebJarCreator:
             }
 
             val filteredNames = maybeNames
-              .filter(name => !isExcluded(exclude, name, isDir))
+              .filter(name => !ignore.isIgnored(name, isDir))
               .map(normalizeName)
               .filter(_.nonEmpty)
 
             seenNamesRef.modify { seen =>
               val toEmit = filteredNames.filter(n => !seen.contains(webJarPrefix + n))
               (toEmit, seen ++ toEmit.map(webJarPrefix + _))
-            }.flatMap { uniqueNames =>
+            }.map { uniqueNames =>
               if isDir then
-                ZIO.succeed(uniqueNames.toSeq.map { name =>
+                uniqueNames.toSeq.map { name =>
                   val path = webJarPrefix + name
                   (ArchiveEntry(name = path, isDirectory = true): ArchiveEntry[Option, Any], ZStream.empty: ZStream[Any, Throwable, Byte])
-                })
-              else if uniqueNames.isEmpty then
-                content.runDrain.as(Seq.empty)
-              else if uniqueNames.length == 1 then
-                ZIO.succeed(uniqueNames.toSeq.map { name =>
-                  val path = webJarPrefix + name
-                  (ArchiveEntry(name = path): ArchiveEntry[Option, Any], content)
-                })
+                }
               else
-                content.runCollect.map { bytes =>
-                  uniqueNames.toSeq.map { name =>
-                    val path = webJarPrefix + name
-                    (ArchiveEntry(name = path): ArchiveEntry[Option, Any], ZStream.fromChunk(bytes): ZStream[Any, Throwable, Byte])
-                  }
+                uniqueNames.toSeq.map { name =>
+                  val path = webJarPrefix + name
+                  (ArchiveEntry(name = path): ArchiveEntry[Option, Any], ZStream.fromChunk(content): ZStream[Any, Throwable, Byte])
                 }
             }
           }.flatMap(entries => ZStream.fromIterable(entries))
-        }
-      }
 
     (staticEntries ++ transformedEntries)
       .via(ZipArchiver.archive)
-      .runCollect
-      .map(_.toArray)

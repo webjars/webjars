@@ -17,12 +17,12 @@ object NewWebJarModal:
                     <fieldset class="d-inline-flex flex-row align-items-center gap-3 mb-3">
                         <legend class="col-form-label">WebJar Type:</legend>
                         <div class="form-check mb-0">
-                            <input id="npm" class="form-check-input" type="radio" name="new_webjar_catalog" value="npm" checked>
-                            <label class="form-check-label" for="npm">NPM</label>
+                            <input id="newWebJarTypeNpm" class="form-check-input" type="radio" name="new_webjar_catalog" value="npm">
+                            <label class="form-check-label" for="newWebJarTypeNpm">NPM</label>
                         </div>
                         <div class="form-check mb-0">
-                            <input id="classic" class="form-check-input" type="radio" name="new_webjar_catalog" value="classic">
-                            <label class="form-check-label" for="classic">Classic</label>
+                            <input id="newWebJarTypeClassic" class="form-check-input" type="radio" name="new_webjar_catalog" value="classic">
+                            <label class="form-check-label" for="newWebJarTypeClassic">Classic</label>
                         </div>
                     </fieldset>
                 </form>
@@ -30,13 +30,16 @@ object NewWebJarModal:
                 <div class="webjar-deploy">
                     <form id="webjar-deploy" class="row g-3 mb-3" onsubmit="return false;">
                         <div class="col-md-6 position-relative">
-                            <input id="newWebJarName" type="text" class="form-control form-control-sm" aria-describedby="newWebJarNameStatus newWebJarNameError" placeholder="Package Name or Git Repo URL">
+                            <label for="newWebJarName" class="control-label visually-hidden">Package Name or Git Repo URL</label>
+                            <input id="newWebJarName" type="text" class="form-control form-control-sm" aria-describedby="newWebJarNameError" placeholder="Package Name or Git Repo URL" disabled>
                             <span id="newWebJarNameSpinner" class="spinner-border-sm" aria-hidden="true"></span>
                             <div id="newWebJarNameError" class="invalid-feedback"></div>
                         </div>
                         <div class="col-md-6">
                             <label for="newWebJarVersion" class="control-label visually-hidden">Package Version</label>
-                            <select id="newWebJarVersion" class="form-select form-select-sm" disabled data-placeholder="Version"></select>
+                            <select id="newWebJarVersion" class="form-select form-select-sm" disabled>
+                                <option value="" selected>Select a version</option>
+                            </select>
                         </div>
                     </form>
 
@@ -53,9 +56,15 @@ object NewWebJarModal:
                         If you need a new Classic WebJar, <a href="https://github.com/webjars/webjars-classic/issues/new" target="_blank" rel="noopener noreferrer">create a request to have it created</a>.
                     </p>
 
+                    <div id="deployError" class="alert alert-danger d-none mb-3" role="alert" aria-live="assertive">
+                        <h2 id="deployErrorTitle" class="alert-heading fs-6 mb-1">Deployment failed</h2>
+                        <p id="deployErrorMessage" class="mb-0"></p>
+                        <p id="deployErrorTracking" class="d-none mt-2 mb-0">Tracking issue: <a id="deployErrorTrackingUrl" target="_blank" rel="noopener noreferrer"></a></p>
+                    </div>
+
                     <div id="deployLogSection">
                         <h2 class="fs-6 mb-2">Deploy Log</h2>
-                        <pre id="deployLog" class="border" disabled></pre>
+                        <pre id="deployLog" class="border" role="log" aria-live="polite"></pre>
                     </div>
                 </div>
             </div>

@@ -96,11 +96,20 @@ wait_for_server() {
   echo "Waiting for server at ${BASE_URL} ..."
   local max_wait=300  # 5 minutes
   local waited=0
-  while ! curl -s -o /dev/null -w '' --max-time 5 "${BASE_URL}/documentation" 2>/dev/null; do
+  local all_status popular_body
+  while true; do
+    all_status=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 \
+      -H "Accept: application/json" "${BASE_URL}/all" 2>/dev/null) || true
+    popular_body=$(curl -s --max-time 5 -H "Accept: application/json" \
+      "${BASE_URL}/popular" 2>/dev/null) || true
+    if [ "$all_status" = "200" ] && grep -qF '"groupId"' <<< "$popular_body"; then
+      break
+    fi
+
     sleep 3
     waited=$((waited + 3))
     if [ "$waited" -ge "$max_wait" ]; then
-      echo "$(red ERROR): Server did not become ready within ${max_wait}s"
+      echo "$(red ERROR): Server indexes did not become ready within ${max_wait}s"
       exit 1
     fi
     printf "."
@@ -201,7 +210,8 @@ test_package_exists() {
   # Known NPM package
   http GET "/exists?webJarType=npm&name=jquery"
   if assert_status "GET /exists npm jquery returns 200" "200"; then
-    assert_body_contains "GET /exists npm jquery returns XML root" "<root"
+    assert_body_matches "GET /exists npm jquery returns JSON object" '^\{'
+    assert_body_contains "GET /exists npm jquery includes deployable state" '"deployable"'
     pass "GET /exists npm jquery returns 200"
   fi
 
@@ -356,6 +366,11 @@ test_create_npm() {
       else
         fail "POST /create npm jquery 3.3.0 returns valid JAR" "bad magic: $magic"
       fi
+      if unzip -tqq "$tmpjar" >/dev/null 2>&1; then
+        pass "POST /create npm jquery 3.3.0 returns complete JAR"
+      else
+        fail "POST /create npm jquery 3.3.0 returns complete JAR" "archive integrity check failed"
+      fi
     else
       fail "POST /create npm jquery 3.3.0 body not empty" "empty response"
     fi
@@ -380,8 +395,16 @@ test_create_classic() {
     local size
     size=$(wc -c < "$tmpjar" | tr -d ' ')
     pass "POST /create/classic bootstrap v5.3.0 returns 200 (${size} bytes)"
+    if unzip -tqq "$tmpjar" >/dev/null 2>&1; then
+      pass "POST /create/classic bootstrap v5.3.0 returns complete JAR"
+    else
+      fail "POST /create/classic bootstrap v5.3.0 returns complete JAR" "archive integrity check failed"
+    fi
+  elif grep -qF "temporarily rate limiting requests" "$tmpjar"; then
+    skip "POST /create/classic bootstrap v5.3.0" "GitHub temporarily rate limiting requests"
   else
-    fail "POST /create/classic bootstrap v5.3.0 returns 200" "got status $HTTP_STATUS, body: $(echo "$HTTP_BODY" | head -c 200)"
+    fail "POST /create/classic bootstrap v5.3.0 returns 200" \
+      "got status $HTTP_STATUS, body: $(head -c 200 "$tmpjar")"
   fi
   rm -f "$tmpjar"
 
@@ -396,6 +419,11 @@ test_create_classic() {
     local size
     size=$(wc -c < "$tmpjar" | tr -d ' ')
     pass "POST /create/classic jquery 3.7.0 (npm) returns 200 (${size} bytes)"
+    if unzip -tqq "$tmpjar" >/dev/null 2>&1; then
+      pass "POST /create/classic jquery 3.7.0 (npm) returns complete JAR"
+    else
+      fail "POST /create/classic jquery 3.7.0 (npm) returns complete JAR" "archive integrity check failed"
+    fi
   else
     fail "POST /create/classic jquery 3.7.0 (npm) returns 200" "got status $HTTP_STATUS"
   fi
@@ -426,8 +454,11 @@ test_create_classic() {
 
   if [ "$HTTP_STATUS" = "200" ]; then
     pass "POST /create/classic with base.dir returns 200"
+  elif grep -qF "temporarily rate limiting requests" "$tmpjar"; then
+    skip "POST /create/classic with base.dir" "GitHub temporarily rate limiting requests"
   else
-    fail "POST /create/classic with base.dir returns 200" "got status $HTTP_STATUS"
+    fail "POST /create/classic with base.dir returns 200" \
+      "got status $HTTP_STATUS, body: $(head -c 200 "$tmpjar")"
   fi
   rm -f "$tmpjar"
 
@@ -443,8 +474,11 @@ download=https://github.com/twbs/bootstrap/releases/download/v${version}/bootstr
 
   if [ "$HTTP_STATUS" = "200" ]; then
     pass "POST /create/classic with download URL returns 200"
+  elif grep -qF "temporarily rate limiting requests" "$tmpjar"; then
+    skip "POST /create/classic with download URL" "GitHub temporarily rate limiting requests"
   else
-    fail "POST /create/classic with download URL returns 200" "got status $HTTP_STATUS"
+    fail "POST /create/classic with download URL returns 200" \
+      "got status $HTTP_STATUS, body: $(head -c 200 "$tmpjar")"
   fi
   rm -f "$tmpjar"
 }

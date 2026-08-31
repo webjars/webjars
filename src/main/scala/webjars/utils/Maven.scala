@@ -50,10 +50,8 @@ case class MavenLive(git: Git, semVer: SemVer) extends Maven:
             versions.headOption match
               case Some(latestVersion) => artifactId -> latestVersion
               case None =>
-                val commits = git.versionsOnBranch(url, "master").run
-                commits.headOption match
-                  case Some(latestCommit) => artifactId -> s"0.0.0-$latestCommit"
-                  case None => ZIO.fail(new Exception(s"The dependency definition $name -> $versionOrUrl was not valid because it looked like a git repo reference but no version was specified.")).run
+                val latestCommit = git.latestCommitOnBranch(url, "master").run
+                artifactId -> s"0.0.0-$latestCommit"
 
     def resolveVersionRange(artifactId: String, version: String): ZIO[Scope, Throwable, (String, String)] =
       defer:

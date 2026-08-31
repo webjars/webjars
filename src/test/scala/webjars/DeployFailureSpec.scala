@@ -102,4 +102,43 @@ object DeployFailureSpec extends ZIOSpecDefault:
         assertTrue(failure.message == "Exception")
       },
     ),
+    suite("userMessage")(
+      test("explains missing packages without exposing the backend response") {
+        val failure = DeployFailure.classify(ServerError("raw registry response", 404))
+        assertTrue(
+          failure.userMessage == "The requested package or version could not be found. Check the package name and version, then try again.",
+          !failure.userMessage.contains("raw registry response"),
+        )
+      },
+      test("explains rate limiting") {
+        val failure = DeployFailure.classify(ServerError("raw rate-limit payload", 429))
+        assertTrue(
+          failure.userMessage == "An upstream service is temporarily rate limiting requests. Please wait a few minutes and try again.",
+          !failure.userMessage.contains("raw rate-limit payload"),
+        )
+      },
+      test("explains license failures without exposing metadata details") {
+        val failure = DeployFailure.classify(LicenseNotFoundException("raw package metadata"))
+        assertTrue(
+          failure.userMessage == "A valid license could not be determined from the package metadata. A maintainer may need to review this package.",
+          !failure.userMessage.contains("raw package metadata"),
+        )
+      },
+    ),
+    suite("createUserMessage")(
+      test("uses create wording and does not expose technical causes") {
+        val userInput = DeployFailure.classify(new IllegalStateException("raw user detail"))
+        val transient = DeployFailure.classify(new Exception("raw transient detail"))
+        val systemic = DeployFailure.classify(LicenseNotFoundException("raw license detail"))
+
+        assertTrue(
+          DeployFailure.createUserMessage(userInput) == "The requested WebJar could not be created. Check the package name and version, then try again.",
+          DeployFailure.createUserMessage(transient) == "A required upstream service is temporarily unavailable. Please try creating the WebJar again in a few minutes.",
+          DeployFailure.createUserMessage(systemic) == "A valid license could not be determined from the package metadata. A maintainer may need to review this package.",
+          !DeployFailure.createUserMessage(userInput).contains("raw user detail"),
+          !DeployFailure.createUserMessage(transient).contains("raw transient detail"),
+          !DeployFailure.createUserMessage(systemic).contains("raw license detail"),
+        )
+      },
+    ),
   )

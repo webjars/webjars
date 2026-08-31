@@ -2,15 +2,15 @@ package webjars.utils
 
 import com.jamesward.zio_mavencentral.MavenCentral
 import webjars.config.AppConfig
-import webjars.utils.Deployable.{NameOrUrlish, Version}
+import webjars.utils.Deployable.{ArchiveStream, NameOrUrlish, Version}
 import webjars.utils.ResilientHttp.batchedResilient
 import zio.*
 import zio.direct.*
 import zio.http.*
+import zio.stream.*
 
-import java.io.{InputStream, StringReader}
+import java.io.StringReader
 import java.util.Properties
-import java.util.zip.GZIPInputStream
 import scala.util.Try
 
 trait Classic extends Deployable:
@@ -21,7 +21,7 @@ trait Classic extends Deployable:
   def metadata(nameOrUrlish: NameOrUrlish): ZIO[Scope, Throwable, Metadata]
   def license(metadata: Metadata): ZIO[Scope, Throwable, LicenseMetadata]
   def infoFromMetadata(metadata: Metadata, version: Version, maybeSourceUri: Option[URL]): ZIO[Scope, Throwable, PackageInfo]
-  def archiveFromMetadata(metadata: Metadata, version: Version): ZIO[Scope, Throwable, InputStream]
+  def archiveFromMetadata(metadata: Metadata, version: Version): ArchiveStream
   def maybeBaseDirGlobFromMetadata(metadata: Metadata): ZIO[Scope, Throwable, Option[String]]
   def licensesFromMetadata(metadata: Metadata, version: Version, packageInfo: PackageInfo): ZIO[Scope, Throwable, Set[License]]
 
@@ -116,10 +116,22 @@ case class ClassicLive(httpClient: Client, gitHub: GitHub, cache: Cache, config:
       downloadExists(download.replace("${version}", version.vless))
     }
 
-  override def archive(nameOrUrlish: NameOrUrlish, version: Version): ZIO[Scope, Throwable, InputStream] =
-    cache.get[Metadata](s"webjars-classic-$nameOrUrlish", 1.hour) {
-      metadata(nameOrUrlish)
-    }.flatMap(archiveFromMetadata(_, version))
+  private val downloadClient =
+    httpClient @@ ZClientAspect.followRedirects(5): (_, message) =>
+      ZIO.fail(new Exception(s"Could not follow archive download redirect: $message"))
+
+  private def download(url: URL): ArchiveStream =
+    downloadClient.stream(Request.get(url)): response =>
+      if response.status.isSuccess then response.body.asStream
+      else
+        ZStream.unwrap:
+          response.body.asString.map(body => ZStream.fail(ServerError(body, response.status.code)))
+
+  override def archive(nameOrUrlish: NameOrUrlish, version: Version): ArchiveStream =
+    ZStream.unwrapScoped:
+      cache.get[Metadata](s"webjars-classic-$nameOrUrlish", 1.hour) {
+        metadata(nameOrUrlish)
+      }.map(archiveFromMetadata(_, version))
 
   override def file(nameOrUrlish: NameOrUrlish, version: Version, filename: String): ZIO[Scope, Throwable, String] =
     cache.get[Metadata](s"webjars-classic-$nameOrUrlish", 1.hour) {
@@ -192,20 +204,19 @@ case class ClassicLive(httpClient: Client, gitHub: GitHub, cache: Cache, config:
           val licenseMetadata = license(metadataNpm).run
           packageInfo.copy(metadataLicenses = Seq(licenseMetadata))
 
-  def archiveFromMetadata(metadata: Metadata, version: Version): ZIO[Scope, Throwable, InputStream] =
+  def archiveFromMetadata(metadata: Metadata, version: Version): ArchiveStream =
     metadata match
       case metadataNormal: MetadataNormal =>
-        metadataNormal.download.fold {
-          downloadExists(s"https://github.com/${metadataNormal.repo}/archive/$version.zip")
-        } { download =>
-          validDownload(download, version)
-        }.map { absoluteUrl =>
-          val is = absoluteUrl.toJavaURI.toURL.openStream()
-          if absoluteUrl.encode.endsWith("tgz") then
-            new GZIPInputStream(is)
-          else
-            is
-        }
+        ZStream.unwrapScoped:
+          metadataNormal.download.fold {
+            downloadExists(s"https://github.com/${metadataNormal.repo}/archive/$version.zip")
+          } { download =>
+            validDownload(download, version)
+          }.map { absoluteUrl =>
+            val archive = download(absoluteUrl)
+            if absoluteUrl.encode.endsWith("tgz") then archive.via(Gzip.decompress)
+            else archive
+          }
       case metadataNpm: MetadataNpm =>
         npm.archive(metadataNpm.packageName, version)
 

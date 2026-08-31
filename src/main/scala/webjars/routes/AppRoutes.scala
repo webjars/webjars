@@ -140,7 +140,7 @@ case class AppRoutes[DeployerEnv](
             }
             popularMetrics.recordSearchAppearance(
               filtered.map(wj => (MavenCentral.GroupId(wj.groupId), MavenCentral.ArtifactId(wj.artifactId)))
-            ) *> ZIO.succeed {
+            ).as {
               if acceptsJson(request) then
                 import webjars.models.WebJar.given
                 jsonResponse(filtered.toJson)
@@ -306,24 +306,16 @@ case class AppRoutes[DeployerEnv](
           }
 
           allDeployables.fromName(webJarType).fold {
-            ZIO.succeed(Response(Status.BadRequest, body = Body.fromString(s"Specified WebJar type '$webJarType' can not be created")))
+            ZIO.succeed(AppRoutes.createTextResponse(Status.BadRequest, s"Specified WebJar type '$webJarType' can not be created"))
           } { deployable =>
-            deployWebJar.create(deployable, nameOrUrlish, version, licenseOverride, groupIdOverride.map(MavenCentral.GroupId(_))).map { case (artifactId, bytes) =>
+            deployWebJar.create(deployable, nameOrUrlish, version, licenseOverride, groupIdOverride.map(MavenCentral.GroupId(_))).flatMap { case (artifactId, jar) =>
               val filename = artifactId.toString + ".jar"
-              Response(
-                Status.Ok,
-                Headers(
-                  Header.ContentType(MediaType.application.`octet-stream`).untyped,
-                  Header.ContentDisposition.attachment(filename).untyped,
-                  Header.ContentLength(bytes.length.toLong).untyped,
-                ),
-                Body.fromChunk(Chunk.fromArray(bytes))
-              )
-            }.catchAll(e => ZIO.succeed(Response(Status.BadRequest, body = Body.fromString(e.getMessage))))
+              AppRoutes.bufferedJarResponse(filename, jar)
+            }.catchAll(e => AppRoutes.createFailureResponse(Status.BadRequest, "/create", e))
           }
         }
       }.catchAll { e =>
-        ZIO.succeed(Response(Status.InternalServerError, body = Body.fromString(e.getMessage)))
+        AppRoutes.createFailureResponse(Status.InternalServerError, "/create", e)
       }
     },
 
@@ -336,7 +328,7 @@ case class AppRoutes[DeployerEnv](
         defer:
           val bodyText = request.body.asString.run
           if bodyText.isEmpty then
-            Response(Status.BadRequest, body = Body.fromString("Expected text/plain body with properties file content"))
+            AppRoutes.createTextResponse(Status.BadRequest, "Expected text/plain body with properties file content")
           else
             Classic.parseMetadata(nameOrUrlish, bodyText) match
               case scala.util.Success(metadata) =>
@@ -346,24 +338,16 @@ case class AppRoutes[DeployerEnv](
                   val licenses = classic.licensesFromMetadata(metadata, version, packageInfo).run
                   val sourceUrl = sourceLocator.sourceUrl(packageInfo.sourceConnectionUri).run
                   val pom = PomTemplate(classic.groupId, metadata.id, releaseVersion, packageInfo, sourceUrl, Set.empty, Set.empty, licenses)
-                  val archive = classic.archiveFromMetadata(metadata, version).run
+                  val archive = classic.archiveFromMetadata(metadata, version)
                   val maybeBaseDirGlob = classic.maybeBaseDirGlobFromMetadata(metadata).run
-                  val bytes = WebJarCreator.createWebJar(ZStream.fromInputStream(archive), maybeBaseDirGlob, Set.empty, pom, packageInfo.name, licenses, classic.groupId, metadata.id, releaseVersion, s"${metadata.id}/$releaseVersion/").run
+                  val jar = WebJarCreator.createWebJar(archive, maybeBaseDirGlob, Set.empty, pom, packageInfo.name, licenses, classic.groupId, metadata.id, releaseVersion, s"${metadata.id}/$releaseVersion/")
                   val filename = metadata.id.toString + ".jar"
-                  ZIO.succeed(Response(
-                    Status.Ok,
-                    Headers(
-                      Header.ContentType(MediaType.application.`octet-stream`).untyped,
-                      Header.ContentDisposition.attachment(filename).untyped,
-                      Header.ContentLength(bytes.length.toLong).untyped,
-                    ),
-                    Body.fromChunk(Chunk.fromArray(bytes))
-                  )).run
-                ).catchAll(e => ZIO.succeed(Response(Status.BadRequest, body = Body.fromString(e.getMessage)))).run
-              case scala.util.Failure(e) =>
-                Response(Status.BadRequest, body = Body.fromString(s"Invalid properties: ${e.getMessage}"))
+                  AppRoutes.bufferedJarResponse(filename, jar).run
+                ).catchAll(e => AppRoutes.createFailureResponse(Status.BadRequest, "/create/classic", e)).run
+              case scala.util.Failure(_) =>
+                AppRoutes.createTextResponse(Status.BadRequest, "Invalid properties: provide either name and repo, or npm")
       }.catchAll { e =>
-        ZIO.succeed(Response(Status.InternalServerError, body = Body.fromString(e.getMessage)))
+        AppRoutes.createFailureResponse(Status.InternalServerError, "/create/classic", e)
       }
     },
 
@@ -486,5 +470,33 @@ case class AppRoutes[DeployerEnv](
     }
 
 object AppRoutes:
+  private[routes] def bufferedJarResponse(filename: String, jar: Deployable.ArchiveStream): Task[Response] =
+    jar.runCollect.map: bytes =>
+      Response(
+        Status.Ok,
+        Headers(
+          Header.ContentType(MediaType("application", "java-archive")).untyped,
+          Header.ContentDisposition.attachment(filename).untyped,
+          Header.ContentLength(bytes.length.toLong).untyped,
+        ),
+        Body.fromChunk(bytes),
+      )
+
+  private[routes] def createTextResponse(status: Status, message: String): Response =
+    Response(
+      status,
+      Headers(Header.ContentType(MediaType.text.plain).untyped),
+      Body.fromString(message),
+    )
+
+  private[routes] def createFailureResponse(status: Status, endpoint: String, error: Throwable): UIO[Response] =
+    val failure = DeployFailure.classify(error)
+    val logMessage = s"$endpoint failed category=${DeployFailure.tag(failure)}"
+    val log = failure match
+      case _: DeployFailure.Systemic => ZIO.logErrorCause(logMessage, Cause.fail(error))
+      case _                         => ZIO.logWarningCause(logMessage, Cause.fail(error))
+
+    log.as(createTextResponse(status, DeployFailure.createUserMessage(failure)))
+
   def live[DeployerEnv : Tag]: ZLayer[Git & Cache & MavenCentralWebJars & DeployWebJar[DeployerEnv] & DeployJobs[DeployerEnv] & WebJarsFileService & AppConfig & SourceLocator & Classic & AllDeployables & WebJars & PopularMetrics & PopularRanking & SearchIndex, Nothing, AppRoutes[DeployerEnv]] =
     ZLayer.derive[AppRoutes[DeployerEnv]]

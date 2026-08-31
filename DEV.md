@@ -3,7 +3,7 @@
 Run the web app in dev mode:
 
 ```
-./sbt ~reStartTest
+./sbt ~Test/runReload
 ```
 
 This hydrates the local Valkey by fetching `/all` from
@@ -20,6 +20,17 @@ Run the all tests:
 
 Run a specific test, i.e.:
 1. `testOnly webjars.DeployFailureSpec`
+
+Run the real-browser JavaScript interaction tests:
+
+```
+./sbt 'Test / testOnly webjars.NewWebJarBrowserSpec webjars.ChekhovEnvSpec'
+```
+
+These tests use Chekhov with a system Chromium/Chrome plus Node and npm. Set
+`WEBJARS_PW_CHROME` to override the browser executable. The pinned Playwright
+driver is installed without downloading a browser; environments without the
+required tools skip the real-browser scenario.
 
 
 (todo: how do we avoid fully repopulating the maven central cache)

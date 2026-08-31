@@ -62,22 +62,20 @@ object GitSpec extends ZIOSpecDefault:
         }
       },
     ) @@ TestAspect.withLiveClock,
-    suite("git tar")(
-      test("fetch a tar") {
+    suite("git archive")(
+      test("fetch an archive") {
         withGit { git =>
-          git.tar("mochajs/mocha", "2.2.5", Set("node_modules")).flatMap { tar =>
-            ZStream.fromInputStream(tar)
-              .via(TarUnarchiver.unarchive)
-              .map(_._1.name)
-              .runCollect
-              .map { files =>
-                assertTrue(
-                  files.size == 178,
-                  !files.exists(_.contains("node_modules")),
-                  !files.exists(_.contains(".git")),
-                )
-              }
-          }
+          WebJarCreator.unarchiveStream(git.archive("mochajs/mocha", "2.2.5", Set("node_modules")))
+            .map(_._1)
+            .runCollect
+            .map { files =>
+              assertTrue(
+                files.size == 179,
+                files.contains(".gitignore"),
+                !files.exists(_.contains("node_modules")),
+                !files.exists(path => path == ".git" || path.startsWith(".git/")),
+              )
+            }
         }
       },
     ) @@ TestAspect.withLiveClock,
