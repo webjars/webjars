@@ -21,7 +21,7 @@ val localSubprojectDeps: Seq[ClasspathDep[ProjectReference]] =
 // Published artifacts are used only when their local checkout is not active,
 // so source projects and published jars never both land on the classpath.
 libraryDependencies ++=
-  (if (zioGitLocal) Seq.empty else Seq("com.jamesward" %% "zio-git" % "0.0.2")) ++
+  (if (zioGitLocal) Seq.empty else Seq("com.jamesward" %% "zio-git" % "0.0.3")) ++
   (if (zioMavenCentralLocal) Seq.empty
    else Seq("com.jamesward" %% "zio-mavencentral" % "0.14.0"))
 
@@ -34,10 +34,10 @@ Compile / mainClass := Some("webjars.Main")
 val zioStreamsCompressVersion = "2.1.4"
 
 libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-config-typesafe"          % "4.0.8",
+  "dev.zio" %% "zio-config-typesafe"          % "4.1.0",
   "dev.zio" %% "zio-logging-slf4j2-bridge"    % "2.5.3",
-  "dev.zio" %% "zio-redis"                    % "1.2.1",
-  "dev.zio" %% "zio-cache"                    % "0.2.8",
+  "dev.zio" %% "zio-redis"                    % "1.3.0",
+  "dev.zio" %% "zio-cache"                    % "0.3.0",
   "com.jamesward" %% "zio-http-guard"         % "0.0.2",
 
   "dev.zio" %% "zio-streams-compress-tar"     % zioStreamsCompressVersion,

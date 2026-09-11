@@ -8,6 +8,6 @@ addSbtPlugin("com.jamesward" % "sbt-reload" % "0.0.8")
 
 addSbtPlugin("com.skillsjars" % "skillsjars-sbt-plugin" % "0.0.9")
 
-addSbtPlugin("com.jamesward" % "sbt-mcp" % "0.0.4")
+addSbtPlugin("com.jamesward" % "sbt-mcp" % "0.0.6")
 
 addSbtPlugin("com.jamesward" % "sbt-tdepver" % "0.0.1")
