@@ -55,7 +55,7 @@ libraryDependencies ++= Seq(
   "dev.zio" %% "zio-test-sbt"                 % ("dev.zio" %% "zio").version % Test,
   "dev.zio" %% "zio-http-testkit"             % ("dev.zio" %% "zio-http").version % Test,
   "com.dimafeng" %% "testcontainers-scala-core" % "0.44.1" % Test,
-  "rocks.earlyeffect" %% "chekhov-zio-test"   % "0.0.5" % Test,
+  "rocks.earlyeffect" %% "chekhov-zio-test"   % "0.1.1" % Test,
 
   "com.jamesward" % "skills" % "0.0.3" % Skills,
 )
