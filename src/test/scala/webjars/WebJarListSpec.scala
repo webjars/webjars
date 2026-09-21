@@ -2,6 +2,7 @@ package webjars
 
 import webjars.models.{WebJar, WebJarVersion}
 import webjars.views.partials.WebJarList
+import zio.json.*
 import zio.test.*
 
 object WebJarListSpec extends ZIOSpecDefault:
@@ -9,6 +10,13 @@ object WebJarListSpec extends ZIOSpecDefault:
   private val version = Seq(WebJarVersion("1.0.0"))
 
   def spec = suite("WebJarList")(
+    test("WebJar JSON decoder works on the test runtime classpath") {
+      val decoded =
+        """{"groupId":"org.webjars","artifactId":"jquery","name":"jQuery","sourceUrl":"https://example.test/jquery","versions":[{"number":"1.0.0"}]}"""
+          .fromJson[WebJar]
+
+      assertTrue(decoded.exists(_.artifactId == "jquery"))
+    },
     test("NPM plus button carries explicit modal type and package name") {
       val webJar = WebJar(
         "org.webjars.npm",

@@ -31,7 +31,7 @@ libraryDependencies ++=
 // discovered main classes — we don't need a custom mapping for it.
 Compile / mainClass := Some("webjars.Main")
 
-val zioStreamsCompressVersion = "2.1.4"
+val zioStreamsCompressVersion = "2.1.5"
 
 libraryDependencies ++= Seq(
   "dev.zio" %% "zio-config-typesafe"          % "4.1.0",
@@ -54,8 +54,10 @@ libraryDependencies ++= Seq(
 
   "dev.zio" %% "zio-test-sbt"                 % ("dev.zio" %% "zio").version % Test,
   "dev.zio" %% "zio-http-testkit"             % ("dev.zio" %% "zio-http").version % Test,
+  // Keep derived codecs and Chekhov on the same zio-schema/zio-json line.
+  "dev.zio" %% "zio-schema-json"               % "1.9.0",
   "com.dimafeng" %% "testcontainers-scala-core" % "0.44.1" % Test,
-  "rocks.earlyeffect" %% "chekhov-zio-test"   % "0.0.5" % Test,
+  "rocks.earlyeffect" %% "chekhov-zio-test"   % "0.1.1" % Test,
 
   "com.jamesward" % "skills" % "0.0.3" % Skills,
 )
