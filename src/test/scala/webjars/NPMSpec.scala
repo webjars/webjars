@@ -347,10 +347,19 @@ object NPMSpec extends ZIOSpecDefault:
 
         withNpm { npm =>
           ZIO.foreach(affected) { (packageName, version) =>
-            for
-              packageInfo <- npm.info(packageName, version)
-              licenses <- npm.licenses(packageName, version, packageInfo)
-            yield licenses
+            val packageInfo = PackageInfo(
+              name = packageName,
+              version = version,
+              maybeHomepageUrl = None,
+              sourceConnectionUri = URL.unsafeParse("https://example.test/source"),
+              maybeIssuesUrl = None,
+              metadataLicenses = Seq.empty,
+              dependencies = Map.empty,
+              optionalDependencies = Map.empty,
+              maybeTag = None,
+            )
+            ZIO.scoped(npm.licenses(packageName, version, packageInfo))
+              .timeoutFail(RuntimeException(s"Exact archive license resolution timed out for $packageName $version"))(1.minute)
           }.map { allLicenses =>
             assertTrue(allLicenses.forall(_ == Set(LicenseWithName("MIT"))))
           }
@@ -405,4 +414,4 @@ object NPMSpec extends ZIOSpecDefault:
         }
       },
     ) @@ TestAspect.withLiveClock,
-  ).provide(Client.default) @@ TestAspect.timeout(10.minutes)
+  ).provide(Client.default) @@ TestAspect.sequential @@ TestAspect.timeout(10.minutes)
