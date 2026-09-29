@@ -358,7 +358,7 @@ object NPMSpec extends ZIOSpecDefault:
               optionalDependencies = Map.empty,
               maybeTag = None,
             )
-            ZIO.scoped(npm.licenses(packageName, version, packageInfo))
+            npm.licenses(packageName, version, packageInfo)
               .timeoutFail(RuntimeException(s"Exact archive license resolution timed out for $packageName $version"))(1.minute)
           }.map { allLicenses =>
             assertTrue(allLicenses.forall(_ == Set(LicenseWithName("MIT"))))

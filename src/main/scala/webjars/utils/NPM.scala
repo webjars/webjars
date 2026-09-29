@@ -232,8 +232,21 @@ case class NPMLive(client: Client, git: Git, gitHub: GitHub, maven: Maven, semVe
         }
     }
 
+  private val maxCompressedLicenseArchiveBytes = 64L * 1024 * 1024
+
   private def archiveLicense(nameOrUrlish: NameOrUrlish, version: Version): ZIO[Scope, Throwable, Option[License]] =
-    NPM.licenseFromArchive(archive(nameOrUrlish, version))
+    defer:
+      val url = registryTgzUrl(nameOrUrlish, version)
+      val compressed = download(url)
+        .take(maxCompressedLicenseArchiveBytes + 1)
+        .runCollect
+        .run
+      if compressed.length > maxCompressedLicenseArchiveBytes then
+        ZIO.fail(WebJarCreator.ArchiveScanLimitExceeded(
+          s"Compressed NPM archive for $nameOrUrlish $version exceeded $maxCompressedLicenseArchiveBytes bytes"
+        )).run
+      val archive = ZStream.fromChunk(compressed).via(Gzip.decompressOrIdentity)
+      NPM.licenseFromArchive(archive).run
 
   override def archive(packageNameOrGitRepo: String, version: Version): ArchiveStream =
     if git.isGit(packageNameOrGitRepo) then
