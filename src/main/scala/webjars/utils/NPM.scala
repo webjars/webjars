@@ -201,36 +201,39 @@ case class NPMLive(client: Client, git: Git, gitHub: GitHub, maven: Maven, semVe
         versionJson(packageNameOrGitRepo, version).run
       packageInfo(json).run
 
-  /** GitHub-URL deploys frequently encounter `package.json` files that
-   *  omit the `license` field — the repo is the source-of-truth and its
-   *  GitHub-detected SPDX license is what npm-ish tooling would surface
-   *  anyway. So when the npm metadata yields no licenses AND the input
-   *  was a git URL, fall back to GitHub's `/repos/:owner/:repo/license`
-   *  endpoint as a last resort.
-   *
-   *  Scoped to git-URL deploys only — for npm registry deploys the
-   *  registry metadata is the canonical source, and a missing license
-   *  there should still surface as `LicenseNotFoundException` (the
-   *  existing `ms 0.7.1` test exercises that path). See issue #2229. */
+  /** Registry metadata is the primary license source. When an exact version
+   *  has no usable `license` / `licenses` value, inspect a bounded set of
+   *  root license/readme files from that exact published archive. This avoids
+   *  consulting repository HEAD, whose license may differ from the requested
+   *  release, while supporting legacy packages that predate SPDX metadata. */
   override def licenses(nameOrUrlish: NameOrUrlish, version: Version, packageInfo: PackageInfo): ZIO[Scope, Throwable, Set[License]] =
     super.licenses(nameOrUrlish, version, packageInfo).catchSome {
-      case _: LicenseNotFoundException if git.isGit(nameOrUrlish) =>
+      case missing: LicenseNotFoundException if git.isGit(nameOrUrlish) =>
         packageInfo.maybeGitHubUrl match
           case Some(gitHubUrl) =>
             gitHub.repoLicense(gitHubUrl).flatMap {
               case Some(spdx) => ZIO.succeed(Set[License](LicenseWithName(spdx)))
               case None       =>
                 ZIO.fail(LicenseNotFoundException(
-                  s"License not found in $name metadata for $nameOrUrlish $version " +
-                    s"(GitHub repo at $gitHubUrl has no detected SPDX license either)"
+                  s"${missing.getMessage} (GitHub repo at $gitHubUrl has no detected SPDX license either)"
                 ))
             }
           case None =>
             ZIO.fail(LicenseNotFoundException(
-              s"License not found in $name metadata for $nameOrUrlish $version " +
-                "(no GitHub URL to fall back on)"
+              s"${missing.getMessage} (no GitHub URL to fall back on)"
             ))
+
+      case missing: LicenseNotFoundException =>
+        archiveLicense(nameOrUrlish, version).flatMap {
+          case Some(license) =>
+            ZIO.logInfo(s"Resolved license for $nameOrUrlish $version from exact NPM archive").as(Set(license))
+          case None =>
+            ZIO.fail(missing)
+        }
     }
+
+  private def archiveLicense(nameOrUrlish: NameOrUrlish, version: Version): ZIO[Scope, Throwable, Option[License]] =
+    NPM.licenseFromArchive(archive(nameOrUrlish, version))
 
   override def archive(packageNameOrGitRepo: String, version: Version): ArchiveStream =
     if git.isGit(packageNameOrGitRepo) then
@@ -304,6 +307,37 @@ case class NPMLive(client: Client, git: Git, gitHub: GitHub, maven: Maven, semVe
     depResolver(packageInfo.dependencies.map(parseDep), Map.empty[String, String]).map(_._2).timeoutFail(new Exception("Dependency graph resolution timed out"))(10.minutes)
 
 object NPM:
+
+  private val archiveLicensePrefixes = Set("license", "licence", "copying", "readme")
+
+  private[utils] def isArchiveLicenseCandidate(path: String): Boolean =
+    val parts = WebJarCreator.normalizeName(path).split('/').filter(_.nonEmpty)
+    parts.length <= 2 && parts.lastOption.exists { filename =>
+      val lower = filename.toLowerCase(java.util.Locale.ROOT)
+      archiveLicensePrefixes.exists(lower.startsWith)
+    }
+
+  private[webjars] def isMitLicenseText(text: String): Boolean =
+    val lower = text.toLowerCase(java.util.Locale.ROOT)
+    lower.contains("permission is hereby granted, free of charge") &&
+      (lower.contains("the software is provided \"as is\"") ||
+        lower.contains("the software is provided 'as is'"))
+
+  private[webjars] def detectArchiveLicense(files: List[(String, String)]): Option[License] =
+    files.collectFirst {
+      case (_, text) if isMitLicenseText(text) => LicenseWithName("MIT")
+    }
+
+  private[webjars] def licenseFromArchive(archive: ArchiveStream): ZIO[Any, Throwable, Option[License]] =
+    WebJarCreator.archiveTextFiles(
+      archive,
+      isArchiveLicenseCandidate,
+      maxMatches = 12,
+      maxBytesPerFile = 256 * 1024,
+      maxEntries = 10000,
+      maxTotalBytes = 64L * 1024 * 1024,
+      stopWhen = isMitLicenseText,
+    ).map(detectArchiveLicense)
 
   val live: ZLayer[Client & Git & GitHub & Maven & SemVer, Nothing, NPM] = ZLayer.derive[NPMLive]
 

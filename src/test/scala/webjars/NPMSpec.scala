@@ -333,26 +333,49 @@ object NPMSpec extends ZIOSpecDefault:
           }
         }
       },
-      test("ms 0.7.1 has no metadata licenses → LicenseNotFoundException") {
-        // Pre-SPDX-convention legacy package: no `license` field in
-        // package.json. Without the LICENSE-file scan + content classifier
-        // we used to do, the deploy fails Systemic so the deploy-failure
-        // tracker can flag it for a manual override.
-        //
-        // The GitHub-license fallback added for issue #2229 is scoped to
-        // git-URL deploys (`git.isGit(...)`), so the registry path here
-        // still surfaces `LicenseNotFoundException`.
+      test("legacy registry packages resolve MIT from their exact archives") {
+        val affected = List(
+          "@tabler/icons-webfont" -> "3.40.0",
+          "@tabler/icons-webfont" -> "3.45.0",
+          "@tabler/icons-webfont" -> "3.46.0",
+          "@tabler/icons-webfont" -> "3.47.0",
+          "growl" -> "1.0.1",
+          "spawn-command" -> "0.0.2",
+          "png-js" -> "1.1.0",
+          "ms" -> "0.7.1",
+        )
+
         withNpm { npm =>
-          for
-            packageInfo <- npm.info("ms", "0.7.1")
-            result <- npm.licenses("ms", "0.7.1", packageInfo).exit
-          yield assertTrue(
-            result.is(_.failure).isInstanceOf[LicenseNotFoundException],
-            // Message now spells out *what* failed so it's
-            // self-explanatory in the deploy-failure issue body.
-            result.is(_.failure).getMessage.contains("License not found"),
-            result.is(_.failure).getMessage.contains("ms 0.7.1"),
-          )
+          ZIO.foreach(affected) { (packageName, version) =>
+            for
+              packageInfo <- npm.info(packageName, version)
+              licenses <- npm.licenses(packageName, version, packageInfo)
+            yield licenses
+          }.map { allLicenses =>
+            assertTrue(allLicenses.forall(_ == Set(LicenseWithName("MIT"))))
+          }
+        }
+      },
+      test("archive fallback rejects text without canonical MIT terms") {
+        val detected = NPM.detectArchiveLicense(List(
+          "package/LICENSE" -> "Copyright only. All rights reserved.",
+          "package/README.md" -> "This project mentions MIT but does not contain its grant and disclaimer.",
+        ))
+        assertTrue(detected.isEmpty)
+      },
+      test("exact archive fallback resolves canonical MIT text locally") {
+        val mit =
+          """MIT License
+            |Permission is hereby granted, free of charge, to any person obtaining a copy.
+            |THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
+            |""".stripMargin
+        val archive = ArchiveCreator.archiveFiles(Map(
+          "package/LICENSE" -> Chunk.fromArray(mit.getBytes),
+          "package/dist/index.js" -> Chunk.fromArray("ignored".getBytes),
+        ))
+
+        NPM.licenseFromArchive(archive).map { detected =>
+          assertTrue(detected.contains(LicenseWithName("MIT")))
         }
       },
     ) @@ TestAspect.withLiveClock,

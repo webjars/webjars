@@ -45,6 +45,7 @@ object NewWebJarBrowserSpec extends ZIOSpecDefault:
       |    listText:document.getElementById('webJarList').textContent,
       |    buildInstructions:(document.querySelector('.build-instructions pre')||{}).textContent||'',
       |    versionDisabled:document.getElementById('newWebJarVersion').disabled,
+      |    deployDisabled:document.getElementById('deployButton').disabled,
       |    versionValues:Array.from(document.getElementById('newWebJarVersion').options).map(function(option){return option.value;}),
       |    alertHidden:alert.classList.contains('d-none'),
       |    alertTitle:document.getElementById('deployErrorTitle').textContent,
@@ -134,6 +135,7 @@ object NewWebJarBrowserSpec extends ZIOSpecDefault:
       listText: String,
       buildInstructions: String,
       versionDisabled: Boolean,
+      deployDisabled: Boolean,
       versionValues: List[String],
       alertHidden: Boolean,
       alertTitle: String,
@@ -202,6 +204,21 @@ object NewWebJarBrowserSpec extends ZIOSpecDefault:
                          "() => { var s=document.getElementById('newWebJarVersion'); s.value='1.0.0'; s.dispatchEvent(new Event('change',{bubbles:true})); return 'configured'; }",
                          isFunction = true,
                        )
+      configured    <- state(page)
+      invalidated   <- evalString(
+                         page,
+                         "() => { var n=document.getElementById('newWebJarName'); n.value='changed-package'; n.dispatchEvent(new Event('input',{bubbles:true})); return window.__snapshot(); }",
+                       ).flatMap(json => ZIO.fromEither(json.fromJson[UiState]).mapError(RuntimeException(_)))
+      _             <- page.evaluate(
+                         "() => { var n=document.getElementById('newWebJarName'); n.value='jquery'; n.dispatchEvent(new Event('input',{bubbles:true})); return 'restored'; }",
+                         isFunction = true,
+                       )
+      _             <- ZIO.sleep(1.second)
+      versionsReloaded <- state(page)
+      _             <- page.evaluate(
+                         "() => { var s=document.getElementById('newWebJarVersion'); s.value='1.0.0'; s.dispatchEvent(new Event('change',{bubbles:true})); return 'configured'; }",
+                         isFunction = true,
+                       )
       _             <- page.click("#deployButton")
       deployFailure <- evalString(
                          page,
@@ -225,6 +242,10 @@ object NewWebJarBrowserSpec extends ZIOSpecDefault:
       nonEmpty.calls == 1,
       !versionsLoaded.versionDisabled,
       versionsLoaded.versionValues == List("", "2.0.0", "1.0.0"),
+      !configured.versionDisabled && !configured.deployDisabled,
+      invalidated.versionDisabled && invalidated.deployDisabled,
+      invalidated.versionValues == List(""),
+      !versionsReloaded.versionDisabled,
       !deployFailure.alertHidden,
       deployFailure.alertTitle == "Check the deployment details",
       deployFailure.alertMessage == "The package license could not be determined.",

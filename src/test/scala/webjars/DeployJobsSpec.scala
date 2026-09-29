@@ -53,6 +53,15 @@ object DeployJobsSpec extends ZIOSpecDefault:
     def create(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, licenseOverride: Option[Set[License]], groupIdOverride: Option[MavenCentral.GroupId]): ZIO[Scope, Throwable, (MavenCentral.ArtifactId, Deployable.ArchiveStream)] =
       ZIO.dieMessage("not used")
 
+  /** Fails root validation before dependency graph or deploy execution. */
+  private class PreflightFailingDeployWebJar(failure: Throwable, deployRuns: Ref[Int]) extends DeployWebJar[Any]:
+    override def preflight(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String): ZIO[Scope, Throwable, DeploymentPreflight] =
+      ZIO.fail(failure)
+    def deploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, maybeReleaseVersion: Option[String] = None, maybeSourceUri: Option[URL] = None, maybeLicense: Option[String] = None): ZStream[Scope, Throwable, String] =
+      ZStream.fromZIO(deployRuns.update(_ + 1)).drain ++ ZStream("should not deploy")
+    def create(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, licenseOverride: Option[Set[License]], groupIdOverride: Option[MavenCentral.GroupId]): ZIO[Scope, Throwable, (MavenCentral.ArtifactId, Deployable.ArchiveStream)] =
+      ZIO.dieMessage("not used")
+
   /** A DeployFailureTracker that records every track / resolve call so
    *  the test can assert which methods were invoked, in what order, and
    *  with which deploy keys. */
@@ -184,6 +193,27 @@ object DeployJobsSpec extends ZIOSpecDefault:
           out.exists(_ == "[deploy-failure:user-input]"),
           !out.exists(_.startsWith("Tracking issue:")),
           tracked.isEmpty,
+        )
+    },
+    test("root preflight failure prevents dependency and deploy side effects") {
+      defer:
+        val deployRuns = Ref.make(0).run
+        val fake = PreflightFailingDeployWebJar(LicenseNotFoundException("missing root license"), deployRuns)
+        val jobs = DeployJobs.live[Any].build.provide(
+          ZLayer.succeed[DeployWebJar[Any]](fake),
+          TestInfrastructure.noopDeployFailureTrackerLayer,
+          Scope.default,
+        ).run.get[DeployJobs[Any]]
+
+        val out = jobs.deploy(FakeDeployable, "pkg", "1.0", deployDependencies = true).runCollect.run
+        val runCount = deployRuns.get.run
+
+        assertTrue(
+          out.headOption.contains("Validating root package"),
+          !out.exists(_ == "Determining dependency graph"),
+          !out.exists(_ == "should not deploy"),
+          out.exists(_ == "[deploy-failure:systemic]"),
+          runCount == 0,
         )
     },
     test("Successful deploy → tracker.resolveSuccess called with the deploy key") {

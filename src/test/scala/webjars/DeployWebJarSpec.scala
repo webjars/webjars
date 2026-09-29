@@ -5,13 +5,41 @@ import webjars.utils.*
 import webjars.TestInfrastructure.{MockMavenCentralDeployer, testConfig}
 import zio.*
 import zio.direct.*
-import zio.http.Client
+import zio.http.{Client, URL}
+import zio.stream.ZStream
 import zio.test.*
 
 import java.io.FileNotFoundException
 import scala.xml.Elem
 
 object DeployWebJarSpec extends ZIOSpecDefault:
+
+  private object FailingLicenseDeployable extends Deployable:
+    val name: String = "FailingLicense"
+    val groupId: MavenCentral.GroupId = MavenCentral.GroupId("org.webjars.test")
+    val metadataFile: Option[String] = None
+    def artifactId(nameOrUrlish: String): ZIO[Scope, Throwable, MavenCentral.ArtifactId] = ZIO.succeed(MavenCentral.ArtifactId(nameOrUrlish))
+    def excludes(nameOrUrlish: String): ZIO[Scope, Throwable, Set[String]] = ZIO.dieMessage("not used")
+    def maybeBaseDirGlob(nameOrUrlish: String): ZIO[Scope, Throwable, Option[String]] = ZIO.dieMessage("not used")
+    def info(nameOrUrlish: String, version: String, maybeSourceUri: Option[URL] = None): ZIO[Scope, Throwable, PackageInfo] =
+      ZIO.succeed(PackageInfo(
+        nameOrUrlish,
+        version,
+        None,
+        URL.unsafeParse("https://example.test/source"),
+        None,
+        Seq.empty,
+        Map.empty,
+        Map.empty,
+        None,
+      ))
+    override def licenses(nameOrUrlish: String, version: String, packageInfo: PackageInfo): ZIO[Scope, Throwable, Set[License]] =
+      ZIO.fail(LicenseNotFoundException("license lookup must be skipped"))
+    def mavenDependencies(dependencies: Map[String, String]): ZIO[Scope, Throwable, Set[(MavenCentral.GroupArtifact, String)]] = ZIO.dieMessage("not used")
+    def archive(nameOrUrlish: String, version: String): Deployable.ArchiveStream = ZStream.dieMessage("not used")
+    def file(nameOrUrlish: String, version: String, filename: String): ZIO[Scope, Throwable, String] = ZIO.dieMessage("not used")
+    def versions(nameOrUrlish: String): ZIO[Scope, Throwable, Set[String]] = ZIO.dieMessage("not used")
+    def depGraph(packageInfo: PackageInfo, deps: Map[String, String] = Map.empty): ZIO[Scope, Throwable, Map[String, String]] = ZIO.dieMessage("not used")
 
   private def withDeploy[A](f: (DeployWebJar[Any], NPM, Classic) => ZIO[Scope & Client & zio.redis.Redis & MavenCentral.MavenCentralRepo, Throwable, A]): ZIO[Client & zio.redis.Redis & MavenCentral.MavenCentralRepo, Throwable, A] =
     withDeploy(pomExists = false)(f)
@@ -49,19 +77,20 @@ object DeployWebJarSpec extends ZIOSpecDefault:
         }
       }
     },
-    test("already deployed is an idempotent success without a failure marker") {
-      withDeploy(pomExists = true) { (deployWebJar, npm, _) =>
+    test("already deployed skips failing license preflight and dependencies") {
+      withDeploy(pomExists = true) { (deployWebJar, _, _) =>
         defer:
           val jobs = DeployJobs.live[Any].build.provide(
             ZLayer.succeed[DeployWebJar[Any]](deployWebJar),
             TestInfrastructure.noopDeployFailureTrackerLayer,
             Scope.default,
           ).run.get[DeployJobs[Any]]
-          val output = jobs.deploy(npm, "bootstrap-scss", "5.3.8", deployDependencies = false).runCollect.run
+          val output = jobs.deploy(FailingLicenseDeployable, "already-there", "1.0.0", deployDependencies = true).runCollect.run
           assertTrue(
             output.exists(_.contains("has already been deployed to Maven Central")),
             output.exists(_.contains("Queued for cache refresh")),
             !output.exists(_.startsWith("[deploy-failure:")),
+            !output.exists(_ == "Determining dependency graph"),
             !output.exists(_.contains("Resolving licenses")),
             !output.exists(_.contains("Deployed!")),
           )

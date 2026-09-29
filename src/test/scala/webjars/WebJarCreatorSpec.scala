@@ -231,4 +231,61 @@ object WebJarCreatorSpec extends ZIOSpecDefault:
           }
       }
     },
+    test("archiveTextFiles bounds retained candidate content and advances to later entries") {
+      val oversized = "x" * 128
+      buildTar(Seq(
+        "package/LICENSE" -> oversized,
+        "package/lib/index.js" -> "console.log('ignored')",
+        "package/README.md" -> "small candidate",
+      )).flatMap { tarBytes =>
+        WebJarCreator.archiveTextFiles(
+          ZStream.fromChunk(tarBytes),
+          _.matches("package/(LICENSE|README\\.md)"),
+          maxMatches = 4,
+          maxBytesPerFile = 64,
+          maxEntries = 10,
+          maxTotalBytes = 1024,
+          stopWhen = _ => false,
+        ).map { files =>
+          assertTrue(files == List("package/README.md" -> "small candidate"))
+        }
+      }
+    },
+    test("archiveTextFiles stops after a definitive match") {
+      buildTar(Seq(
+        "package/LICENSE" -> "definitive match",
+        "package/large.bin" -> ("x" * 128),
+      )).flatMap { tarBytes =>
+        WebJarCreator.archiveTextFiles(
+          ZStream.fromChunk(tarBytes),
+          _.endsWith("LICENSE"),
+          maxMatches = 4,
+          maxBytesPerFile = 64,
+          maxEntries = 10,
+          maxTotalBytes = 64,
+          stopWhen = _ == "definitive match",
+        ).map { files =>
+          assertTrue(files == List("package/LICENSE" -> "definitive match"))
+        }
+      }
+    },
+    test("archiveTextFiles fails when the total decompressed-byte budget is exceeded") {
+      buildTar(Seq(
+        "package/index.js" -> ("x" * 80),
+        "package/LICENSE" -> "small candidate",
+      )).flatMap { tarBytes =>
+        WebJarCreator.archiveTextFiles(
+          ZStream.fromChunk(tarBytes),
+          _ => true,
+          maxMatches = 4,
+          maxBytesPerFile = 128,
+          maxEntries = 10,
+          maxTotalBytes = 64,
+          stopWhen = _ => false,
+        ).exit.map { result =>
+          assertTrue(result.is(_.failure).isInstanceOf[WebJarCreator.ArchiveScanLimitExceeded])
+        }
+      }
+    },
+
   )

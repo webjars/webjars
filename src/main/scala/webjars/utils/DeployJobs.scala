@@ -79,10 +79,17 @@ object DeployJobs:
       val work: ZIO[Client & Redis & MavenCentralRepo & Env, Throwable, Unit] =
         ZIO.scoped[Client & Redis & MavenCentralRepo & Env]:
           defer:
-            if deployDependencies then runDependencyDeploys(deployable, nameOrUrlish, upstreamVersion, job).run
-            deployWebJar.deploy(deployable, nameOrUrlish, upstreamVersion)
-              .runForeach(msg => publish(job, msg))
-              .run
+            val deployStream =
+              if deployDependencies then
+                publish(job, "Validating root package").run
+                val preflight = deployWebJar.preflight(deployable, nameOrUrlish, upstreamVersion).run
+                if !preflight.alreadyDeployed then
+                  runDependencyDeploys(deployable, preflight.packageInfo, job).run
+                deployWebJar.deployPreflighted(deployable, nameOrUrlish, upstreamVersion, preflight)
+              else
+                deployWebJar.deploy(deployable, nameOrUrlish, upstreamVersion)
+
+            deployStream.runForeach(msg => publish(job, msg)).run
 
       work.foldZIO(
         e => handleFailure(job, deployKey, e),
@@ -123,10 +130,9 @@ object DeployJobs:
     private def handleSuccess(deployKey: DeployFailureTracker.DeployKey): URIO[Redis, Unit] =
       tracker.resolveSuccess(deployKey).timeout(trackerTimeout).unit
 
-    private def runDependencyDeploys(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, job: Job): ZIO[Scope & Client & Redis & MavenCentralRepo & Env, Throwable, Unit] =
+    private def runDependencyDeploys(deployable: Deployable, packageInfo: PackageInfo, job: Job): ZIO[Scope & Client & Redis & MavenCentralRepo & Env, Throwable, Unit] =
       defer:
         publish(job, "Determining dependency graph").run
-        val packageInfo = deployable.info(nameOrUrlish, upstreamVersion).run
         val depGraph = deployable.depGraph(packageInfo).run
         val intro =
           if depGraph.isEmpty then "No dependencies."

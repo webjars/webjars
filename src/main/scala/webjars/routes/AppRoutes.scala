@@ -80,9 +80,7 @@ case class AppRoutes[DeployerEnv](
     }
 
   private def acceptsEventStream(request: Request): Boolean =
-    request.header(Header.Accept).exists { accept =>
-      accept.renderedValue.contains("text/event-stream")
-    }
+    AppRoutes.acceptsEventStream(request)
 
   private def movedPermanently(url: String): Response =
     Response(Status.MovedPermanently, Headers(Header.Location(URL.decode(url).toOption.get)))
@@ -201,154 +199,172 @@ case class AppRoutes[DeployerEnv](
     //     leave `error` empty; the UI builds a context-aware message.
     // Type-agnostic — works the same for NPM and Classic.
     Method.GET / "exists" -> handler { (request: Request) =>
-      val webJarType = request.url.queryParams.getAll("webJarType").headOption.getOrElse("")
-      val name = request.url.queryParams.getAll("name").headOption.getOrElse("")
+      PackageQuery.parse(request) match
+        case Left(error) =>
+          ZIO.succeed(Response(Status.BadRequest, body = Body.fromString(error.message)))
+        case Right(input) =>
+          val webJarType = input.webJarType.value
+          val name = input.name.value
 
-      // Walk the cause chain for a non-404 ServerError, which we treat as
-      // a transient failure (rate-limited, 5xx, etc.). 404s are "not found"
-      // and considered permanent.
-      def isTransient(t: Throwable): Boolean = t match
-        case ServerError(_, 404)    => false
-        case _: ServerError         => true
-        case _                      => Option(t.getCause).exists(isTransient)
+          // Walk the cause chain for a non-404 ServerError, which we treat as
+          // a transient failure (rate-limited, 5xx, etc.). 404s are "not found"
+          // and considered permanent.
+          def isTransient(t: Throwable): Boolean = t match
+            case ServerError(_, 404)    => false
+            case _: ServerError         => true
+            case _                      => Option(t.getCause).exists(isTransient)
 
-      allDeployables.fromName(webJarType).fold {
-        ZIO.succeed(Response(Status.BadRequest, body = Body.fromString(s"Specified WebJar type '$webJarType' does not exist")))
-      } { deployable =>
-        val versionsCheck = ZIO.scoped(deployable.versions(name)).either
-        // For the MC refresh path we want an artifactId even when the
-        // deployable's own resolution fails (e.g., a Classic name like
-        // `dgrid` that isn't in webjars-classic metadata but DOES exist
-        // on Maven Central as `org.webjars:dgrid`). Fall back to using
-        // the name as the artifactId — best-effort; if it's wrong MC just
-        // returns no versions.
-        val artifactIdEffect =
-          ZIO.scoped(deployable.artifactId(name))
-        val mcRefresh =
-          artifactIdEffect
-            .flatMap(aid => mavenCentral.refreshArtifactNow(deployable.groupId, aid))
-            .orElseSucceed(List.empty)
-        versionsCheck.zipPar(mcRefresh).flatMap { (versionsResult, mcVersions) =>
-          val errorField: ZIO[Any, Nothing, Option[String]] = versionsResult match
-            case Right(_) => ZIO.none
-            case Left(t)  =>
-              if isTransient(t) then
-                ZIO.logWarning(s"/exists transient failure for $webJarType:$name — ${t.getMessage}").as(Some("Deployment is unavailable at this time"))
-              else
-                ZIO.none
-          errorField.map: maybeError =>
-            jsonResponse(ExistsResponse(
-              deployable = versionsResult.isRight,
-              versions   = mcVersions.map(_.number),
-              error      = maybeError,
-            ).toJson)
-        }
-      }
+          allDeployables.fromName(webJarType).fold {
+            ZIO.succeed(Response(Status.BadRequest, body = Body.fromString(s"Specified WebJar type '$webJarType' does not exist")))
+          } { deployable =>
+            val versionsCheck = ZIO.scoped(deployable.versions(name)).either
+            // For the MC refresh path we want an artifactId even when the
+            // deployable's own resolution fails (e.g., a Classic name like
+            // `dgrid` that isn't in webjars-classic metadata but DOES exist
+            // on Maven Central as `org.webjars:dgrid`). Fall back to using
+            // the name as the artifactId — best-effort; if it's wrong MC just
+            // returns no versions.
+            val artifactIdEffect =
+              ZIO.scoped(deployable.artifactId(name))
+            val mcRefresh =
+              artifactIdEffect
+                .flatMap(aid => mavenCentral.refreshArtifactNow(deployable.groupId, aid))
+                .orElseSucceed(List.empty)
+            versionsCheck.zipPar(mcRefresh).flatMap { (versionsResult, mcVersions) =>
+              val errorField: ZIO[Any, Nothing, Option[String]] = versionsResult match
+                case Right(_) => ZIO.none
+                case Left(t)  =>
+                  if isTransient(t) then
+                    ZIO.logWarning(s"/exists transient failure for $webJarType:$name — ${t.getMessage}").as(Some("Deployment is unavailable at this time"))
+                  else
+                    ZIO.none
+              errorField.map: maybeError =>
+                jsonResponse(ExistsResponse(
+                  deployable = versionsResult.isRight,
+                  versions   = mcVersions.map(_.number),
+                  error      = maybeError,
+                ).toJson)
+            }
+          }
     },
 
     // Package versions
     Method.GET / "versions" -> handler { (request: Request) =>
-      val webJarType = request.url.queryParams.getAll("webJarType").headOption.getOrElse("")
-      val name = request.url.queryParams.getAll("name").headOption.getOrElse("")
-      val maybeBranch = request.url.queryParams.getAll("branch").headOption
+      PackageQuery.parse(request) match
+        case Left(error) =>
+          ZIO.succeed(Response(Status.BadRequest, body = Body.fromString(error.message)))
+        case Right(input) =>
+          val webJarType = input.webJarType.value
+          val name = input.name.value
+          val maybeBranch = request.url.queryParams.getAll("branch").headOption.map(_.trim).filter(_.nonEmpty)
 
-      allDeployables.fromName(webJarType).fold {
-        ZIO.succeed(Response(Status.BadRequest, body = Body.fromString(s"Specified WebJar type '$webJarType' does not exist")))
-      } { deployable =>
-        ZIO.scoped {
-          val versionsEffect = maybeBranch.fold {
-            cache.get[Seq[String]](s"$webJarType-versions-$name", 1.hour) {
-              deployable.versions(name).map(_.toSeq.sorted(VersionStringOrdering).reverse)
-            }
-          } { branch =>
-            cache.get[Seq[String]](s"$webJarType-versions-$name-$branch", 1.hour) {
-              git.versionsOnBranch(name, branch)
+          allDeployables.fromName(webJarType).fold {
+            ZIO.succeed(Response(Status.BadRequest, body = Body.fromString(s"Specified WebJar type '$webJarType' does not exist")))
+          } { deployable =>
+            ZIO.scoped {
+              val versionsEffect = maybeBranch.fold {
+                cache.get[Seq[String]](s"$webJarType-versions-$name", 1.hour) {
+                  deployable.versions(name).map(_.toSeq.sorted(VersionStringOrdering).reverse)
+                }
+              } { branch =>
+                cache.get[Seq[String]](s"$webJarType-versions-$name-$branch", 1.hour) {
+                  git.versionsOnBranch(name, branch)
+                }
+              }
+
+              versionsEffect.map { versions =>
+                jsonResponse(versions.toJson)
+              }
+            }.catchAllCause { cause =>
+              ZIO.logWarningCause(s"/versions failed for $webJarType:$name", cause)
+                .as(Response(Status.InternalServerError))
             }
           }
-
-          versionsEffect.map { versions =>
-            jsonResponse(versions.toJson)
-          }
-        }.catchAll { _ =>
-          ZIO.succeed(Response(Status.InternalServerError))
-        }
-      }
     },
 
-    // Deploy WebJar
+    // Deploy WebJar. EventSource requires GET; other callers must use POST
+    // so crawlers and link prefetchers cannot accidentally start deployments.
     Method.POST / "deploy" -> handler { (request: Request) =>
       handleDeploy(request)
     },
 
     Method.GET / "deploy" -> handler { (request: Request) =>
-      handleDeploy(request)
+      AppRoutes.guardDeployGet(request)(handleDeploy(request))
     },
 
     // Create WebJar
     Method.POST / "create" -> handler { (request: Request) =>
-      ZIO.scoped {
-        val webJarType = request.url.queryParams.getAll("webJarType").headOption.getOrElse("")
-        val nameOrUrlish = request.url.queryParams.getAll("nameOrUrlish").headOption.getOrElse("")
-        val version = request.url.queryParams.getAll("version").headOption.getOrElse("")
+      DeploymentQuery.parse(request) match
+        case Left(error) =>
+          ZIO.succeed(AppRoutes.createTextResponse(Status.BadRequest, error.message))
+        case Right(input) =>
+          val webJarType = input.webJarType.value
+          val nameOrUrlish = input.nameOrUrlish.value
+          val version = input.version.value
 
-        request.body.asString.flatMap { bodyStr =>
-          val bodyJson = bodyStr.fromJson[zio.json.ast.Json].toOption
-          val licenseOverride = bodyJson.flatMap { json =>
-            json.asObject.flatMap(_.get("license")).flatMap(_.asObject).map { licenses =>
-              licenses.toMap.collect { case (name, v) if v.asString.isDefined =>
-                val url = v.asString.get
-                URL.parseOption(url).fold[License](LicenseWithName(name))(u => LicenseWithNameAndUrl(name, u))
-              }.toSet
+          ZIO.scoped {
+            request.body.asString.flatMap { bodyStr =>
+              val bodyJson = bodyStr.fromJson[zio.json.ast.Json].toOption
+              val licenseOverride = bodyJson.flatMap { json =>
+                json.asObject.flatMap(_.get("license")).flatMap(_.asObject).map { licenses =>
+                  licenses.toMap.collect { case (name, v) if v.asString.isDefined =>
+                    val url = v.asString.get
+                    URL.parseOption(url).fold[License](LicenseWithName(name))(u => LicenseWithNameAndUrl(name, u))
+                  }.toSet
+                }
+              }
+              val groupIdOverride = bodyJson.flatMap { json =>
+                json.asObject.flatMap(_.get("groupId")).flatMap(_.asString)
+              }
+
+              allDeployables.fromName(webJarType).fold {
+                ZIO.succeed(AppRoutes.createTextResponse(Status.BadRequest, s"Specified WebJar type '$webJarType' can not be created"))
+              } { deployable =>
+                deployWebJar.create(deployable, nameOrUrlish, version, licenseOverride, groupIdOverride.map(MavenCentral.GroupId(_))).flatMap { case (artifactId, jar) =>
+                  val filename = artifactId.toString + ".jar"
+                  AppRoutes.bufferedJarResponse(filename, jar)
+                }.catchAll(e => AppRoutes.createFailureResponse(Status.BadRequest, "/create", e))
+              }
             }
+          }.catchAll { e =>
+            AppRoutes.createFailureResponse(Status.InternalServerError, "/create", e)
           }
-          val groupIdOverride = bodyJson.flatMap { json =>
-            json.asObject.flatMap(_.get("groupId")).flatMap(_.asString)
-          }
-
-          allDeployables.fromName(webJarType).fold {
-            ZIO.succeed(AppRoutes.createTextResponse(Status.BadRequest, s"Specified WebJar type '$webJarType' can not be created"))
-          } { deployable =>
-            deployWebJar.create(deployable, nameOrUrlish, version, licenseOverride, groupIdOverride.map(MavenCentral.GroupId(_))).flatMap { case (artifactId, jar) =>
-              val filename = artifactId.toString + ".jar"
-              AppRoutes.bufferedJarResponse(filename, jar)
-            }.catchAll(e => AppRoutes.createFailureResponse(Status.BadRequest, "/create", e))
-          }
-        }
-      }.catchAll { e =>
-        AppRoutes.createFailureResponse(Status.InternalServerError, "/create", e)
-      }
     },
 
     // Create Classic WebJar
     Method.POST / "create" / "classic" -> handler { (request: Request) =>
-      ZIO.scoped {
-        val nameOrUrlish = request.url.queryParams.getAll("nameOrUrlish").headOption.getOrElse("")
-        val version = request.url.queryParams.getAll("version").headOption.getOrElse("")
+      VersionedNameQuery.parse(request) match
+        case Left(error) =>
+          ZIO.succeed(AppRoutes.createTextResponse(Status.BadRequest, error.message))
+        case Right(input) =>
+          val nameOrUrlish = input.nameOrUrlish.value
+          val version = input.version.value
 
-        defer:
-          val bodyText = request.body.asString.run
-          if bodyText.isEmpty then
-            AppRoutes.createTextResponse(Status.BadRequest, "Expected text/plain body with properties file content")
-          else
-            Classic.parseMetadata(nameOrUrlish, bodyText) match
-              case scala.util.Success(metadata) =>
-                val releaseVersion = MavenCentral.Version(version.stripPrefix("v"))
-                (defer:
-                  val packageInfo = classic.infoFromMetadata(metadata, version, None).run
-                  val licenses = classic.licensesFromMetadata(metadata, version, packageInfo).run
-                  val sourceUrl = sourceLocator.sourceUrl(packageInfo.sourceConnectionUri).run
-                  val pom = PomTemplate(classic.groupId, metadata.id, releaseVersion, packageInfo, sourceUrl, Set.empty, Set.empty, licenses)
-                  val archive = classic.archiveFromMetadata(metadata, version)
-                  val maybeBaseDirGlob = classic.maybeBaseDirGlobFromMetadata(metadata).run
-                  val jar = WebJarCreator.createWebJar(archive, maybeBaseDirGlob, Set.empty, pom, packageInfo.name, licenses, classic.groupId, metadata.id, releaseVersion, s"${metadata.id}/$releaseVersion/")
-                  val filename = metadata.id.toString + ".jar"
-                  AppRoutes.bufferedJarResponse(filename, jar).run
-                ).catchAll(e => AppRoutes.createFailureResponse(Status.BadRequest, "/create/classic", e)).run
-              case scala.util.Failure(_) =>
-                AppRoutes.createTextResponse(Status.BadRequest, "Invalid properties: provide either name and repo, or npm")
-      }.catchAll { e =>
-        AppRoutes.createFailureResponse(Status.InternalServerError, "/create/classic", e)
-      }
+          ZIO.scoped {
+            defer:
+              val bodyText = request.body.asString.run
+              if bodyText.isEmpty then
+                AppRoutes.createTextResponse(Status.BadRequest, "Expected text/plain body with properties file content")
+              else
+                Classic.parseMetadata(nameOrUrlish, bodyText) match
+                  case scala.util.Success(metadata) =>
+                    val releaseVersion = MavenCentral.Version(version.stripPrefix("v"))
+                    (defer:
+                      val packageInfo = classic.infoFromMetadata(metadata, version, None).run
+                      val licenses = classic.licensesFromMetadata(metadata, version, packageInfo).run
+                      val sourceUrl = sourceLocator.sourceUrl(packageInfo.sourceConnectionUri).run
+                      val pom = PomTemplate(classic.groupId, metadata.id, releaseVersion, packageInfo, sourceUrl, Set.empty, Set.empty, licenses)
+                      val archive = classic.archiveFromMetadata(metadata, version)
+                      val maybeBaseDirGlob = classic.maybeBaseDirGlobFromMetadata(metadata).run
+                      val jar = WebJarCreator.createWebJar(archive, maybeBaseDirGlob, Set.empty, pom, packageInfo.name, licenses, classic.groupId, metadata.id, releaseVersion, s"${metadata.id}/$releaseVersion/")
+                      val filename = metadata.id.toString + ".jar"
+                      AppRoutes.bufferedJarResponse(filename, jar).run
+                    ).catchAll(e => AppRoutes.createFailureResponse(Status.BadRequest, "/create/classic", e)).run
+                  case scala.util.Failure(_) =>
+                    AppRoutes.createTextResponse(Status.BadRequest, "Invalid properties: provide either name and repo, or npm")
+          }.catchAll { e =>
+            AppRoutes.createFailureResponse(Status.InternalServerError, "/create/classic", e)
+          }
     },
 
     // List files (with and without groupId)
@@ -397,22 +413,26 @@ case class AppRoutes[DeployerEnv](
   )
 
   private def handleDeploy(request: Request): ZIO[Client & Redis & MavenCentral.MavenCentralRepo & DeployerEnv, Nothing, Response] =
-    val webJarType = request.url.queryParams.getAll("webJarType").headOption.getOrElse("")
-    val nameOrUrlish = request.url.queryParams.getAll("nameOrUrlish").headOption.getOrElse("")
-    val version = request.url.queryParams.getAll("version").headOption.getOrElse("")
+    DeploymentQuery.parse(request) match
+      case Left(error) =>
+        ZIO.succeed(Response(Status.BadRequest, body = Body.fromString(error.message)))
+      case Right(input) =>
+        val webJarType = input.webJarType.value
+        val nameOrUrlish = input.nameOrUrlish.value
+        val version = input.version.value
 
-    allDeployables.fromName(webJarType).fold {
-      ZIO.succeed(Response(Status.BadRequest, body = Body.fromString(s"Specified WebJar type '$webJarType' can not be deployed")))
-    } { deployable =>
-      val stream: ZStream[Client & Redis & MavenCentral.MavenCentralRepo & DeployerEnv, Nothing, String] = deployJobs.deploy(deployable, nameOrUrlish, version)
-      val bytes =
-        if acceptsEventStream(request) then stream.flatMap(msg => ZStream.fromIterable(s"data: $msg\n\n".getBytes))
-        else                                stream.flatMap(msg => ZStream.fromIterable(msg.getBytes))
-      val contentType =
-        if acceptsEventStream(request) then MediaType.text.`event-stream` else MediaType.text.plain
-      Body.fromStreamChunkedEnv(bytes).orDie.map: body =>
-        Response(Status.Ok, Headers(Header.ContentType(contentType).untyped), body)
-    }
+        allDeployables.fromName(webJarType).fold {
+          ZIO.succeed(Response(Status.BadRequest, body = Body.fromString(s"Specified WebJar type '$webJarType' can not be deployed")))
+        } { deployable =>
+          val stream: ZStream[Client & Redis & MavenCentral.MavenCentralRepo & DeployerEnv, Nothing, String] = deployJobs.deploy(deployable, nameOrUrlish, version)
+          val bytes =
+            if acceptsEventStream(request) then stream.flatMap(msg => ZStream.fromIterable(s"data: $msg\n\n".getBytes))
+            else                                stream.flatMap(msg => ZStream.fromIterable(msg.getBytes))
+          val contentType =
+            if acceptsEventStream(request) then MediaType.text.`event-stream` else MediaType.text.plain
+          Body.fromStreamChunkedEnv(bytes).orDie.map: body =>
+            Response(Status.Ok, Headers(Header.ContentType(contentType).untyped), body)
+        }
 
   private def handleListFiles(groupId: String, artifactId: String, version: String, request: Request): ZIO[Redis, Nothing, Response] =
     val gid = MavenCentral.GroupId(groupId)
@@ -470,6 +490,15 @@ case class AppRoutes[DeployerEnv](
     }
 
 object AppRoutes:
+  private[routes] def acceptsEventStream(request: Request): Boolean =
+    request.header(Header.Accept).exists { accept =>
+      accept.renderedValue.toLowerCase(java.util.Locale.ROOT).contains("text/event-stream")
+    }
+
+  private[routes] def guardDeployGet[R](request: Request)(deploy: => ZIO[R, Nothing, Response]): ZIO[R, Nothing, Response] =
+    if acceptsEventStream(request) then deploy
+    else ZIO.succeed(Response(Status.MethodNotAllowed, body = Body.fromString("Use POST to deploy a WebJar")))
+
   private[routes] def bufferedJarResponse(filename: String, jar: Deployable.ArchiveStream): Task[Response] =
     jar.runCollect.map: bytes =>
       Response(

@@ -80,6 +80,86 @@ object WebJarCreator:
 
     input.via(branch)
 
+  final case class ArchiveScanLimitExceeded(message: String) extends Exception(message)
+
+  private def countedArchiveContent(
+    content: ZStream[Any, Throwable, Byte],
+    budget: Ref[(Long, Long)],
+    maxTotalBytes: Long,
+  ): ZStream[Any, Throwable, Byte] =
+    content.chunks.mapZIO { chunk =>
+      budget.modify { case (entries, bytes) =>
+        val updatedBytes = bytes + chunk.length
+        if updatedBytes > maxTotalBytes then
+          (Left(ArchiveScanLimitExceeded(s"Archive scan exceeded $maxTotalBytes decompressed bytes")), (entries, bytes))
+        else
+          (Right(chunk), (entries, updatedBytes))
+      }.absolve
+    }.flattenChunks
+
+  private def collectArchiveText(
+    content: ZStream[Any, Throwable, Byte],
+    budget: Ref[(Long, Long)],
+    maxBytesPerFile: Int,
+    maxTotalBytes: Long,
+  ): ZIO[Any, Throwable, Option[String]] =
+    countedArchiveContent(content, budget, maxTotalBytes)
+      .runFold[Option[Chunk[Byte]]](Some(Chunk.empty)) {
+        case (Some(bytes), byte) if bytes.length < maxBytesPerFile => Some(bytes :+ byte)
+        case _                                                     => None
+      }
+      .map(_.map(bytes => new String(bytes.toArray, java.nio.charset.StandardCharsets.UTF_8)))
+
+  private def selectArchiveText[A](
+    entry: ArchiveEntry[Option, A],
+    content: ZStream[Any, Throwable, Byte],
+    budget: Ref[(Long, Long)],
+    isCandidate: String => Boolean,
+    maxBytesPerFile: Int,
+    maxEntries: Long,
+    maxTotalBytes: Long,
+  ): ZIO[Any, Throwable, Option[(String, String)]] =
+    budget.updateAndGet { case (entries, bytes) => (entries + 1, bytes) }.flatMap { case (entries, _) =>
+      if entries > maxEntries then
+        ZIO.fail(ArchiveScanLimitExceeded(s"Archive scan exceeded $maxEntries entries"))
+      else if !entry.isDirectory && isCandidate(entry.name) then
+        collectArchiveText(content, budget, maxBytesPerFile, maxTotalBytes).map(_.map(entry.name -> _))
+      else
+        countedArchiveContent(content, budget, maxTotalBytes).runDrain.as(None)
+    }
+
+  /** Read selected text files while enforcing hard limits on archive entries,
+    * total decompressed bytes, retained matches, and bytes retained per file. */
+  def archiveTextFiles(
+    input: ZStream[Any, Throwable, Byte],
+    isCandidate: String => Boolean,
+    maxMatches: Long,
+    maxBytesPerFile: Int,
+    maxEntries: Long,
+    maxTotalBytes: Long,
+    stopWhen: String => Boolean,
+  ): ZIO[Any, Throwable, List[(String, String)]] =
+    Ref.make((0L, 0L)).flatMap { budget =>
+      val branch = ZPipeline.branchAfter[Any, Throwable, Byte, (String, String)](2): prefix =>
+        val restorePrefix = ZPipeline.prepend(prefix)
+        val isZip = prefix.length >= 2 && (prefix(0) & 0xff) == 0x50 && (prefix(1) & 0xff) == 0x4b
+
+        if isZip then
+          restorePrefix >>> ZipUnarchiver.unarchive.mapZIO { case (entry, content) =>
+            selectArchiveText(entry, content, budget, isCandidate, maxBytesPerFile, maxEntries, maxTotalBytes)
+          }.collectSome
+        else
+          restorePrefix >>> TarUnarchiver.unarchive.mapZIO { case (entry, content) =>
+            selectArchiveText(entry, content, budget, isCandidate, maxBytesPerFile, maxEntries, maxTotalBytes)
+          }.collectSome
+
+      input.via(branch)
+        .take(maxMatches)
+        .takeUntil { case (_, text) => stopWhen(text) }
+        .runCollect
+        .map(_.toList)
+    }
+
   def createWebJar(input: ZStream[Any, Throwable, Byte], maybeBaseDirGlob: Option[String], exclude: Set[String], pom: String, webJarName: String, licenses: Set[License], groupId: MavenCentral.GroupId, artifactId: MavenCentral.ArtifactId, version: MavenCentral.Version, pathPrefix: String): Deployable.ArchiveStream =
 
     val webJarPrefix = s"META-INF/resources/webjars/$pathPrefix"

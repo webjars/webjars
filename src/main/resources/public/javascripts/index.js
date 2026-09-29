@@ -489,12 +489,19 @@ function initializeIndexPage() {
   }
 
   let nameDebounceTimer = null;
+  function invalidatePackageSelection() {
+    nameCheckSequence += 1;
+    abortPackageRequests();
+    resetVersionSelect();
+  }
+
   all("input[type=radio][name=new_webjar_catalog]").forEach(function (input) {
     input.addEventListener("change", function () {
       clearTimeout(nameDebounceTimer);
+      invalidatePackageSelection();
       const nameInput = byId("newWebJarName");
       nameInput.disabled = false;
-      if (nameInput.value.length > 0) {
+      if (nameInput.value.trim().length > 0) {
         checkPackageName(nameInput.value);
       }
     });
@@ -502,6 +509,7 @@ function initializeIndexPage() {
 
   byId("newWebJarName").addEventListener("input", function (event) {
     clearTimeout(nameDebounceTimer);
+    invalidatePackageSelection();
     if (event.target.value.trim().length === 0) {
       checkPackageName(event.target.value);
     } else {
@@ -551,13 +559,20 @@ function initializeIndexPage() {
       deployLog.scrollTop = deployLog.scrollHeight;
     }
 
-    byId("deployButton").disabled = true;
+    const selectedType = webJarType();
     const packageOrRepoName = getPackageOrRepoName();
     const artifactId = packageOrRepoName.packageOrRepo;
-    const version = byId("newWebJarVersion").value;
+    const version = byId("newWebJarVersion").value.trim();
 
+    if (!selectedType || artifactId.length === 0 || version.length === 0) {
+      resetVersionSelect();
+      showDeployError("user-input", "Select a package and version before deploying.");
+      return;
+    }
+
+    byId("deployButton").disabled = true;
     deployLog.textContent = "Starting Deploy\n";
-    const deployUrl = `/deploy?webJarType=${webJarType()}&nameOrUrlish=${encodeURIComponent(artifactId)}&version=${encodeURIComponent(version)}`;
+    const deployUrl = `/deploy?webJarType=${selectedType}&nameOrUrlish=${encodeURIComponent(artifactId)}&version=${encodeURIComponent(version)}`;
     const source = new EventSource(deployUrl);
 
     source.addEventListener("message", function (messageEvent) {
