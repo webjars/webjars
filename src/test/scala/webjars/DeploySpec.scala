@@ -102,16 +102,16 @@ object DeploySpec extends ZIOSpecDefault:
     },
     test("redeploy of a not-yet-published version uses the upstream version unchanged") {
       withRedeploy { (deployWebJar, allDeployables, capturing) =>
-        val gav = MavenCentral.gav("org.webjars", "swagger-ui", "v5.15.1")
+        val gav = MavenCentral.gav("org.webjars", "swagger-ui", "v5.15.0")
         for
           _ <- Deploy.streamRedeploy(gav, allDeployables, deployWebJar, existingVersions = Set.empty).runDrain
           maybeCaptured <- capturing.captured
           (publishedGav, jar, pom) = maybeCaptured.getOrElse(throw new AssertionError("publish was never called"))
           jarNames <- jarEntryNames(jar)
         yield assertTrue(
-          publishedGav.version.toString == "5.15.1",
-          pom.contains("<version>5.15.1</version>"),
-          jarNames.exists(_.startsWith("META-INF/resources/webjars/swagger-ui/5.15.1/")),
+          publishedGav.version.toString == "5.15.0",
+          pom.contains("<version>5.15.0</version>"),
+          jarNames.exists(_.startsWith("META-INF/resources/webjars/swagger-ui/5.15.0/")),
         )
       }
     },
