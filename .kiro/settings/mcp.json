@@ -1,8 +1,9 @@
 {
   "mcpServers": {
     "sbt-mcp-webjars": {
+      "type": "http",
       "url": "http://127.0.0.1:5055/",
-      "timeout": 120000,
+      "timeout": 1800000,
       "disabled": false
     }
   }
