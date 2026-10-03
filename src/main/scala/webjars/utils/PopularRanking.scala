@@ -55,7 +55,7 @@ case class PopularRankingLive(
       case Array(gid, aid) =>
         WebJarsCache
           .getArtifact(GroupArtifact(MavenCentral.GroupId(gid), MavenCentral.ArtifactId(aid)))
-          .map(_.map(meta => WebJar(gid, aid, meta.name, meta.sourceUrl, meta.versions.toSeq)))
+          .map(_.flatMap(meta => WebJar.fromCache(gid, aid, meta.name, meta.sourceUrl, meta.versions)))
       case _ =>
         ZIO.none
 
@@ -76,8 +76,8 @@ case class PopularRankingLive(
   private val coldStartFallback: ZIO[Redis, Throwable, List[WebJar]] =
     ZIO.foreach(allDeployables.groupIds().toList): groupId =>
       WebJarsCache.getArtifacts(groupId, Some(FallbackPerGroup)).map: m =>
-        m.toSeq.map: (artifactId, meta) =>
-          WebJar(groupId.toString, artifactId.toString, meta.name, meta.sourceUrl, meta.versions.toSeq)
+        m.toSeq.flatMap: (artifactId, meta) =>
+          WebJar.fromCache(groupId.toString, artifactId.toString, meta.name, meta.sourceUrl, meta.versions)
     .map(_.flatten)
 
   // True ⇒ the Ref was set; False ⇒ both the aggregate and the per-group

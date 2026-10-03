@@ -43,9 +43,27 @@ object WebJarsCache:
     // upstream layer.
     if groupArtifact.artifactId.toString.isEmpty then
       ZIO.die(IllegalArgumentException(s"Refusing to cache artifact with empty artifactId in groupId ${groupArtifact.groupId}"))
+    // A version-less entry can't be rendered or depended on, and the
+    // discovery refresh only revisits artifacts missing from the hash, so
+    // it would stay empty forever. Use `setOrTombstoneArtifact` instead.
+    else if webJarMeta.versions.isEmpty then
+      ZIO.die(IllegalArgumentException(s"Refusing to cache artifact $groupArtifact with no versions"))
     else
       ZIO.serviceWithZIO[Redis]: redis =>
         redis.hSet(groupArtifact.groupId, groupArtifact.artifactId -> webJarMeta).unit
+
+  def removeArtifact(groupArtifact: GroupArtifact): ZIO[Redis, Throwable, Unit] =
+    ZIO.serviceWithZIO[Redis](_.hDel(groupArtifact.groupId.toString, groupArtifact.artifactId.toString).unit)
+
+  // When every version is gone (e.g. all tombstoned as ghosts), drop the
+  // entry and tombstone the artifact; the TTL lets discovery retry it.
+  def setOrTombstoneArtifact(groupArtifact: GroupArtifact, webJarMeta: WebJarMeta): ZIO[Redis, Throwable, Unit] =
+    if webJarMeta.versions.isEmpty then
+      ZIO.logInfo(s"No usable versions for $groupArtifact; removing from cache and tombstoning") *>
+        removeArtifact(groupArtifact) *>
+        addTombstone(groupArtifact.groupId, groupArtifact.artifactId)
+    else
+      setArtifactDetails(groupArtifact, webJarMeta)
 
   def updateVersion(groupArtifact: GroupArtifact, version: String, numFiles: Int): ZIO[Redis, Throwable, Unit] =
     defer:
@@ -109,6 +127,10 @@ object WebJarsCache:
     ZIO.serviceWithZIO[Redis]: redis =>
       redis.sMembers(versionTombstoneKey(ga)).returning[String].map(_.toSet)
 
+  def removeVersionTombstones(ga: GroupArtifact, versions: Set[String]): ZIO[Redis, Throwable, Unit] =
+    ZIO.foreachDiscard(NonEmptyChunk.fromIterableOption(versions)): toRemove =>
+      ZIO.serviceWithZIO[Redis](_.sRem(versionTombstoneKey(ga), toRemove.head, toRemove.tail*))
+
   // Pending deploys: GAVs we've just published via this app, awaiting Maven
   // Central propagation (~1hr). Stored as a ZSET with epoch-second scores
   // so we can age out stuck entries with ZREMRANGEBYSCORE. Members use `|`
@@ -142,6 +164,14 @@ object WebJarsCache:
 
   def removePendingDeploy(p: PendingDeploy): ZIO[Redis, Throwable, Unit] =
     ZIO.serviceWithZIO[Redis](_.zRem(PendingDeploysKey, encodePending(p)).unit)
+
+  // A just-deployed version is listed in maven-metadata before its jar is
+  // reachable through the file-service, so a 404 for it is expected and
+  // must not be treated as a ghost.
+  def getPendingVersions(ga: GroupArtifact): ZIO[Redis, Throwable, Set[String]] =
+    getPendingDeploys.map: pending =>
+      pending.collect:
+        case p if p.groupId == ga.groupId && p.artifactId == ga.artifactId => p.version.toString
 
   // Drop entries older than the given age (e.g., a deploy that never made
   // it to MC after 48h is probably abandoned).

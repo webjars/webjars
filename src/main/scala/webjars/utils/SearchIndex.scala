@@ -31,8 +31,8 @@ case class SearchIndexLive(
     val build: ZIO[Redis, Throwable, List[WebJar]] =
       ZIO.foreachPar(allDeployables.groupIds().toSeq): groupId =>
         WebJarsCache.getArtifacts(groupId).map: artifactsMap =>
-          artifactsMap.toSeq.map: (artifactId, meta) =>
-            WebJar(groupId.toString, artifactId.toString, meta.name, meta.sourceUrl, meta.versions.toSeq)
+          artifactsMap.toSeq.flatMap: (artifactId, meta) =>
+            WebJar.fromCache(groupId.toString, artifactId.toString, meta.name, meta.sourceUrl, meta.versions)
       .map(_.flatten.sortBy(wj => (wj.groupId, wj.artifactId)).toList)
 
     build

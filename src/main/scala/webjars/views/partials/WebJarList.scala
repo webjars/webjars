@@ -7,10 +7,11 @@ import java.net.URLEncoder
 
 object WebJarList:
 
-  private def webJarType(groupId: String): String = groupId match
-    case "org.webjars"     => "classic"
-    case "org.webjars.npm" => "npm"
-    case unsupported        => throw IllegalArgumentException(s"Unsupported WebJar group ID: $unsupported")
+  // Total on purpose: an unknown groupId must not crash the whole list.
+  private def webJarType(groupId: String): Option[String] = groupId match
+    case "org.webjars"     => Some("classic")
+    case "org.webjars.npm" => Some("npm")
+    case _                 => None
 
   private def displayNumFiles(maybeNumFiles: Option[Int]): String =
     maybeNumFiles.fold("List")(_.toString)
@@ -21,10 +22,25 @@ object WebJarList:
   private def emptyRow: Dom =
     tr(td(Dom.attr("colspan", "4"), "No WebJars were found."))
 
+  private def createButton(webjar: WebJar): Dom =
+    webJarType(webjar.groupId).fold(Dom.empty): webJarType =>
+      button(
+        Dom.attr("title", "Create a new version"),
+        `type`        := "button",
+        className     := "btn btn-primary d-flex align-items-center justify-content-center",
+        Dom.attr("data-bs-toggle", "modal"),
+        Dom.attr("data-bs-target", "#newWebJarModal"),
+        Dom.attr("data-group-id", webjar.groupId.toString),
+        Dom.attr("data-webjar-type", webJarType),
+        Dom.attr("data-artifact-id", webjar.artifactId.toString),
+        Dom.attr("data-name", webjar.name),
+        Dom.raw("""<svg class="bi bi-plus-lg"><use href="#plus-lg"></use></svg>"""),
+      )
+
   private def webjarRow(webjar: WebJar): Dom =
     val versionOptions: Seq[Dom] = webjar.versions.map: v =>
       option(Dom.attr("data-numfiles", displayNumFiles(v.numFiles)), v.number)
-    val firstVersion = webjar.versions.head
+    val firstVersion = webjar.latestVersion
     val encodedVersion = URLEncoder.encode(firstVersion.number, "UTF-8")
     tr(
       Dom.attr("data-group", webjar.groupId.toString),
@@ -40,18 +56,7 @@ object WebJarList:
               versionOptions,
             ),
           ),
-          button(
-            Dom.attr("title", "Create a new version"),
-            `type`        := "button",
-            className     := "btn btn-primary d-flex align-items-center justify-content-center",
-            Dom.attr("data-bs-toggle", "modal"),
-            Dom.attr("data-bs-target", "#newWebJarModal"),
-            Dom.attr("data-group-id", webjar.groupId.toString),
-            Dom.attr("data-webjar-type", webJarType(webjar.groupId)),
-            Dom.attr("data-artifact-id", webjar.artifactId.toString),
-            Dom.attr("data-name", webjar.name),
-            Dom.raw("""<svg class="bi bi-plus-lg"><use href="#plus-lg"></use></svg>"""),
-          ),
+          createButton(webjar),
         ),
       ),
       td(

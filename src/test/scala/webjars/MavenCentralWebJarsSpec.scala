@@ -465,6 +465,79 @@ object MavenCentralWebJarsSpec extends ZIOSpecDefault:
       )
     },
 
+    test("refreshMissingNumFiles drops and tombstones an artifact whose every version is a ghost") {
+      // Regression for #2268: tombstoning every version used to leave a
+      // version-less entry in the hash, which crashed /search rendering
+      // and was never revisited by discovery.
+      val groupId = groupFor("all-ghosts")
+      val ga      = artifact(groupId, "a")
+      for
+        callsRef   <- Ref.make(Vector.empty[MavenCentral.GroupArtifactVersion])
+        mc          = buildMC(groupId, callsRef, notFoundFor = Set("1.0.0", "1.0.1"), numFilesFor = _ => 1)
+        _          <- seed(ga, List("1.0.0" -> None, "1.0.1" -> None))
+        _          <- mc.refreshMissingNumFiles(groupId)
+        cached     <- WebJarsCache.getArtifact(ga)
+        tombstones <- WebJarsCache.getTombstones(groupId)
+      yield assertTrue(
+        cached.isEmpty,
+        tombstones.contains(ga.artifactId),
+      )
+    },
+
+    test("refreshMissingNumFiles does NOT ghost a 404 for a version with a pending deploy") {
+      // A just-deployed version is in maven-metadata before the
+      // file-service can see its jar.
+      val groupId = groupFor("pending-not-ghost")
+      val ga      = artifact(groupId, "a")
+      val pending = WebJarsCache.PendingDeploy(groupId, ga.artifactId, MavenCentral.Version("2.0.0"))
+      val run = for
+        callsRef   <- Ref.make(Vector.empty[MavenCentral.GroupArtifactVersion])
+        mc          = buildMC(groupId, callsRef, notFoundFor = Set("2.0.0"), numFilesFor = _ => 1)
+        _          <- seed(ga, List("2.0.0" -> None))
+        _          <- WebJarsCache.addPendingDeploy(pending)
+        _          <- mc.refreshMissingNumFiles(groupId)
+        versions   <- readVersions(ga)
+        tombstones <- WebJarsCache.getVersionTombstones(ga)
+      yield assertTrue(
+        versions.map(_.number) == List("2.0.0"),
+        tombstones.isEmpty,
+      )
+      run.ensuring(WebJarsCache.removePendingDeploy(pending).orDie)
+    },
+
+    test("setArtifactDetails refuses to write entries with no versions") {
+      val ga   = artifact(groupFor("rejects-no-versions"), "a")
+      val meta = WebJarMeta("name", "https://example.test", List.empty, ZonedDateTime.now())
+      for
+        result <- WebJarsCache.setArtifactDetails(ga, meta).exit
+        cached <- WebJarsCache.getArtifact(ga)
+      yield assertTrue(result.isFailure, cached.isEmpty)
+    },
+
+    test("SearchIndex skips legacy version-less entries so the list renders") {
+      // Regression for #2268: such an entry made WebJarList call
+      // `.head` on an empty list and /search returned 500.
+      val groupId   = groupFor("search-skip-empty")
+      val emptyMeta = WebJarMeta("empty", "https://example.test", List.empty, ZonedDateTime.now())
+      val goodMeta  = WebJarMeta("good", "https://example.test", List(WebJarVersion("1.0.0", Some(2))), ZonedDateTime.now())
+      val deployables = new AllDeployables:
+        def fromGroupId(g: MavenCentral.GroupId)  = None
+        def fromName(n: String)                   = None
+        def groupIds(): Set[MavenCentral.GroupId] = Set(groupId)
+      for
+        _        <- ZIO.serviceWithZIO[Redis](_.hSet(groupId.toString, "empty" -> emptyMeta).unit)
+        _        <- WebJarsCache.setArtifactDetails(artifact(groupId, "good"), goodMeta)
+        ref      <- Ref.make(List.empty[webjars.models.WebJar])
+        index     = SearchIndexLive(ref, deployables)
+        _        <- index.rebuild
+        snapshot <- index.snapshot
+        html      = webjars.views.partials.WebJarList(Left(snapshot)).render
+      yield assertTrue(
+        snapshot.map(_.artifactId) == List("good"),
+        html.contains("data-artifact=\"good\""),
+      )
+    },
+
   ).provide(
     TestInfrastructure.sharedRedisLayer,
     zio.http.Client.default,

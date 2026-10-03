@@ -72,7 +72,7 @@ object NewWebJarBrowserSpec extends ZIOSpecDefault:
         artifactId,
         name,
         s"https://example.test/$artifactId",
-        Seq(WebJarVersion("1.0.0", Some(3))),
+        NonEmptyChunk(WebJarVersion("1.0.0", Some(3))),
       )
     ))).render
 
