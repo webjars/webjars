@@ -1,6 +1,6 @@
 name := "webjars"
 
-scalaVersion := "3.9.0"
+scalaVersion := "3.10.0"
 
 // --- Local library co-development -------------------------------------------
 // `-Dlocal` swaps published artifacts for source checkouts under `../../` when
@@ -23,7 +23,7 @@ val localSubprojectDeps: Seq[ClasspathDep[ProjectReference]] =
 libraryDependencies ++=
   (if (zioGitLocal) Seq.empty else Seq("com.jamesward" %% "zio-git" % "0.0.3")) ++
   (if (zioMavenCentralLocal) Seq.empty
-   else Seq("com.jamesward" %% "zio-mavencentral" % "0.14.0"))
+   else Seq("com.jamesward" %% "zio-mavencentral" % "0.14.1"))
 
 // Lock down the primary launcher so `bin/webjars` keeps booting the server
 // `Main` even though we now ship a second main class. sbt-native-packager
@@ -57,9 +57,9 @@ libraryDependencies ++= Seq(
   // Keep derived codecs and Chekhov on the same zio-schema/zio-json line.
   "dev.zio" %% "zio-schema-json"               % "1.9.0",
   "com.dimafeng" %% "testcontainers-scala-core" % "0.44.1" % Test,
-  "rocks.earlyeffect" %% "chekhov-zio-test"   % "0.1.1" % Test,
+  "rocks.earlyeffect" %% "chekhov-zio-test"   % "0.1.3" % Test,
 
-  "com.jamesward" % "skills" % "0.0.4" % Skills,
+  "com.jamesward" % "skills" % "0.0.11" % Skills,
 )
 
 fork := true
