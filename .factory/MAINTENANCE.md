@@ -2,6 +2,12 @@
 
 If there are other open PRs for this work, update that PR instead of creating a new one.
 
+Whenever a step says to stop, or the run can't finish: revert your uncommitted edits
+(`git checkout -- .`), don't push a branch or open a PR, and end with a report that quotes what
+failed. A cloud session's Stop hook asks you to commit uncommitted changes; don't commit unvalidated
+work to satisfy it. Don't send push notifications: the routine emails its result, and your final
+reply is the report.
+
 0. Load the project's MCP tools before anything else. `AGENTS.md` names the MCP server:
    `sbt-mcp-<project>` for sbt projects, `javadocs` for Maven and Gradle projects. In Claude Code
    these tools are deferred, so load them with ToolSearch (search for the server name). They include
