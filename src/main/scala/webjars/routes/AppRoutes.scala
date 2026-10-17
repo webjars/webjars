@@ -473,10 +473,10 @@ case class AppRoutes[DeployerEnv](
           .ignore
           .forkDaemon
       }.map { fileList =>
-        if acceptsJson(request) then
-          corsHeaders(jsonResponse(fileList.toJson))
-        else
-          corsHeaders(htmlResponse(FileListPage(groupId, artifactId, version, fileList)))
+        val response =
+          if acceptsJson(request) then jsonResponse(fileList.toJson)
+          else htmlResponse(FileListPage(groupId, artifactId, version, fileList))
+        AppRoutes.noIndex(corsHeaders(response))
       }
     }.catchAll {
       case _: WebJarsFileService.UnusableWebJarException =>
@@ -490,6 +490,14 @@ case class AppRoutes[DeployerEnv](
     }
 
 object AppRoutes:
+  /**
+   * Tell crawlers not to index a response or follow its links. Applied to
+   * `/listfiles`, whose per-file jsDelivr links otherwise get harvested and
+   * fetched one by one (robots.txt alone is ignored by some scrapers).
+   */
+  private[routes] def noIndex(response: Response): Response =
+    response.addHeader(Header.Custom("X-Robots-Tag", "noindex, nofollow"))
+
   private[routes] def acceptsEventStream(request: Request): Boolean =
     request.header(Header.Accept).exists { accept =>
       accept.renderedValue.toLowerCase(java.util.Locale.ROOT).contains("text/event-stream")

@@ -13,6 +13,10 @@ object FileListPage:
         a(
           href   := s"//cdn.jsdelivr.net/webjars/$groupId/$artifactId/$version/${pathPrefix(file)}",
           target := "_blank",
+          // nofollow: crawlers that harvest these CDN links fan out into a
+          // request per file against jsDelivr, which falls through to
+          // webjars-file-service and has overwhelmed it.
+          rel    := "nofollow noopener",
           file,
         ),
         br,
