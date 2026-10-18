@@ -4,7 +4,7 @@ scalaVersion := "3.10.0"
 
 // --- Local library co-development -------------------------------------------
 // `-Dlocal` swaps published artifacts for source checkouts under `../../` when
-// present, e.g. `./sbt -Dlocal test`. This mirrors the pattern in
+// present, e.g. `./sbta -Dlocal test`. This mirrors the pattern in
 // ../../toolbook/build.sbt while keeping this single-module build flat.
 // Normal and CI builds use the published artifacts declared below.
 val zioGitDir                = file("../../zio-git")
@@ -108,5 +108,3 @@ lazy val root = (project in file("."))
 
 skillsJarsOutputDir := Some(file(".kiro/skills"))
 
-mcpEnabled := true        // default: false
-mcpPort    := 5055        // default: 5010
