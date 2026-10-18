@@ -3,7 +3,7 @@
 Run the web app in dev mode:
 
 ```
-./sbt ~Test/runReload
+./sbta ~Test/runReload
 ```
 
 This hydrates the local Valkey by fetching `/all` from
@@ -16,7 +16,7 @@ against our prod IP.
 
 Run the all tests:
 
-1. `./sbt test`
+1. `./sbta test`
 
 Run a specific test, i.e.:
 1. `testOnly webjars.DeployFailureSpec`
@@ -24,7 +24,7 @@ Run a specific test, i.e.:
 Run the real-browser JavaScript interaction tests:
 
 ```
-./sbt 'Test / testOnly webjars.NewWebJarBrowserSpec webjars.ChekhovEnvSpec'
+./sbta 'Test / testOnly webjars.NewWebJarBrowserSpec webjars.ChekhovEnvSpec'
 ```
 
 These tests use Chekhov with a system Chromium/Chrome plus Node and npm. Set
@@ -46,4 +46,4 @@ Run in prod mode:
     export REDIS_URL=redis://localhost:6379
     ```
 
-1. `./sbt run`
+1. `./sbta run`

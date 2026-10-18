@@ -1,10 +1,10 @@
 {
   "mcpServers": {
-    "sbt-mcp-webjars": {
+    "sbta": {
       "type": "stdio",
-      "command": "bash",
+      "command": "./sbta",
       "args": [
-        ".claude/sbt-mcp-stdio.sh"
+        "--mcp"
       ],
       "timeout": 1800000
     }

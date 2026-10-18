@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 
 set +e
-declare builtin_sbt_version="2.0.0"
+declare builtin_sbt_version="2.0.8"
+# sbta: the launcher jar this script runs (instead of sbt-launch), from its GitHub release
+declare sbta_version="0.0.2"
+declare sbta_releases="https://github.com/jamesward/sbta/releases/download"
 declare -a residual_args
 declare -a java_args
 declare -a scalac_args
@@ -14,7 +17,7 @@ declare -a shutdownall
 declare -a original_args
 declare java_cmd=java
 declare java_version
-declare init_sbt_version=_to_be_replaced
+declare init_sbt_version=2.0.10
 declare sbt_default_mem=1024
 declare -r default_sbt_opts=""
 declare -r default_java_opts="-Dfile.encoding=UTF-8"
@@ -25,7 +28,7 @@ declare use_sbtn=
 declare use_jvm_client=
 declare no_server=
 declare sbtn_command="$SBTN_CMD"
-declare sbtn_version="2.0.0-f0d2fae4"
+declare sbtn_version="2.1.0-6eac8efa"
 declare use_colors=1
 declare is_this_dir_sbt=""
 declare hide_jdk_warnings=1
@@ -125,15 +128,12 @@ dlog () {
 }
 
 jar_file () {
-  echo "$(cygwinpath "${sbt_home}/bin/sbt-launch.jar")"
+  echo "$(cygwinpath "${sbt_home}/bin/sbta.jar")"
 }
 
 jar_url () {
-  local repo_base="$SBT_LAUNCH_REPO"
-  if [[ $repo_base == "" ]]; then
-    repo_base="https://repo1.maven.org/maven2"
-  fi
-  echo "$repo_base/org/scala-sbt/sbt-launch/$1/sbt-launch-$1.jar"
+  local repo_base="${SBTA_RELEASES_URL:-$sbta_releases}"
+  echo "$repo_base/v$1/sbta-$1.jar"
 }
 
 download_url () {
@@ -141,7 +141,7 @@ download_url () {
   local jar="$2"
   mkdir -p $(dirname "$jar") && {
     if command -v curl > /dev/null; then
-      curl --silent -L "$url" --output "$jar"
+      curl --fail --silent -L "$url" --output "$jar"
     elif command -v wget > /dev/null; then
       wget --quiet -O "$jar" "$url"
     else
@@ -153,20 +153,14 @@ download_url () {
 
 acquire_sbt_jar () {
   local launcher_sv="$1"
-  if [[ "$launcher_sv" == "" ]]; then
-    if [[ "$init_sbt_version" != "_to_be_replaced" ]]; then
-      launcher_sv="$init_sbt_version"
-    else
-      launcher_sv="$builtin_sbt_version"
-    fi
-  fi
+  [[ "$launcher_sv" == "" ]] && launcher_sv="$sbta_version"
   local user_home && user_home=$(findProperty user.home)
-  download_jar="${user_home:-$HOME}/.cache/sbt/boot/sbt-launch/$launcher_sv/sbt-launch-$launcher_sv.jar"
+  download_jar="${user_home:-$HOME}/.cache/sbt/boot/sbta/$launcher_sv/sbta-$launcher_sv.jar"
   if [[ -f "$download_jar" ]]; then
     sbt_jar="$download_jar"
   else
     sbt_url=$(jar_url "$launcher_sv")
-    dlog "downloading sbt launcher $launcher_sv"
+    dlog "downloading sbta $launcher_sv"
     download_url "$sbt_url" "${download_jar}.temp"
     download_url "${sbt_url}.sha1" "${download_jar}.sha1"
     if command -v shasum > /dev/null; then
@@ -202,8 +196,7 @@ acquire_sbtn () {
       archive_target="$p/sbtn-${arch}-pc-linux-${sbtn_v}.tar.gz"
       url="https://github.com/sbt/sbtn-dist/releases/download/v${sbtn_v}/sbtn-${arch}-pc-linux-${sbtn_v}.tar.gz"
     else
-      echoerr_error "sbtn is not supported on $arch"
-      exit 2
+      return 1
     fi
   elif [[ "$OSTYPE" == "darwin"* ]]; then
     arch="universal"
@@ -214,8 +207,7 @@ acquire_sbtn () {
     archive_target="$p/sbtn-x86_64-pc-win32-${sbtn_v}.zip"
     url="https://github.com/sbt/sbtn-dist/releases/download/v${sbtn_v}/sbtn-x86_64-pc-win32-${sbtn_v}.zip"
   else
-    echoerr_error "sbtn is not supported on $OSTYPE"
-    exit 2
+    return 1
   fi
 
   if [[ -f "$target" ]]; then
@@ -223,7 +215,7 @@ acquire_sbtn () {
   else
     dlog "downloading sbtn ${sbtn_v} for ${arch}"
     download_url "$url" "$archive_target"
-    if [[ "$OSTYPE" == "linux-gnu"* ]] || [[ "$OSTYPE" == "darwin"* ]]; then
+    if [[ "$OSTYPE" == "linux"* ]] || [[ "$OSTYPE" == "darwin"* ]]; then
       tar zxf "$archive_target" --directory "$p"
     else
       unzip "$archive_target" -d "$p"
@@ -560,6 +552,14 @@ checkWorkingDirectory() {
   fi
 }
 
+runShutdownAll() {
+  local sbt_processes=( $(jps -v | grep -E 'sbt-launch|sbta' | cut -f1 -d ' ') )
+  for procId in "${sbt_processes[@]}"; do
+    kill -9 $procId
+  done
+  echoerr "shutdown ${#sbt_processes[@]} sbt processes"
+}
+
 run() {
   # Copy preloaded repo to user's preloaded directory
   syncPreloaded
@@ -596,12 +596,6 @@ run() {
     echoerr ""
     echoerr "[info] sbt runner (sbt-the-shell-script) is a runner to run any declared version of sbt."
     echoerr "[info] Actual version of the sbt is declared using project/build.properties for each build."
-  elif [[ $shutdownall ]]; then
-    local sbt_processes=( $(jps -v | grep sbt-launch | cut -f1 -d ' ') )
-    for procId in "${sbt_processes[@]}"; do
-      kill -9 $procId
-    done
-    echoerr "shutdown ${#sbt_processes[@]} sbt processes"
   else
     checkWorkingDirectory
     # run sbt
@@ -646,6 +640,7 @@ Usage: `basename "$0"` [options]
   -V | --version      print sbt version information
   --server            run sbt server in the foreground, instead of using sbtn
   --client            run sbtn (native client), and start sbt server in the background
+  --mcp               serve MCP over stdio for this build (sbta), starting sbt when needed
   --no-server         run sbtn, and fail if it cannot connect to a server
   --jvm-client        run JVM client, and start sbt server in the background
   --allow-empty       start sbt even if current directory contains no sbt project
@@ -750,14 +745,14 @@ process_args () {
     case "$1" in
             -h|-help|--help) usage; exit 1 ;;
       -v|-verbose|--verbose) sbt_verbose=1 && shift ;;
-      -V|-version|--version) print_version=1 && shift ;;
+      -V|-version|--version) print_version=1 && addResidual "$1" && shift ;;
           --numeric-version) print_sbt_version=1 && shift ;;
            --script-version) print_sbt_script_version=1 && shift ;;
                 shutdownall) shutdownall=1 && shift ;;
           -d|-debug|--debug) sbt_debug=1 && addSbt "-debug" && shift ;;
            -client|--client) use_sbtn=1 && shift ;;
                    --server) use_sbtn=0 && shift ;;
-               --jvm-client) use_sbtn=0 && use_jvm_client=1 && addSbt "--client" && shift ;;
+               --jvm-client) use_sbtn=0 && use_jvm_client=1 && shift ;;
      --no-hide-jdk-warnings) hide_jdk_warnings=0 && shift ;;
 
                  -mem|--mem) require_arg integer "$1" "$2" && addMemory "$2" && shift 2 ;;
@@ -781,6 +776,7 @@ process_args () {
                   "-D*"|-D*) addJava "$1" && shift ;;
                         -J*) addJava "${1:2}" && shift ;;
                         bsp) use_sbtn=0 && addResidual "-bsp" && shift ;;
+                      --mcp) use_sbtn=0 && addResidual "--mcp" && shift ;;
                           *) addResidual "$1" && shift ;;
     esac
   done
@@ -790,6 +786,19 @@ process_args () {
     residual_args=()
     process_my_args "${myargs[@]}"
   }
+
+  if [[ $print_version ]]; then
+    for arg in "${residual_args[@]}"; do
+      case "$arg" in
+        -V|-version|--version) ;;
+        *) if [[ "$arg" =~ [^[:space:]] ]]; then
+             print_version=
+             break
+           fi ;;
+      esac
+    done
+    [[ $print_version ]] && residual_args=()
+  fi
 }
 
 loadConfigFile() {
@@ -803,10 +812,10 @@ loadConfigFile() {
 }
 
 loadPropFile() {
-  # trim key and value so as to be more forgiving with spaces around the '=':
-  k=$(trimString $k)
-  v=$(trimString $v)
   while IFS='=' read -r k v; do
+    # trim key and value so as to be more forgiving with spaces around the '=':
+    k=$(trimString "$k")
+    v=$(trimString "$v")
     if [[ "$k" == "sbt.version" ]]; then
       build_props_sbt_version="$v"
     fi
@@ -826,7 +835,7 @@ projectSbtVersion() {
 detectNativeClient() {
   if [[ "$sbtn_command" != "" ]]; then
     :
-  elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+  elif [[ "$OSTYPE" == "linux"* ]]; then
     arch=$(uname -m)
     [[ -f "${sbt_bin_dir}/sbtn-${arch}-pc-linux" ]] && sbtn_command="${sbt_bin_dir}/sbtn-${arch}-pc-linux"
   elif [[ "$OSTYPE" == "darwin"* ]]; then
@@ -840,11 +849,15 @@ detectNativeClient() {
   fi
 }
 
-# Run native client if build.properties points to 1.4+ and has SBT_NATIVE_CLIENT
-isRunNativeClient() {
+# Run client (sbtn or jvm verion) if build.properties points to 1.4+ and has SBT_NATIVE_CLIENT
+isRunClient() {
   # sbt new/init should not use native client as it needs to run outside a project
   if [[ "$sbt_new" == "true" ]]; then
     echo "false"
+    return
+  fi
+  if [[ "$use_jvm_client" == "1" ]]; then
+    echo "true"
     return
   fi
   sbtV="$build_props_sbt_version"
@@ -870,30 +883,51 @@ isRunNativeClient() {
   fi
 }
 
-runNativeClient() {
-  vlog "[debug] running native client"
-  detectNativeClient
-  [[ -f "$sbtn_command" ]] || acquire_sbtn "$sbtn_version" || {
-    exit 1
-  }
-  for i in "${!original_args[@]}"; do
-    if [[ "${original_args[i]}" = "--client" ]]; then
-      unset 'original_args[i]'
-    fi
-  done
-
-  if [[ "$OSTYPE" == "cygwin" ]] || [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "win32" ]]; then
-    sbt_script="$0.bat"
-  else
-    sbt_script="$0"
+runClient() {
+  if [[ "$use_jvm_client" != "1" ]]; then
+    detectNativeClient
+    [[ -f "$sbtn_command" ]] || acquire_sbtn "$sbtn_version" || {
+      use_jvm_client="1"
+    }
   fi
-  sbt_script=${sbt_script/ /%20}
-  execRunner "$sbtn_command" "--sbt-script=$sbt_script" "${original_args[@]}"
+  if [[ "$use_jvm_client" == "1" ]]; then
+    vlog "[debug] running jvm client"
+    addSbt "--client"
+    addDefaultMemory
+    addSbtScriptProperty
+    addJdkWorkaround
+    set -- "${residual_args[@]}"
+    argumentCount=$#
+    run
+  else
+    vlog "[debug] running native client"
+    set -- "${residual_args[@]}"
+    argumentCount=$#
+    for i in "${!original_args[@]}"; do
+      if [[ "${original_args[i]}" = "--client" ]]; then
+        unset 'original_args[i]'
+      fi
+    done
+
+    if [[ "$OSTYPE" == "cygwin" ]] || [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "win32" ]]; then
+      sbt_script="$0.bat"
+    else
+      sbt_script="$0"
+    fi
+    sbt_script=${sbt_script/ /%20}
+    execRunner "$sbtn_command" "--sbt-script=$sbt_script" "${original_args[@]}"
+  fi
 }
 
 original_args=("$@")
 
 sbt_file_opts=()
+
+if [[ -f "$JAVACMD" ]]; then
+  java_cmd="$JAVACMD"
+elif [[ -n "$JAVA_HOME" && -f "$JAVA_HOME/bin/java" ]]; then
+  java_cmd="$JAVA_HOME/bin/java"
+fi
 
 # Pull in the machine-wide settings configuration.
 if [[ -f "$machine_sbt_opts_file" ]]; then
@@ -945,14 +979,17 @@ if [[ $print_sbt_script_version ]]; then
   exit 0
 fi
 
+if [[ $shutdownall ]]; then
+  runShutdownAll
+  exit 0
+fi
+
 java_version="$(jdk_version)"
 vlog "[process_args] java_version = '$java_version'"
 checkJava17ForSbt2
 
-if [[ "$(isRunNativeClient)" == "true" ]] && [[ -z "$print_version" ]]; then
-  set -- "${residual_args[@]}"
-  argumentCount=$#
-  runNativeClient
+if [[ "$(isRunClient)" == "true" ]] && [[ -z "$print_version" ]]; then
+  runClient
 else
   addDefaultMemory
   addSbtScriptProperty

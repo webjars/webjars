@@ -20,7 +20,7 @@ jobs:
         java-version: 25
         cache: 'sbt'
 
-    - run: ./sbt test
+    - run: ./sbta test
       env:
         HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
 #        OSS_USERNAME: ${{ secrets.OSS_USERNAME }}
