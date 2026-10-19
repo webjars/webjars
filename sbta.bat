@@ -20,7 +20,7 @@ set _JAVA_OPTS=
 
 set init_sbt_version=2.0.10
 rem sbta: the launcher jar this script runs (instead of sbt-launch), from its GitHub release
-set sbta_version=0.0.2
+set sbta_version=0.0.3
 set sbt_default_mem=1024
 set default_sbt_opts=
 set default_java_opts=-Dfile.encoding=UTF-8
@@ -200,6 +200,14 @@ rem sbta: --mcp runs in the JVM (like --server), never through sbtn
 if "%~0" == "--mcp" (
   set sbt_args_client=0
   set "SBT_ARGS=!SBT_ARGS! --mcp"
+  goto args_loop
+)
+
+rem sbta: --update replaces this script and sbta (in this directory) in the JVM
+if "%~0" == "--update" (
+  set sbt_args_client=0
+  set "SBTA_SCRIPT_DIR=!SBT_BIN_DIR!"
+  set "SBT_ARGS=!SBT_ARGS! --update"
   goto args_loop
 )
 
@@ -707,6 +715,8 @@ rem :run reads SBT_ARGS via delayed expansion instead.
 call :run
 
 if ERRORLEVEL 1 goto error
+rem sbta: --update wrote the new sbta.bat next to this one; replace this script last
+if exist "!SBT_BIN_DIR!sbta.bat.new" move /Y "!SBT_BIN_DIR!sbta.bat.new" "!SBT_BIN_DIR!sbta.bat" >nul & goto end
 goto end
 
 :run
