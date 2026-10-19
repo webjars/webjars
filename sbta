@@ -3,9 +3,26 @@
 set +e
 declare builtin_sbt_version="2.0.8"
 # sbta: the launcher jar this script runs (instead of sbt-launch), from its GitHub release
-declare sbta_version="0.0.2"
+declare sbta_version="0.0.3"
 declare sbta_releases="https://github.com/jamesward/sbta/releases/download"
+declare sbta_no_notice=
 declare -a residual_args
+
+# sbta: say when a newer sbta release is out, from the daily check sbta makes
+# (~/.cache/sbt/boot/sbta/latest.json); SBTA_NO_UPDATE_NOTICE turns it off. The
+# script says it, as sbt 2's sbtn never starts sbta for a command; the jar doesn't.
+sbtaUpdateNotice() {
+  export SBTA_UPDATE_NOTICE_SHOWN=1
+  [[ -n "$SBTA_NO_UPDATE_NOTICE" || -n "$sbta_no_notice" ]] && return 0
+  [[ "$sbta_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || return 0
+  local cache="${user_home:-$HOME}/.cache/sbt/boot/sbta/latest.json" latest newest
+  [[ -f "$cache" ]] || return 0
+  latest="$(sed -n 's/.*"latest" *: *"\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\)".*/\1/p' "$cache")"
+  [[ -n "$latest" && "$latest" != "$sbta_version" ]] || return 0
+  newest="$(printf '%s\n%s\n' "$sbta_version" "$latest" | sort -t. -k1,1n -k2,2n -k3,3n | tail -1)"
+  [[ "$newest" == "$latest" ]] || return 0
+  echoerr "[info] sbta $latest is available (this build uses $sbta_version): run ./sbta --update, then commit sbta and sbta.bat"
+}
 declare -a java_args
 declare -a scalac_args
 declare -a sbt_commands
@@ -776,7 +793,8 @@ process_args () {
                   "-D*"|-D*) addJava "$1" && shift ;;
                         -J*) addJava "${1:2}" && shift ;;
                         bsp) use_sbtn=0 && addResidual "-bsp" && shift ;;
-                      --mcp) use_sbtn=0 && addResidual "--mcp" && shift ;;
+                      --mcp) use_sbtn=0 && sbta_no_notice=1 && addResidual "--mcp" && shift ;;
+         --update|--update=*) use_sbtn=0 && sbta_no_notice=1 && export SBTA_SCRIPT_DIR="$sbt_bin_dir" && addResidual "$1" && shift ;;
                           *) addResidual "$1" && shift ;;
     esac
   done
@@ -987,6 +1005,8 @@ fi
 java_version="$(jdk_version)"
 vlog "[process_args] java_version = '$java_version'"
 checkJava17ForSbt2
+
+sbtaUpdateNotice
 
 if [[ "$(isRunClient)" == "true" ]] && [[ -z "$print_version" ]]; then
   runClient
