@@ -3,7 +3,7 @@
 set +e
 declare builtin_sbt_version="2.0.8"
 # sbta: the launcher jar this script runs (instead of sbt-launch), from its GitHub release
-declare sbta_version="0.0.3"
+declare sbta_version="0.0.4"
 declare sbta_releases="https://github.com/jamesward/sbta/releases/download"
 declare sbta_no_notice=
 declare -a residual_args
