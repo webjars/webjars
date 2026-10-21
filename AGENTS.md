@@ -15,3 +15,8 @@
 - Follow the `zen-of-projects` Skill (extract with `./sbta extractSkillsJars` into the gitignored `.kiro/skills/`); this file records only project-specific facts and exceptions.
 - MCP server `sbta` (this build's `./sbta --mcp`, configured in `.mcp.json` and `.kiro/settings/mcp.json`, approved in `.claude/settings.json`): use it for all sbt work: `compile`, `test` (`full` for all), `run`, `check` after editing Scala 3 sources, `glob-search` / `inspect` / `symbol-location` for symbols, `sbt-task` for any other command. Its tools are deferred in Claude Code: load them with ToolSearch (search `sbta`). If it's unavailable, say so and use `./sbta <command>`. Logs: `project/target/sbta/mcp.log`.
 - Maintenance routine: `.factory/MAINTENANCE.md` (weekly), following the `zen-of-projects` Skill.
+
+## Project facts
+
+- Validation: `Test / compile`, `testFull`, then `stage` (one `sbt-task` call each; the chained `Test / compile; testFull; stage` was rejected as unparseable by `sbt-task`).
+- Tests need Docker (Testcontainers; see "Docker for tests" in `zen-of-projects`) and `GITHUB_TOKEN`, plus unrestricted access to github.com and the Classic WebJar sources. In cloud sessions without these, `ClassicSpec`, `GitHubSpec`, `DeployWebJarSpec`, `WebJarCreatorSpec` and `DeploySpec` fail with 401/403/"Classic WebJar ... does not support this"; CI is the authority.
