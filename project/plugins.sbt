@@ -1,4 +1,4 @@
-addSbtPlugin("com.github.sbt" % "sbt-native-packager" % "1.12.0")
+addSbtPlugin("com.github.sbt" % "sbt-native-packager" % "1.13.0")
 
 addSbtPlugin("org.webjars" % "sbt-webjars" % "0.0.8")
 
