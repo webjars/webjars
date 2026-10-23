@@ -18,9 +18,9 @@ set _JAVACMD=
 set _SBT_OPTS=
 set _JAVA_OPTS=
 
-set init_sbt_version=2.0.10
+set init_sbt_version=2.0.11
 rem sbta: the launcher jar this script runs (instead of sbt-launch), from its GitHub release
-set sbta_version=0.0.4
+set sbta_version=0.0.7
 set sbt_default_mem=1024
 set default_sbt_opts=
 set default_java_opts=-Dfile.encoding=UTF-8
