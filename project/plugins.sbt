@@ -2,7 +2,7 @@ addSbtPlugin("com.github.sbt" % "sbt-native-packager" % "1.13.0")
 
 addSbtPlugin("org.webjars" % "sbt-webjars" % "0.0.8")
 
-addSbtPlugin("com.jamesward" % "sbt-sass" % "0.0.1")
+addSbtPlugin("com.jamesward" % "sbt-sass" % "0.0.2")
 
 addSbtPlugin("com.jamesward" % "sbt-reload" % "0.0.8")
 

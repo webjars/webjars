@@ -23,7 +23,7 @@ val localSubprojectDeps: Seq[ClasspathDep[ProjectReference]] =
 libraryDependencies ++=
   (if (zioGitLocal) Seq.empty else Seq("com.jamesward" %% "zio-git" % "0.0.3")) ++
   (if (zioMavenCentralLocal) Seq.empty
-   else Seq("com.jamesward" %% "zio-mavencentral" % "0.14.1"))
+   else Seq("com.jamesward" %% "zio-mavencentral" % "0.15.0"))
 
 // Lock down the primary launcher so `bin/webjars` keeps booting the server
 // `Main` even though we now ship a second main class. sbt-native-packager
@@ -31,7 +31,7 @@ libraryDependencies ++=
 // discovered main classes — we don't need a custom mapping for it.
 Compile / mainClass := Some("webjars.Main")
 
-val zioStreamsCompressVersion = "2.1.5"
+val zioStreamsCompressVersion = "2.1.7"
 
 libraryDependencies ++= Seq(
   "dev.zio" %% "zio-config-typesafe"          % "4.1.0",
@@ -59,7 +59,7 @@ libraryDependencies ++= Seq(
   "com.dimafeng" %% "testcontainers-scala-core" % "0.44.1" % Test,
   "rocks.earlyeffect" %% "chekhov-zio-test"   % "0.1.3" % Test,
 
-  "com.jamesward" % "skills" % "0.0.17" % Skills,
+  "com.jamesward" % "skills" % "0.0.18" % Skills,
 )
 
 fork := true
