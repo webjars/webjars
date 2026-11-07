@@ -59,7 +59,7 @@ libraryDependencies ++= Seq(
   "com.dimafeng" %% "testcontainers-scala-core" % "0.44.1" % Test,
   "rocks.earlyeffect" %% "chekhov-zio-test"   % "0.1.3" % Test,
 
-  "com.jamesward" % "skills" % "0.0.18" % Skills,
+  "com.jamesward" % "skills" % "0.0.22" % Skills,
 )
 
 fork := true
