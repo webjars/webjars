@@ -3,7 +3,7 @@
 set +e
 declare builtin_sbt_version="2.0.8"
 # sbta: the launcher jar this script runs (instead of sbt-launch), from its GitHub release
-declare sbta_version="0.0.7"
+declare sbta_version="0.0.8"
 declare sbta_releases="https://github.com/jamesward/sbta/releases/download"
 declare sbta_no_notice=
 declare -a residual_args
@@ -34,7 +34,7 @@ declare -a shutdownall
 declare -a original_args
 declare java_cmd=java
 declare java_version
-declare init_sbt_version=2.0.11
+declare init_sbt_version=2.0.12
 declare sbt_default_mem=1024
 declare -r default_sbt_opts=""
 declare -r default_java_opts="-Dfile.encoding=UTF-8"
@@ -45,7 +45,7 @@ declare use_sbtn=
 declare use_jvm_client=
 declare no_server=
 declare sbtn_command="$SBTN_CMD"
-declare sbtn_version="2.1.0-6eac8efa"
+declare sbtn_version="2.1.0-e5346417"
 declare use_colors=1
 declare is_this_dir_sbt=""
 declare hide_jdk_warnings=1
