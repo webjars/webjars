@@ -189,6 +189,25 @@ object NPMSpec extends ZIOSpecDefault:
           }
         }
       },
+      test("ketcher is rejected as an npm security placeholder") {
+        withNpm { npm =>
+          npm.info("ketcher", "0.0.1-security").exit.map { result =>
+            assertTrue(result.causeOption.flatMap(_.failureOption).contains(NpmSecurityPlaceholder("ketcher", "0.0.1-security")))
+          }
+        }
+      },
+      test("security placeholders are detected for both repository shapes") {
+        import zio.json.ast.Json
+        def versionJson(version: String, repository: Json) =
+          Json.Obj("name" -> Json.Str("x"), "version" -> Json.Str(version), "repository" -> repository)
+        val repoObject = Json.Obj("type" -> Json.Str("git"), "url" -> Json.Str("git+https://github.com/npm/security-holder.git"))
+        assertTrue(
+          NPM.isSecurityPlaceholder(versionJson("0.0.1-security", Json.Str("npm/security-holder"))),
+          NPM.isSecurityPlaceholder(versionJson("0.0.2-security", repoObject)),
+          !NPM.isSecurityPlaceholder(versionJson("1.0.0", Json.Str("npm/security-holder"))),
+          !NPM.isSecurityPlaceholder(versionJson("1.0.0-security", Json.Str("someone/security-tools"))),
+        )
+      },
     ) @@ TestAspect.withLiveClock,
     suite("versions")(
       test("valid git url has versions") {
@@ -386,6 +405,50 @@ object NPMSpec extends ZIOSpecDefault:
         NPM.licenseFromArchive(archive).map { detected =>
           assertTrue(detected.contains(LicenseWithName("MIT")))
         }
+      },
+      test("README license statements resolve for packages without license metadata (#2282, #2284)") {
+        withNpm { npm =>
+          def noMetadata(packageName: String, version: String) = PackageInfo(
+            name = packageName,
+            version = version,
+            maybeHomepageUrl = None,
+            sourceConnectionUri = URL.unsafeParse("https://example.test/source"),
+            maybeIssuesUrl = None,
+            metadataLicenses = Seq.empty,
+            dependencies = Map.empty,
+            optionalDependencies = Map.empty,
+            maybeTag = None,
+          )
+          for
+            asyncRetry <- npm.licenses("async-retry", "0.1.1", noMetadata("async-retry", "0.1.1"))
+            mediaElement <- npm.licenses("mediaelement-plugins", "5.0.0", noMetadata("mediaelement-plugins", "5.0.0"))
+          yield assertTrue(
+            asyncRetry == Set(LicenseWithName("MIT")),
+            mediaElement == Set(LicenseWithNameAndUrl("MIT", URL.unsafeParse("https://johndyer.mit-license.org/"))),
+          )
+        }
+      },
+      test("README license statements are detected") {
+        assertTrue(
+          ReadmeLicense.detect("## Credits\n\n- Copyright © 2016 Zeit, Inc.\n- Licensed under MIT.\n").contains(LicenseWithName("MIT")),
+          ReadmeLicense.detect("* License: [MIT](https://johndyer.mit-license.org/)").contains(
+            LicenseWithNameAndUrl("MIT", URL.unsafeParse("https://johndyer.mit-license.org/"))
+          ),
+          ReadmeLicense.detect("**License:** ISC").contains(LicenseWithName("ISC")),
+          ReadmeLicense.detect("Licensed under the Apache-2.0 license.").contains(LicenseWithName("Apache-2.0")),
+          ReadmeLicense.detect("## License\n\nMIT © Sindre Sorhus\n").contains(LicenseWithName("MIT")),
+          ReadmeLicense.detect("# Licence\n\nBSD-3-Clause\n").contains(LicenseWithName("BSD-3-Clause")),
+        )
+      },
+      test("README license statements reject prose, unknown ids and conflicting statements") {
+        assertTrue(
+          ReadmeLicense.detect("Unlike projects licensed under MIT terms, this one is proprietary.").isEmpty,
+          ReadmeLicense.detect("This project mentions MIT but is not licensed.").isEmpty,
+          ReadmeLicense.detect("License: GPL-3.0").isEmpty,
+          ReadmeLicense.detect("License: MIT\n\nThe font is licensed under ISC.").contains(LicenseWithName("MIT")),
+          ReadmeLicense.detect("License: MIT\n\nLicensed under the ISC license.").isEmpty,
+          ReadmeLicense.detect("## License\n\nSee the LICENSE file.").isEmpty,
+        )
       },
     ) @@ TestAspect.withLiveClock,
     suite("latestDep")(

@@ -18,6 +18,11 @@ trait NPM extends Deployable:
   def justDeps(nameOrUrlish: NameOrUrlish, version: Version): ZIO[Scope, Throwable, Map[String, String]]
   def latestDep(nameOrUrlish: NameOrUrlish, version: Version): ZIO[Scope, Throwable, Version]
 
+/** The requested version is npm's empty placeholder for a package it removed
+ *  for malicious code, so there is nothing to package. */
+case class NpmSecurityPlaceholder(packageName: String, version: Version)
+  extends Exception(s"$packageName $version is an npm security placeholder for a package removed from npm")
+
 case class NPMLive(client: Client, git: Git, gitHub: GitHub, maven: Maven, semVer: SemVer) extends NPM:
 
   private val BASE_URL: URL = URL.unsafeParse("https://registry.npmjs.org")
@@ -198,7 +203,9 @@ case class NPMLive(client: Client, git: Git, gitHub: GitHub, maven: Maven, semVe
         val packageJsonString = file(packageNameOrGitRepo, version, "package.json").run
         ZIO.fromEither(packageJsonString.fromJson[Json].left.map(new Exception(_))).run
       else
-        versionJson(packageNameOrGitRepo, version).run
+        val registryJson = versionJson(packageNameOrGitRepo, version).run
+        ZIO.fail(NpmSecurityPlaceholder(packageNameOrGitRepo, version)).when(NPM.isSecurityPlaceholder(registryJson)).run
+        registryJson
       packageInfo(json).run
 
   /** Registry metadata is the primary license source. When an exact version
@@ -321,6 +328,18 @@ case class NPMLive(client: Client, git: Git, gitHub: GitHub, maven: Maven, semVe
 
 object NPM:
 
+  private val securityHolderRepo = "https://github.com/npm/security-holder"
+
+  /** npm replaces packages it removes for malicious code with an empty
+   *  `0.0.1-security` placeholder whose repository is `npm/security-holder`. */
+  private[webjars] def isSecurityPlaceholder(versionJson: Json): Boolean =
+    val fields = versionJson.asObject.map(_.toMap).getOrElse(Map.empty)
+    val isSecurityVersion = fields.get("version").flatMap(_.asString).exists(_.endsWith("-security"))
+    val maybeRepository = fields.get("repository").flatMap { repo =>
+      repo.asString.orElse(repo.asObject.flatMap(_.get("url")).flatMap(_.asString))
+    }
+    isSecurityVersion && maybeRepository.exists(repo => uriIsh(repo).stripSuffix(".git") == securityHolderRepo)
+
   private val archiveLicensePrefixes = Set("license", "licence", "copying", "readme")
 
   private[utils] def isArchiveLicenseCandidate(path: String): Boolean =
@@ -336,10 +355,12 @@ object NPM:
       (lower.contains("the software is provided \"as is\"") ||
         lower.contains("the software is provided 'as is'"))
 
+  /** Full MIT text anywhere wins; otherwise accept a single short license
+   *  statement (see [[ReadmeLicense]]) from one of the candidate files. */
   private[webjars] def detectArchiveLicense(files: List[(String, String)]): Option[License] =
     files.collectFirst {
       case (_, text) if isMitLicenseText(text) => LicenseWithName("MIT")
-    }
+    }.orElse(files.view.flatMap((_, text) => ReadmeLicense.detect(text)).headOption)
 
   private[webjars] def licenseFromArchive(archive: ArchiveStream): ZIO[Any, Throwable, Option[License]] =
     WebJarCreator.archiveTextFiles(

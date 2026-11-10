@@ -52,6 +52,7 @@ object DeployFailure:
     case _: NoValidLicenses                      => Systemic(t)
     case _: MissingMetadataException             => Systemic(t)
     case _: UnauthorizedError                    => Systemic(t)
+    case _: NpmSecurityPlaceholder               => UserInput(t)
 
     // ServerError: classify by HTTP status. 404 is "you asked for a thing
     // that doesn't exist" — that's the deployer's input. 401/403 is "we
@@ -84,10 +85,15 @@ object DeployFailure:
     // spam the tracker with unknown junk.
     case _                                                          => Transient(t)
 
+  private val securityPlaceholderMessage =
+    "This package was removed from npm for security reasons. npm replaced it with an empty placeholder, so there is nothing to package as a WebJar."
+
   /** Plain-language message safe to show in the deploy UI. Technical details
    *  remain available through [[DeployFailure.message]] for logs and tracking
    *  issues, but are never sent to the browser. */
   def userMessage(failure: DeployFailure): String = failure match
+    case UserInput(_: NpmSecurityPlaceholder) =>
+      securityPlaceholderMessage
     case UserInput(ServerError(_, 404)) =>
       "The requested package or version could not be found. Check the package name and version, then try again."
     case _: UserInput =>
@@ -109,6 +115,8 @@ object DeployFailure:
 
   /** Plain-language message safe to return from the public create APIs. */
   def createUserMessage(failure: DeployFailure): String = failure match
+    case UserInput(_: NpmSecurityPlaceholder) =>
+      securityPlaceholderMessage
     case UserInput(ServerError(_, 404)) =>
       "The requested package or version could not be found. Check the package name and version, then try again."
     case _: UserInput =>

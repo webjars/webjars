@@ -40,6 +40,15 @@ object DeployFailureSpec extends ZIOSpecDefault:
       test("IllegalStateException — already deployed") {
         assertTrue(DeployFailure.classify(new IllegalStateException("already deployed")).isInstanceOf[DeployFailure.UserInput])
       },
+      test("NpmSecurityPlaceholder — package removed from npm") {
+        val failure = DeployFailure.classify(NpmSecurityPlaceholder("ketcher", "0.0.1-security"))
+        assertTrue(
+          failure.isInstanceOf[DeployFailure.UserInput],
+          !DeployFailure.shouldFileIssue(failure),
+          failure.userMessage.contains("removed from npm"),
+          DeployFailure.createUserMessage(failure).contains("removed from npm"),
+        )
+      },
     ),
     suite("Transient — show but don't file")(
       test("ServerError 429 — rate limit") {
