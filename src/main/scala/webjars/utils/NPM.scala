@@ -253,7 +253,13 @@ case class NPMLive(client: Client, git: Git, gitHub: GitHub, maven: Maven, semVe
           s"Compressed NPM archive for $nameOrUrlish $version exceeded $maxCompressedLicenseArchiveBytes bytes"
         )).run
       val archive = ZStream.fromChunk(compressed).via(Gzip.decompressOrIdentity)
-      NPM.licenseFromArchive(archive).run
+      val candidates = NPM.archiveLicenseCandidates(archive).run
+      val maybeLicense = NPM.detectArchiveLicense(candidates)
+      ZIO.logWarning(
+        s"No license found in exact NPM archive for $nameOrUrlish $version: ${compressed.length} compressed bytes, " +
+          s"candidates=${candidates.map((path, text) => s"$path(${text.length} chars)").mkString("[", ", ", "]")}"
+      ).when(maybeLicense.isEmpty).run
+      maybeLicense
 
   override def archive(packageNameOrGitRepo: String, version: Version): ArchiveStream =
     if git.isGit(packageNameOrGitRepo) then
@@ -362,7 +368,7 @@ object NPM:
       case (_, text) if isMitLicenseText(text) => LicenseWithName("MIT")
     }.orElse(files.view.flatMap((_, text) => ReadmeLicense.detect(text)).headOption)
 
-  private[webjars] def licenseFromArchive(archive: ArchiveStream): ZIO[Any, Throwable, Option[License]] =
+  private[webjars] def archiveLicenseCandidates(archive: ArchiveStream): ZIO[Any, Throwable, List[(String, String)]] =
     WebJarCreator.archiveTextFiles(
       archive,
       isArchiveLicenseCandidate,
@@ -371,7 +377,10 @@ object NPM:
       maxEntries = 10000,
       maxTotalBytes = 64L * 1024 * 1024,
       stopWhen = isMitLicenseText,
-    ).map(detectArchiveLicense)
+    )
+
+  private[webjars] def licenseFromArchive(archive: ArchiveStream): ZIO[Any, Throwable, Option[License]] =
+    archiveLicenseCandidates(archive).map(detectArchiveLicense)
 
   val live: ZLayer[Client & Git & GitHub & Maven & SemVer, Nothing, NPM] = ZLayer.derive[NPMLive]
 
