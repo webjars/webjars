@@ -23,6 +23,11 @@ trait NPM extends Deployable:
 case class NpmSecurityPlaceholder(packageName: String, version: Version)
   extends Exception(s"$packageName $version is an npm security placeholder for a package removed from npm")
 
+/** The npm version declares no usable `repository`, so the POM has no source
+ *  URL. We don't guess one; the deployer can deploy from the GitHub URL. */
+case class MissingSourceRepository(packageName: String, version: Version)
+  extends Exception(s"$packageName $version does not declare a source repository in its npm metadata")
+
 case class NPMLive(client: Client, git: Git, gitHub: GitHub, maven: Maven, semVer: SemVer) extends NPM:
 
   private val BASE_URL: URL = URL.unsafeParse("https://registry.npmjs.org")
@@ -110,15 +115,9 @@ case class NPMLive(client: Client, git: Git, gitHub: GitHub, maven: Maven, semVe
 
     val maybeHomepageUrl = jsonString(json, "homepage").flatMap(URL.parseOption)
 
-    val repositoryUrl = jsonObject(json, "repository").flatMap { repo =>
+    val maybeSourceConnectionUri = jsonObject(json, "repository").flatMap { repo =>
       repo.asString.orElse(jsonString(repo, "url"))
-    }.getOrElse("")
-
-    val sourceConnectionUriString = NPM.uriIsh(repositoryUrl)
-
-    val sourceConnectionUri = URL.parseTry(sourceConnectionUriString) match
-      case scala.util.Success(url) => url
-      case scala.util.Failure(_) => URL.unsafeParse(s"https://github.com/$name")
+    }.map(_.trim).filter(_.nonEmpty).flatMap(NPM.repositoryToUri)
 
     val maybeIssuesUrl =
       jsonString(json, "bugs").flatMap(URL.parseOption)
@@ -144,17 +143,19 @@ case class NPMLive(client: Client, git: Git, gitHub: GitHub, maven: Maven, semVe
     val dependencies = jsonMapStringString(json, "dependencies")
     val optionalDependencies = jsonMapStringString(json, "optionalDependencies")
 
-    ZIO.succeed(PackageInfo(
-      name = name,
-      version = version,
-      maybeHomepageUrl = maybeHomepageUrl,
-      sourceConnectionUri = sourceConnectionUri,
-      maybeIssuesUrl = maybeIssuesUrl,
-      metadataLicenses = metadataLicenses,
-      dependencies = dependencies,
-      optionalDependencies = optionalDependencies,
-      maybeTag = None,
-    ))
+    ZIO.fromOption(maybeSourceConnectionUri).orElseFail(MissingSourceRepository(name, version)).map { sourceConnectionUri =>
+      PackageInfo(
+        name = name,
+        version = version,
+        maybeHomepageUrl = maybeHomepageUrl,
+        sourceConnectionUri = sourceConnectionUri,
+        maybeIssuesUrl = maybeIssuesUrl,
+        metadataLicenses = metadataLicenses,
+        dependencies = dependencies,
+        optionalDependencies = optionalDependencies,
+        maybeTag = None,
+      )
+    }
 
   override def info(packageNameOrGitRepo: NameOrUrlish, version: Version, maybeSourceUri: Option[URL] = None): ZIO[Scope, Throwable, PackageInfo] =
 

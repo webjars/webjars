@@ -131,12 +131,11 @@ object NPMSpec extends ZIOSpecDefault:
           }
         }
       },
-      test("amp-ui 3.2.0 fails with MissingMetadataException") {
+      test("amp-ui 3.2.0 fails because it declares no source repository") {
         withNpm { npm =>
-          npm.info("amp-ui", "3.2.0").foldZIO(
-            e => ZIO.succeed(assertTrue(e.isInstanceOf[MissingMetadataException])),
-            _ => ZIO.succeed(assertTrue(true)), // package metadata may have been updated
-          )
+          npm.info("amp-ui", "3.2.0").exit.map { result =>
+            assertTrue(result.causeOption.flatMap(_.failureOption).contains(MissingSourceRepository("amp-ui", "3.2.0")))
+          }
         }
       },
       test("optionalDependencies not be dependencies") {

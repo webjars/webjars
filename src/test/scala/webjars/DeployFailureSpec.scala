@@ -40,6 +40,15 @@ object DeployFailureSpec extends ZIOSpecDefault:
       test("IllegalStateException — already deployed") {
         assertTrue(DeployFailure.classify(new IllegalStateException("already deployed")).isInstanceOf[DeployFailure.UserInput])
       },
+      test("MissingSourceRepository — suggests deploying from the GitHub URL") {
+        val failure = DeployFailure.classify(MissingSourceRepository("async-retry", "0.1.1"))
+        assertTrue(
+          failure.isInstanceOf[DeployFailure.UserInput],
+          !DeployFailure.shouldFileIssue(failure),
+          failure.userMessage.contains("GitHub URL"),
+          DeployFailure.createUserMessage(failure).contains("GitHub URL"),
+        )
+      },
       test("NpmSecurityPlaceholder — package removed from npm") {
         val failure = DeployFailure.classify(NpmSecurityPlaceholder("ketcher", "0.0.1-security"))
         assertTrue(

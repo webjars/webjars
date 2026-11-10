@@ -53,6 +53,7 @@ object DeployFailure:
     case _: MissingMetadataException             => Systemic(t)
     case _: UnauthorizedError                    => Systemic(t)
     case _: NpmSecurityPlaceholder               => UserInput(t)
+    case _: MissingSourceRepository              => UserInput(t)
 
     // ServerError: classify by HTTP status. 404 is "you asked for a thing
     // that doesn't exist" — that's the deployer's input. 401/403 is "we
@@ -88,12 +89,17 @@ object DeployFailure:
   private val securityPlaceholderMessage =
     "This package was removed from npm for security reasons. npm replaced it with an empty placeholder, so there is nothing to package as a WebJar."
 
+  private val missingSourceRepositoryMessage =
+    "This npm version doesn't list a source repository. If you know the package's GitHub repository, try deploying it using the GitHub URL instead (for example owner/repo). Note that this publishes under a different artifact name."
+
   /** Plain-language message safe to show in the deploy UI. Technical details
    *  remain available through [[DeployFailure.message]] for logs and tracking
    *  issues, but are never sent to the browser. */
   def userMessage(failure: DeployFailure): String = failure match
     case UserInput(_: NpmSecurityPlaceholder) =>
       securityPlaceholderMessage
+    case UserInput(_: MissingSourceRepository) =>
+      missingSourceRepositoryMessage
     case UserInput(ServerError(_, 404)) =>
       "The requested package or version could not be found. Check the package name and version, then try again."
     case _: UserInput =>
@@ -117,6 +123,8 @@ object DeployFailure:
   def createUserMessage(failure: DeployFailure): String = failure match
     case UserInput(_: NpmSecurityPlaceholder) =>
       securityPlaceholderMessage
+    case UserInput(_: MissingSourceRepository) =>
+      missingSourceRepositoryMessage
     case UserInput(ServerError(_, 404)) =>
       "The requested package or version could not be found. Check the package name and version, then try again."
     case _: UserInput =>
