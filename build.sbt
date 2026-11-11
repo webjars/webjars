@@ -1,6 +1,6 @@
 name := "webjars"
 
-scalaVersion := "3.10.0"
+scalaVersion := "3.10.1"
 
 // --- Local library co-development -------------------------------------------
 // `-Dlocal` swaps published artifacts for source checkouts under `../../` when
@@ -34,9 +34,9 @@ Compile / mainClass := Some("webjars.Main")
 val zioStreamsCompressVersion = "2.1.7"
 
 libraryDependencies ++= Seq(
-  "dev.zio" %% "zio-config-typesafe"          % "4.1.0",
-  "dev.zio" %% "zio-logging-slf4j2-bridge"    % "2.5.3",
-  "dev.zio" %% "zio-redis"                    % "1.3.0",
+  "dev.zio" %% "zio-config-typesafe"          % "4.1.2",
+  "dev.zio" %% "zio-logging-slf4j2-bridge"    % "2.5.4",
+  "dev.zio" %% "zio-redis"                    % "1.3.2",
   "dev.zio" %% "zio-cache"                    % "0.3.0",
   "com.jamesward" %% "zio-http-guard"         % "0.0.2",
 
@@ -55,11 +55,11 @@ libraryDependencies ++= Seq(
   "dev.zio" %% "zio-test-sbt"                 % ("dev.zio" %% "zio").version % Test,
   "dev.zio" %% "zio-http-testkit"             % ("dev.zio" %% "zio-http").version % Test,
   // Keep derived codecs and Chekhov on the same zio-schema/zio-json line.
-  "dev.zio" %% "zio-schema-json"               % "1.9.0",
+  "dev.zio" %% "zio-schema-json"               % "1.9.1",
   "com.dimafeng" %% "testcontainers-scala-core" % "0.44.1" % Test,
   "rocks.earlyeffect" %% "chekhov-zio-test"   % "0.1.3" % Test,
 
-  "com.jamesward" % "skills" % "0.0.22" % Skills,
+  "com.jamesward" % "skills" % "0.0.24" % Skills,
 )
 
 fork := true

@@ -7,6 +7,7 @@ import zio.ULayer
 import java.io.File
 import java.nio.file.Files
 import java.util.concurrent.TimeUnit
+import scala.util.control.NonFatal
 
 object ChekhovSupport:
 
@@ -39,7 +40,7 @@ object ChekhovSupport:
             .findFirst()
             .map[Option[String]](Some(_))
             .orElse(None)
-      catch case _: Throwable => None
+      catch case NonFatal(_) => None
   end BrowserEnv
 
   private def sh(command: String): Option[String] =
@@ -47,7 +48,7 @@ object ChekhovSupport:
       val process = ProcessBuilder("sh", "-c", command).redirectErrorStream(true).start()
       val output  = String(process.getInputStream.readAllBytes).trim
       if process.waitFor(15, TimeUnit.SECONDS) && process.exitValue == 0 && output.nonEmpty then Some(output) else None
-    catch case _: Throwable => None
+    catch case NonFatal(_) => None
 
   private def which(command: String): Option[String] = sh(s"command -v $command")
 
@@ -80,7 +81,7 @@ object ChekhovSupport:
         val _       = String(process.getInputStream.readAllBytes)
         val ok      = process.waitFor(300, TimeUnit.SECONDS) && process.exitValue == 0
         ok && Files.isRegularFile(cli)
-    catch case _: Throwable => false
+    catch case NonFatal(_) => false
 
   lazy val env: BrowserEnv = BrowserEnv.detect()
 
