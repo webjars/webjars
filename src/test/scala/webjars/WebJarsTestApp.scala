@@ -81,13 +81,15 @@ object WebJarsTestApp extends ZIOAppDefault:
         _                   <- searchIndex.rebuild.forkDaemon
         _                   <- popularRanking.populate.forkDaemon
         loadShedding        <- ZIO.service[LoadShedding]
+        badActors           <- ZIO.service[BadActors]
         // Mirrors Main.scala — log method/url/status/duration_ms plus the
         // User-Agent so reStartTest / runTest output matches production,
         // and apply the same crawler limiter and load shedding.
         allRoutes            = (appRoutes.routes ++ StaticAssets.routes ++ TestStaticAssets.routes) @@
                                  CrawlerLimits.middleware @@
                                  loadShedding.limit @@
-                                 Middleware.requestLogging(loggedRequestHeaders = Set(Header.UserAgent))
+                                 Middleware.requestLogging(loggedRequestHeaders = Set(Header.UserAgent)) @@
+                                 badActors.screen
         port                 = sys.env.get("PORT").flatMap(_.toIntOption).getOrElse(9000)
         _                   <- ZIO.logInfo(s"Starting test server on port $port")
         _                   <- Server.serve(allRoutes).provideSome[Client & zio.redis.Redis & MavenCentral.MavenCentralRepo & CrawlerLimiter[MavenCentral.GroupArtifactVersion]](
@@ -107,6 +109,7 @@ object WebJarsTestApp extends ZIOAppDefault:
       WebJarsFileService.live,
       FileListCache.live,
       LoadShedding.layer,
+      BadActors.layer,
       NPM.live,
       Classic.live,
       AllDeployables.live,

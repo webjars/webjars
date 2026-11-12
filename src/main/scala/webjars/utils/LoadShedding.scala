@@ -49,23 +49,6 @@ case class LoadShedding(regular: Bulkhead, suspect: Bulkhead, rejections: Ref[Ma
                       ZIO.fail(_),
                     )
 
-  /**
-   * Adds a `traffic_class` log annotation to guarded requests. Apply outside
-   * the request logger so its "Http request served" line carries the
-   * classification, which is how we check [[classify]] against real traffic.
-   */
-  val annotate: Middleware[Any] =
-    new Middleware[Any]:
-      def apply[Env1, Err](routes: Routes[Env1, Err]): Routes[Env1, Err] =
-        routes.transform[Env1]: handler =>
-          Handler.scoped[Env1]:
-            Handler.fromFunctionZIO[Request]: request =>
-              guarded(request) match
-                case None =>
-                  handler(request)
-                case Some(endpoint) =>
-                  ZIO.logAnnotate("traffic_class", classify(endpoint, request).toString)(handler(request))
-
   /** Bulkhead occupancy and rejection counts since the previous report. */
   val report: UIO[Unit] =
     for

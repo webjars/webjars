@@ -23,6 +23,7 @@ object Main extends ZIOAppDefault:
         searchIndex <- ZIO.service[SearchIndex]
         popularRanking <- ZIO.service[PopularRanking]
         loadShedding <- ZIO.service[LoadShedding]
+        badActors <- ZIO.service[BadActors]
         _ <- searchIndex.rebuild.forkDaemon
         _ <- popularRanking.populate.forkDaemon
         _ <- mavenCentralWebJars.startRefreshLoop()
@@ -32,8 +33,9 @@ object Main extends ZIOAppDefault:
         // and the headers a real browser sends but a script copying its
         // User-Agent often doesn't (Referer, Sec-Fetch-*, Sec-CH-UA client
         // hints, Accept-*). Both limiters sit *inside* the logging aspect so
-        // their 429 / 503 responses still get logged; `annotate` sits
-        // outside it so each line carries `traffic_class`.
+        // their 429 / 503 responses still get logged; `badActors.screen`
+        // sits outside it, tarpitting identified flood requests and adding
+        // `traffic_class` to each line.
         allRoutes = (appRoutes.routes ++ StaticAssets.routes) @@
           CrawlerLimits.middleware @@
           loadShedding.limit @@
@@ -50,7 +52,7 @@ object Main extends ZIOAppDefault:
             Header.SchemaHeaderType[String]("Sec-CH-UA"),
             Header.SchemaHeaderType[String]("Sec-CH-UA-Platform"),
           )) @@
-          loadShedding.annotate
+          badActors.screen
         port = sys.env.get("PORT").flatMap(_.toIntOption).getOrElse(9000)
         _ <- ZIO.logInfo(s"Starting server on port $port")
         _ <- Server.serve(allRoutes).provideSome[Client & Redis & MavenCentral.Deploy.Sonatype & MavenCentral.MavenCentralRepo & CrawlerLimiter[MavenCentral.GroupArtifactVersion]](
@@ -70,6 +72,7 @@ object Main extends ZIOAppDefault:
       WebJarsFileService.live,
       FileListCache.live,
       LoadShedding.layer,
+      BadActors.layer,
       NPM.live,
       Classic.live,
       AllDeployables.live,
