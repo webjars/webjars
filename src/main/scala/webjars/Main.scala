@@ -22,16 +22,35 @@ object Main extends ZIOAppDefault:
         mavenCentralWebJars <- ZIO.service[MavenCentralWebJars]
         searchIndex <- ZIO.service[SearchIndex]
         popularRanking <- ZIO.service[PopularRanking]
+        loadShedding <- ZIO.service[LoadShedding]
         _ <- searchIndex.rebuild.forkDaemon
         _ <- popularRanking.populate.forkDaemon
         _ <- mavenCentralWebJars.startRefreshLoop()
-        // Log every request with method/url/status/duration_ms and the
-        // User-Agent header — useful for spotting bot/crawler traffic
-        // (e.g. heavy hitters on /listfiles). The crawler limiter sits
-        // *inside* the logging aspect so 429 responses still get logged.
+        // Log every request with method/url/status/duration_ms plus the
+        // headers that tell flood traffic apart from real visitors: the
+        // client IP (last X-Forwarded-For hop on Heroku), the User-Agent,
+        // and the headers a real browser sends but a script copying its
+        // User-Agent often doesn't (Referer, Sec-Fetch-*, Sec-CH-UA client
+        // hints, Accept-*). Both limiters sit *inside* the logging aspect so
+        // their 429 / 503 responses still get logged; `annotate` sits
+        // outside it so each line carries `traffic_class`.
         allRoutes = (appRoutes.routes ++ StaticAssets.routes) @@
           CrawlerLimits.middleware @@
-          Middleware.requestLogging(loggedRequestHeaders = Set(Header.UserAgent))
+          loadShedding.limit @@
+          Middleware.requestLogging(loggedRequestHeaders = Set(
+            Header.UserAgent,
+            Header.Referer,
+            Header.Accept,
+            Header.AcceptLanguage,
+            Header.AcceptEncoding,
+            Header.SchemaHeaderType[String]("X-Forwarded-For"),
+            Header.SchemaHeaderType[String]("Sec-Fetch-Site"),
+            Header.SchemaHeaderType[String]("Sec-Fetch-Mode"),
+            Header.SchemaHeaderType[String]("Sec-Fetch-Dest"),
+            Header.SchemaHeaderType[String]("Sec-CH-UA"),
+            Header.SchemaHeaderType[String]("Sec-CH-UA-Platform"),
+          )) @@
+          loadShedding.annotate
         port = sys.env.get("PORT").flatMap(_.toIntOption).getOrElse(9000)
         _ <- ZIO.logInfo(s"Starting server on port $port")
         _ <- Server.serve(allRoutes).provideSome[Client & Redis & MavenCentral.Deploy.Sonatype & MavenCentral.MavenCentralRepo & CrawlerLimiter[MavenCentral.GroupArtifactVersion]](
@@ -49,6 +68,8 @@ object Main extends ZIOAppDefault:
       Maven.live,
       SourceLocator.live,
       WebJarsFileService.live,
+      FileListCache.live,
+      LoadShedding.layer,
       NPM.live,
       Classic.live,
       AllDeployables.live,

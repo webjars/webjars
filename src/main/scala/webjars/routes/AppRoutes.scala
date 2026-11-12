@@ -31,7 +31,7 @@ case class AppRoutes[DeployerEnv](
   mavenCentral: MavenCentralWebJars,
   deployWebJar: DeployWebJar[DeployerEnv],
   deployJobs: DeployJobs[DeployerEnv],
-  webJarsFileService: WebJarsFileService,
+  fileListCache: FileListCache,
   config: AppConfig,
   sourceLocator: SourceLocator,
   classic: Classic,
@@ -437,47 +437,13 @@ case class AppRoutes[DeployerEnv](
   private def handleListFiles(groupId: String, artifactId: String, version: String, request: Request): ZIO[Redis, Nothing, Response] =
     val gid = MavenCentral.GroupId(groupId)
     val aid = MavenCentral.ArtifactId(artifactId)
-    val ga  = MavenCentral.GroupArtifact(gid, aid)
     val gav = MavenCentral.GroupArtifactVersion(gid, aid, MavenCentral.Version(version))
     popularMetrics.recordListFilesClick(gid, aid) *>
-    ZIO.scoped {
-      cache.get[List[String]](s"listfiles-$groupId-$artifactId-$version", 1.day) {
-        webJarsFileService.getFileList(gav)
-      }.tap { fileList =>
-        // Opportunistic numFiles backfill: the file-service has already
-        // produced the file list; the count is `fileList.size` for free.
-        // We only write if the cached version's `numFiles` is currently
-        // None — repeat clicks on already-filled versions become a single
-        // Redis read (no write). This rides on user traffic for the
-        // long tail that the periodic refreshMissingNumFiles cycle
-        // hasn't gotten to yet.
-        //
-        // Forked so the user response doesn't wait on the Redis
-        // round-trip and a transient Redis blip can't fail the request.
-        // We log failures at WARN (not the default `.ignoreLogged`,
-        // which logs at DEBUG and would be invisible in production) so
-        // we can spot patterns: a single clobbered write is fine — the
-        // next refresh cycle recovers it — but repeated failures for
-        // the same artifact would mean we should tombstone it. If this
-        // becomes a problem we can add a per-(ga, version) failure
-        // counter in Redis with a TTL and bail out after N failures.
-        val maybeBackfill =
-          WebJarsCache.getArtifact(ga).flatMap {
-            case Some(meta) if meta.versions.exists(v => v.number == version && v.numFiles.isEmpty) =>
-              WebJarsCache.updateVersion(ga, version, fileList.size)
-            case _ =>
-              ZIO.unit
-          }
-        maybeBackfill
-          .tapErrorCause(c => ZIO.logWarningCause(s"listfiles-click numFiles backfill failed for $ga:$version", c))
-          .ignore
-          .forkDaemon
-      }.map { fileList =>
-        val response =
-          if acceptsJson(request) then jsonResponse(fileList.toJson)
-          else htmlResponse(FileListPage(groupId, artifactId, version, fileList))
-        AppRoutes.noIndex(corsHeaders(response))
-      }
+    fileListCache.get(gav).map { fileList =>
+      val response =
+        if acceptsJson(request) then jsonResponse(fileList.toJson)
+        else htmlResponse(FileListPage(groupId, artifactId, version, fileList))
+      AppRoutes.noIndex(corsHeaders(response))
     }.catchAll {
       case _: WebJarsFileService.UnusableWebJarException =>
         // Covers both `WebJarNotFoundException` (404 — jar isn't
@@ -535,5 +501,5 @@ object AppRoutes:
 
     log.as(createTextResponse(status, DeployFailure.createUserMessage(failure)))
 
-  def live[DeployerEnv : Tag]: ZLayer[Git & Cache & MavenCentralWebJars & DeployWebJar[DeployerEnv] & DeployJobs[DeployerEnv] & WebJarsFileService & AppConfig & SourceLocator & Classic & AllDeployables & WebJars & PopularMetrics & PopularRanking & SearchIndex, Nothing, AppRoutes[DeployerEnv]] =
+  def live[DeployerEnv : Tag]: ZLayer[Git & Cache & MavenCentralWebJars & DeployWebJar[DeployerEnv] & DeployJobs[DeployerEnv] & FileListCache & AppConfig & SourceLocator & Classic & AllDeployables & WebJars & PopularMetrics & PopularRanking & SearchIndex, Nothing, AppRoutes[DeployerEnv]] =
     ZLayer.derive[AppRoutes[DeployerEnv]]

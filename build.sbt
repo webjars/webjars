@@ -39,6 +39,9 @@ libraryDependencies ++= Seq(
   "dev.zio" %% "zio-redis"                    % "1.3.2",
   "dev.zio" %% "zio-cache"                    % "0.3.0",
   "com.jamesward" %% "zio-http-guard"         % "0.0.2",
+  // Same version zio-mavencentral 0.15.0 is built against: 0.10.6 is not
+  // binary compatible (CircuitBreaker.withMaxFailures changed signature).
+  "nl.vroste"      %% "rezilience"             % "0.10.5",
 
   "dev.zio" %% "zio-streams-compress-tar"     % zioStreamsCompressVersion,
   "dev.zio" %% "zio-streams-compress-zip"     % zioStreamsCompressVersion,
