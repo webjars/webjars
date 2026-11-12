@@ -112,7 +112,10 @@ case class BadActors(
                 case (Some(endpoint), Some(ip)) =>
                   identify(endpoint, ip, request).flatMap:
                     case Some(reason) =>
-                      ZIO.logInfo(s"bad_actor reason=$reason ip=$ip url=${request.path.encode}") *> tarpit
+                      val ua      = request.headers.get(Header.UserAgent.name).getOrElse("-")
+                      val referer = request.headers.get(Header.Referer.name).getOrElse("-")
+                      val site    = request.headers.get("Sec-Fetch-Site").getOrElse("-")
+                      ZIO.logInfo(s"bad_actor reason=$reason ip=$ip url=${request.path.encode} sec-fetch-site=$site referer=$referer user-agent=$ua") *> tarpit
                     case None =>
                       served
                 case _ =>

@@ -24,6 +24,7 @@ object Main extends ZIOAppDefault:
         popularRanking <- ZIO.service[PopularRanking]
         loadShedding <- ZIO.service[LoadShedding]
         badActors <- ZIO.service[BadActors]
+        trafficStats <- ZIO.service[TrafficStats]
         _ <- searchIndex.rebuild.forkDaemon
         _ <- popularRanking.populate.forkDaemon
         _ <- mavenCentralWebJars.startRefreshLoop()
@@ -52,7 +53,8 @@ object Main extends ZIOAppDefault:
             Header.SchemaHeaderType[String]("Sec-CH-UA"),
             Header.SchemaHeaderType[String]("Sec-CH-UA-Platform"),
           )) @@
-          badActors.screen
+          badActors.screen @@
+          trafficStats.middleware
         port = sys.env.get("PORT").flatMap(_.toIntOption).getOrElse(9000)
         _ <- ZIO.logInfo(s"Starting server on port $port")
         _ <- Server.serve(allRoutes).provideSome[Client & Redis & MavenCentral.Deploy.Sonatype & MavenCentral.MavenCentralRepo & CrawlerLimiter[MavenCentral.GroupArtifactVersion]](
@@ -73,6 +75,7 @@ object Main extends ZIOAppDefault:
       FileListCache.live,
       LoadShedding.layer,
       BadActors.layer,
+      TrafficStats.layer,
       NPM.live,
       Classic.live,
       AllDeployables.live,
