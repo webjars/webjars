@@ -35,7 +35,7 @@ object Main extends ZIOAppDefault:
         // User-Agent often doesn't (Referer, Sec-Fetch-*, Sec-CH-UA client
         // hints, Accept-*). Both limiters sit *inside* the logging aspect so
         // their 429 / 503 responses still get logged; `badActors.screen`
-        // sits outside it, tarpitting identified flood requests and adding
+        // sits outside it, blocking identified flood requests and adding
         // `traffic_class` to each line.
         allRoutes = (appRoutes.routes ++ StaticAssets.routes) @@
           CrawlerLimits.middleware @@
