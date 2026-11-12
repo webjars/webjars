@@ -1,6 +1,7 @@
 package webjars
 
 import com.jamesward.zio_http_guard.CrawlerLimiter
+import com.jamesward.zio_http_guard.guard.{ClientId, Guard}
 import com.jamesward.zio_mavencentral.MavenCentral
 import webjars.config.AppConfig
 import webjars.routes.{AppRoutes, StaticAssets}
@@ -22,39 +23,18 @@ object Main extends ZIOAppDefault:
         mavenCentralWebJars <- ZIO.service[MavenCentralWebJars]
         searchIndex <- ZIO.service[SearchIndex]
         popularRanking <- ZIO.service[PopularRanking]
-        loadShedding <- ZIO.service[LoadShedding]
-        badActors <- ZIO.service[BadActors]
-        trafficStats <- ZIO.service[TrafficStats]
+        guard <- ZIO.service[Guard]
         _ <- searchIndex.rebuild.forkDaemon
         _ <- popularRanking.populate.forkDaemon
         _ <- mavenCentralWebJars.startRefreshLoop()
-        // Log every request with method/url/status/duration_ms plus the
-        // headers that tell flood traffic apart from real visitors: the
-        // client IP (last X-Forwarded-For hop on Heroku), the User-Agent,
-        // and the headers a real browser sends but a script copying its
-        // User-Agent often doesn't (Referer, Sec-Fetch-*, Sec-CH-UA client
-        // hints, Accept-*). Both limiters sit *inside* the logging aspect so
-        // their 429 / 503 responses still get logged; `badActors.screen`
-        // sits outside it, blocking identified flood requests and adding
-        // `traffic_class` to each line.
+        // Request lines carry the headers that tell flood traffic apart from
+        // real visitors. The guard (see `WebJarsGuard`) sits outside the
+        // logger so each line carries client_ip / guard_tier / guard_reason;
+        // the crawler limiter sits inside so its 429s are still logged.
         allRoutes = (appRoutes.routes ++ StaticAssets.routes) @@
           CrawlerLimits.middleware @@
-          loadShedding.limit @@
-          Middleware.requestLogging(loggedRequestHeaders = Set(
-            Header.UserAgent,
-            Header.Referer,
-            Header.Accept,
-            Header.AcceptLanguage,
-            Header.AcceptEncoding,
-            Header.SchemaHeaderType[String]("X-Forwarded-For"),
-            Header.SchemaHeaderType[String]("Sec-Fetch-Site"),
-            Header.SchemaHeaderType[String]("Sec-Fetch-Mode"),
-            Header.SchemaHeaderType[String]("Sec-Fetch-Dest"),
-            Header.SchemaHeaderType[String]("Sec-CH-UA"),
-            Header.SchemaHeaderType[String]("Sec-CH-UA-Platform"),
-          )) @@
-          badActors.screen @@
-          trafficStats.middleware
+          Middleware.requestLogging(loggedRequestHeaders = ClientId.identifyingHeaders) @@
+          guard.middleware
         port = sys.env.get("PORT").flatMap(_.toIntOption).getOrElse(9000)
         _ <- ZIO.logInfo(s"Starting server on port $port")
         _ <- Server.serve(allRoutes).provideSome[Client & Redis & MavenCentral.Deploy.Sonatype & MavenCentral.MavenCentralRepo & CrawlerLimiter[MavenCentral.GroupArtifactVersion]](
@@ -73,9 +53,7 @@ object Main extends ZIOAppDefault:
       SourceLocator.live,
       WebJarsFileService.live,
       FileListCache.live,
-      LoadShedding.layer,
-      BadActors.layer,
-      TrafficStats.layer,
+      WebJarsGuard.layer,
       NPM.live,
       Classic.live,
       AllDeployables.live,

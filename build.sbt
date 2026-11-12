@@ -38,7 +38,7 @@ libraryDependencies ++= Seq(
   "dev.zio" %% "zio-logging-slf4j2-bridge"    % "2.5.4",
   "dev.zio" %% "zio-redis"                    % "1.3.2",
   "dev.zio" %% "zio-cache"                    % "0.3.0",
-  "com.jamesward" %% "zio-http-guard"         % "0.0.2",
+  "com.jamesward" %% "zio-http-guard"         % "0.1.0",
   // Keep on the version zio-mavencentral is built against (0.16.0: 0.10.6):
   // rezilience minor releases aren't binary compatible.
   "nl.vroste"      %% "rezilience"             % "0.10.6",

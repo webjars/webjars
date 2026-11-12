@@ -2,6 +2,7 @@ package webjars
 
 import com.dimafeng.testcontainers.GenericContainer
 import com.jamesward.zio_http_guard.CrawlerLimiter
+import com.jamesward.zio_http_guard.guard.Guard
 import com.jamesward.zio_mavencentral.MavenCentral
 import org.testcontainers.containers.wait.strategy.Wait
 import webjars.config.AppConfig
@@ -80,16 +81,14 @@ object WebJarsTestApp extends ZIOAppDefault:
                                  .ignore
         _                   <- searchIndex.rebuild.forkDaemon
         _                   <- popularRanking.populate.forkDaemon
-        loadShedding        <- ZIO.service[LoadShedding]
-        badActors           <- ZIO.service[BadActors]
+        guard               <- ZIO.service[Guard]
         // Mirrors Main.scala — log method/url/status/duration_ms plus the
         // User-Agent so reStartTest / runTest output matches production,
-        // and apply the same crawler limiter and load shedding.
+        // and apply the same crawler limiter and guard.
         allRoutes            = (appRoutes.routes ++ StaticAssets.routes ++ TestStaticAssets.routes) @@
                                  CrawlerLimits.middleware @@
-                                 loadShedding.limit @@
                                  Middleware.requestLogging(loggedRequestHeaders = Set(Header.UserAgent)) @@
-                                 badActors.screen
+                                 guard.middleware
         port                 = sys.env.get("PORT").flatMap(_.toIntOption).getOrElse(9000)
         _                   <- ZIO.logInfo(s"Starting test server on port $port")
         _                   <- Server.serve(allRoutes).provideSome[Client & zio.redis.Redis & MavenCentral.MavenCentralRepo & CrawlerLimiter[MavenCentral.GroupArtifactVersion]](
@@ -108,8 +107,7 @@ object WebJarsTestApp extends ZIOAppDefault:
       SourceLocator.live,
       WebJarsFileService.live,
       FileListCache.live,
-      LoadShedding.layer,
-      BadActors.layer,
+      WebJarsGuard.layer,
       NPM.live,
       Classic.live,
       AllDeployables.live,
