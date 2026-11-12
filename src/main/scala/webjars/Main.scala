@@ -31,7 +31,10 @@ object Main extends ZIOAppDefault:
         // real visitors. The guard (see `WebJarsGuard`) sits outside the
         // logger so each line carries client_ip / guard_tier / guard_reason;
         // the crawler limiter sits inside so its 429s are still logged.
-        allRoutes = (appRoutes.routes ++ StaticAssets.routes) @@
+        // The catch-all makes unmatched GETs (e.g. the flood's random-hex
+        // `/<hex>.mkv` probes) pass through the guard so `probe` can flag
+        // their IPs; without it zio-http answers them before any middleware.
+        allRoutes = (appRoutes.routes ++ StaticAssets.routes ++ Routes(Method.GET / trailing -> Handler.notFound)) @@
           CrawlerLimits.middleware @@
           Middleware.requestLogging(loggedRequestHeaders = ClientId.identifyingHeaders) @@
           guard.middleware
