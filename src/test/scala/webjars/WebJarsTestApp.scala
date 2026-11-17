@@ -1,26 +1,23 @@
 package webjars
 
-import com.dimafeng.testcontainers.GenericContainer
 import com.jamesward.zio_http_guard.CrawlerLimiter
 import com.jamesward.zio_http_guard.guard.Guard
 import com.jamesward.zio_mavencentral.MavenCentral
-import org.testcontainers.containers.wait.strategy.Wait
 import webjars.config.AppConfig
 import webjars.routes.{AppRoutes, StaticAssets}
 import webjars.utils.*
 import zio.*
 import zio.http.*
-import zio.redis.{CodecSupplier, Redis, RedisConfig}
-import zio.schema.Schema
-import zio.schema.codec.{BinaryCodec, ProtobufCodec}
+
+import javax.sql.DataSource
 
 /**
  * Test entry-point for `reStartTest` (sbt-revolver) and `runTest`.
  *
  * Boots the full webjars server with:
  *
- *   • A `valkey/valkey:8.1` Docker container started via Testcontainers,
- *     replacing the production `REDIS_URL` config.
+ *   • A fresh Postgres database from [[PostgresContainer]] (Docker via
+ *     Testcontainers), replacing the production `DATABASE_URL` config.
  *   • The cache is hydrated once at startup by GETting `/all` from
  *     `https://www.webjars.org` (always fresh, no commit-the-cache-blob in
  *     git, no Heroku credentials needed). If the fetch fails, the app
@@ -42,25 +39,6 @@ object WebJarsTestApp extends ZIOAppDefault:
 
   override val bootstrap: ZLayer[ZIOAppArgs, Any, Any] =
     Logging.bootstrap
-
-  // Eagerly start a fresh valkey container so the Redis layer can be built
-  // synchronously when constructed.
-  private val container: GenericContainer =
-    val c = GenericContainer(
-      dockerImage = "valkey/valkey:8.1",
-      exposedPorts = Seq(6379),
-      waitStrategy = Wait.forListeningPort(),
-    )
-    c.start()
-    c
-
-  private object ProtobufCodecSupplier extends CodecSupplier:
-    def get[A: Schema]: BinaryCodec[A] = ProtobufCodec.protobufCodec
-
-  private val testRedisLayer: ZLayer[Any, Nothing, Redis] =
-    ZLayer.succeed(RedisConfig(container.host, container.mappedPort(6379))) ++
-      ZLayer.succeed[CodecSupplier](ProtobufCodecSupplier) >>>
-      Redis.singleNode.orDie
 
   private val testConfigLayer: ZLayer[Any, Nothing, AppConfig] =
     ZLayer.succeed(TestInfrastructure.testConfig)
@@ -91,7 +69,7 @@ object WebJarsTestApp extends ZIOAppDefault:
                                  guard.middleware
         port                 = sys.env.get("PORT").flatMap(_.toIntOption).getOrElse(9000)
         _                   <- ZIO.logInfo(s"Starting test server on port $port")
-        _                   <- Server.serve(allRoutes).provideSome[Client & zio.redis.Redis & MavenCentral.MavenCentralRepo & CrawlerLimiter[MavenCentral.GroupArtifactVersion]](
+        _                   <- Server.serve(allRoutes).provideSome[Client & DataSource & MavenCentral.MavenCentralRepo & CrawlerLimiter[MavenCentral.GroupArtifactVersion]](
                                  Server.defaultWith(_.binding(java.net.InetSocketAddress("0.0.0.0", port))),
                                )
       yield ()
@@ -99,7 +77,7 @@ object WebJarsTestApp extends ZIOAppDefault:
       testConfigLayer,
       Client.default,
       Cache.live,
-      testRedisLayer,
+      PostgresContainer.freshDatabase,
       Git.live,
       GitHub.live,
       SemVer.live,

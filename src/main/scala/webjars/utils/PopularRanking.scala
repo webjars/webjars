@@ -1,25 +1,24 @@
 package webjars.utils
 
-import com.jamesward.zio_mavencentral.MavenCentral
-import com.jamesward.zio_mavencentral.MavenCentral.GroupArtifact
+import com.augustnagro.magnum.*
+import com.augustnagro.magnum.ziomagnum.*
 import webjars.models.WebJar
+import webjars.utils.Db.given
 import zio.*
-import zio.redis.*
 
-import java.time.ZoneOffset
+import javax.sql.DataSource
 
-// Resolves the "Popular WebJars" list once per dyno lifetime from the daily
-// `popular:<YYYY-MM-DD>` ZSETs written by PopularMetrics. The aggregated top
-// list is held in a Ref and serves /  and /popular for the whole dyno (~24h
-// on Heroku) — no mid-run refresh.
+// Resolves the "Popular WebJars" list from the `popular_daily` scores
+// written by PopularMetrics. The aggregated top list is held in a Ref and
+// serves / and /popular; `rebuild` refreshes it every refresh cycle.
 //
-// Cold start: when the 30-day window is empty (first deploy, freshly flushed
-// Valkey), fall back to the legacy "first 20 from HGETALL per group" view so
-// the home page is never blank. Until populate() finishes, snapshot returns
-// Nil and the view layer is expected to render an "indexing" placeholder.
+// Cold start: when the 30-day window is empty (first deploy, fresh
+// database), fall back to "the first 20 artifacts per group" so the home
+// page is never blank. Until populate() finishes, snapshot returns Nil and
+// the view layer is expected to render an "indexing" placeholder.
 trait PopularRanking:
   def snapshot: UIO[List[WebJar]]
-  def populate: URIO[Redis, Unit]
+  def populate: URIO[DataSource, Unit]
   /** One-shot rebuild from the current `WebJarsCache` state. Unlike
    *  [[populate]], this does NOT retry when the underlying cache is
    *  empty — it's intended to be called from the periodic refresh
@@ -31,7 +30,7 @@ trait PopularRanking:
    *  [[populate]] first succeeded — typically once per dyno lifetime
    *  on Heroku. Updates to `WebJarsCache` after that point would not
    *  be reflected on the home page until the next dyno cycle. */
-  def rebuild:  URIO[Redis, Unit]
+  def rebuild:  URIO[DataSource, Unit]
 
 case class PopularRankingLive(
   ref:            Ref[List[WebJar]],
@@ -39,41 +38,25 @@ case class PopularRankingLive(
 ) extends PopularRanking:
 
   private val WindowDays       = 30
-  private val AggKey           = "popular:agg"
   private val TopN             = 40
   private val FallbackPerGroup = 20
 
   def snapshot: UIO[List[WebJar]] = ref.get
 
-  private val dailyKeys: UIO[List[String]] =
-    Clock.currentDateTime.map: now =>
-      val today = now.atZoneSameInstant(ZoneOffset.UTC).toLocalDate
-      (0 until WindowDays).toList.map(i => s"popular:${today.minusDays(i.toLong)}")
+  // Artifacts no longer in the cache drop out of the ranking (the join).
+  private val aggregateAndHydrate: RIO[DataSource, List[WebJar]] =
+    PopularMetrics.today.flatMap: today =>
+      val since = today.minusDays((WindowDays - 1).toLong)
+      Db.withDataSource:
+        sql"""select p.group_id, p.artifact_id, w.name, w.source_url, w.versions
+              from (select group_id, artifact_id, sum(score) as total from popular_daily
+                    where day >= $since group by group_id, artifact_id) p
+              join webjar w using (group_id, artifact_id)
+              order by p.total desc, p.group_id, p.artifact_id
+              limit $TopN""".zQuery[WebJarsCache.WebJarRow]
+      .map(_.toList.flatMap(_.webJar))
 
-  private def hydrate(member: String): ZIO[Redis, Throwable, Option[WebJar]] =
-    member.split(":", 2) match
-      case Array(gid, aid) =>
-        WebJarsCache
-          .getArtifact(GroupArtifact(MavenCentral.GroupId(gid), MavenCentral.ArtifactId(aid)))
-          .map(_.flatMap(meta => WebJar.fromCache(gid, aid, meta.name, meta.sourceUrl, meta.versions)))
-      case _ =>
-        ZIO.none
-
-  private val aggregateAndHydrate: ZIO[Redis, Throwable, List[WebJar]] =
-    for
-      keys    <- dailyKeys
-      // ZUNIONSTORE popular:agg N popular:<d0> popular:<d-1> ... popular:<d-29>.
-      // Missing daily keys count as empty sets, default aggregate is SUM.
-      _       <- ZIO.serviceWithZIO[Redis](_.zUnionStore(AggKey, keys.head, keys.tail*)())
-      ranked  <- ZIO.serviceWithZIO[Redis](_.zRangeWithScores(
-                   AggKey,
-                   SortedSetRange.Range(RangeMinimum(0), RangeMaximum.Inclusive((TopN - 1).toLong)),
-                   rev = true,
-                 ).returning[String])
-      webjars <- ZIO.foreach(ranked.toList)(ms => hydrate(ms.member))
-    yield webjars.flatten
-
-  private val coldStartFallback: ZIO[Redis, Throwable, List[WebJar]] =
+  private val coldStartFallback: RIO[DataSource, List[WebJar]] =
     ZIO.foreach(allDeployables.groupIds().toList): groupId =>
       WebJarsCache.getArtifacts(groupId, Some(FallbackPerGroup)).map: m =>
         m.toSeq.flatMap: (artifactId, meta) =>
@@ -83,7 +66,7 @@ case class PopularRankingLive(
   // True ⇒ the Ref was set; False ⇒ both the aggregate and the per-group
   // fallback came back empty (e.g. WebJarsCache hasn't been populated yet by
   // the Maven Central refresh loop), so the caller should try again.
-  private val tryPopulate: ZIO[Redis, Throwable, Boolean] =
+  private val tryPopulate: RIO[DataSource, Boolean] =
     for
       ranked      <- aggregateAndHydrate
       usedFallback = ranked.isEmpty
@@ -93,13 +76,12 @@ case class PopularRankingLive(
                          ZIO.logInfo(s"PopularRanking populated: ${chosen.size} artifacts (fallback=$usedFallback)")
     yield chosen.nonEmpty
 
-  def populate: URIO[Redis, Unit] =
+  def populate: URIO[DataSource, Unit] =
     // The Maven Central refresh loop runs asynchronously after boot — until
     // it hydrates WebJarsCache, both the aggregate and the fallback are
-    // empty. Poll every 5s until we get something, then stop. (Once `chosen`
-    // is non-empty the Ref is set and the snapshot stays valid for the
-    // dyno's lifetime; Heroku cycles dynos daily so no further refresh.)
-    def loop: ZIO[Redis, Throwable, Unit] =
+    // empty. Poll every 5s until we get something, then stop; `rebuild`
+    // keeps it current from then on.
+    def loop: RIO[DataSource, Unit] =
       tryPopulate.flatMap:
         case true  => ZIO.unit
         case false => ZIO.logInfo("PopularRanking: cache not ready, retrying in 5s") *> loop.delay(5.seconds)
@@ -108,9 +90,9 @@ case class PopularRankingLive(
       .tapErrorCause(c => ZIO.logErrorCause("PopularRanking populate failed", c))
       .ignore
 
-  def rebuild: URIO[Redis, Unit] =
+  def rebuild: URIO[DataSource, Unit] =
     // One-shot: re-aggregate from WebJarsCache and update the Ref iff the
-    // result is non-empty. Empty results (e.g. transient Redis blip) leave
+    // result is non-empty. Empty results (e.g. transient database blip) leave
     // the prior snapshot in place — preferable to wiping the home page.
     tryPopulate
       .tapErrorCause(c => ZIO.logErrorCause("PopularRanking rebuild failed", c))

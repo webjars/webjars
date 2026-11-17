@@ -10,7 +10,7 @@ import zio.*
 import zio.direct.*
 import zio.http.*
 import zio.json.*
-import zio.redis.Redis
+import javax.sql.DataSource
 import zio.stream.ZStream
 
 import java.io.FileNotFoundException
@@ -88,7 +88,7 @@ case class AppRoutes[DeployerEnv](
   private def corsHeaders(response: Response): Response =
     response.addHeader(Header.AccessControlAllowOrigin.All)
 
-  val routes: Routes[Client & Redis & MavenCentral.MavenCentralRepo & DeployerEnv, Nothing] = Routes(
+  val routes: Routes[Client & DataSource & MavenCentral.MavenCentralRepo & DeployerEnv, Nothing] = Routes(
 
     // Home page
     Method.GET / "" -> handler { (request: Request) =>
@@ -412,7 +412,7 @@ case class AppRoutes[DeployerEnv](
     },
   )
 
-  private def handleDeploy(request: Request): ZIO[Client & Redis & MavenCentral.MavenCentralRepo & DeployerEnv, Nothing, Response] =
+  private def handleDeploy(request: Request): ZIO[Client & DataSource & MavenCentral.MavenCentralRepo & DeployerEnv, Nothing, Response] =
     DeploymentQuery.parse(request) match
       case Left(error) =>
         ZIO.succeed(Response(Status.BadRequest, body = Body.fromString(error.message)))
@@ -424,7 +424,7 @@ case class AppRoutes[DeployerEnv](
         allDeployables.fromName(webJarType).fold {
           ZIO.succeed(Response(Status.BadRequest, body = Body.fromString(s"Specified WebJar type '$webJarType' can not be deployed")))
         } { deployable =>
-          val stream: ZStream[Client & Redis & MavenCentral.MavenCentralRepo & DeployerEnv, Nothing, String] = deployJobs.deploy(deployable, nameOrUrlish, version)
+          val stream: ZStream[Client & DataSource & MavenCentral.MavenCentralRepo & DeployerEnv, Nothing, String] = deployJobs.deploy(deployable, nameOrUrlish, version)
           val bytes =
             if acceptsEventStream(request) then stream.flatMap(msg => ZStream.fromIterable(s"data: $msg\n\n".getBytes))
             else                                stream.flatMap(msg => ZStream.fromIterable(msg.getBytes))
@@ -434,7 +434,7 @@ case class AppRoutes[DeployerEnv](
             Response(Status.Ok, Headers(Header.ContentType(contentType).untyped), body)
         }
 
-  private def handleListFiles(groupId: String, artifactId: String, version: String, request: Request): ZIO[Redis, Nothing, Response] =
+  private def handleListFiles(groupId: String, artifactId: String, version: String, request: Request): ZIO[DataSource, Nothing, Response] =
     val gid = MavenCentral.GroupId(groupId)
     val aid = MavenCentral.ArtifactId(artifactId)
     val gav = MavenCentral.GroupArtifactVersion(gid, aid, MavenCentral.Version(version))

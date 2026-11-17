@@ -5,7 +5,11 @@ import webjars.config.AppConfig
 import zio.*
 import zio.direct.*
 import zio.http.URL
-import zio.redis.*
+import com.augustnagro.magnum.*
+import com.augustnagro.magnum.ziomagnum.*
+import webjars.utils.Db.given
+
+import javax.sql.DataSource
 
 import scala.util.matching.Regex
 
@@ -15,12 +19,11 @@ import scala.util.matching.Regex
  *  rather than fanning out into duplicates. Safe to call on `UserInput`
  *  and `Transient` failures: they short-circuit to `None`.
  *
- *  Forward index lives in Redis hash `deploy-failures`:
- *  field = `<groupId>:<nameOrUrlish>:<version>`, value = issue number.
- *  When the index has no entry, we still scan open issues by exact
- *  title match (deterministic format) and adopt the existing one if
- *  found — covers the case where Redis was wiped or the prior write
- *  raced.
+ *  Forward index lives in table `deploy_failure_issue`: one row per
+ *  `(groupId, nameOrUrlish, version)` with its issue number. When the
+ *  index has no entry, we still scan open issues by exact title match
+ *  (deterministic format) and adopt the existing one if found — covers
+ *  the case where the index was lost or the prior write raced.
  *
  *  All errors are logged and swallowed: a flaky GitHub API must never
  *  abort an otherwise-successful deploy.
@@ -33,11 +36,11 @@ trait DeployFailureTracker:
     deployKey: DeployFailureTracker.DeployKey,
     failure: DeployFailure,
     deployLog: Chunk[String],
-  ): URIO[Redis, Option[URL]]
+  ): URIO[DataSource, Option[URL]]
 
   /** On a successful deploy of `deployKey`, close any tracking issue we
    *  filed for it. No-op when there's no tracking entry. */
-  def resolveSuccess(deployKey: DeployFailureTracker.DeployKey): URIO[Redis, Unit]
+  def resolveSuccess(deployKey: DeployFailureTracker.DeployKey): URIO[DataSource, Unit]
 
 object DeployFailureTracker:
 
@@ -47,10 +50,6 @@ object DeployFailureTracker:
    *  we know the artifactId. */
   case class DeployKey(groupId: MavenCentral.GroupId, nameOrUrlish: String, version: String):
     def asString: String = s"$groupId:$nameOrUrlish:$version"
-
-  // Redis hash key. Single hash so admins can `HGETALL deploy-failures`
-  // to see what's currently being tracked.
-  private[utils] val redisHashKey: String = "deploy-failures"
 
   // Label applied to every issue we file. Filtering on this label keeps
   // us from accidentally adopting unrelated open issues that happen to
@@ -153,21 +152,22 @@ object DeployFailureTracker:
     }
 
   /** Lookup the tracking issue number for a deploy key, if any. */
-  private[utils] def lookupIssueNumber(deployKey: DeployKey): ZIO[Redis, RedisError, Option[Int]] =
-    ZIO.serviceWithZIO[Redis] { redis =>
-      redis.hGet(redisHashKey, deployKey.asString).returning[String]
-        .map(_.flatMap(_.toIntOption))
-    }
+  private[webjars] def lookupIssueNumber(deployKey: DeployKey): RIO[DataSource, Option[Int]] =
+    Db.withDataSource:
+      sql"""select issue_number from deploy_failure_issue
+            where group_id = ${deployKey.groupId.toString} and name_or_urlish = ${deployKey.nameOrUrlish} and version = ${deployKey.version}"""
+        .zQuery[Int].map(_.headOption)
 
-  private[utils] def storeIssueNumber(deployKey: DeployKey, issueNumber: Int): ZIO[Redis, RedisError, Unit] =
-    ZIO.serviceWithZIO[Redis] { redis =>
-      redis.hSet(redisHashKey, deployKey.asString -> issueNumber.toString).unit
-    }
+  private[utils] def storeIssueNumber(deployKey: DeployKey, issueNumber: Int): RIO[DataSource, Unit] =
+    Db.withDataSource:
+      sql"""insert into deploy_failure_issue (group_id, name_or_urlish, version, issue_number)
+            values (${deployKey.groupId.toString}, ${deployKey.nameOrUrlish}, ${deployKey.version}, $issueNumber)
+            on conflict (group_id, name_or_urlish, version) do update set issue_number = excluded.issue_number""".zUpdate.unit
 
-  private[utils] def forgetIssueNumber(deployKey: DeployKey): ZIO[Redis, RedisError, Unit] =
-    ZIO.serviceWithZIO[Redis] { redis =>
-      redis.hDel(redisHashKey, deployKey.asString).unit
-    }
+  private[utils] def forgetIssueNumber(deployKey: DeployKey): RIO[DataSource, Unit] =
+    Db.withDataSource:
+      sql"""delete from deploy_failure_issue
+            where group_id = ${deployKey.groupId.toString} and name_or_urlish = ${deployKey.nameOrUrlish} and version = ${deployKey.version}""".zUpdate.unit
 
   case class DeployFailureTrackerLive(gitHub: GitHub, config: AppConfig) extends DeployFailureTracker:
 
@@ -184,13 +184,13 @@ object DeployFailureTracker:
       deployKey: DeployKey,
       failure: DeployFailure,
       deployLog: Chunk[String],
-    ): URIO[Redis, Option[URL]] =
+    ): URIO[DataSource, Option[URL]] =
       if !shouldRun(failure) then ZIO.none
       else
         val repo = maybeRepo.get
         val title = issueTitle(deployKey)
 
-        val program: ZIO[Scope & Redis, Throwable, URL] =
+        val program: ZIO[Scope & DataSource, Throwable, URL] =
           defer:
             val maybeNum = lookupIssueNumber(deployKey).run
             maybeNum match
@@ -219,11 +219,11 @@ object DeployFailureTracker:
             ZIO.logWarningCause(s"deploy-failure tracker: failed to file/update issue for ${deployKey.asString}", cause).as(None)
           }
 
-    def resolveSuccess(deployKey: DeployKey): URIO[Redis, Unit] =
+    def resolveSuccess(deployKey: DeployKey): URIO[DataSource, Unit] =
       if maybeRepo.isEmpty || gitHub.maybeAuthToken.isEmpty then ZIO.unit
       else
         val repo = maybeRepo.get
-        val program: ZIO[Scope & Redis, Throwable, Unit] =
+        val program: ZIO[Scope & DataSource, Throwable, Unit] =
           defer:
             val maybeNum = lookupIssueNumber(deployKey).run
             maybeNum match

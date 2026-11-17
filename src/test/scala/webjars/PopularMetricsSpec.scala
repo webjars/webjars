@@ -1,28 +1,17 @@
 package webjars
 
-import com.dimafeng.testcontainers.GenericContainer
+import com.augustnagro.magnum.*
+import com.augustnagro.magnum.ziomagnum.*
 import com.jamesward.zio_mavencentral.MavenCentral
-import org.testcontainers.containers.wait.strategy.Wait
-import webjars.utils.{PopularMetrics, PopularMetricsLive, Valkey}
+import webjars.utils.{Db, PopularMetrics, PopularMetricsLive}
+import webjars.utils.Db.given
 import zio.*
-import zio.redis.{Redis, RedisConfig}
 import zio.test.*
 
-import java.time.ZoneOffset
+import java.time.LocalDate
+import javax.sql.DataSource
 
 object PopularMetricsSpec extends ZIOSpecDefault:
-
-  private val container: GenericContainer =
-    val c = GenericContainer(
-      dockerImage = "valkey/valkey:8.1",
-      exposedPorts = Seq(6379),
-      waitStrategy = Wait.forListeningPort()
-    )
-    c.start()
-    c
-
-  private val redisLayer: ZLayer[Any, Nothing, Redis] =
-    ZLayer.succeed(RedisConfig(container.host, container.mappedPort(6379))) ++ Valkey.codecSupplierLayer >>> Redis.singleNode.orDie
 
   private val popularMetrics: PopularMetrics = PopularMetricsLive()
 
@@ -32,98 +21,85 @@ object PopularMetricsSpec extends ZIOSpecDefault:
   private val reactId   = MavenCentral.ArtifactId("react")
   private val githubId  = MavenCentral.ArtifactId("github-com-Sortable-Sortable")
 
-  // Recompute the UTC date key the same way the implementation does, so we're
-  // testing the format rather than hardcoding a moving target.
-  private val todayKey: UIO[String] =
-    Clock.currentDateTime.map: now =>
-      s"popular:${now.atZoneSameInstant(ZoneOffset.UTC).toLocalDate}"
+  private def score(day: LocalDate, g: MavenCentral.GroupId, a: MavenCentral.ArtifactId): RIO[DataSource, Option[Long]] =
+    Db.withDataSource:
+      sql"select score from popular_daily where day = $day and group_id = ${g.toString} and artifact_id = ${a.toString}"
+        .zQuery[Long].map(_.headOption)
 
   // recordSearchAppearance / recordListFilesClick fork-daemon their work, so
-  // the call returns before Redis has been touched. Poll zScore until it
+  // the call returns before Postgres has been touched. Poll until the score
   // matches what we expect, with a hard upper bound.
-  private def awaitScore(key: String, member: String, expected: Double): ZIO[Redis, Nothing, Option[Double]] =
-    ZIO.serviceWithZIO[Redis](_.zScore(key, member))
-      .orDie
-      .repeatUntil(_.contains(expected))
-      .timeout(3.seconds)
-      .map(_.flatten)
+  private def awaitScore(g: MavenCentral.GroupId, a: MavenCentral.ArtifactId, expected: Long): RIO[DataSource, Option[Long]] =
+    PopularMetrics.today.flatMap: day =>
+      Live.live:
+        score(day, g, a).delay(20.millis)
+          .repeatUntil(_.contains(expected))
+          .timeout(3.seconds)
+          .map(_.flatten)
 
-  private def ttlOf(key: String): ZIO[Redis, Nothing, Duration] =
-    ZIO.serviceWithZIO[Redis](_.ttl(key)).orDie
-
-  private def keyExists(key: String): ZIO[Redis, Nothing, Boolean] =
-    ZIO.serviceWithZIO[Redis](_.exists(key).map(_ > 0L)).orDie
-
-  // Each test runs against a clean slate of the daily key it touches; tests
-  // share the same Redis instance, so without this the scores accumulate
-  // across cases.
-  private def flushToday: ZIO[Redis, Nothing, Unit] =
-    todayKey.flatMap(k => ZIO.serviceWithZIO[Redis](_.del(k)).orDie.unit)
+  private val rowCount: RIO[DataSource, Long] =
+    Db.withDataSource(sql"select count(*) from popular_daily".zQuery[Long].map(_.head))
 
   def spec = suite("PopularMetrics")(
 
     test("recordListFilesClick gives a non-github artifact the full listfiles weight"):
       for
-        _      <- flushToday
         _      <- popularMetrics.recordListFilesClick(groupId, jqueryId)
-        key    <- todayKey
-        score  <- awaitScore(key, "org.webjars:jquery", 50.0)
-      yield assertTrue(score.contains(50.0)),
+        score  <- awaitScore(groupId, jqueryId, 50)
+      yield assertTrue(score.contains(50L)),
 
     test("recordListFilesClick discounts github-com artifacts to 0.3×"):
       for
-        _      <- flushToday
         _      <- popularMetrics.recordListFilesClick(npmGroup, githubId)
-        key    <- todayKey
-        score  <- awaitScore(key, s"org.webjars.npm:${githubId.toString}", 15.0)
-      yield assertTrue(score.contains(15.0)),
+        score  <- awaitScore(npmGroup, githubId, 15)
+      yield assertTrue(score.contains(15L)),
 
     test("recordSearchAppearance writes one score per item with the right weights"):
       for
-        _        <- flushToday
         _        <- popularMetrics.recordSearchAppearance(Seq(
                       (groupId, jqueryId),
                       (groupId, reactId),
                       (npmGroup, githubId),
                     ))
-        key      <- todayKey
-        jq       <- awaitScore(key, "org.webjars:jquery", 10.0)
-        rc       <- awaitScore(key, "org.webjars:react", 10.0)
-        gh       <- awaitScore(key, s"org.webjars.npm:${githubId.toString}", 3.0)
+        jq       <- awaitScore(groupId, jqueryId, 10)
+        rc       <- awaitScore(groupId, reactId, 10)
+        gh       <- awaitScore(npmGroup, githubId, 3)
       yield assertTrue(
-        jq.contains(10.0),
-        rc.contains(10.0),
-        gh.contains(3.0),
+        jq.contains(10L),
+        rc.contains(10L),
+        gh.contains(3L),
       ),
+
+    test("an artifact listed twice in one search is counted twice"):
+      for
+        _      <- popularMetrics.recordSearchAppearance(Seq((groupId, jqueryId), (groupId, jqueryId)))
+        score  <- awaitScore(groupId, jqueryId, 20)
+      yield assertTrue(score.contains(20L)),
 
     test("repeated recordings accumulate (listfiles + search on the same artifact)"):
       for
-        _      <- flushToday
         _      <- popularMetrics.recordSearchAppearance(Seq((groupId, jqueryId)))
         _      <- popularMetrics.recordListFilesClick(groupId, jqueryId)
-        key    <- todayKey
-        score  <- awaitScore(key, "org.webjars:jquery", 60.0)   // 10 + 50
-      yield assertTrue(score.contains(60.0)),
+        score  <- awaitScore(groupId, jqueryId, 60)   // 10 + 50
+      yield assertTrue(score.contains(60L)),
 
     test("recordSearchAppearance with an empty list writes nothing"):
       for
-        _       <- flushToday
         _       <- popularMetrics.recordSearchAppearance(Seq.empty)
-        key     <- todayKey
         _       <- Live.live(ZIO.sleep(200.millis))    // give a daemon a chance to misbehave
-        exists  <- keyExists(key)
-      yield assertTrue(!exists),
+        count   <- rowCount
+      yield assertTrue(count == 0L),
 
-    test("daily key carries a TTL within the configured 32-day window"):
+    test("Db.purgeExpired drops days past the retention window"):
+      // purgeExpired compares against the database's date, not the TestClock.
+      val today = LocalDate.now(java.time.ZoneOffset.UTC)
+      def insert(day: LocalDate) =
+        PostgresContainer.execute(sql"insert into popular_daily values ($day, 'org.webjars', 'jquery', 10)")
       for
-        _    <- flushToday
-        _    <- popularMetrics.recordListFilesClick(groupId, jqueryId)
-        key  <- todayKey
-        _    <- awaitScore(key, "org.webjars:jquery", 50.0)
-        ttl  <- ttlOf(key)
-      yield assertTrue(
-        ttl.toDays >= 28L,   // 32 minus a generous boundary for slow CI / day rollover
-        ttl.toDays <= 32L,
-      ),
+        _      <- insert(today.minusDays(PopularMetrics.RetentionDays.toLong + 1))
+        _      <- insert(today.minusDays(PopularMetrics.RetentionDays.toLong - 1))
+        _      <- Db.purgeExpired
+        days   <- Db.withDataSource(sql"select day from popular_daily".zQuery[LocalDate])
+      yield assertTrue(days == Vector(today.minusDays(PopularMetrics.RetentionDays.toLong - 1))),
 
-  ).provideLayer(redisLayer) @@ TestAspect.sequential @@ TestAspect.timeout(60.seconds)
+  ).provide(PostgresContainer.freshDatabase) @@ TestAspect.sequential @@ TestAspect.timeout(60.seconds)

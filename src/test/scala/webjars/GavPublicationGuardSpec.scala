@@ -3,8 +3,10 @@ package webjars
 import com.jamesward.zio_mavencentral.MavenCentral
 import webjars.utils.GavPublicationGuard
 import zio.*
-import zio.redis.Redis
 import zio.test.*
+
+import java.util.UUID
+import javax.sql.DataSource
 
 object GavPublicationGuardSpec extends ZIOSpecDefault:
 
@@ -16,15 +18,9 @@ object GavPublicationGuardSpec extends ZIOSpecDefault:
     contentionTimeout = 5.seconds,
   ).toOption.get
 
-  private def clear(gav: MavenCentral.GroupArtifactVersion): ZIO[Redis, Throwable, Unit] =
-    ZIO.serviceWithZIO[Redis] { redis =>
-      redis.del(GavPublicationGuard.stateKey(gav)).unit
-    }
-
-  private def withGav[A](test: MavenCentral.GroupArtifactVersion => ZIO[Redis, Throwable, A]): ZIO[Redis, Throwable, A] =
+  private def withGav[A](test: MavenCentral.GroupArtifactVersion => ZIO[DataSource, Throwable, A]): ZIO[DataSource, Throwable, A] =
     Random.nextUUID.flatMap { id =>
-      val gav = MavenCentral.gav("org.webjars.test", s"guard-$id", "1.0.0")
-      clear(gav) *> test(gav).ensuring(clear(gav).ignoreLogged)
+      test(MavenCentral.gav("org.webjars.test", s"guard-$id", "1.0.0"))
     }
 
   def spec = suite("GavPublicationGuard")(
@@ -93,8 +89,7 @@ object GavPublicationGuardSpec extends ZIOSpecDefault:
     test("expired lease is recovered and Maven is rechecked before publishing") {
       withGav { gav =>
         for
-          redis <- ZIO.service[Redis]
-          _ <- redis.set(GavPublicationGuard.stateKey(gav), "publishing:abandoned-owner", expireTime = Some(100.millis))
+          _ <- GavPublicationGuard.claim(gav, UUID.randomUUID(), 100.millis)
           publishCalls <- Ref.make(0)
           outcome <- GavPublicationGuard.publish(gav, ZIO.succeed(true), config)(publishCalls.update(_ + 1))
           totalCalls <- publishCalls.get
@@ -117,9 +112,8 @@ object GavPublicationGuardSpec extends ZIOSpecDefault:
         withGav { gav =>
           for
             outcome <- GavPublicationGuard.publish(gav, ZIO.succeed(false), rapid)(ZIO.sleep(10.millis))
-            redis <- ZIO.service[Redis]
-            state <- redis.get(GavPublicationGuard.stateKey(gav)).returning[String]
-          yield outcome == GavPublicationGuard.Outcome.Published && state.exists(_.startsWith("complete:"))
+            state <- GavPublicationGuard.state(gav)
+          yield outcome == GavPublicationGuard.Outcome.Published && state.exists(_.phase == GavPublicationGuard.Phase.Complete)
         }
       }.map(results => assertTrue(results.forall(identity)))
     },
@@ -134,8 +128,7 @@ object GavPublicationGuardSpec extends ZIOSpecDefault:
 
       withGav { gav =>
         for
-          redis <- ZIO.service[Redis]
-          _ <- redis.set(GavPublicationGuard.stateKey(gav), "publishing:other", expireTime = Some(2.seconds))
+          _ <- GavPublicationGuard.claim(gav, UUID.randomUUID(), 2.seconds)
           publishCalls <- Ref.make(0)
           result <- GavPublicationGuard.publish(gav, ZIO.succeed(false), shortWait)(publishCalls.update(_ + 1)).exit
           totalCalls <- publishCalls.get
@@ -165,23 +158,17 @@ object GavPublicationGuardSpec extends ZIOSpecDefault:
     test("an old owner cannot release a replacement owner's lease") {
       withGav { gav =>
         for
-          redis <- ZIO.service[Redis]
-          key = GavPublicationGuard.stateKey(gav)
-          _ <- redis.set(key, "publishing:replacement-owner")
-          released <- GavPublicationGuard.release(redis, key, "publishing:old-owner")
-          transitioned <- GavPublicationGuard.transition(
-            redis,
-            key,
-            "publishing:old-owner",
-            "complete:old-owner",
-            10.seconds,
-          )
-          remaining <- redis.get(key).returning[String]
+          replacement = UUID.randomUUID()
+          oldOwner = UUID.randomUUID()
+          _ <- GavPublicationGuard.claim(gav, replacement, 10.seconds)
+          released <- GavPublicationGuard.release(gav, oldOwner)
+          transitioned <- GavPublicationGuard.transition(gav, oldOwner, GavPublicationGuard.Phase.Complete, 10.seconds)
+          remaining <- GavPublicationGuard.state(gav)
         yield assertTrue(
           !released,
           !transitioned,
-          remaining.contains("publishing:replacement-owner"),
+          remaining.contains(GavPublicationGuard.State(GavPublicationGuard.Phase.Publishing, replacement)),
         )
       }
     },
-  ).provide(TestInfrastructure.sharedRedisLayer) @@ TestAspect.withLiveClock @@ TestAspect.sequential @@ TestAspect.timeout(30.seconds)
+  ).provide(TestInfrastructure.databaseLayer) @@ TestAspect.withLiveClock @@ TestAspect.sequential @@ TestAspect.timeout(30.seconds)

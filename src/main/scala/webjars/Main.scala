@@ -9,7 +9,7 @@ import webjars.utils.*
 import zio.*
 import zio.direct.*
 import zio.http.*
-import zio.redis.Redis
+import javax.sql.DataSource
 
 object Main extends ZIOAppDefault:
 
@@ -40,7 +40,7 @@ object Main extends ZIOAppDefault:
           guard.middleware
         port = sys.env.get("PORT").flatMap(_.toIntOption).getOrElse(9000)
         _ <- ZIO.logInfo(s"Starting server on port $port")
-        _ <- Server.serve(allRoutes).provideSome[Client & Redis & MavenCentral.Deploy.Sonatype & MavenCentral.MavenCentralRepo & CrawlerLimiter[MavenCentral.GroupArtifactVersion]](
+        _ <- Server.serve(allRoutes).provideSome[Client & DataSource & MavenCentral.Deploy.Sonatype & MavenCentral.MavenCentralRepo & CrawlerLimiter[MavenCentral.GroupArtifactVersion]](
           Server.defaultWith(_.binding(java.net.InetSocketAddress("0.0.0.0", port))),
         )
       yield ()
@@ -48,7 +48,7 @@ object Main extends ZIOAppDefault:
       AppConfig.live,
       Client.default,
       Cache.live,
-      Valkey.live,
+      Db.fromEnv("webjars", 5),
       Git.live,
       GitHub.live,
       SemVer.live,

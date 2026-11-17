@@ -3,7 +3,6 @@ package webjars
 import webjars.utils.*
 import zio.*
 import zio.http.{Response, URL}
-import zio.redis.Redis
 import zio.test.*
 import zio.test.TestAspect
 
@@ -81,8 +80,8 @@ object DeployFailureTrackerSpec extends ZIOSpecDefault:
       tracker  = DeployFailureTracker.DeployFailureTrackerLive(gitHub, config)
     yield (tracker, ref)
 
-  /** Each Redis-touching test gets its own deploy key so the shared
-   *  valkey container's `deploy-failures` hash doesn't leak state across
+  /** Each test gets its own deploy key (and its own database), so
+   *  `deploy_failure_issue` rows don't leak state across
    *  tests run in the same suite. */
   private def keyFor(name: String): DeployFailureTracker.DeployKey =
     DeployFailureTracker.DeployKey(
@@ -120,7 +119,7 @@ object DeployFailureTrackerSpec extends ZIOSpecDefault:
       },
     ),
     suite("trackFailure")(
-      test("UserInput failure → no issue, no Redis write") {
+      test("UserInput failure → no issue, no index write") {
         val key = keyFor("user-input")
         val program = for
           (tracker, ref) <- trackerWith(Some("token"), Some(testRepo))
@@ -131,7 +130,7 @@ object DeployFailureTrackerSpec extends ZIOSpecDefault:
           result.isEmpty,
           state.issues.isEmpty,
         )
-        program.provideLayer(TestInfrastructure.sharedRedisLayer)
+        program.provideLayer(TestInfrastructure.databaseLayer)
       },
       test("Transient failure → no issue") {
         val key = keyFor("transient")
@@ -144,7 +143,7 @@ object DeployFailureTrackerSpec extends ZIOSpecDefault:
           result.isEmpty,
           state.issues.isEmpty,
         )
-        program.provideLayer(TestInfrastructure.sharedRedisLayer)
+        program.provideLayer(TestInfrastructure.databaseLayer)
       },
       test("Systemic failure with no token → no issue (short-circuit, no error)") {
         val key = keyFor("no-token")
@@ -157,7 +156,7 @@ object DeployFailureTrackerSpec extends ZIOSpecDefault:
           result.isEmpty,
           state.issues.isEmpty,
         )
-        program.provideLayer(TestInfrastructure.sharedRedisLayer)
+        program.provideLayer(TestInfrastructure.databaseLayer)
       },
       test("Systemic failure with no repo configured → no issue") {
         val key = keyFor("no-repo")
@@ -170,16 +169,16 @@ object DeployFailureTrackerSpec extends ZIOSpecDefault:
           result.isEmpty,
           state.issues.isEmpty,
         )
-        program.provideLayer(TestInfrastructure.sharedRedisLayer)
+        program.provideLayer(TestInfrastructure.databaseLayer)
       },
-      test("Systemic failure → files a new issue and stores the number in Redis") {
+      test("Systemic failure → files a new issue and stores the number in the index") {
         val key = keyFor("new-issue")
         val program = for
           (tracker, ref) <- trackerWith(Some("token"), Some(testRepo))
           failure         = DeployFailure.classify(LicenseNotFoundException("nope - new-issue 0.0.0"))
           result         <- tracker.trackFailure(key, failure, Chunk("Got package info", "Resolving licenses"))
           state          <- ref.get
-          stored         <- ZIO.serviceWithZIO[Redis](_.hGet("deploy-failures", key.asString).returning[String])
+          stored         <- DeployFailureTracker.lookupIssueNumber(key).map(_.map(_.toString))
         yield
           val maybeIssue = state.issues.values.headOption
           assertTrue(
@@ -191,7 +190,7 @@ object DeployFailureTrackerSpec extends ZIOSpecDefault:
             maybeIssue.exists(_.body.contains("nope - new-issue 0.0.0")),
             stored.contains(maybeIssue.get.number.toString),
           )
-        program.provideLayer(TestInfrastructure.sharedRedisLayer)
+        program.provideLayer(TestInfrastructure.databaseLayer)
       },
       test("repeated Systemic failure → comments on existing issue, no duplicate") {
         val key = keyFor("repeat")
@@ -210,14 +209,14 @@ object DeployFailureTrackerSpec extends ZIOSpecDefault:
             maybeIssue.exists(_.comments.size == 1),
             maybeIssue.exists(_.comments.exists(_.contains("second failure"))),
           )
-        program.provideLayer(TestInfrastructure.sharedRedisLayer)
+        program.provideLayer(TestInfrastructure.databaseLayer)
       },
-      test("Systemic failure with stale-Redis-but-existing-open-issue → adopts it instead of duplicating") {
-        val key = keyFor("stale-redis")
+      test("Systemic failure with lost-index-but-existing-open-issue → adopts it instead of duplicating") {
+        val key = keyFor("lost-index")
         val program = for
           (tracker, ref) <- trackerWith(Some("token"), Some(testRepo))
           // Pre-populate state with an open issue matching the title we'd file.
-          // Simulates: prior run filed the issue, then Redis was wiped.
+          // Simulates: prior run filed the issue, then the index was lost.
           _ <- ref.update(s => s.withIssue(FakeIssue(
             number = 42,
             title = s"Deploy failed: ${key.asString}",
@@ -226,17 +225,17 @@ object DeployFailureTrackerSpec extends ZIOSpecDefault:
             comments = Nil,
             closed = false,
           )))
-          failure  = DeployFailure.classify(LicenseNotFoundException("after redis wipe"))
+          failure  = DeployFailure.classify(LicenseNotFoundException("after index loss"))
           result  <- tracker.trackFailure(key, failure, Chunk("log"))
           state   <- ref.get
-          stored  <- ZIO.serviceWithZIO[Redis](_.hGet("deploy-failures", key.asString).returning[String])
+          stored  <- DeployFailureTracker.lookupIssueNumber(key).map(_.map(_.toString))
         yield assertTrue(
           result.isDefined,
           state.issues.size == 1,                      // no new issue created
           state.issues.get(42).exists(_.comments.size == 1), // commented on the existing one
-          stored.contains("42"),                       // Redis re-populated to the existing #
+          stored.contains("42"),                       // index re-populated to the existing #
         )
-        program.provideLayer(TestInfrastructure.sharedRedisLayer)
+        program.provideLayer(TestInfrastructure.databaseLayer)
       },
       test("findOpenIssueByTitle is exact-match — different title → new issue") {
         val key = keyFor("title-mismatch")
@@ -259,7 +258,7 @@ object DeployFailureTrackerSpec extends ZIOSpecDefault:
           state.issues.contains(7),
           state.issues(7).comments.isEmpty, // unchanged
         )
-        program.provideLayer(TestInfrastructure.sharedRedisLayer)
+        program.provideLayer(TestInfrastructure.databaseLayer)
       },
     ),
     suite("resolveSuccess")(
@@ -270,9 +269,9 @@ object DeployFailureTrackerSpec extends ZIOSpecDefault:
           _              <- tracker.resolveSuccess(key)
           state          <- ref.get
         yield assertTrue(state.issues.isEmpty)
-        program.provideLayer(TestInfrastructure.sharedRedisLayer)
+        program.provideLayer(TestInfrastructure.databaseLayer)
       },
-      test("after a Systemic failure → close + drop Redis entry on success") {
+      test("after a Systemic failure → close + drop index entry on success") {
         val key = keyFor("resolve-close")
         val program = for
           (tracker, ref) <- trackerWith(Some("token"), Some(testRepo))
@@ -280,7 +279,7 @@ object DeployFailureTrackerSpec extends ZIOSpecDefault:
           _              <- tracker.trackFailure(key, failure, Chunk("log"))
           _              <- tracker.resolveSuccess(key)
           state          <- ref.get
-          storedAfter    <- ZIO.serviceWithZIO[Redis](_.hGet("deploy-failures", key.asString).returning[String])
+          storedAfter    <- DeployFailureTracker.lookupIssueNumber(key).map(_.map(_.toString))
         yield
           val maybeIssue = state.issues.values.headOption
           assertTrue(
@@ -289,7 +288,7 @@ object DeployFailureTrackerSpec extends ZIOSpecDefault:
             maybeIssue.exists(_.comments.exists(_.contains("Closed automatically"))),
             storedAfter.isEmpty,
           )
-        program.provideLayer(TestInfrastructure.sharedRedisLayer)
+        program.provideLayer(TestInfrastructure.databaseLayer)
       },
     ),
   ) @@ TestAspect.timeout(30.seconds)

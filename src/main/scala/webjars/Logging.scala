@@ -14,7 +14,7 @@ import zio.logging.slf4j.bridge.Slf4jBridge
  * status, duration, or User-Agent.
  *
  * The SLF4J v2 bridge ([[Slf4jBridge]]) routes all SLF4J logging from
- * third-party libraries (testcontainers, netty, redis, …) into ZIO logging.
+ * third-party libraries (testcontainers, netty, the Postgres driver, HikariCP, Flyway, …) into ZIO logging.
  * It is the only SLF4J provider on the classpath — there is no
  * `slf4j-simple` binding — so there is no "Failed to load StaticLoggerBinder
  * / NOP logger" warning and no risk of circular logging.
@@ -27,4 +27,9 @@ object Logging:
   val bootstrap: ZLayer[Any, Nothing, Unit] =
     Runtime.removeDefaultLoggers >>> consoleLogger(
       ConsoleLoggerConfig(format, LogFilter.LogLevelByNameConfig.default),
-    ) >+> Slf4jBridge.initialize
+    // Without FiberRef propagation because of https://github.com/zio/zio-logging/issues/1180:
+    // `initialize` runs every FiberRef's `join` on each slf4j log call, and zio-magnum's join
+    // closes the transaction's connection. The cost is that slf4j lines don't carry the
+    // calling fiber's annotations/spans. Switch back to `Slf4jBridge.initialize` once a fixed
+    // release is out.
+    ) >+> Slf4jBridge.initializeWithoutFiberRefPropagation

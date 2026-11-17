@@ -1,30 +1,15 @@
 package webjars
 
-import com.dimafeng.testcontainers.GenericContainer
 import com.jamesward.zio_mavencentral.MavenCentral
 import webjars.models.WebJarVersion
-import webjars.utils.{Valkey, WebJarsCache}
+import webjars.utils.WebJarsCache
 import webjars.utils.WebJarsCache.WebJarMeta
 import zio.*
-import zio.redis.{Redis, RedisConfig}
 import zio.test.*
 
 import java.time.ZonedDateTime
-import org.testcontainers.containers.wait.strategy.Wait
 
 object WebJarsCacheSpec extends ZIOSpecDefault:
-
-  private val container: GenericContainer =
-    val c = GenericContainer(
-      dockerImage = "valkey/valkey:8.1",
-      exposedPorts = Seq(6379),
-      waitStrategy = Wait.forListeningPort()
-    )
-    c.start()
-    c
-
-  private val valkeyLayer: ZLayer[Any, Nothing, Redis] =
-    ZLayer.succeed(RedisConfig(container.host, container.mappedPort(6379))) ++ Valkey.codecSupplierLayer >>> Redis.singleNode.orDie
 
   def spec = suite("WebJarsCache")(
     test("store and retrieve artifact details") {
@@ -91,4 +76,4 @@ object WebJarsCacheSpec extends ZIOSpecDefault:
         afterDuplicate == Set("1.0.1", "0.5.0-broken"),
       )
     },
-  ).provideLayer(valkeyLayer) @@ TestAspect.sequential @@ TestAspect.timeout(60.seconds)
+  ).provide(PostgresContainer.freshDatabase) @@ TestAspect.sequential @@ TestAspect.timeout(60.seconds)

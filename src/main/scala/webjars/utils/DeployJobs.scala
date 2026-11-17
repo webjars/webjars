@@ -4,7 +4,7 @@ import com.jamesward.zio_mavencentral.MavenCentral.MavenCentralRepo
 import zio.*
 import zio.direct.*
 import zio.http.Client
-import zio.redis.Redis
+import javax.sql.DataSource
 import zio.stream.ZStream
 
 trait DeployJobs[Env]:
@@ -13,7 +13,7 @@ trait DeployJobs[Env]:
    *  job is already running. Concurrent requests for the same
    *  (deployable, nameOrUrlish, upstreamVersion) — including transitive
    *  dependencies of other in-flight jobs — share a single deploy. */
-  def deploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, deployDependencies: Boolean = true): ZStream[Client & Redis & MavenCentralRepo & Env, Nothing, String]
+  def deploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, deployDependencies: Boolean = true): ZStream[Client & DataSource & MavenCentralRepo & Env, Nothing, String]
 
 object DeployJobs:
 
@@ -58,7 +58,7 @@ object DeployJobs:
     jobs: Ref.Synchronized[Map[Key, Job]],
   ) extends DeployJobs[Env]:
 
-    def deploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, deployDependencies: Boolean = true): ZStream[Client & Redis & MavenCentralRepo & Env, Nothing, String] =
+    def deploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, deployDependencies: Boolean = true): ZStream[Client & DataSource & MavenCentralRepo & Env, Nothing, String] =
       val key = Key(deployable.name, nameOrUrlish, upstreamVersion)
       ZStream.unwrap:
         defer:
@@ -73,11 +73,11 @@ object DeployJobs:
 
           subscribe(job)
 
-    private def runProducer(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, deployDependencies: Boolean, job: Job, key: Key): URIO[Client & Redis & MavenCentralRepo & Env, Unit] =
+    private def runProducer(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, deployDependencies: Boolean, job: Job, key: Key): URIO[Client & DataSource & MavenCentralRepo & Env, Unit] =
       val deployKey = DeployFailureTracker.DeployKey(deployable.groupId, nameOrUrlish, upstreamVersion)
 
-      val work: ZIO[Client & Redis & MavenCentralRepo & Env, Throwable, Unit] =
-        ZIO.scoped[Client & Redis & MavenCentralRepo & Env]:
+      val work: ZIO[Client & DataSource & MavenCentralRepo & Env, Throwable, Unit] =
+        ZIO.scoped[Client & DataSource & MavenCentralRepo & Env]:
           defer:
             val deployStream =
               if deployDependencies then
@@ -100,7 +100,7 @@ object DeployJobs:
      *  and (for Systemic failures) the URL of the GitHub tracking issue
      *  the tracker filed/updated. The tracker call is bounded by
      *  `trackerTimeout` so a slow GitHub never drags the SSE stream. */
-    private def handleFailure(job: Job, deployKey: DeployFailureTracker.DeployKey, e: Throwable): URIO[Redis, Unit] =
+    private def handleFailure(job: Job, deployKey: DeployFailureTracker.DeployKey, e: Throwable): URIO[DataSource, Unit] =
       val failure = DeployFailure.classify(e)
       val logMessage = s"deploy failed groupId=${deployKey.groupId} name=${deployKey.nameOrUrlish} version=${deployKey.version} category=${DeployFailure.tag(failure)}"
       val logCause = failure match
@@ -127,10 +127,10 @@ object DeployJobs:
      *  it had filed for this deploy key. Bounded the same way as the
      *  failure path so a slow GitHub doesn't keep the job alive. Errors
      *  on the close are swallowed by `tracker.resolveSuccess` itself. */
-    private def handleSuccess(deployKey: DeployFailureTracker.DeployKey): URIO[Redis, Unit] =
+    private def handleSuccess(deployKey: DeployFailureTracker.DeployKey): URIO[DataSource, Unit] =
       tracker.resolveSuccess(deployKey).timeout(trackerTimeout).unit
 
-    private def runDependencyDeploys(deployable: Deployable, packageInfo: PackageInfo, job: Job): ZIO[Scope & Client & Redis & MavenCentralRepo & Env, Throwable, Unit] =
+    private def runDependencyDeploys(deployable: Deployable, packageInfo: PackageInfo, job: Job): ZIO[Scope & Client & DataSource & MavenCentralRepo & Env, Throwable, Unit] =
       defer:
         publish(job, "Determining dependency graph").run
         val depGraph = deployable.depGraph(packageInfo).run

@@ -6,24 +6,17 @@ import webjars.config.AppConfig
 import webjars.utils.*
 import zio.*
 import zio.http.Client
-import zio.redis.Redis
+import javax.sql.DataSource
 
 /**
- * One-off cleanup of stale entries that accumulated in `WebJarsCache`
- * before the going-forward fixes landed:
+ * One-off cleanup of parent POMs (packaging=pom) that accumulated in
+ * `WebJarsCache` before the going-forward fix landed: multi-module parents
+ * like `org.webjars:when-parent` that have no jar contents and shouldn't
+ * be in cache.
  *
- *   1. Empty-artifactId entries from pre-0.9.x zio-mavencentral parsing
- *      (a regex bug that let `<a href="/">` directory-listing links
- *      leak through as empty-string artifactIds).
- *
- *   2. Parent POMs (packaging=pom) — multi-module parents like
- *      `org.webjars:when-parent` that have no jar contents and shouldn't
- *      be in cache.
- *
- * Going forward, both categories are blocked at the cache write boundary:
- *   - `WebJarsCache.setArtifactDetails` rejects empty artifactIds.
- *   - `MavenCentralWebJars.refreshArtifact` skips and tombstones
- *     pom-packaged artifacts.
+ * Going forward, `MavenCentralWebJars.refreshArtifact` skips and tombstones
+ * pom-packaged artifacts (and the `webjar` table rejects empty artifactIds,
+ * the other legacy corruption).
  *
  * So this is a one-time migration. Run after deploying the going-forward
  * fixes, then forget about it:
@@ -43,7 +36,7 @@ object Cleanup extends ZIOAppDefault:
   override val bootstrap: ZLayer[ZIOAppArgs, Any, Any] = Logging.bootstrap
 
   def run: ZIO[ZIOAppArgs & Scope, Any, Any] =
-    val program: ZIO[Client & Redis & MavenCentralRepo & MavenCentralWebJars & AllDeployables, Throwable, Unit] =
+    val program: ZIO[Client & DataSource & MavenCentralRepo & MavenCentralWebJars & AllDeployables, Throwable, Unit] =
       for
         allDeployables <- ZIO.service[AllDeployables]
         mc             <- ZIO.service[MavenCentralWebJars]
@@ -69,7 +62,7 @@ object Cleanup extends ZIOAppDefault:
       AppConfig.live,
       Client.default,
       Cache.live,
-      Valkey.live,
+      Db.fromEnv("cleanup", 3),
       Git.live,
       GitHub.live,
       SemVer.live,

@@ -1,22 +1,19 @@
 package webjars
 
 import com.jamesward.zio_mavencentral.MavenCentral
-import com.dimafeng.testcontainers.GenericContainer
-import org.testcontainers.containers.wait.strategy.Wait
 import webjars.utils.*
 import zio.*
 import zio.http.{Client, ZClientAspect}
-import zio.redis.{CodecSupplier, Redis, RedisConfig}
-import zio.schema.Schema
-import zio.schema.codec.{BinaryCodec, ProtobufCodec}
 import zio.test.*
+
+import javax.sql.DataSource
 
 // End-to-end smoke test of the missing-only + tombstones refresh:
 //   1. Hydrate the cache fully from the live /all endpoint.
 //   2. First refreshAll: handful of "missing" artifacts (those that
 //      appeared on MC after our /all snapshot, plus orphan listings).
 //      Successes go in the cache; failures (404 on metadata, etc.) go
-//      in the per-group tombstone set.
+//      in the tombstone table.
 //   3. Second refreshAll: with the cache and tombstones populated, this
 //      run should do essentially no work — just the two per-group
 //      `fetchArtifactIds` calls.
@@ -36,23 +33,6 @@ import zio.test.*
 // requests per run it's still real network traffic.
 object RefresherIntegrationSpec extends ZIOSpecDefault:
 
-  private val container: GenericContainer =
-    val c = GenericContainer(
-      dockerImage = "valkey/valkey:8.1",
-      exposedPorts = Seq(6379),
-      waitStrategy = Wait.forListeningPort()
-    )
-    c.start()
-    c
-
-  private val codecSupplier: CodecSupplier = new CodecSupplier:
-    def get[A: Schema]: BinaryCodec[A] = ProtobufCodec.protobufCodec
-
-  private val redisLayer: ZLayer[Any, Nothing, Redis] =
-    ZLayer.succeed(RedisConfig(container.host, container.mappedPort(6379))) ++
-      ZLayer.succeed(codecSupplier) >>> Redis.singleNode.orDie
-
-
   private val classicGroup = MavenCentral.GroupId("org.webjars")
   private val npmGroup     = MavenCentral.GroupId("org.webjars.npm")
   private val groupIds     = Set(classicGroup, npmGroup)
@@ -67,7 +47,7 @@ object RefresherIntegrationSpec extends ZIOSpecDefault:
   // GETs per group, ~4 total).
   private val SecondRunBudget: Duration =  5.seconds
 
-  private def runRefresh(mc: MavenCentralWebJars): ZIO[Client & Redis & MavenCentral.MavenCentralRepo, Throwable, Long] =
+  private def runRefresh(mc: MavenCentralWebJars): ZIO[Client & DataSource & MavenCentral.MavenCentralRepo, Throwable, Long] =
     for
       start  <- Clock.nanoTime
       _      <- mc.refreshAll(groupIds)
@@ -115,6 +95,6 @@ object RefresherIntegrationSpec extends ZIOSpecDefault:
       ,
   ).provide(
     Client.default.update(_ @@ ZClientAspect.requestLogging()),
-    redisLayer,
+    PostgresContainer.freshDatabase,
     MavenCentral.MavenCentralRepo.live,
   ) @@ TestAspect.ifEnvSet("RUN_REFRESH_INTEGRATION")

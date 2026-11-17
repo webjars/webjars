@@ -4,7 +4,7 @@ import com.jamesward.zio_mavencentral.MavenCentral
 import nl.vroste.rezilience.Timeout
 import zio.*
 import zio.cache.{Cache as ZCache, Lookup}
-import zio.redis.Redis
+import javax.sql.DataSource
 
 /**
  * Bounded cache of `/listfiles` results, keyed by GAV.
@@ -21,7 +21,7 @@ import zio.redis.Redis
  * request fibers indefinitely.
  *
  * The numFiles backfill (see [[backfillNumFiles]]) runs only on a miss. It
- * used to run on every request, forking a daemon Redis read per hit.
+ * used to run on every request, forking a daemon database read per hit.
  */
 case class FileListCache(cache: ZCache[MavenCentral.GroupArtifactVersion, Throwable, List[String]]):
   def get(gav: MavenCentral.GroupArtifactVersion): Task[List[String]] =
@@ -36,10 +36,10 @@ object FileListCache:
   /**
    * The file-service has already produced the file list, so its size is the
    * version's numFiles. Only written when the cached version is missing it.
-   * Forked so the response doesn't wait on Redis and a Redis blip can't fail
+   * Forked so the response doesn't wait on Postgres and a database blip can't fail
    * the request.
    */
-  private def backfillNumFiles(gav: MavenCentral.GroupArtifactVersion, fileList: List[String]): URIO[Redis, Unit] =
+  private def backfillNumFiles(gav: MavenCentral.GroupArtifactVersion, fileList: List[String]): URIO[DataSource, Unit] =
     val ga = MavenCentral.GroupArtifact(gav.groupId, gav.artifactId)
     val version = gav.version.toString
     WebJarsCache.getArtifact(ga)
@@ -53,12 +53,12 @@ object FileListCache:
       .forkDaemon
       .unit
 
-  val live: ZLayer[WebJarsFileService & Redis, Nothing, FileListCache] =
+  val live: ZLayer[WebJarsFileService & DataSource, Nothing, FileListCache] =
     ZLayer.scoped:
       for
         fileService <- ZIO.service[WebJarsFileService]
         timeout     <- Timeout.make(upstreamTimeout)
-        lookup       = Lookup[MavenCentral.GroupArtifactVersion, Redis, Throwable, List[String]]: gav =>
+        lookup       = Lookup[MavenCentral.GroupArtifactVersion, DataSource, Throwable, List[String]]: gav =>
                          timeout(ZIO.scoped(fileService.getFileList(gav)))
                            .mapError(_.fold(Exception(s"Timed out listing files for $gav after $upstreamTimeout"), identity))
                            .tap(backfillNumFiles(gav, _))

@@ -4,8 +4,9 @@ import com.jamesward.zio_mavencentral.MavenCentral
 import webjars.models.WebJarVersion
 import webjars.utils.*
 import webjars.utils.WebJarsCache.WebJarMeta
+import com.augustnagro.magnum.sql
 import zio.*
-import zio.redis.Redis
+import javax.sql.DataSource
 import zio.test.*
 
 import java.time.ZonedDateTime
@@ -17,13 +18,12 @@ import java.time.ZonedDateTime
  *  We don't exercise [[MavenCentralWebJars.refreshAll]] or
  *  [[refreshGroup]] here — those hit real Maven Central and are covered
  *  by [[RefresherIntegrationSpec]] (env-gated). The contract under test
- *  is local: given a Redis cache with some `None` versions, does the
+ *  is local: given a cache with some `None` versions, does the
  *  backfill fill the right ones and tolerate per-version failures? */
 object MavenCentralWebJarsSpec extends ZIOSpecDefault:
 
-  // Each test uses its own groupId so the shared Valkey container's
-  // hash doesn't bleed state between tests. We can't easily flush
-  // between tests because other suites share the same Redis layer.
+  // Each test uses its own groupId so tests in this suite (which share one
+  // database) don't bleed state into each other.
   private def groupFor(testName: String) = MavenCentral.GroupId(s"org.webjars.test.$testName")
 
   private def artifact(g: MavenCentral.GroupId, name: String) = MavenCentral.GroupArtifact(g, MavenCentral.ArtifactId(name))
@@ -72,7 +72,7 @@ object MavenCentralWebJarsSpec extends ZIOSpecDefault:
   /** Build the unit under test wired to a recording fake. We construct
    *  the live impl directly because the trait method we exercise
    *  (`refreshMissingNumFiles`) doesn't need `MavenCentralRepo` — it
-   *  reads from Redis and calls the file service. */
+   *  reads from the cache and calls the file service. */
   private def buildMC(
     groupId: MavenCentral.GroupId,
     callsRef: Ref[Vector[MavenCentral.GroupArtifactVersion]],
@@ -95,7 +95,7 @@ object MavenCentralWebJarsSpec extends ZIOSpecDefault:
 
   /** Helper: write a known artifact into the cache with the given
    *  versions (each with optional numFiles). */
-  private def seed(ga: MavenCentral.GroupArtifact, versions: List[(String, Option[Int])]): ZIO[Redis, Throwable, Unit] =
+  private def seed(ga: MavenCentral.GroupArtifact, versions: List[(String, Option[Int])]): ZIO[DataSource, Throwable, Unit] =
     val webJarVersions = versions.map { case (n, nf) => WebJarVersion(n, nf) }
     WebJarsCache.setArtifactDetails(
       ga,
@@ -103,7 +103,7 @@ object MavenCentralWebJarsSpec extends ZIOSpecDefault:
     )
 
   /** Helper: read the versions back, in the order the cache stored them. */
-  private def readVersions(ga: MavenCentral.GroupArtifact): ZIO[Redis, Throwable, List[WebJarVersion]] =
+  private def readVersions(ga: MavenCentral.GroupArtifact): ZIO[DataSource, Throwable, List[WebJarVersion]] =
     WebJarsCache.getArtifact(ga).map(_.map(_.versions).getOrElse(List.empty))
 
   def spec = suite("MavenCentralWebJarsSpec")(
@@ -337,55 +337,6 @@ object MavenCentralWebJarsSpec extends ZIOSpecDefault:
       )
     },
 
-    test("cleanupCachedArtifacts removes empty-artifactId entries directly via Redis") {
-      // Empty-artifactId entries can't go through setArtifactDetails
-      // (the guard above rejects them), so we plant one via raw HSET
-      // to simulate the legacy stale data we found in production.
-      val groupId   = groupFor("cleanup-empty-aid")
-      val realArt   = artifact(groupId, "real")
-      val realMeta  = WebJarMeta("real", "https://example.test", List(WebJarVersion("1.0.0", Some(5))), ZonedDateTime.now())
-      val emptyMeta = WebJarMeta("", "https://github.com/webjars/", List(WebJarVersion("5.0.0", None)), ZonedDateTime.now())
-
-      // Test scaffolding: a MavenCentralWebJarsLive that returns a
-      // synthetic <packaging>jar</packaging> POM for everything, so
-      // `cleanupCachedArtifacts`'s Phase 2 (parent-POM check)
-      // doesn't accidentally remove the real artifact in this test.
-      def jarOnlyMC(callsRef: Ref[Vector[MavenCentral.GroupArtifactVersion]]) = new MavenCentralWebJarsLive(
-        TestInfrastructure.testConfig,
-        FakeFileService(callsRef),
-        new AllDeployables:
-          def fromGroupId(g: MavenCentral.GroupId)  = None
-          def fromName(n: String)                   = None
-          def groupIds(): Set[MavenCentral.GroupId] = Set(groupId)
-        ,
-        TestInfrastructure.noopSearchIndex,
-        TestInfrastructure.noopPopularRanking,
-      ):
-        override def fetchPom(gav: MavenCentral.GroupArtifactVersion): ZIO[MavenCentral.MavenCentralRepo, Throwable, scala.xml.Elem] =
-          ZIO.succeed(<project><artifactId>{gav.artifactId.toString}</artifactId><packaging>jar</packaging></project>)
-
-      for
-        callsRef <- Ref.make(Vector.empty[MavenCentral.GroupArtifactVersion])
-        // Plant a normal entry through the legitimate API.
-        _        <- WebJarsCache.setArtifactDetails(realArt, realMeta)
-        // Plant an empty-artifactId entry via raw HSET (bypassing the
-        // guard) to simulate stale data from before 0.9.x.
-        _        <- ZIO.serviceWithZIO[Redis](_.hSet(groupId.toString, "" -> emptyMeta).unit)
-        // Sanity-check that both are present before cleanup.
-        before   <- ZIO.serviceWithZIO[Redis](_.hKeys(groupId.toString).returning[String]).map(_.toSet)
-        // Run cleanup.
-        cleaned  <- jarOnlyMC(callsRef).cleanupCachedArtifacts(groupId)
-        after    <- ZIO.serviceWithZIO[Redis](_.hKeys(groupId.toString).returning[String]).map(_.toSet)
-      yield assertTrue(
-        before.contains(""),
-        before.contains("real"),
-        cleaned == 1,
-        // Empty key is gone, real key survived.
-        !after.contains(""),
-        after.contains("real"),
-      )
-    },
-
     test("cleanupCachedArtifacts removes pom-packaged entries and tombstones them") {
       val groupId    = groupFor("cleanup-pom-pkg")
       val parentArt  = artifact(groupId, "when-parent")
@@ -417,11 +368,11 @@ object MavenCentralWebJarsSpec extends ZIOSpecDefault:
         _          <- WebJarsCache.setArtifactDetails(parentArt, parentMeta)
         _          <- WebJarsCache.setArtifactDetails(realArt, realMeta)
         cleaned    <- pomAwareMC(callsRef).cleanupCachedArtifacts(groupId)
-        after      <- ZIO.serviceWithZIO[Redis](_.hKeys(groupId.toString).returning[String]).map(_.toSet)
+        after      <- WebJarsCache.getArtifacts(groupId).map(_.keySet.map(_.toString))
         tombstones <- WebJarsCache.getTombstones(groupId)
       yield assertTrue(
         cleaned == 1,
-        // Parent POM is gone from the hash AND tombstoned.
+        // Parent POM is gone from the cache AND tombstoned.
         !after.contains("when-parent"),
         tombstones.contains(MavenCentral.ArtifactId("when-parent")),
         // Real artifact survived and is NOT tombstoned.
@@ -457,7 +408,7 @@ object MavenCentralWebJarsSpec extends ZIOSpecDefault:
         mc        = jarOnlyMC(callsRef)
         first    <- mc.cleanupCachedArtifacts(groupId)
         second   <- mc.cleanupCachedArtifacts(groupId)
-        after    <- ZIO.serviceWithZIO[Redis](_.hKeys(groupId.toString).returning[String]).map(_.toSet)
+        after    <- WebJarsCache.getArtifacts(groupId).map(_.keySet.map(_.toString))
       yield assertTrue(
         first == 0,
         second == 0,
@@ -467,7 +418,7 @@ object MavenCentralWebJarsSpec extends ZIOSpecDefault:
 
     test("refreshMissingNumFiles drops and tombstones an artifact whose every version is a ghost") {
       // Regression for #2268: tombstoning every version used to leave a
-      // version-less entry in the hash, which crashed /search rendering
+      // version-less entry in the cache, which crashed /search rendering
       // and was never revisited by discovery.
       val groupId = groupFor("all-ghosts")
       val ga      = artifact(groupId, "a")
@@ -514,32 +465,24 @@ object MavenCentralWebJarsSpec extends ZIOSpecDefault:
       yield assertTrue(result.isFailure, cached.isEmpty)
     },
 
-    test("SearchIndex skips legacy version-less entries so the list renders") {
-      // Regression for #2268: such an entry made WebJarList call
-      // `.head` on an empty list and /search returned 500.
-      val groupId   = groupFor("search-skip-empty")
-      val emptyMeta = WebJarMeta("empty", "https://example.test", List.empty, ZonedDateTime.now())
-      val goodMeta  = WebJarMeta("good", "https://example.test", List(WebJarVersion("1.0.0", Some(2))), ZonedDateTime.now())
-      val deployables = new AllDeployables:
-        def fromGroupId(g: MavenCentral.GroupId)  = None
-        def fromName(n: String)                   = None
-        def groupIds(): Set[MavenCentral.GroupId] = Set(groupId)
+    test("the webjar table rejects empty artifactIds and version-less entries") {
+      // Regression for #2268 and the pre-0.9.x empty-artifactId corruption:
+      // neither can be stored, even bypassing `setArtifactDetails`.
+      val groupId = groupFor("rejects-corrupt").toString
+      def insert(artifactId: String, versions: String) =
+        PostgresContainer.execute(
+          sql"""insert into webjar (group_id, artifact_id, name, source_url, versions, last_modified)
+                values ($groupId, $artifactId, 'name', 'https://example.test', $versions::jsonb, now())"""
+        ).exit
       for
-        _        <- ZIO.serviceWithZIO[Redis](_.hSet(groupId.toString, "empty" -> emptyMeta).unit)
-        _        <- WebJarsCache.setArtifactDetails(artifact(groupId, "good"), goodMeta)
-        ref      <- Ref.make(List.empty[webjars.models.WebJar])
-        index     = SearchIndexLive(ref, deployables)
-        _        <- index.rebuild
-        snapshot <- index.snapshot
-        html      = webjars.views.partials.WebJarList(Left(snapshot)).render
-      yield assertTrue(
-        snapshot.map(_.artifactId) == List("good"),
-        html.contains("data-artifact=\"good\""),
-      )
+        emptyArtifactId <- insert("", """[{"number": "1.0.0"}]""")
+        noVersions      <- insert("a", "[]")
+        valid           <- insert("b", """[{"number": "1.0.0"}]""")
+      yield assertTrue(emptyArtifactId.isFailure, noVersions.isFailure, valid.isSuccess)
     },
 
   ).provide(
-    TestInfrastructure.sharedRedisLayer,
+    TestInfrastructure.databaseLayer,
     zio.http.Client.default,
     MavenCentral.MavenCentralRepo.live,
   ) @@ TestAspect.sequential @@ TestAspect.timeout(60.seconds)

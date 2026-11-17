@@ -40,10 +40,10 @@ trait GitHub:
 
   /** Find an open issue with the given exact title.
    *
-   *  Used by the deploy-failure tracker as a safety net: when our Redis
+   *  Used by the deploy-failure tracker as a safety net: when our
    *  forward index has no entry for the GAV, we still want to comment on
    *  an existing tracking issue rather than file a fresh duplicate (e.g.
-   *  if Redis was wiped or never persisted the prior file). Filters by
+   *  if the index was lost or never persisted the prior file). Filters by
    *  the supplied label so we only consider issues we ourselves filed.
    *
    *  Pulls the first page (100 results) of open issues with the label and

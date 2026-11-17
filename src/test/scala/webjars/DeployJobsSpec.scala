@@ -70,9 +70,9 @@ object DeployJobsSpec extends ZIOSpecDefault:
     resolves: Ref[List[DeployFailureTracker.DeployKey]],
     issueUrl: URL,
   ) extends DeployFailureTracker:
-    def trackFailure(deployKey: DeployFailureTracker.DeployKey, failure: DeployFailure, deployLog: Chunk[String]): URIO[zio.redis.Redis, Option[URL]] =
+    def trackFailure(deployKey: DeployFailureTracker.DeployKey, failure: DeployFailure, deployLog: Chunk[String]): URIO[javax.sql.DataSource, Option[URL]] =
       failures.update(_ :+ (deployKey -> failure)).as(Some(issueUrl))
-    def resolveSuccess(deployKey: DeployFailureTracker.DeployKey): URIO[zio.redis.Redis, Unit] =
+    def resolveSuccess(deployKey: DeployFailureTracker.DeployKey): URIO[javax.sql.DataSource, Unit] =
       resolves.update(_ :+ deployKey)
 
   def spec = suite("DeployJobs")(
@@ -241,4 +241,4 @@ object DeployJobsSpec extends ZIOSpecDefault:
           resolved.head.groupId.toString == "org.webjars.fake",
         )
     },
-  ).provide(zio.http.Client.default, TestInfrastructure.sharedRedisLayer, MavenCentral.MavenCentralRepo.live) @@ TestAspect.withLiveClock @@ TestAspect.timeout(30.seconds)
+  ).provide(zio.http.Client.default, TestInfrastructure.databaseLayer, MavenCentral.MavenCentralRepo.live) @@ TestAspect.withLiveClock @@ TestAspect.timeout(30.seconds)

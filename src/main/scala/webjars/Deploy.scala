@@ -8,7 +8,7 @@ import webjars.utils.*
 import zio.*
 import zio.direct.*
 import zio.http.Client
-import zio.redis.Redis
+import javax.sql.DataSource
 import zio.stream.ZStream
 
 object Deploy extends ZIOAppDefault:
@@ -76,7 +76,7 @@ object Deploy extends ZIOAppDefault:
     allDeployables: AllDeployables,
     deployWebJar: DeployWebJar[Env],
     existingVersions: Set[String],
-  ): ZStream[Scope & Client & Redis & MavenCentralRepo & Env, Throwable, String] =
+  ): ZStream[Scope & Client & DataSource & MavenCentralRepo & Env, Throwable, String] =
     allDeployables.fromGroupId(gav.groupId) match
       case None =>
         ZStream.fail(new IllegalArgumentException(
@@ -100,7 +100,7 @@ object Deploy extends ZIOAppDefault:
    *  carry around a separate "what's already published" cache) and runs
    *  the full streaming redeploy, logging each progress message. Fails the
    *  app with a non-zero exit if the deploy stream errors. */
-  private def runRedeploy(gav: GroupArtifactVersion): ZIO[Scope & Client & Redis & MavenCentralRepo & AllDeployables & DeployWebJar[MavenCentral.Deploy.Sonatype] & MavenCentral.Deploy.Sonatype, Throwable, Unit] =
+  private def runRedeploy(gav: GroupArtifactVersion): ZIO[Scope & Client & DataSource & MavenCentralRepo & AllDeployables & DeployWebJar[MavenCentral.Deploy.Sonatype] & MavenCentral.Deploy.Sonatype, Throwable, Unit] =
     defer:
       val allDeployables = ZIO.service[AllDeployables].run
       val deployWebJar   = ZIO.service[DeployWebJar[MavenCentral.Deploy.Sonatype]].run
@@ -130,7 +130,7 @@ object Deploy extends ZIOAppDefault:
         AppConfig.live,
         Client.default,
         Cache.live,
-        Valkey.live,
+        Db.fromEnv("deploy", 3),
         Git.live,
         GitHub.live,
         SemVer.live,

@@ -1,29 +1,11 @@
 package webjars
 
-import com.dimafeng.testcontainers.GenericContainer
 import com.jamesward.zio_mavencentral.MavenCentral
-import org.testcontainers.containers.wait.strategy.Wait
-import webjars.utils.{Valkey, WebJarsCache}
+import webjars.utils.WebJarsCache
 import zio.*
-import zio.redis.{Redis, RedisConfig}
 import zio.test.*
 
 object PendingDeploysSpec extends ZIOSpecDefault:
-
-  private val container: GenericContainer =
-    val c = GenericContainer(
-      dockerImage = "valkey/valkey:8.1",
-      exposedPorts = Seq(6379),
-      waitStrategy = Wait.forListeningPort()
-    )
-    c.start()
-    c
-
-  private val redisLayer: ZLayer[Any, Nothing, Redis] =
-    ZLayer.succeed(RedisConfig(container.host, container.mappedPort(6379))) ++ Valkey.codecSupplierLayer >>> Redis.singleNode.orDie
-
-  private val flushAll: ZIO[Redis, Nothing, Unit] =
-    ZIO.serviceWithZIO[Redis](_.flushall().orDie.unit)
 
   private val classicGroup = MavenCentral.GroupId("org.webjars")
   private val jqueryId     = MavenCentral.ArtifactId("jquery")
@@ -35,14 +17,12 @@ object PendingDeploysSpec extends ZIOSpecDefault:
 
     test("addPendingDeploy then getPendingDeploys round-trips a single GAV"):
       for
-        _    <- flushAll
         _    <- WebJarsCache.addPendingDeploy(pending("3.7.0"))
         all  <- WebJarsCache.getPendingDeploys
       yield assertTrue(all == Set(pending("3.7.0"))),
 
     test("multiple versions of the same artifact coexist"):
       for
-        _    <- flushAll
         _    <- WebJarsCache.addPendingDeploy(pending("3.7.0"))
         _    <- WebJarsCache.addPendingDeploy(pending("3.7.1"))
         _    <- WebJarsCache.addPendingDeploy(pending("3.7.2"))
@@ -51,7 +31,6 @@ object PendingDeploysSpec extends ZIOSpecDefault:
 
     test("removePendingDeploy removes just the requested GAV"):
       for
-        _    <- flushAll
         _    <- WebJarsCache.addPendingDeploy(pending("3.7.0"))
         _    <- WebJarsCache.addPendingDeploy(pending("3.7.1"))
         _    <- WebJarsCache.removePendingDeploy(pending("3.7.0"))
@@ -62,7 +41,6 @@ object PendingDeploysSpec extends ZIOSpecDefault:
       // Add three entries at "now", then advance the TestClock 49 hours and
       // cull with a 48-hour threshold — all three should be gone.
       for
-        _      <- flushAll
         _      <- WebJarsCache.addPendingDeploy(pending("3.7.0"))
         _      <- WebJarsCache.addPendingDeploy(pending("3.7.1"))
         _      <- WebJarsCache.addPendingDeploy(pending("3.7.2"))
@@ -73,11 +51,10 @@ object PendingDeploysSpec extends ZIOSpecDefault:
 
     test("cullStalePendingDeploys leaves fresh entries alone"):
       for
-        _      <- flushAll
         _      <- WebJarsCache.addPendingDeploy(pending("3.7.0"))
         _      <- TestClock.adjust(1.hour)
         culled <- WebJarsCache.cullStalePendingDeploys(48.hours)
         remain <- WebJarsCache.getPendingDeploys
       yield assertTrue(culled == 0L, remain == Set(pending("3.7.0"))),
 
-  ).provideLayer(redisLayer) @@ TestAspect.sequential @@ TestAspect.timeout(60.seconds)
+  ).provide(PostgresContainer.freshDatabase) @@ TestAspect.sequential @@ TestAspect.timeout(60.seconds)

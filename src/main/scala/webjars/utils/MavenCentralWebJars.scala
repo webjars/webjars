@@ -8,7 +8,7 @@ import webjars.utils.MavenCentralWebJars.NumFilesOutcome
 import zio.*
 import zio.direct.*
 import zio.http.Client
-import zio.redis.Redis
+import javax.sql.DataSource
 
 import java.io.FileNotFoundException
 import java.time.ZonedDateTime
@@ -16,7 +16,7 @@ import scala.xml.Elem
 
 trait MavenCentralWebJars:
   def fetchPom(gav: MavenCentral.GroupArtifactVersion): ZIO[MavenCentralRepo, Throwable, Elem]
-  private[utils] def refreshGroup(groupId: MavenCentral.GroupId, updateNumFiles: Boolean = true): ZIO[Client & Redis & MavenCentralRepo, Throwable, Set[MavenCentral.ArtifactId]]
+  private[utils] def refreshGroup(groupId: MavenCentral.GroupId, updateNumFiles: Boolean = true): ZIO[Client & DataSource & MavenCentralRepo, Throwable, Set[MavenCentral.ArtifactId]]
   /** Backfill pass: walks every cached artifact in `groupId`, finds
    *  versions whose `numFiles` is still `None`, and re-attempts the
    *  file-service call. Designed to repair the historical leak where
@@ -28,28 +28,21 @@ trait MavenCentralWebJars:
    *  version cannot poison sibling versions or other artifacts. Cheap in
    *  steady state because the file-service has its own caching: once a
    *  `numFiles` is filled, this method skips it. */
-  def refreshMissingNumFiles(groupId: MavenCentral.GroupId): ZIO[Client & Redis, Throwable, Unit]
-  /** One-off cleanup of stale entries in the cached-artifacts hash.
-   *  Two categories are removed:
+  def refreshMissingNumFiles(groupId: MavenCentral.GroupId): ZIO[Client & DataSource, Throwable, Unit]
+  /** One-off cleanup of parent POMs (packaging=pom) in the cache:
+   *  multi-module parents like
+   *  `org.webjars:when-parent` that exist on Maven Central as
+   *  metadata-only artifacts. They have no jar contents, so they
+   *  can never produce a useful `numFiles` count and shouldn't be
+   *  surfaced in `/all`, `/list/:groupId`, search, or popular.
+   *  `refreshArtifact` skips and tombstones any new pom-packaged
+   *  artifact, so this method is only needed to clear out entries
+   *  that landed in cache before that filter existed. (Entries with an
+   *  empty artifactId, the other legacy corruption, can't be stored:
+   *  the `webjar` table rejects them.)
    *
-   *  1. Entries with empty artifactId — legacy data corruption from
-   *     pre-0.9.x zio-mavencentral parsing, where a stray `<a href="/">`
-   *     in a Maven Central directory listing leaked through as an empty
-   *     artifactId. The current library version filters these correctly,
-   *     and `WebJarsCache.setArtifactDetails` rejects them at the cache
-   *     boundary, so this is purely a one-time backfill.
-   *
-   *  2. Parent POMs (packaging=pom) — multi-module parents like
-   *     `org.webjars:when-parent` that exist on Maven Central as
-   *     metadata-only artifacts. They have no jar contents, so they
-   *     can never produce a useful `numFiles` count and shouldn't be
-   *     surfaced in `/all`, `/list/:groupId`, search, or popular.
-   *     `refreshArtifact` skips and tombstones any new pom-packaged
-   *     artifact, so this method is only needed to clear out entries
-   *     that landed in cache before that filter existed.
-   *
-   *  Cleaned entries are removed from the WebJarsCache hash AND added
-   *  to the tombstones set so they don't come back via discovery on the
+   *  Cleaned entries are removed from the cache AND tombstoned
+   *  so they don't come back via discovery on the
    *  next cycle.
    *
    *  Not wired into [[refreshAll]]. The intended invocation is via the
@@ -61,15 +54,15 @@ trait MavenCentralWebJars:
    *  }}}
    *
    *  Safe to invoke multiple times — idempotent on already-clean data. */
-  def cleanupCachedArtifacts(groupId: MavenCentral.GroupId): ZIO[Client & Redis & MavenCentralRepo, Throwable, Int]
-  def refreshAll(groupIds: Set[MavenCentral.GroupId]): ZIO[Client & Redis & MavenCentralRepo, Nothing, Unit]
-  def startRefreshLoop(): ZIO[Client & Redis & MavenCentralRepo, Nothing, Fiber.Runtime[Nothing, Unit]]
-  def searchWebJars(groupId: MavenCentral.GroupId, query: Option[String]): ZIO[Redis, Throwable, Seq[WebJar]]
+  def cleanupCachedArtifacts(groupId: MavenCentral.GroupId): ZIO[Client & DataSource & MavenCentralRepo, Throwable, Int]
+  def refreshAll(groupIds: Set[MavenCentral.GroupId]): ZIO[Client & DataSource & MavenCentralRepo, Nothing, Unit]
+  def startRefreshLoop(): ZIO[Client & DataSource & MavenCentralRepo, Nothing, Fiber.Runtime[Nothing, Unit]]
+  def searchWebJars(groupId: MavenCentral.GroupId, query: Option[String]): ZIO[DataSource, Throwable, Seq[WebJar]]
   /** On-demand refresh of a single artifact's version list from Maven
    *  Central. Used by the UI "show me current versions" path on Classic
    *  WebJars that can't be deployed through this app. Returns the resulting
    *  versions list from the cache (post-refresh). */
-  def refreshArtifactNow(groupId: MavenCentral.GroupId, artifactId: MavenCentral.ArtifactId): ZIO[Client & Redis & MavenCentralRepo, Throwable, List[WebJarVersion]]
+  def refreshArtifactNow(groupId: MavenCentral.GroupId, artifactId: MavenCentral.ArtifactId): ZIO[Client & DataSource & MavenCentralRepo, Throwable, List[WebJarVersion]]
 
 case class MavenCentralWebJarsLive(config: AppConfig, webJarsFileService: WebJarsFileService, allDeployables: AllDeployables, searchIndex: SearchIndex, popularRanking: PopularRanking) extends MavenCentralWebJars:
 
@@ -162,7 +155,7 @@ case class MavenCentralWebJarsLive(config: AppConfig, webJarsFileService: WebJar
         })
     })
 
-  private def refreshArtifact(groupId: MavenCentral.GroupId, artifactId: MavenCentral.ArtifactId, versions: Seq[WebJarVersion], updateNumFiles: Boolean): ZIO[Client & Redis & MavenCentralRepo & Scope, Throwable, Unit] =
+  private def refreshArtifact(groupId: MavenCentral.GroupId, artifactId: MavenCentral.ArtifactId, versions: Seq[WebJarVersion], updateNumFiles: Boolean): ZIO[Client & DataSource & MavenCentralRepo & Scope, Throwable, Unit] =
     ZIO.logInfo(s"Refreshing artifact: $groupId:$artifactId") *> {
       val refresh = defer:
         val versionsResult = fetchVersions(groupId, artifactId).run
@@ -178,8 +171,8 @@ case class MavenCentralWebJarsLive(config: AppConfig, webJarsFileService: WebJar
         // shouldn't appear in /all, /list/:groupId, /search, or
         // /popular. Tombstone and skip the cache write so the entry
         // doesn't come back via discovery on the next cycle. We add the
-        // tombstone to a 7-day TTL set, so if an artifact is ever
-        // re-published as a real jar it'll be retried after the TTL.
+        // tombstone, which expires after 7 days, so if an artifact is ever
+        // re-published as a real jar it'll be retried then.
         if pomMeta.packaging == "pom" then
           ZIO.logInfo(s"Skipping pom-packaged artifact: $groupId:$artifactId").run
           WebJarsCache.addTombstone(groupId, artifactId).run
@@ -244,10 +237,10 @@ case class MavenCentralWebJarsLive(config: AppConfig, webJarsFileService: WebJar
         case error =>
           ZIO.logWarning(s"numFiles fetch failed for $gav: ${error.getMessage}").as(NumFilesOutcome.Transient(version))
 
-  // Tombstone ghosts, then patch the cached artifact exactly once:
-  // `WebJarsCache.updateVersion` is a non-atomic read-modify-write, so
-  // per-version concurrent updates would clobber each other.
-  private def applyNumFilesOutcomes(ga: MavenCentral.GroupArtifact, outcomes: Iterable[NumFilesOutcome]): ZIO[Redis, Throwable, Int] =
+  // Tombstone ghosts, then patch the cached artifact exactly once: this
+  // reads then writes the whole version list, so per-version concurrent
+  // patches would clobber each other.
+  private def applyNumFilesOutcomes(ga: MavenCentral.GroupArtifact, outcomes: Iterable[NumFilesOutcome]): ZIO[DataSource, Throwable, Int] =
     val ghosts    = outcomes.collect { case NumFilesOutcome.Ghost(v) => v }.toSet
     val successes = outcomes.collect { case NumFilesOutcome.Counted(v, n) => v -> n }.toMap
     if ghosts.isEmpty && successes.isEmpty then ZIO.succeed(0)
@@ -267,7 +260,7 @@ case class MavenCentralWebJarsLive(config: AppConfig, webJarsFileService: WebJar
   // the dominant source of 429-storms (one HEAD per artifact × every cycle).
   // Detecting version changes for already-cached artifacts is a separate
   // problem we'll solve later (likely demand-driven or via a feed).
-  private[utils] def refreshGroup(groupId: MavenCentral.GroupId, updateNumFiles: Boolean = true): ZIO[Client & Redis & MavenCentralRepo, Throwable, Set[MavenCentral.ArtifactId]] =
+  private[utils] def refreshGroup(groupId: MavenCentral.GroupId, updateNumFiles: Boolean = true): ZIO[Client & DataSource & MavenCentralRepo, Throwable, Set[MavenCentral.ArtifactId]] =
     ZIO.logInfo(s"Refreshing groupId: $groupId with updateNumFiles: $updateNumFiles") *>
     ZIO.scoped:
       defer:
@@ -299,7 +292,7 @@ case class MavenCentralWebJarsLive(config: AppConfig, webJarsFileService: WebJar
   // publish), refreshes each affected artifact's metadata from MC, and
   // removes pending entries whose version has landed in cache. Entries
   // older than 48h are dropped — assumed-abandoned deploys never propagate.
-  private[utils] def refreshPendingDeploys(): ZIO[Client & Redis & MavenCentralRepo, Throwable, Unit] =
+  private[utils] def refreshPendingDeploys(): ZIO[Client & DataSource & MavenCentralRepo, Throwable, Unit] =
     ZIO.scoped:
       defer:
         val staleCount = WebJarsCache.cullStalePendingDeploys(48.hours).run
@@ -333,7 +326,8 @@ case class MavenCentralWebJarsLive(config: AppConfig, webJarsFileService: WebJar
             refreshAndCheck.tapErrorCause(c => ZIO.logErrorCause(s"refreshPendingDeploys failed for $gid:$aid", c)).ignore
           }.withParallelism(3).run
 
-  def refreshAll(groupIds: Set[MavenCentral.GroupId]): ZIO[Client & Redis & MavenCentralRepo, Nothing, Unit] =
+  def refreshAll(groupIds: Set[MavenCentral.GroupId]): ZIO[Client & DataSource & MavenCentralRepo, Nothing, Unit] =
+    Db.purgeExpired.flatMap(n => ZIO.logInfo(s"Purged $n expired row(s)").when(n > 0)).ignoreLogged *>
     ZIO.foreachDiscard(groupIds)(groupId => refreshGroup(groupId).ignoreLogged) *>
       refreshPendingDeploys().ignoreLogged *>
       // Backfill numFiles that were never filled — e.g. fetched when the
@@ -354,22 +348,13 @@ case class MavenCentralWebJarsLive(config: AppConfig, webJarsFileService: WebJar
       searchIndex.rebuild.forkDaemon *>
       popularRanking.rebuild.forkDaemon.unit
 
-  def cleanupCachedArtifacts(groupId: MavenCentral.GroupId): ZIO[Client & Redis & MavenCentralRepo, Throwable, Int] =
+  def cleanupCachedArtifacts(groupId: MavenCentral.GroupId): ZIO[Client & DataSource & MavenCentralRepo, Throwable, Int] =
     ZIO.logInfo(s"Cleanup starting for groupId: $groupId") *>
     ZIO.scoped:
       defer:
         val cachedArtifacts = WebJarsCache.getArtifacts(groupId).run
 
-        // Phase 1: empty-artifactId entries. Cheap (single HDEL per
-        // entry, no Maven Central call). These are the legacy data
-        // corruption from pre-0.9.x zio-mavencentral parsing.
-        val emptyKeys = cachedArtifacts.filter((aid, _) => aid.toString.isEmpty).keys.toSeq
-        ZIO.foreachDiscard(emptyKeys) { aid =>
-          ZIO.logWarning(s"Cleanup: removing empty-artifactId entry from $groupId hash") *>
-            ZIO.serviceWithZIO[Redis](_.hDel(groupId.toString, aid.toString)).orDie
-        }.run
-
-        // Phase 2: parent POMs. For each non-empty artifactId, fetch
+        // Parent POMs. For each artifact, fetch
         // the POM of its latest cached version and check
         // `<packaging>`. If `pom`, remove from cache and tombstone.
         // We skip artifacts whose latest version we can't determine
@@ -379,8 +364,7 @@ case class MavenCentralWebJarsLive(config: AppConfig, webJarsFileService: WebJar
         // Parallelism 5 mirrors the rest of the refresh flow;
         // per-artifact failures are logged and skipped (the next
         // cleanup run will retry).
-        val nonEmpty = cachedArtifacts.filter((aid, _) => aid.toString.nonEmpty)
-        val pomCleanedRef = ZIO.foreachPar(nonEmpty.toSeq) { (aid, meta) =>
+        val pomCleanedRef = ZIO.foreachPar(cachedArtifacts.toSeq) { (aid, meta) =>
           val ga = MavenCentral.GroupArtifact(groupId, aid)
           val perArtifact = defer:
             meta.versions.headOption match
@@ -390,7 +374,7 @@ case class MavenCentralWebJarsLive(config: AppConfig, webJarsFileService: WebJar
                 val pomMeta = fetchPomMeta(gav).run
                 if pomMeta.packaging == "pom" then
                   ZIO.logInfo(s"Cleanup: removing pom-packaged artifact $groupId:$aid").run
-                  ZIO.serviceWithZIO[Redis](_.hDel(groupId.toString, aid.toString)).orDie.run
+                  WebJarsCache.removeArtifact(ga).run
                   WebJarsCache.addTombstone(groupId, aid).run
                   1
                 else
@@ -400,10 +384,9 @@ case class MavenCentralWebJarsLive(config: AppConfig, webJarsFileService: WebJar
             .catchAll(_ => ZIO.succeed(0))
         }.withParallelism(5).map(_.sum)
 
-        val pomCleaned = pomCleanedRef.run
-        emptyKeys.size + pomCleaned
+        pomCleanedRef.run
 
-  def refreshMissingNumFiles(groupId: MavenCentral.GroupId): ZIO[Client & Redis, Throwable, Unit] =
+  def refreshMissingNumFiles(groupId: MavenCentral.GroupId): ZIO[Client & DataSource, Throwable, Unit] =
     ZIO.logInfo(s"Backfilling missing numFiles for groupId: $groupId") *>
     ZIO.scoped:
       defer:
@@ -416,11 +399,11 @@ case class MavenCentralWebJarsLive(config: AppConfig, webJarsFileService: WebJar
           .filter(_.groupId == groupId)
           .groupMap(_.artifactId)(_.version.toString)
 
-        // Per-artifact pass. We deliberately do a single atomic
-        // setArtifactDetails per artifact rather than calling
-        // WebJarsCache.updateVersion in parallel: the latter is a
-        // read-modify-write that's NOT safe under concurrency, and
-        // historical bug here clobbered sibling updates. Within an
+        // Per-artifact pass. We deliberately do a single
+        // setArtifactDetails per artifact rather than one
+        // WebJarsCache.updateVersion per version: a historical bug here
+        // clobbered sibling updates, and one write per artifact is
+        // cheaper anyway. Within an
         // artifact: fetch all missing versions in parallel (cheap), then
         // patch the version list and write once.
         val filledRef = ZIO.foreachPar(cachedArtifacts.toSeq) { (artifactId, _) =>
@@ -455,7 +438,7 @@ case class MavenCentralWebJarsLive(config: AppConfig, webJarsFileService: WebJar
           ZIO.logInfo(s"Backfill done for $groupId: filled $filled / $totalMissing version(s)")
         .unit.run
 
-  def startRefreshLoop(): ZIO[Client & Redis & MavenCentralRepo, Nothing, Fiber.Runtime[Nothing, Unit]] =
+  def startRefreshLoop(): ZIO[Client & DataSource & MavenCentralRepo, Nothing, Fiber.Runtime[Nothing, Unit]] =
     val once = refreshAll(allDeployables.groupIds())
     val effect = config.mavenCentralRefreshInterval.fold(once)(interval => once.repeat(Schedule.spaced(interval)).unit)
     effect
@@ -467,10 +450,10 @@ case class MavenCentralWebJarsLive(config: AppConfig, webJarsFileService: WebJar
       m.toSeq.flatMap: (artifactId, meta) =>
         WebJar.fromCache(groupId.toString, artifactId.toString, meta.name, meta.sourceUrl, meta.versions)
 
-  def searchWebJars(groupId: MavenCentral.GroupId, query: Option[String]): ZIO[Redis, Throwable, Seq[WebJar]] =
+  def searchWebJars(groupId: MavenCentral.GroupId, query: Option[String]): ZIO[DataSource, Throwable, Seq[WebJar]] =
     WebJarsCache.getArtifacts(groupId, query = query).map(_.toWebJars(groupId))
 
-  def refreshArtifactNow(groupId: MavenCentral.GroupId, artifactId: MavenCentral.ArtifactId): ZIO[Client & Redis & MavenCentralRepo, Throwable, List[WebJarVersion]] =
+  def refreshArtifactNow(groupId: MavenCentral.GroupId, artifactId: MavenCentral.ArtifactId): ZIO[Client & DataSource & MavenCentralRepo, Throwable, List[WebJarVersion]] =
     val ga = MavenCentral.GroupArtifact(groupId, artifactId)
     ZIO.scoped:
       defer:

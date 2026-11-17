@@ -33,10 +33,20 @@ Compile / mainClass := Some("webjars.Main")
 
 val zioStreamsCompressVersion = "2.1.7"
 
+val flywayVersion = "13.12.1"
+
 libraryDependencies ++= Seq(
   "dev.zio" %% "zio-config-typesafe"          % "4.1.2",
+  // The sole slf4j provider: the Postgres driver, HikariCP and Flyway log through ZIO.
   "dev.zio" %% "zio-logging-slf4j2-bridge"    % "2.5.4",
-  "dev.zio" %% "zio-redis"                    % "1.3.2",
+  // Postgres via magnum on a HikariCP pool; schema managed by Flyway
+  // (`bin/flyway-migrate` runs in Heroku's release phase, see Procfile).
+  "dev.cheleb"      %% "zio-magnum"                 % "4.2.0",
+  "com.augustnagro" %% "magnumpg"                   % "2.0.0",
+  "com.zaxxer"       % "HikariCP"                   % "7.1.0",
+  "org.flywaydb"     % "flyway-core"                % flywayVersion,
+  "org.flywaydb"     % "flyway-database-postgresql" % flywayVersion,
+  "org.postgresql"   % "postgresql"                 % "42.7.14",
   "dev.zio" %% "zio-cache"                    % "0.3.0",
   "com.jamesward" %% "zio-http-guard"         % "0.1.0",
   // Keep on the version zio-mavencentral is built against (0.16.0: 0.10.6):
@@ -59,7 +69,7 @@ libraryDependencies ++= Seq(
   "dev.zio" %% "zio-http-testkit"             % ("dev.zio" %% "zio-http").version % Test,
   // Keep derived codecs and Chekhov on the same zio-schema/zio-json line.
   "dev.zio" %% "zio-schema-json"               % "1.9.1",
-  "com.dimafeng" %% "testcontainers-scala-core" % "0.44.1" % Test,
+  "com.dimafeng" %% "testcontainers-scala-postgresql" % "0.44.1" % Test,
   "rocks.earlyeffect" %% "chekhov-zio-test"   % "0.1.3" % Test,
 
   "com.jamesward" % "skills" % "0.0.24" % Skills,
@@ -91,7 +101,7 @@ Compile / packageDoc / publishArtifact := false
 
 Compile / doc / sources := Seq.empty
 
-//// Boot the full server with the same testcontainer-backed valkey + literal
+//// Boot the full server with the same testcontainer-backed Postgres + literal
 //// test config used by the unit-test layer. Useful for live smoke tests
 //// (`test-integration.sh`) and for `Test/runReload` below.
 //@transient lazy val runTest = taskKey[Unit]("run WebJarsTestApp")

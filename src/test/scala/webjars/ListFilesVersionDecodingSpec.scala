@@ -21,7 +21,7 @@ import java.net.URLDecoder
  *
  * This spec isolates the routing/decoding layer (same `PathCodec` pattern
  * as the real `/listfiles` route) from the rest of `AppRoutes`'s dependency
- * graph (Redis, MavenCentralWebJars, SearchIndex, etc.), since none of
+ * graph (Postgres, MavenCentralWebJars, SearchIndex, etc.), since none of
  * those participate in the bug.
  */
 object ListFilesVersionDecodingSpec extends ZIOSpecDefault:

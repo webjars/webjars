@@ -5,7 +5,7 @@ import com.jamesward.zio_mavencentral.MavenCentral.MavenCentralRepo
 import zio.*
 import zio.direct.*
 import zio.http.{Client, URL}
-import zio.redis.Redis
+import javax.sql.DataSource
 import zio.stream.ZStream
 
 import java.io.FileNotFoundException
@@ -13,28 +13,28 @@ import java.io.FileNotFoundException
 final case class DeploymentPreflight(packageInfo: PackageInfo, licenses: Set[License], alreadyDeployed: Boolean = false)
 
 trait DeployWebJar[Env]:
-  def deploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, maybeReleaseVersion: Option[String] = None, maybeSourceUri: Option[URL] = None, maybeLicense: Option[String] = None): ZStream[Scope & Client & Redis & MavenCentralRepo & Env, Throwable, String]
+  def deploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, maybeReleaseVersion: Option[String] = None, maybeSourceUri: Option[URL] = None, maybeLicense: Option[String] = None): ZStream[Scope & Client & DataSource & MavenCentralRepo & Env, Throwable, String]
 
-  def preflight(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String): ZIO[Scope & Redis & MavenCentralRepo, Throwable, DeploymentPreflight] =
+  def preflight(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String): ZIO[Scope & DataSource & MavenCentralRepo, Throwable, DeploymentPreflight] =
     deployable.info(nameOrUrlish, upstreamVersion).flatMap { packageInfo =>
       deployable.licenses(nameOrUrlish, upstreamVersion, packageInfo).map(DeploymentPreflight(packageInfo, _))
     }
 
-  def deployPreflighted(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, preflight: DeploymentPreflight): ZStream[Scope & Client & Redis & MavenCentralRepo & Env, Throwable, String] =
+  def deployPreflighted(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, preflight: DeploymentPreflight): ZStream[Scope & Client & DataSource & MavenCentralRepo & Env, Throwable, String] =
     deploy(deployable, nameOrUrlish, upstreamVersion)
 
   def create(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, licenseOverride: Option[Set[License]], groupIdOverride: Option[MavenCentral.GroupId]): ZIO[Scope, Throwable, (MavenCentral.ArtifactId, Deployable.ArchiveStream)]
 
 case class DeployWebJarLive[Env](mavenCentralWebJars: MavenCentralWebJars, mavenCentralDeployer: MavenCentralDeployer[Env], sourceLocator: SourceLocator) extends DeployWebJar[Env]:
 
-  private def webJarAlreadyDeployed(groupId: MavenCentral.GroupId, artifactId: MavenCentral.ArtifactId, version: MavenCentral.Version): ZIO[Scope & Redis & MavenCentralRepo, Throwable, Boolean] =
+  private def webJarAlreadyDeployed(groupId: MavenCentral.GroupId, artifactId: MavenCentral.ArtifactId, version: MavenCentral.Version): ZIO[Scope & DataSource & MavenCentralRepo, Throwable, Boolean] =
     mavenCentralWebJars.fetchPom(MavenCentral.GroupArtifactVersion(groupId, artifactId, version)).flatMap { _ =>
       WebJarsCache.addPendingDeploy(WebJarsCache.PendingDeploy(groupId, artifactId, version)).ignoreLogged.as(true)
     }.catchSome {
       case _: FileNotFoundException => ZIO.succeed(false)
     }
 
-  override def preflight(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String): ZIO[Scope & Redis & MavenCentralRepo, Throwable, DeploymentPreflight] =
+  override def preflight(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String): ZIO[Scope & DataSource & MavenCentralRepo, Throwable, DeploymentPreflight] =
     defer:
       val packageInfo = deployable.info(nameOrUrlish, upstreamVersion).run
       val artifactId = deployable.artifactId(nameOrUrlish).run
@@ -45,10 +45,10 @@ case class DeployWebJarLive[Env](mavenCentralWebJars: MavenCentralWebJars, maven
         else deployable.licenses(nameOrUrlish, upstreamVersion, packageInfo).run
       DeploymentPreflight(packageInfo, licenses, alreadyDeployed)
 
-  def deploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, maybeReleaseVersion: Option[String] = None, maybeSourceUri: Option[URL] = None, maybeLicense: Option[String] = None): ZStream[Scope & Client & Redis & MavenCentralRepo & Env, Throwable, String] =
+  def deploy(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, maybeReleaseVersion: Option[String] = None, maybeSourceUri: Option[URL] = None, maybeLicense: Option[String] = None): ZStream[Scope & Client & DataSource & MavenCentralRepo & Env, Throwable, String] =
     deployWith(deployable, nameOrUrlish, upstreamVersion, maybeReleaseVersion, maybeSourceUri, maybeLicense, None)
 
-  override def deployPreflighted(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, preflight: DeploymentPreflight): ZStream[Scope & Client & Redis & MavenCentralRepo & Env, Throwable, String] =
+  override def deployPreflighted(deployable: Deployable, nameOrUrlish: String, upstreamVersion: String, preflight: DeploymentPreflight): ZStream[Scope & Client & DataSource & MavenCentralRepo & Env, Throwable, String] =
     deployWith(deployable, nameOrUrlish, upstreamVersion, None, None, None, Some(preflight))
 
   private def deployWith(
@@ -59,7 +59,7 @@ case class DeployWebJarLive[Env](mavenCentralWebJars: MavenCentralWebJars, maven
     maybeSourceUri: Option[URL],
     maybeLicense: Option[String],
     maybePreflight: Option[DeploymentPreflight],
-  ): ZStream[Scope & Client & Redis & MavenCentralRepo & Env, Throwable, String] =
+  ): ZStream[Scope & Client & DataSource & MavenCentralRepo & Env, Throwable, String] =
 
     ZStream.unwrap:
       defer:
@@ -129,7 +129,7 @@ case class DeployWebJarLive[Env](mavenCentralWebJars: MavenCentralWebJars, maven
                         )
                           // Record the GAV in the pending-deploys queue so the next
                           // refresh cycle picks up the new version once MC propagates.
-                          // .ignoreLogged so a Valkey hiccup never blocks a successful
+                          // .ignoreLogged so a database hiccup never blocks a successful
                           // publish — refresh-from-cache is best-effort.
                           .zipLeft(WebJarsCache.addPendingDeploy(WebJarsCache.PendingDeploy(groupId, artifactId, releaseVersion)).ignoreLogged)
                           .map:

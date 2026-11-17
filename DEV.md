@@ -6,7 +6,8 @@ Run the web app in dev mode:
 ./sbta ~Test/runReload
 ```
 
-This hydrates the local Valkey by fetching `/all` from
+This boots on a fresh Postgres database (Testcontainers, needs Docker) and
+hydrates it by fetching `/all` from
 `https://www.webjars.org` once at startup — always fresh, no cache blob to
 keep in git. If the fetch fails the app still boots with an empty cache
 (the home page shows the "Indexing artifacts" placeholder). The test app
@@ -36,14 +37,22 @@ required tools skip the real-browser scenario.
 (todo: how do we avoid fully repopulating the maven central cache)
 Run in prod mode:
 
-1. Start a local valkey server
+1. Start a local Postgres server
     ```
-    docker run -it -p6379:6379 valkey/valkey:8.1
+    docker run -it -p5432:5432 -e POSTGRES_PASSWORD=webjars postgres:18.4
     ```
 1. Set env vars:
 
     ```
-    export REDIS_URL=redis://localhost:6379
+    export DATABASE_URL='postgres://postgres:webjars@localhost:5432/postgres?sslmode=disable'
     ```
 
+1. Apply the schema: `./sbta "runMain webjars.FlywayMigrate"`
+1. Optionally load the WebJars from the live site: `./sbta "Test/runMain webjars.WebJarsBackfill"`
 1. `./sbta run`
+
+Schema changes go in a new `src/main/resources/db/migration/V<n>__name.sql`.
+Never edit an applied one: Flyway checksums them and the release would fail.
+Heroku's release phase (`release: bin/flyway-migrate` in the Procfile)
+migrates while the old release still serves traffic, so a migration must work
+with the code already deployed (add, then use; never drop what live code reads).

@@ -1,14 +1,12 @@
 package webjars
 
-import com.dimafeng.testcontainers.GenericContainer
 import com.jamesward.zio_mavencentral.MavenCentral
 import webjars.config.AppConfig
 import webjars.utils.*
 import zio.*
 import zio.http.*
-import zio.redis.{Redis, RedisConfig}
 
-import org.testcontainers.containers.wait.strategy.Wait
+import javax.sql.DataSource
 
 object TestInfrastructure:
 
@@ -30,9 +28,9 @@ object TestInfrastructure:
   /** A `DeployFailureTracker` that always short-circuits — useful for
    *  tests that don't care about issue filing. */
   object NoopDeployFailureTracker extends DeployFailureTracker:
-    def trackFailure(deployKey: DeployFailureTracker.DeployKey, failure: DeployFailure, deployLog: zio.Chunk[String]): zio.URIO[zio.redis.Redis, Option[zio.http.URL]] =
+    def trackFailure(deployKey: DeployFailureTracker.DeployKey, failure: DeployFailure, deployLog: zio.Chunk[String]): zio.URIO[DataSource, Option[zio.http.URL]] =
       ZIO.none
-    def resolveSuccess(deployKey: DeployFailureTracker.DeployKey): zio.URIO[zio.redis.Redis, Unit] =
+    def resolveSuccess(deployKey: DeployFailureTracker.DeployKey): zio.URIO[DataSource, Unit] =
       ZIO.unit
 
   val noopDeployFailureTrackerLayer: ZLayer[Any, Nothing, DeployFailureTracker] =
@@ -64,7 +62,7 @@ object TestInfrastructure:
   // the index against test data it doesn't care about.
   val noopSearchIndex: SearchIndex = new SearchIndex:
     def snapshot: UIO[List[webjars.models.WebJar]] = ZIO.succeed(List.empty)
-    def rebuild: URIO[Redis, Unit] = ZIO.unit
+    def rebuild: URIO[DataSource, Unit] = ZIO.unit
 
   // No-op PopularRanking for tests that don't exercise the home page.
   // Snapshot is always empty; populate and rebuild are no-ops so
@@ -72,34 +70,10 @@ object TestInfrastructure:
   // data it doesn't care about.
   val noopPopularRanking: PopularRanking = new PopularRanking:
     def snapshot: UIO[List[webjars.models.WebJar]] = ZIO.succeed(List.empty)
-    def populate: URIO[Redis, Unit]                = ZIO.unit
-    def rebuild:  URIO[Redis, Unit]                = ZIO.unit
+    def populate: URIO[DataSource, Unit]                = ZIO.unit
+    def rebuild:  URIO[DataSource, Unit]                = ZIO.unit
 
-  // Shared Valkey testcontainer for any spec that needs to satisfy a Redis
-  // requirement (typically the deploy specs — Redis isn't actually used
-  // there, but the type-level requirement must be satisfied). Lazy so the
-  // container only starts when a test actually pulls on the layer.
-  private lazy val sharedValkeyContainer: GenericContainer =
-    val c = GenericContainer(
-      dockerImage = "valkey/valkey:8.1",
-      exposedPorts = Seq(6379),
-      waitStrategy = Wait.forListeningPort(),
-    )
-    c.start()
-    c
-
-  val sharedRedisLayer: ZLayer[Any, Nothing, Redis] =
-    ZLayer.succeed(RedisConfig(sharedValkeyContainer.host, sharedValkeyContainer.mappedPort(6379))) ++
-      Valkey.codecSupplierLayer >>> Redis.singleNode.orDie
-
-  def valkeyContainer(): GenericContainer =
-    val container = GenericContainer(
-      dockerImage = "valkey/valkey:8.1",
-      exposedPorts = Seq(6379),
-      waitStrategy = Wait.forListeningPort()
-    )
-    container.start()
-    container
-
-  def valkeyLayer(container: GenericContainer): ZLayer[Any, Nothing, Redis] =
-    ZLayer.succeed(RedisConfig(container.host, container.mappedPort(6379))) ++ Valkey.codecSupplierLayer >>> Redis.singleNode.orDie
+  // A freshly migrated, empty Postgres database (see `PostgresContainer`),
+  // for specs that only need the `DataSource` requirement satisfied.
+  val databaseLayer: ZLayer[Any, Nothing, DataSource] =
+    PostgresContainer.freshDatabase.orDie

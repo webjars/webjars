@@ -35,10 +35,10 @@ object DeploySpec extends ZIOSpecDefault:
       ZIO.fail(new FileNotFoundException("no mock pom"))
 
   /** Build a fully-wired `(deployWebJar, allDeployables, capturingDeployer)`
-   *  triple using mocks that don't touch Sonatype or persist to Redis. */
+   *  triple using mocks that don't touch Sonatype or persist to Postgres. */
   private def withRedeploy[A](
-    f: (DeployWebJar[Any], AllDeployables, CapturingDeployer) => ZIO[Scope & Client & zio.redis.Redis & MavenCentral.MavenCentralRepo, Throwable, A]
-  ): ZIO[Client & zio.redis.Redis & MavenCentral.MavenCentralRepo, Throwable, A] =
+    f: (DeployWebJar[Any], AllDeployables, CapturingDeployer) => ZIO[Scope & Client & javax.sql.DataSource & MavenCentral.MavenCentralRepo, Throwable, A]
+  ): ZIO[Client & javax.sql.DataSource & MavenCentral.MavenCentralRepo, Throwable, A] =
     ZIO.serviceWithZIO[Client] { client =>
       ZIO.scoped {
         val config             = testConfig
@@ -127,6 +127,6 @@ object DeploySpec extends ZIOSpecDefault:
           }
       }
     },
-  ).provide(Client.default, TestInfrastructure.sharedRedisLayer, MavenCentral.MavenCentralRepo.live) @@
+  ).provide(Client.default, TestInfrastructure.databaseLayer, MavenCentral.MavenCentralRepo.live) @@
     TestAspect.withLiveClock @@
     TestAspect.timeout(300.seconds)
