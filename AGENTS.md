@@ -4,7 +4,7 @@
 
 - Use the MCP server named `sbta` for ALL sbt interactions. Run commands/tasks through its `sbt-task` tool; use `list-tasks` to discover tasks/settings or get per-task help. Do not invoke `./sbta`, a shell, or a separate sbt client when the MCP tool is available. If the MCP server is unavailable, state that clearly; use a direct CLI fallback only when necessary and capture its output in `/tmp`.
 
-- Run tests through `sbt-task` too. A failing `Test/testOnly <Spec>` or `testFull` response lists each failed test as `sbt-mcp test FAILED: <Spec> / <test>` with its assertion message, so there's no need for `./sbta --client` to see why a test failed. sbt 2 caches passing tests: a `testOnly` that finishes in about a second may have run nothing; use `testFull` for a real run.
+- Run tests through `sbt-task` too. A failing `Test/testOnly <Spec>` or `testFull` response lists each failed test as `test FAILED: <Spec> / <test>` with its assertion message, so there's no need for `./sbta --client` to see why a test failed. sbt 2 caches passing tests: a `testOnly` that finishes in about a second may have run nothing; use `testFull` for a real run.
 
 - Use `sbta` for Scala/classpath symbol work: `glob-search` to find/list symbols, `inspect` for members/signatures, and `symbol-location` for source locations. Prefer these over text search, dependency-jar inspection, or guessed APIs whenever the question is about Scala symbols.
 
