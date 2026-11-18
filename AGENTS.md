@@ -20,3 +20,5 @@
 
 - Validation: `Test / compile`, `testFull`, then `stage` (one `sbt-task` call each; the chained `Test / compile; testFull; stage` was rejected as unparseable by `sbt-task`).
 - Tests need Docker (Testcontainers; see "Docker for tests" in `zen-of-projects`) and `GITHUB_TOKEN`, plus unrestricted access to github.com and the Classic WebJar sources. In cloud sessions without these, `ClassicSpec`, `GitHubSpec`, `DeployWebJarSpec`, `WebJarCreatorSpec` and `DeploySpec` fail with 401/403/"Classic WebJar ... does not support this"; CI is the authority.
+
+- `com.jamesward:zio-http-guard` is held at 0.1.0: 0.3.0 removes `CrawlerLimiter` (webjars' `CrawlerLimits`, `Main`, `Deploy` and `WebJarsTestApp` use it) in favor of guard `Action.Bulkhead`s, a behavior change to flood handling that needs a human-reviewed migration.
