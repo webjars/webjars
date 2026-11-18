@@ -23,7 +23,7 @@ val localSubprojectDeps: Seq[ClasspathDep[ProjectReference]] =
 libraryDependencies ++=
   (if (zioGitLocal) Seq.empty else Seq("com.jamesward" %% "zio-git" % "0.0.3")) ++
   (if (zioMavenCentralLocal) Seq.empty
-   else Seq("com.jamesward" %% "zio-mavencentral" % "0.16.0"))
+   else Seq("com.jamesward" %% "zio-mavencentral" % "0.17.0"))
 
 // Lock down the primary launcher so `bin/webjars` keeps booting the server
 // `Main` even though we now ship a second main class. sbt-native-packager
@@ -31,13 +31,13 @@ libraryDependencies ++=
 // discovered main classes — we don't need a custom mapping for it.
 Compile / mainClass := Some("webjars.Main")
 
-val zioStreamsCompressVersion = "2.1.7"
+val zioStreamsCompressVersion = "3.0.0"
 
 libraryDependencies ++= Seq(
   "dev.zio" %% "zio-config-typesafe"          % "4.1.2",
   "dev.zio" %% "zio-logging-slf4j2-bridge"    % "2.5.4",
   "dev.zio" %% "zio-redis"                    % "1.3.2",
-  "dev.zio" %% "zio-cache"                    % "0.3.0",
+  "dev.zio" %% "zio-cache"                    % "0.4.0",
   "com.jamesward" %% "zio-http-guard"         % "0.1.0",
   // Keep on the version zio-mavencentral is built against (0.16.0: 0.10.6):
   // rezilience minor releases aren't binary compatible.
@@ -52,17 +52,17 @@ libraryDependencies ++= Seq(
   //  • `Sass`   scope — SCSS sources made available to sbt-sass at compile-time.
   //  • `Test`   scope — JAR present at runtime in reStartTest (local /webjars/).
   // Prod jar contains none of these; URLs are baked at build time.
-  "org.webjars.npm" % "bootstrap"                 % "5.3.8"   % Set(WebJar, Test, Sass),
+  "org.webjars.npm" % "bootstrap"                 % "5.3.9"   % Set(WebJar, Test, Sass),
   "org.webjars"     % "highlightjs"               % "11.11.1" % Set(WebJar, Test),
 
   "dev.zio" %% "zio-test-sbt"                 % ("dev.zio" %% "zio").version % Test,
   "dev.zio" %% "zio-http-testkit"             % ("dev.zio" %% "zio-http").version % Test,
   // Keep derived codecs and Chekhov on the same zio-schema/zio-json line.
-  "dev.zio" %% "zio-schema-json"               % "1.9.1",
+  "dev.zio" %% "zio-schema-json"               % "1.9.2",
   "com.dimafeng" %% "testcontainers-scala-core" % "0.44.1" % Test,
   "rocks.earlyeffect" %% "chekhov-zio-test"   % "0.1.3" % Test,
 
-  "com.jamesward" % "skills" % "0.0.24" % Skills,
+  "com.jamesward" % "skills" % "0.0.27" % Skills,
 )
 
 fork := true
