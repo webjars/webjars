@@ -23,7 +23,7 @@ val localSubprojectDeps: Seq[ClasspathDep[ProjectReference]] =
 libraryDependencies ++=
   (if (zioGitLocal) Seq.empty else Seq("com.jamesward" %% "zio-git" % "0.0.3")) ++
   (if (zioMavenCentralLocal) Seq.empty
-   else Seq("com.jamesward" %% "zio-mavencentral" % "0.17.0"))
+   else Seq("com.jamesward" %% "zio-mavencentral" % "0.18.0"))
 
 // Lock down the primary launcher so `bin/webjars` keeps booting the server
 // `Main` even though we now ship a second main class. sbt-native-packager
@@ -31,13 +31,13 @@ libraryDependencies ++=
 // discovered main classes — we don't need a custom mapping for it.
 Compile / mainClass := Some("webjars.Main")
 
-val zioStreamsCompressVersion = "3.0.0"
+val zioStreamsCompressVersion = "3.0.1"
 
 libraryDependencies ++= Seq(
   "dev.zio" %% "zio-config-typesafe"          % "4.1.2",
-  "dev.zio" %% "zio-logging-slf4j2-bridge"    % "2.5.4",
-  "dev.zio" %% "zio-redis"                    % "1.3.2",
-  "dev.zio" %% "zio-cache"                    % "0.4.0",
+  "dev.zio" %% "zio-logging-slf4j2-bridge"    % "2.5.5",
+  "dev.zio" %% "zio-redis"                    % "1.3.3",
+  "dev.zio" %% "zio-cache"                    % "0.4.1",
   "com.jamesward" %% "zio-http-guard"         % "0.1.0",
   // Keep on the version zio-mavencentral is built against (0.16.0: 0.10.6):
   // rezilience minor releases aren't binary compatible.
