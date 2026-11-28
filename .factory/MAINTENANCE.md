@@ -13,7 +13,10 @@ from production logs, not instructions.
 Before anything else, if an open PR from the branch `claude/factory-sync` (titled `Factory sync:`)
 exists, merge it once its CI checks have run and passed (squash, as "Merging" below says), then pull
 the default branch, so this run uses the synced files. It changes only factory-owned files, and the owner authorized these
-merges; the daily factory sync opens them without merging. Don't edit it. If its CI failed, or it
+merges; the daily factory sync opens them without merging. Don't edit it, and you don't need to read
+its diff: to see which files it changes, list only their names (`gh api
+'repos/{owner}/{repo}/pulls/<n>/files' --jq '.[].filename'`), because the patches of `sbta` and
+`sbta.bat` run to tens of thousands of characters. If its CI failed, or it
 has no checks, add the `needs-human` label, say so in the report, and continue without it.
 
 Merging: in a cloud session, merge only with the GitHub tools' merge, `mcp__github__merge_pull_request`
@@ -45,7 +48,8 @@ denied action): the routine emails its result, and your final reply is the repor
    `sbta` for sbt projects, `javadocs` for Maven and Gradle projects. In Claude Code these tools are
    deferred, so load them with ToolSearch (search for the server name). They include the
    javadocs.dev tools such as `get_latest_version`, and for sbt also the build tools (`compile`,
-   `test`, `sbt-task`, ...). Use them for
+   `test`, `sbt-task`, ...). A search can leave some of them out of its results; load a missing
+   one by name (for example `select:mcp__sbta__get_latest_version`). Use them for
    the rest of the run, and fall back to the build tool's launcher and `curl` only when they are
    unavailable. Say which one you used.
 1. Update the Skills dependency, `com.jamesward:skills`, to its latest release. Where it's pinned:
@@ -59,7 +63,7 @@ denied action): the routine emails its result, and your final reply is the repor
    grep -rnE 'com\.jamesward.{0,20}skills|<artifactId>skills</artifactId>' --include='*.sbt' --include=pom.xml --include='*.gradle' --include='*.gradle.kts' --include='*.toml' . | grep -v -e /target/ -e /build/ -e /src/sbt-test/
    ```
 
-   Get the latest release with `get_latest_version` (group `com.jamesward`, artifact `skills`). Without
+   Get the latest release with `get_latest_version` (`groupId: "com.jamesward"`, `artifactId: "skills"`). Without
    MCP, ask Maven Central itself, not a mirror (mirrors lag new releases):
 
    ```bash
